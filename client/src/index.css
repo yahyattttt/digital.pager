@@ -165,6 +165,19 @@
   --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
 }
 
+@keyframes flash-red {
+  0%, 100% {
+    background-color: #FF0000;
+  }
+  50% {
+    background-color: #000000;
+  }
+}
+
+.animate-flash-red {
+  animation: flash-red 0.6s ease-in-out infinite;
+}
+
 @layer base {
   * {
     @apply border-border;

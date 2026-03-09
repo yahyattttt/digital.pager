@@ -70,14 +70,19 @@ A multi-tenant SaaS platform for digital pager services (restaurants, cafes, cli
 
 ## Customer Pager System (`/s/:storeId`)
 - Public link for each store — customers enter their order number
-- Waiting screen: neon red pulse animation with Arabic waiting message
+- Entry screen: order number input + "ابدأ الانتظار واستقبل التنبيه" button (unlocks audio context for autoplay policy)
+- Waiting screen: neon red pulse animation with Arabic waiting message + bouncing dots
 - Real-time Firestore `onSnapshot` listener watches for status changes
 - When merchant clicks "Notify" in dashboard:
-  - Customer's phone vibrates (Vibration API: 300-100-300-100-500ms pattern)
-  - Screen turns solid neon red background
-  - Pleasant ascending beep plays (Web Audio API: 880→1100→1320 Hz sine wave)
+  - Customer's phone vibrates continuously (Vibration API loop: 500-200-500-200-800ms via setInterval)
+  - Screen flashes red/black (CSS `animate-flash-red` keyframe at 0.6s)
+  - `alert.mp3` plays on loop (HTMLAudioElement, unlocked via user gesture on submit)
   - Text changes to: "طلبك جاهز! تفضل بالاستلام"
+  - "تم الاستلام - إيقاف التنبيه" button stops all alerts (audio, vibration, flashing)
+- After alert stopped: screen stays solid red with "تم إيقاف التنبيه" confirmation
 - 2 minutes after notification → "قيمنا على جوجل ماب" review button appears
+- Audio file: `client/public/alert.mp3` (copied from attached_assets)
+- Cleanup: audio paused + vibration stopped on component unmount
 - Store not found / inactive stores show error page
 
 ## Super Admin

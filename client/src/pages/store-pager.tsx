@@ -6,53 +6,97 @@ import type { Merchant, Pager } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Star, Send, Store, AlertTriangle } from "lucide-react";
+import { Star, Send, Store, AlertTriangle, Bell, BellOff, CheckCircle } from "lucide-react";
 
-function useBeepSound() {
-  const audioContextRef = useRef<AudioContext | null>(null);
+function useAlertSound() {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioUnlockedRef = useRef(false);
 
-  const playBeep = useCallback(() => {
+  const unlock = useCallback(() => {
+    if (audioUnlockedRef.current) return;
     try {
-      if (!audioContextRef.current) {
-        audioContextRef.current = new AudioContext();
-      }
-      const ctx = audioContextRef.current;
-      const oscillator = ctx.createOscillator();
-      const gainNode = ctx.createGain();
-
-      oscillator.connect(gainNode);
-      gainNode.connect(ctx.destination);
-
-      oscillator.frequency.setValueAtTime(880, ctx.currentTime);
-      oscillator.type = "sine";
-
-      gainNode.gain.setValueAtTime(0, ctx.currentTime);
-      gainNode.gain.linearRampToValueAtTime(0.8, ctx.currentTime + 0.05);
-      gainNode.gain.linearRampToValueAtTime(0.6, ctx.currentTime + 0.2);
-
-      oscillator.start(ctx.currentTime);
-
-      oscillator.frequency.setValueAtTime(1100, ctx.currentTime + 0.2);
-      gainNode.gain.linearRampToValueAtTime(0.8, ctx.currentTime + 0.25);
-      gainNode.gain.linearRampToValueAtTime(0.6, ctx.currentTime + 0.4);
-
-      oscillator.frequency.setValueAtTime(1320, ctx.currentTime + 0.4);
-      gainNode.gain.linearRampToValueAtTime(0.9, ctx.currentTime + 0.45);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 1.2);
-
-      oscillator.stop(ctx.currentTime + 1.3);
+      const audio = new Audio("/alert.mp3");
+      audio.loop = true;
+      audio.volume = 1.0;
+      audio.load();
+      audio.play().then(() => {
+        audio.pause();
+        audio.currentTime = 0;
+      }).catch(() => {});
+      audioRef.current = audio;
+      audioUnlockedRef.current = true;
     } catch (e) {
-      console.warn("Audio playback failed:", e);
+      console.warn("Audio unlock failed:", e);
     }
   }, []);
 
-  return { playBeep };
+  const play = useCallback(() => {
+    try {
+      if (!audioRef.current) {
+        audioRef.current = new Audio("/alert.mp3");
+        audioRef.current.loop = true;
+        audioRef.current.volume = 1.0;
+      }
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().catch((e) => {
+        console.warn("Audio play failed:", e);
+      });
+    } catch (e) {
+      console.warn("Audio playback error:", e);
+    }
+  }, []);
+
+  const stop = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+    };
+  }, []);
+
+  return { unlock, play, stop };
 }
 
-function triggerVibration() {
-  if ("vibrate" in navigator) {
-    navigator.vibrate([300, 100, 300, 100, 500]);
-  }
+function useVibrationLoop() {
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const start = useCallback(() => {
+    if (!("vibrate" in navigator)) return;
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+    navigator.vibrate([500, 200, 500, 200, 800]);
+    intervalRef.current = setInterval(() => {
+      navigator.vibrate([500, 200, 500, 200, 800]);
+    }, 2200);
+  }, []);
+
+  const stop = useCallback(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    if ("vibrate" in navigator) {
+      navigator.vibrate(0);
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      if ("vibrate" in navigator) navigator.vibrate(0);
+    };
+  }, []);
+
+  return { start, stop };
 }
 
 function WaitingScreen({ orderNumber, storeName }: { orderNumber: string; storeName: string }) {
@@ -99,21 +143,29 @@ function NotifiedScreen({
   storeName,
   googleMapsReviewUrl,
   showReview,
+  alertActive,
+  onStopAlert,
 }: {
   orderNumber: string;
   storeName: string;
   googleMapsReviewUrl: string;
   showReview: boolean;
+  alertActive: boolean;
+  onStopAlert: () => void;
 }) {
   return (
-    <div className="min-h-screen bg-red-600 flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-500">
-      <div className="mb-8">
-        <div className="w-32 h-32 rounded-full bg-white flex items-center justify-center shadow-[0_0_80px_rgba(255,255,255,0.4)]">
+    <div
+      className={`min-h-screen flex flex-col items-center justify-center p-6 text-center ${
+        alertActive ? "animate-flash-red" : "bg-red-600"
+      }`}
+    >
+      <div className="mb-6">
+        <div className={`w-32 h-32 rounded-full flex items-center justify-center shadow-[0_0_80px_rgba(255,255,255,0.4)] ${alertActive ? "bg-white animate-pulse" : "bg-white"}`}>
           <span className="text-red-600 font-bold text-3xl" data-testid="text-notified-order-number">{orderNumber}</span>
         </div>
       </div>
 
-      <h1 className="text-white text-2xl font-bold mb-4" data-testid="text-notified-store">{storeName}</h1>
+      <h1 className="text-white text-2xl font-bold mb-3" data-testid="text-notified-store">{storeName}</h1>
 
       <p
         className="text-white text-2xl font-bold leading-relaxed max-w-sm"
@@ -127,8 +179,33 @@ function NotifiedScreen({
         Your order is ready! Please pick it up.
       </p>
 
+      {alertActive && (
+        <div className="mt-8">
+          <Button
+            size="lg"
+            onClick={onStopAlert}
+            className="bg-white text-red-600 hover:bg-white/90 font-bold text-lg h-16 px-8 shadow-xl border-2 border-white/50"
+            data-testid="button-stop-alert"
+          >
+            <BellOff className="w-6 h-6 me-2" />
+            <span dir="rtl">تم الاستلام - إيقاف التنبيه</span>
+          </Button>
+          <p className="text-white/60 text-sm mt-3">Received - Stop Alert</p>
+        </div>
+      )}
+
+      {!alertActive && (
+        <div className="mt-8">
+          <div className="flex items-center justify-center gap-2 mb-6 text-white/70">
+            <CheckCircle className="w-5 h-5" />
+            <span dir="rtl" className="text-sm">تم إيقاف التنبيه</span>
+            <span className="text-xs">/ Alert stopped</span>
+          </div>
+        </div>
+      )}
+
       {showReview && (
-        <div className="mt-10 animate-in slide-in-from-bottom duration-700">
+        <div className="mt-4 animate-in slide-in-from-bottom duration-700">
           <Button
             size="lg"
             onClick={() => window.open(googleMapsReviewUrl, "_blank")}
@@ -154,9 +231,12 @@ export default function StorePagerPage() {
   const [orderNumber, setOrderNumber] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [pagerStatus, setPagerStatus] = useState<"waiting" | "notified" | "completed">("waiting");
+  const [alertActive, setAlertActive] = useState(false);
   const [showReview, setShowReview] = useState(false);
   const hasPlayedNotification = useRef(false);
-  const { playBeep } = useBeepSound();
+  const reviewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { unlock, play, stop: stopSound } = useAlertSound();
+  const { start: startVibration, stop: stopVibration } = useVibrationLoop();
 
   useEffect(() => {
     async function fetchStore() {
@@ -201,10 +281,11 @@ export default function StorePagerPage() {
       if (pager.status === "notified" && !hasPlayedNotification.current) {
         hasPlayedNotification.current = true;
         setPagerStatus("notified");
-        playBeep();
-        triggerVibration();
+        setAlertActive(true);
+        play();
+        startVibration();
 
-        setTimeout(() => {
+        reviewTimerRef.current = setTimeout(() => {
           setShowReview(true);
         }, 2 * 60 * 1000);
       } else if (pager.status === "waiting") {
@@ -215,15 +296,29 @@ export default function StorePagerPage() {
     });
 
     return () => unsubscribe();
-  }, [submitted, storeId, orderNumber, playBeep]);
+  }, [submitted, storeId, orderNumber, play, startVibration]);
 
-  function handleSubmit(e: React.FormEvent) {
+  useEffect(() => {
+    return () => {
+      if (reviewTimerRef.current) clearTimeout(reviewTimerRef.current);
+    };
+  }, []);
+
+  function handleUnlockAndSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!orderNumber.trim()) return;
+    unlock();
     hasPlayedNotification.current = false;
     setPagerStatus("waiting");
     setShowReview(false);
+    setAlertActive(false);
     setSubmitted(true);
+  }
+
+  function handleStopAlert() {
+    stopSound();
+    stopVibration();
+    setAlertActive(false);
   }
 
   if (loading) {
@@ -261,6 +356,8 @@ export default function StorePagerPage() {
         storeName={merchant.storeName}
         googleMapsReviewUrl={merchant.googleMapsReviewUrl}
         showReview={showReview}
+        alertActive={alertActive}
+        onStopAlert={handleStopAlert}
       />
     );
   }
@@ -297,7 +394,7 @@ export default function StorePagerPage() {
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleUnlockAndSubmit} className="space-y-4">
             <Input
               type="text"
               inputMode="numeric"
@@ -315,9 +412,15 @@ export default function StorePagerPage() {
               className="w-full h-14 text-lg font-bold bg-red-600 hover:bg-red-700 text-white disabled:opacity-30"
               data-testid="button-submit-order"
             >
-              <Send className="w-5 h-5 me-2" />
-              <span dir="rtl">ابدأ الانتظار</span>
+              <Bell className="w-5 h-5 me-2" />
+              <span dir="rtl">ابدأ الانتظار واستقبل التنبيه</span>
             </Button>
+            <p className="text-center text-gray-600 text-xs" dir="rtl">
+              بالضغط على الزر، سيتم تفعيل الصوت والاهتزاز للتنبيه
+            </p>
+            <p className="text-center text-gray-700 text-[10px]">
+              Pressing the button enables sound & vibration alerts
+            </p>
           </form>
         </CardContent>
       </Card>
