@@ -26,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Upload, Store, User, Mail, Lock, MapPin, Loader2, CheckCircle, ArrowRight, ArrowLeft, Briefcase, Globe } from "lucide-react";
+import { Upload, Store, User, Mail, Lock, MapPin, Loader2, CheckCircle, ArrowRight, ArrowLeft, Briefcase, Globe, Bell } from "lucide-react";
 
 const businessTypeLabelsEn: Record<string, string> = {
   restaurant: "Restaurant",
@@ -147,7 +147,7 @@ export default function RegisterPage() {
           <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
           <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-primary/3 rounded-full blur-3xl" />
         </div>
-        <Card className="w-full max-w-md relative border-primary/20">
+        <Card className="w-full max-w-lg relative border-primary/20">
           <CardContent className="pt-8 pb-8 text-center">
             <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-6">
               <CheckCircle className="w-8 h-8 text-primary" data-testid="icon-success" />
@@ -162,7 +162,7 @@ export default function RegisterPage() {
               )}
             </p>
             <div className="flex flex-col gap-3">
-              <Button onClick={() => setLocation("/login")} data-testid="button-go-to-login">
+              <Button onClick={() => setLocation("/login")} className="h-12 font-bold" data-testid="button-go-to-login">
                 {t("تسجيل الدخول", "Sign In")}
               </Button>
               <Button variant="outline" onClick={() => setLocation("/")} data-testid="button-back-home">
@@ -176,18 +176,18 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4 py-8">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
         <div className="absolute bottom-1/3 right-1/4 w-80 h-80 bg-primary/3 rounded-full blur-3xl" />
       </div>
 
-      <div className="w-full max-w-lg relative">
+      <div className="w-full max-w-2xl relative">
         <div className="mb-8 text-center">
           <div className="flex items-center justify-between mb-6">
             <button
               onClick={() => setLocation("/")}
-              className="inline-flex items-center gap-2 text-muted-foreground text-sm hover-elevate px-3 py-1.5 rounded-md"
+              className="inline-flex items-center gap-2 text-muted-foreground text-sm hover:text-foreground transition-colors px-3 py-1.5 rounded-md"
               data-testid="link-back-home"
             >
               <BackArrow className="w-4 h-4" />
@@ -203,6 +203,13 @@ export default function RegisterPage() {
               <Globe className="w-4 h-4" />
             </Button>
           </div>
+
+          <div className="flex items-center justify-center gap-2 mb-4">
+            <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
+              <Bell className="w-5 h-5 text-primary-foreground" />
+            </div>
+          </div>
+
           <h1 className="text-3xl font-bold tracking-tight" data-testid="text-register-title">
             {t("سجل متجرك", "Register Your Store")}
           </h1>
@@ -213,15 +220,15 @@ export default function RegisterPage() {
           </p>
         </div>
 
-        <Card className="border-primary/10">
-          <CardContent className="pt-6 pb-6">
+        <Card className="border-primary/10 bg-card">
+          <CardContent className="pt-6 pb-6 px-6 sm:px-8">
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
                 <div className="flex flex-col items-center mb-2">
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="w-24 h-24 rounded-full border-2 border-dashed border-primary/30 flex items-center justify-center overflow-hidden transition-colors relative group"
+                    className="w-24 h-24 rounded-full border-2 border-dashed border-primary/30 flex items-center justify-center overflow-hidden transition-colors relative group hover:border-primary/60"
                     data-testid="button-upload-logo"
                   >
                     {logoPreview ? (
@@ -239,119 +246,125 @@ export default function RegisterPage() {
                   </p>
                 </div>
 
-                <FormField
-                  control={form.control}
-                  name="storeName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("اسم المتجر", "Store Name")}</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Store className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                          <Input placeholder={t("اسم المتجر", "Store Name")} className="pr-10" data-testid="input-store-name" {...field} />
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="businessType"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("نوع النشاط", "Business Type")}</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <FormField
+                    control={form.control}
+                    name="storeName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-foreground">{t("اسم المتجر", "Store Name")}</FormLabel>
                         <FormControl>
-                          <SelectTrigger data-testid="select-business-type">
-                            <div className="flex items-center gap-2">
-                              <Briefcase className="w-4 h-4 text-muted-foreground" />
-                              <SelectValue placeholder={t("اختر نوع النشاط", "Select business type")} />
-                            </div>
-                          </SelectTrigger>
+                          <div className="relative">
+                            <Store className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                            <Input placeholder={t("اسم المتجر", "Store Name")} className="pr-10 h-12 bg-background border-border text-foreground" data-testid="input-store-name" {...field} />
+                          </div>
                         </FormControl>
-                        <SelectContent>
-                          <SelectItem value="restaurant" data-testid="option-restaurant">{btLabels.restaurant}</SelectItem>
-                          <SelectItem value="cafe" data-testid="option-cafe">{btLabels.cafe}</SelectItem>
-                          <SelectItem value="clinic" data-testid="option-clinic">{btLabels.clinic}</SelectItem>
-                          <SelectItem value="other" data-testid="option-other">{btLabels.other}</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                <FormField
-                  control={form.control}
-                  name="ownerName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("اسم المالك", "Owner Name")}</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <User className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                          <Input placeholder={t("الاسم الكامل", "Full Name")} className="pr-10" data-testid="input-owner-name" {...field} />
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                  <FormField
+                    control={form.control}
+                    name="businessType"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-foreground">{t("نوع النشاط", "Business Type")}</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger className="h-12 bg-background border-border text-foreground" data-testid="select-business-type">
+                              <div className="flex items-center gap-2">
+                                <Briefcase className="w-4 h-4 text-muted-foreground" />
+                                <SelectValue placeholder={t("اختر نوع النشاط", "Select business type")} />
+                              </div>
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="restaurant" data-testid="option-restaurant">{btLabels.restaurant}</SelectItem>
+                            <SelectItem value="cafe" data-testid="option-cafe">{btLabels.cafe}</SelectItem>
+                            <SelectItem value="clinic" data-testid="option-clinic">{btLabels.clinic}</SelectItem>
+                            <SelectItem value="other" data-testid="option-other">{btLabels.other}</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
 
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("البريد الإلكتروني", "Email")}</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Mail className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                          <Input type="email" placeholder="you@store.com" className="pr-10" dir="ltr" data-testid="input-email" {...field} />
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <FormField
+                    control={form.control}
+                    name="ownerName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-foreground">{t("اسم المالك", "Owner Name")}</FormLabel>
+                        <FormControl>
+                          <div className="relative">
+                            <User className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                            <Input placeholder={t("الاسم الكامل", "Full Name")} className="pr-10 h-12 bg-background border-border text-foreground" data-testid="input-owner-name" {...field} />
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("كلمة المرور", "Password")}</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                          <Input type="password" placeholder={t("6 أحرف على الأقل", "At least 6 characters")} className="pr-10" dir="ltr" data-testid="input-password" {...field} />
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                  <FormField
+                    control={form.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-foreground">{t("البريد الإلكتروني", "Email")}</FormLabel>
+                        <FormControl>
+                          <div className="relative">
+                            <Mail className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                            <Input type="email" placeholder="you@store.com" className="pr-10 h-12 bg-background border-border text-foreground" dir="ltr" data-testid="input-email" {...field} />
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
 
-                <FormField
-                  control={form.control}
-                  name="googleMapsReviewUrl"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("رابط تقييم جوجل ماب", "Google Maps Review URL")}</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <MapPin className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                          <Input placeholder="https://maps.google.com/..." className="pr-10" dir="ltr" data-testid="input-google-maps-url" {...field} />
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <FormField
+                    control={form.control}
+                    name="password"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-foreground">{t("كلمة المرور", "Password")}</FormLabel>
+                        <FormControl>
+                          <div className="relative">
+                            <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                            <Input type="password" placeholder={t("6 أحرف على الأقل", "At least 6 characters")} className="pr-10 h-12 bg-background border-border text-foreground" dir="ltr" data-testid="input-password" {...field} />
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                <Button type="submit" className="w-full" disabled={isSubmitting} data-testid="button-register-submit">
+                  <FormField
+                    control={form.control}
+                    name="googleMapsReviewUrl"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-foreground">{t("رابط تقييم جوجل ماب", "Google Maps Review URL")}</FormLabel>
+                        <FormControl>
+                          <div className="relative">
+                            <MapPin className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                            <Input placeholder="https://maps.google.com/..." className="pr-10 h-12 bg-background border-border text-foreground" dir="ltr" data-testid="input-google-maps-url" {...field} />
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <Button type="submit" className="w-full h-12 text-base font-bold" disabled={isSubmitting} data-testid="button-register-submit">
                   {isSubmitting ? (
                     <>
                       <Loader2 className="w-4 h-4 me-2 animate-spin" />
@@ -364,7 +377,7 @@ export default function RegisterPage() {
 
                 <p className="text-center text-sm text-muted-foreground">
                   {t("لديك حساب بالفعل؟", "Already have an account?")}{" "}
-                  <button type="button" onClick={() => setLocation("/login")} className="text-primary font-medium" data-testid="link-to-login">
+                  <button type="button" onClick={() => setLocation("/login")} className="text-primary font-medium hover:underline" data-testid="link-to-login">
                     {t("تسجيل الدخول", "Sign In")}
                   </button>
                 </p>

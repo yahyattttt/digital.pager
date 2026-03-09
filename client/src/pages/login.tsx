@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { signInWithEmailAndPassword } from "firebase/auth";
+import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { z } from "zod";
@@ -19,7 +19,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Mail, Lock, Loader2, ArrowRight, ArrowLeft, Globe } from "lucide-react";
+import { Mail, Lock, Loader2, ArrowRight, ArrowLeft, Globe, Bell } from "lucide-react";
 
 const loginSchema = z.object({
   email: z.string().email("البريد الإلكتروني غير صالح"),
@@ -144,12 +144,12 @@ export default function LoginPage() {
         <div className="absolute bottom-1/3 right-1/3 w-80 h-80 bg-primary/3 rounded-full blur-3xl" />
       </div>
 
-      <div className="w-full max-w-md relative">
+      <div className="w-full max-w-lg relative">
         <div className="mb-8 text-center">
           <div className="flex items-center justify-between mb-6">
             <button
               onClick={() => setLocation("/")}
-              className="inline-flex items-center gap-2 text-muted-foreground text-sm hover-elevate px-3 py-1.5 rounded-md"
+              className="inline-flex items-center gap-2 text-muted-foreground text-sm hover:text-foreground transition-colors px-3 py-1.5 rounded-md"
               data-testid="link-back-home"
             >
               <BackArrow className="w-4 h-4" />
@@ -165,6 +165,13 @@ export default function LoginPage() {
               <Globe className="w-4 h-4" />
             </Button>
           </div>
+
+          <div className="flex items-center justify-center gap-2 mb-4">
+            <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
+              <Bell className="w-5 h-5 text-primary-foreground" />
+            </div>
+          </div>
+
           <h1
             className="text-3xl font-bold tracking-tight"
             data-testid="text-login-title"
@@ -178,8 +185,8 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <Card className="border-primary/10">
-          <CardContent className="pt-6 pb-6">
+        <Card className="border-primary/10 bg-card">
+          <CardContent className="pt-6 pb-6 px-6 sm:px-8">
             <Form {...form}>
               <form
                 onSubmit={form.handleSubmit(onSubmit)}
@@ -190,14 +197,14 @@ export default function LoginPage() {
                   name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t("البريد الإلكتروني", "Email")}</FormLabel>
+                      <FormLabel className="text-foreground">{t("البريد الإلكتروني", "Email")}</FormLabel>
                       <FormControl>
                         <div className="relative">
                           <Mail className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                           <Input
                             type="email"
                             placeholder="you@store.com"
-                            className="pr-10"
+                            className="pr-10 h-12 bg-background border-border text-foreground"
                             dir="ltr"
                             data-testid="input-email"
                             {...field}
@@ -214,14 +221,14 @@ export default function LoginPage() {
                   name="password"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t("كلمة المرور", "Password")}</FormLabel>
+                      <FormLabel className="text-foreground">{t("كلمة المرور", "Password")}</FormLabel>
                       <FormControl>
                         <div className="relative">
                           <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                           <Input
                             type="password"
                             placeholder={t("أدخل كلمة المرور", "Enter password")}
-                            className="pr-10"
+                            className="pr-10 h-12 bg-background border-border text-foreground"
                             dir="ltr"
                             data-testid="input-password"
                             {...field}
@@ -235,7 +242,7 @@ export default function LoginPage() {
 
                 <Button
                   type="submit"
-                  className="w-full"
+                  className="w-full h-12 text-base font-bold"
                   disabled={isSubmitting}
                   data-testid="button-login-submit"
                 >
@@ -254,7 +261,7 @@ export default function LoginPage() {
                   <button
                     type="button"
                     onClick={() => setLocation("/register")}
-                    className="text-primary font-medium"
+                    className="text-primary font-medium hover:underline"
                     data-testid="link-to-register"
                   >
                     {t("سجل متجرك", "Register")}
