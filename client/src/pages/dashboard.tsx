@@ -343,7 +343,7 @@ export default function DashboardPage() {
   const [pagers, setPagers] = useState<(Pager & { docId: string })[]>([]);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [newOrderNumber, setNewOrderNumber] = useState("");
-  const [addLoading, setAddLoading] = useState(false);
+  
   const [notifyLoading, setNotifyLoading] = useState<string | null>(null);
   const [qrLoading, setQrLoading] = useState(false);
   const [feedbacks, setFeedbacks] = useState<Array<{ id: string; merchantId: string; stars: number; comment: string; timestamp: string; read: boolean }>>([]);
@@ -476,93 +476,73 @@ export default function DashboardPage() {
 
   const isApproved = merchant?.status === "approved";
 
-  const addOrderToWaitlist = useCallback(async (orderNum: string, advanceCounter = true) => {
-    if (!merchant?.uid || !orderNum.trim()) return;
-    const pagersRef = collection(db, "merchants", merchant.uid, "pagers");
-    await addDoc(pagersRef, {
-      storeId: merchant.uid,
-      orderNumber: orderNum.trim(),
-      status: "waiting",
-      createdAt: new Date().toISOString(),
-      notifiedAt: null,
-    });
-    if (advanceCounter) {
-      const counterRef = doc(db, "merchants", merchant.uid, "settings", "orderCounter");
-      const num = parseInt(orderNum.trim(), 10);
-      if (!isNaN(num)) {
-        await runTransaction(db, async (txn) => {
-          const snap = await txn.get(counterRef);
-          const current = snap.exists() ? (snap.data().lastOrderNumber || 0) : 0;
-          if (num > current) {
-            txn.set(counterRef, { lastOrderNumber: num }, { merge: true } as any);
-          }
+  const handleSmartAdd = useCallback(async (manualNumber?: string) => {
+    if (!merchant?.uid || !isApproved || quickAddLoading) return;
+    const manual = manualNumber?.trim();
+    if (manual) {
+      const parsed = parseInt(manual, 10);
+      if (isNaN(parsed) || parsed <= 0 || String(parsed) !== manual) {
+        toast({
+          title: t("رقم غير صالح", "Invalid Number"),
+          description: t("أدخل رقم صحيح موجب", "Enter a positive whole number"),
+          variant: "destructive",
         });
+        return;
       }
     }
-  }, [merchant?.uid]);
-
-  const handleAddToWaitlist = useCallback(async () => {
-    if (!merchant?.uid || !newOrderNumber.trim() || !isApproved) return;
-    setAddLoading(true);
-    try {
-      await addOrderToWaitlist(newOrderNumber.trim());
-      toast({
-        title: t("تمت الإضافة", "Added"),
-        description: t(
-          `تم إضافة الطلب #${newOrderNumber.trim()} لقائمة الانتظار`,
-          `Order #${newOrderNumber.trim()} added to waitlist`
-        ),
-      });
-      setNewOrderNumber("");
-      setShowAddDialog(false);
-    } catch {
-      toast({
-        title: t("خطأ", "Error"),
-        description: t("فشل في إضافة الطلب", "Failed to add order"),
-        variant: "destructive",
-      });
-    } finally {
-      setAddLoading(false);
-    }
-  }, [merchant?.uid, isApproved, newOrderNumber, t, toast, addOrderToWaitlist]);
-
-  const handleQuickAdd = useCallback(async () => {
-    if (!merchant?.uid || !isApproved) return;
     setQuickAddLoading(true);
     try {
       const counterRef = doc(db, "merchants", merchant.uid, "settings", "orderCounter");
-      let nextNum = 1;
-      await runTransaction(db, async (txn) => {
-        const snap = await txn.get(counterRef);
-        const current = snap.exists() ? (snap.data().lastOrderNumber || 0) : 0;
-        nextNum = current + 1;
-        txn.set(counterRef, { lastOrderNumber: nextNum }, { merge: true } as any);
-      });
+      let orderNum: number;
+      const manualParsed = manual ? parseInt(manual, 10) : NaN;
+
+      if (manual && !isNaN(manualParsed)) {
+        orderNum = manualParsed;
+        await runTransaction(db, async (txn) => {
+          const snap = await txn.get(counterRef);
+          const current = snap.exists() ? (snap.data().lastOrderNumber || 0) : 0;
+          txn.set(counterRef, { lastOrderNumber: Math.max(current, orderNum) }, { merge: true } as any);
+        });
+      } else {
+        orderNum = 1;
+        await runTransaction(db, async (txn) => {
+          const snap = await txn.get(counterRef);
+          const current = snap.exists() ? (snap.data().lastOrderNumber || 0) : 0;
+          orderNum = current + 1;
+          txn.set(counterRef, { lastOrderNumber: orderNum }, { merge: true } as any);
+        });
+      }
+
       const pagersRef = collection(db, "merchants", merchant.uid, "pagers");
       await addDoc(pagersRef, {
         storeId: merchant.uid,
-        orderNumber: String(nextNum),
+        orderNumber: String(orderNum),
         status: "waiting",
         createdAt: new Date().toISOString(),
         notifiedAt: null,
       });
+
       toast({
-        title: t("تمت الإضافة", "Added"),
+        title: t(`تم إضافة الطلب #${orderNum}`, `Order #${orderNum} added`),
         description: t(
-          `تم إضافة الطلب #${nextNum} لقائمة الانتظار`,
-          `Order #${nextNum} added successfully`
+          `الرقم التالي تلقائياً سيكون #${orderNum + 1}`,
+          `Next auto-number will be #${orderNum + 1}`
         ),
       });
+      setNewOrderNumber("");
+      setShowAddDialog(false);
+      return true;
     } catch {
       toast({
         title: t("خطأ", "Error"),
         description: t("فشل في إضافة الطلب", "Failed to add order"),
         variant: "destructive",
       });
+      return false;
     } finally {
       setQuickAddLoading(false);
     }
-  }, [merchant?.uid, isApproved, addOrderToWaitlist, t, toast]);
+  }, [merchant?.uid, isApproved, quickAddLoading, t, toast]);
 
   const handleShiftStart = useCallback(async () => {
     if (!merchant?.uid) return;
@@ -1010,7 +990,7 @@ export default function DashboardPage() {
                 onComplete={handleComplete}
                 onRemove={handleRemove}
                 onNavigate={(v: DashboardView) => { setCurrentView(v); setSelectedPagerId(null); }}
-                onQuickAdd={handleQuickAdd}
+                onSmartAdd={handleSmartAdd}
                 quickAddLoading={quickAddLoading}
                 lastOrderNumber={lastOrderNumber}
                 counterLoaded={counterLoaded}
@@ -1029,7 +1009,7 @@ export default function DashboardPage() {
                 onComplete={handleComplete}
                 onRemove={handleRemove}
                 onAdd={() => setShowAddDialog(true)}
-                onQuickAdd={handleQuickAdd}
+                onSmartAdd={handleSmartAdd}
                 quickAddLoading={quickAddLoading}
                 lastOrderNumber={lastOrderNumber}
                 counterLoaded={counterLoaded}
@@ -1098,63 +1078,45 @@ export default function DashboardPage() {
             </DialogTitle>
           </DialogHeader>
           <div className="py-2 space-y-4">
-            <Button
-              onClick={() => { handleQuickAdd(); setShowAddDialog(false); }}
-              disabled={quickAddLoading || !counterLoaded}
-              className="w-full h-20 bg-primary hover:bg-primary/90 font-bold text-xl rounded-xl shadow-lg shadow-primary/20 active:scale-[0.98] transition-all"
-              data-testid="button-quick-add"
-            >
-              {quickAddLoading ? (
-                <Loader2 className="w-6 h-6 animate-spin me-3" />
-              ) : (
-                <Zap className="w-7 h-7 me-3" />
-              )}
-              {t("إضافة سريعة", "Quick Add")} #{lastOrderNumber + 1}
-            </Button>
-
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-white/[0.06]" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-[#141414] px-3 text-muted-foreground">
-                  {t("أو إدخال يدوي", "or manual entry")}
-                </span>
-              </div>
-            </div>
-
             <div className="flex gap-2">
               <Input
                 type="text"
                 inputMode="numeric"
-                placeholder={t("رقم الطلب", "Order Number")}
+                placeholder={t("رقم الطلب (اختياري)", "Order Number (optional)")}
                 value={newOrderNumber}
                 onChange={(e) => setNewOrderNumber(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && newOrderNumber.trim()) {
-                    handleAddToWaitlist();
+                  if (e.key === "Enter") {
+                    handleSmartAdd(newOrderNumber || undefined);
                   }
                 }}
-                className="flex-1 h-14 text-center text-xl font-bold border-white/10 focus:border-primary focus:ring-primary/20 bg-white/[0.03]"
+                className="flex-1 h-16 text-center text-xl font-bold border-white/10 focus:border-primary focus:ring-primary/20 bg-white/[0.03]"
                 dir="ltr"
+                autoFocus
                 data-testid="input-new-order-number"
               />
               <Button
-                onClick={handleAddToWaitlist}
-                disabled={!newOrderNumber.trim() || addLoading}
-                className="h-14 px-5 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 font-bold"
-                data-testid="button-confirm-add"
+                onClick={() => handleSmartAdd(newOrderNumber || undefined)}
+                disabled={quickAddLoading || !counterLoaded}
+                className="h-16 px-6 bg-primary hover:bg-primary/90 font-bold text-base"
+                data-testid="button-quick-add"
               >
-                {addLoading ? (
+                {quickAddLoading ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
-                  <Plus className="w-5 h-5" />
+                  <>
+                    <Zap className="w-5 h-5 me-2" />
+                    {newOrderNumber.trim() ? t("إضافة", "Add") : `#${lastOrderNumber + 1}`}
+                  </>
                 )}
               </Button>
             </div>
 
             <p className="text-xs text-muted-foreground text-center">
-              {t("آخر رقم:", "Last number:")} <span className="font-mono font-bold text-foreground">{lastOrderNumber}</span>
+              {newOrderNumber.trim()
+                ? t(`سيتم إضافة الطلب #${newOrderNumber.trim()} والمتابعة من بعده`, `Will add order #${newOrderNumber.trim()} and continue from there`)
+                : t(`اتركه فارغاً للإضافة التلقائية #${lastOrderNumber + 1}`, `Leave empty to auto-add #${lastOrderNumber + 1}`)
+              }
             </p>
           </div>
         </DialogContent>
@@ -1242,7 +1204,7 @@ function OverviewView({
   onComplete,
   onRemove,
   onNavigate,
-  onQuickAdd,
+  onSmartAdd,
   quickAddLoading,
   lastOrderNumber,
   counterLoaded,
@@ -1260,7 +1222,7 @@ function OverviewView({
   onComplete: (pager: Pager & { docId: string }) => void;
   onRemove: (pager: Pager & { docId: string }) => void;
   onNavigate: (view: DashboardView) => void;
-  onQuickAdd: () => void;
+  onSmartAdd: (manualNumber?: string) => Promise<boolean | undefined>;
   quickAddLoading: boolean;
   lastOrderNumber: number;
   counterLoaded: boolean;
@@ -1268,6 +1230,12 @@ function OverviewView({
   t: (ar: string, en: string) => string;
   lang: string;
 }) {
+  const [overviewInput, setOverviewInput] = useState("");
+  const handleAdd = async () => {
+    if (quickAddLoading || isPending) return;
+    const ok = await onSmartAdd(overviewInput || undefined);
+    if (ok) setOverviewInput("");
+  };
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -1288,19 +1256,35 @@ function OverviewView({
       </div>
 
       {counterLoaded && (
-        <Button
-          onClick={onQuickAdd}
-          disabled={quickAddLoading || isPending}
-          className="w-full h-16 bg-primary hover:bg-primary/90 font-bold text-lg rounded-xl shadow-lg shadow-primary/20 active:scale-[0.98] transition-all"
-          data-testid="button-quick-add-overview"
-        >
-          {quickAddLoading ? (
-            <Loader2 className="w-6 h-6 animate-spin me-3" />
-          ) : (
-            <Zap className="w-6 h-6 me-3" />
-          )}
-          {t("إضافة سريعة", "Quick Add")} #{lastOrderNumber + 1}
-        </Button>
+        <div className="flex gap-2" data-testid="overview-order-entry">
+          <Input
+            type="text"
+            inputMode="numeric"
+            placeholder={t("رقم يدوي", "Manual #")}
+            value={overviewInput}
+            onChange={(e) => setOverviewInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); }}
+            className="w-28 sm:w-36 h-16 text-center text-lg font-bold border-white/10 focus:border-primary focus:ring-primary/20 bg-white/[0.03] rounded-xl"
+            dir="ltr"
+            data-testid="input-order-overview"
+          />
+          <Button
+            onClick={handleAdd}
+            disabled={quickAddLoading || isPending}
+            className="flex-1 h-16 bg-primary hover:bg-primary/90 font-bold text-lg rounded-xl shadow-lg shadow-primary/20 active:scale-[0.98] transition-all"
+            data-testid="button-quick-add-overview"
+          >
+            {quickAddLoading ? (
+              <Loader2 className="w-6 h-6 animate-spin me-3" />
+            ) : (
+              <Zap className="w-6 h-6 me-3" />
+            )}
+            {overviewInput.trim()
+              ? `${t("إضافة", "Add")} #${overviewInput.trim()}`
+              : `${t("إضافة سريعة", "Quick Add")} #${lastOrderNumber + 1}`
+            }
+          </Button>
+        </div>
       )}
 
       <Card className="border-white/[0.06] bg-[#141414]" data-testid="card-active-waitlist">
@@ -1500,7 +1484,7 @@ function WaitlistView({
   onComplete,
   onRemove,
   onAdd,
-  onQuickAdd,
+  onSmartAdd,
   quickAddLoading,
   lastOrderNumber,
   counterLoaded,
@@ -1517,7 +1501,7 @@ function WaitlistView({
   onComplete: (pager: Pager & { docId: string }) => void;
   onRemove: (pager: Pager & { docId: string }) => void;
   onAdd: () => void;
-  onQuickAdd: () => void;
+  onSmartAdd: (manualNumber?: string) => Promise<boolean | undefined>;
   quickAddLoading: boolean;
   lastOrderNumber: number;
   counterLoaded: boolean;
@@ -1527,6 +1511,12 @@ function WaitlistView({
   t: (ar: string, en: string) => string;
   lang: string;
 }) {
+  const [waitlistInput, setWaitlistInput] = useState("");
+  const handleAdd = async () => {
+    if (quickAddLoading || isPending) return;
+    const ok = await onSmartAdd(waitlistInput || undefined);
+    if (ok) setWaitlistInput("");
+  };
   const allPagers = [...waitingPagers, ...notifiedPagers];
   const selectedPager = allPagers.find(p => p.docId === selectedPagerId) || null;
 
@@ -1582,34 +1572,38 @@ function WaitlistView({
             {t("إدارة العملاء في قائمة الانتظار", "Manage customers in the waitlist")}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={onAdd}
-            disabled={isPending}
-            className="h-12 border-white/10"
-            data-testid="button-add-waitlist-page"
-          >
-            <Plus className="w-5 h-5 me-1" />
-            {t("يدوي", "Manual")}
-          </Button>
-        </div>
       </div>
 
       {counterLoaded && (
-        <Button
-          onClick={onQuickAdd}
-          disabled={quickAddLoading || isPending}
-          className="w-full h-16 bg-primary hover:bg-primary/90 font-bold text-lg rounded-xl shadow-lg shadow-primary/20 active:scale-[0.98] transition-all"
-          data-testid="button-quick-add-waitlist"
-        >
-          {quickAddLoading ? (
-            <Loader2 className="w-6 h-6 animate-spin me-3" />
-          ) : (
-            <Zap className="w-6 h-6 me-3" />
-          )}
-          {t("إضافة سريعة", "Quick Add")} #{lastOrderNumber + 1}
-        </Button>
+        <div className="flex gap-2" data-testid="waitlist-order-entry">
+          <Input
+            type="text"
+            inputMode="numeric"
+            placeholder={t("رقم يدوي", "Manual #")}
+            value={waitlistInput}
+            onChange={(e) => setWaitlistInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); }}
+            className="w-28 sm:w-36 h-16 text-center text-lg font-bold border-white/10 focus:border-primary focus:ring-primary/20 bg-white/[0.03] rounded-xl"
+            dir="ltr"
+            data-testid="input-order-waitlist"
+          />
+          <Button
+            onClick={handleAdd}
+            disabled={quickAddLoading || isPending}
+            className="flex-1 h-16 bg-primary hover:bg-primary/90 font-bold text-lg rounded-xl shadow-lg shadow-primary/20 active:scale-[0.98] transition-all"
+            data-testid="button-quick-add-waitlist"
+          >
+            {quickAddLoading ? (
+              <Loader2 className="w-6 h-6 animate-spin me-3" />
+            ) : (
+              <Zap className="w-6 h-6 me-3" />
+            )}
+            {waitlistInput.trim()
+              ? `${t("إضافة", "Add")} #${waitlistInput.trim()}`
+              : `${t("إضافة سريعة", "Quick Add")} #${lastOrderNumber + 1}`
+            }
+          </Button>
+        </div>
       )}
 
       <div className="flex gap-4">
