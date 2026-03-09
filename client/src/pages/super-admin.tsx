@@ -5,7 +5,7 @@ import { signOut } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import { useAuth } from "@/hooks/use-auth";
 import { useLanguage } from "@/hooks/use-language";
-import { businessTypeLabels } from "@shared/schema";
+import { businessTypeLabels, planLabels } from "@shared/schema";
 import type { Merchant } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -41,6 +41,8 @@ import {
   Store,
   Loader2,
   RefreshCw,
+  CreditCard,
+  Zap,
 } from "lucide-react";
 
 const SUPER_ADMIN_EMAIL = "yahiatohary@hotmail.com";
@@ -77,6 +79,40 @@ function getStatusBadge(status: string, t: (ar: string, en: string) => string) {
       return (
         <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 hover:bg-yellow-500/30">
           {t("قيد الانتظار", "Pending")}
+        </Badge>
+      );
+  }
+}
+
+function getSubBadge(subStatus: string | undefined, t: (ar: string, en: string) => string) {
+  switch (subStatus) {
+    case "active":
+      return (
+        <Badge className="bg-green-500/20 text-green-400 border-green-500/30 hover:bg-green-500/30">
+          <CreditCard className="w-3 h-3 me-1" />
+          {t("مفعّل", "Active")}
+        </Badge>
+      );
+    case "expired":
+      return (
+        <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/30 hover:bg-orange-500/30">
+          <CreditCard className="w-3 h-3 me-1" />
+          {t("منتهي", "Expired")}
+        </Badge>
+      );
+    case "cancelled":
+      return (
+        <Badge className="bg-red-500/20 text-red-400 border-red-500/30 hover:bg-red-500/30">
+          <CreditCard className="w-3 h-3 me-1" />
+          {t("ملغي", "Cancelled")}
+        </Badge>
+      );
+    case "pending":
+    default:
+      return (
+        <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 hover:bg-yellow-500/30">
+          <CreditCard className="w-3 h-3 me-1" />
+          {t("غير مفعّل", "Inactive")}
         </Badge>
       );
   }
@@ -125,15 +161,22 @@ export default function SuperAdminPage() {
   async function handleActivate(merchant: Merchant) {
     setActionLoading(merchant.uid);
     try {
-      await updateDoc(doc(db, "merchants", merchant.uid), { status: "approved" });
+      await updateDoc(doc(db, "merchants", merchant.uid), {
+        status: "approved",
+        subscriptionStatus: "active",
+      });
       setMerchants((prev) =>
-        prev.map((m) => (m.uid === merchant.uid ? { ...m, status: "approved" } : m))
+        prev.map((m) =>
+          m.uid === merchant.uid
+            ? { ...m, status: "approved", subscriptionStatus: "active" }
+            : m
+        )
       );
       toast({
         title: t("تم التفعيل", "Activated"),
         description: t(
-          `تم تفعيل متجر "${merchant.storeName}" بنجاح`,
-          `Store "${merchant.storeName}" has been activated`
+          `تم تفعيل متجر "${merchant.storeName}" والاشتراك بنجاح`,
+          `Store "${merchant.storeName}" and subscription activated`
         ),
       });
     } catch {
@@ -147,12 +190,50 @@ export default function SuperAdminPage() {
     }
   }
 
+  async function handleActivateSubscription(merchant: Merchant) {
+    setActionLoading(merchant.uid);
+    try {
+      await updateDoc(doc(db, "merchants", merchant.uid), {
+        subscriptionStatus: "active",
+      });
+      setMerchants((prev) =>
+        prev.map((m) =>
+          m.uid === merchant.uid
+            ? { ...m, subscriptionStatus: "active" }
+            : m
+        )
+      );
+      toast({
+        title: t("تم تفعيل الاشتراك", "Subscription Activated"),
+        description: t(
+          `تم تفعيل اشتراك "${merchant.storeName}" بنجاح`,
+          `Subscription for "${merchant.storeName}" has been activated`
+        ),
+      });
+    } catch {
+      toast({
+        title: t("خطأ", "Error"),
+        description: t("فشل في تفعيل الاشتراك", "Failed to activate subscription"),
+        variant: "destructive",
+      });
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
   async function handleSuspend(merchant: Merchant) {
     setActionLoading(merchant.uid);
     try {
-      await updateDoc(doc(db, "merchants", merchant.uid), { status: "suspended" });
+      await updateDoc(doc(db, "merchants", merchant.uid), {
+        status: "suspended",
+        subscriptionStatus: "cancelled",
+      });
       setMerchants((prev) =>
-        prev.map((m) => (m.uid === merchant.uid ? { ...m, status: "suspended" } : m))
+        prev.map((m) =>
+          m.uid === merchant.uid
+            ? { ...m, status: "suspended", subscriptionStatus: "cancelled" }
+            : m
+        )
       );
       toast({
         title: t("تم الإيقاف", "Suspended"),
@@ -219,6 +300,7 @@ export default function SuperAdminPage() {
     pending: merchants.filter((m) => m.status === "pending").length,
     active: merchants.filter((m) => m.status === "approved").length,
     suspended: merchants.filter((m) => m.status === "suspended" || m.status === "rejected").length,
+    subActive: merchants.filter((m) => m.subscriptionStatus === "active").length,
   };
 
   return (
@@ -262,7 +344,7 @@ export default function SuperAdminPage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-6">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
           <Card className="border-primary/20 bg-primary/5">
             <CardContent className="p-4 flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center flex-shrink-0">
@@ -307,6 +389,18 @@ export default function SuperAdminPage() {
               <div>
                 <p className="text-2xl font-bold text-red-400" data-testid="text-stat-suspended">{stats.suspended}</p>
                 <p className="text-xs text-muted-foreground">{t("موقوف", "Suspended")}</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-blue-500/20 bg-blue-500/5">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+                <CreditCard className="w-5 h-5 text-blue-500" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-blue-400" data-testid="text-stat-subscribed">{stats.subActive}</p>
+                <p className="text-xs text-muted-foreground">{t("مشتركين", "Subscribed")}</p>
               </div>
             </CardContent>
           </Card>
@@ -359,10 +453,10 @@ export default function SuperAdminPage() {
                         {t("البريد الإلكتروني", "Email")}
                       </TableHead>
                       <TableHead className="text-muted-foreground font-semibold">
-                        {t("النوع", "Type")}
+                        {t("الحالة", "Status")}
                       </TableHead>
                       <TableHead className="text-muted-foreground font-semibold">
-                        {t("الحالة", "Status")}
+                        {t("الاشتراك", "Subscription")}
                       </TableHead>
                       <TableHead className="text-muted-foreground font-semibold text-center">
                         {t("الإجراءات", "Actions")}
@@ -370,101 +464,134 @@ export default function SuperAdminPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {merchants.map((merchant) => (
-                      <TableRow
-                        key={merchant.uid}
-                        className="border-primary/10 hover:bg-primary/5"
-                        data-testid={`row-store-${merchant.uid}`}
-                      >
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {merchant.logoUrl ? (
-                              <img
-                                src={merchant.logoUrl}
-                                alt=""
-                                className="w-8 h-8 rounded-full object-cover border border-border"
-                              />
-                            ) : (
-                              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                                <Store className="w-4 h-4 text-primary" />
+                    {merchants.map((merchant) => {
+                      const pLabel = planLabels[merchant.plan]
+                        ? lang === "ar"
+                          ? planLabels[merchant.plan].ar
+                          : planLabels[merchant.plan].en
+                        : merchant.plan || "trial";
+
+                      return (
+                        <TableRow
+                          key={merchant.uid}
+                          className="border-primary/10 hover:bg-primary/5"
+                          data-testid={`row-store-${merchant.uid}`}
+                        >
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              {merchant.logoUrl ? (
+                                <img
+                                  src={merchant.logoUrl}
+                                  alt=""
+                                  className="w-8 h-8 rounded-full object-cover border border-border"
+                                />
+                              ) : (
+                                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                                  <Store className="w-4 h-4 text-primary" />
+                                </div>
+                              )}
+                              <div>
+                                <span className="font-medium block" data-testid={`text-store-name-${merchant.uid}`}>
+                                  {merchant.storeName}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {btLabels[merchant.businessType] || merchant.businessType}
+                                </span>
                               </div>
-                            )}
-                            <span className="font-medium" data-testid={`text-store-name-${merchant.uid}`}>
-                              {merchant.storeName}
+                            </div>
+                          </TableCell>
+                          <TableCell data-testid={`text-owner-${merchant.uid}`}>
+                            {merchant.ownerName}
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-sm text-muted-foreground" dir="ltr" data-testid={`text-email-${merchant.uid}`}>
+                              {merchant.email}
                             </span>
-                          </div>
-                        </TableCell>
-                        <TableCell data-testid={`text-owner-${merchant.uid}`}>
-                          {merchant.ownerName}
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-sm text-muted-foreground" dir="ltr" data-testid={`text-email-${merchant.uid}`}>
-                            {merchant.email}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-sm">
-                            {btLabels[merchant.businessType] || merchant.businessType}
-                          </span>
-                        </TableCell>
-                        <TableCell data-testid={`badge-status-${merchant.uid}`}>
-                          {getStatusBadge(merchant.status, t)}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center justify-center gap-1.5">
-                            {merchant.status !== "approved" && (
+                          </TableCell>
+                          <TableCell data-testid={`badge-status-${merchant.uid}`}>
+                            {getStatusBadge(merchant.status, t)}
+                          </TableCell>
+                          <TableCell data-testid={`badge-sub-${merchant.uid}`}>
+                            <div className="flex flex-col gap-1">
+                              {getSubBadge(merchant.subscriptionStatus, t)}
+                              <span className="text-[10px] text-muted-foreground">{pLabel}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                              {merchant.status !== "approved" && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleActivate(merchant)}
+                                  disabled={actionLoading === merchant.uid}
+                                  className="border-green-500/40 text-green-400 hover:bg-green-500/10 hover:text-green-300 h-8 px-3 text-xs"
+                                  data-testid={`button-activate-${merchant.uid}`}
+                                >
+                                  {actionLoading === merchant.uid ? (
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                  ) : (
+                                    <>
+                                      <CheckCircle className="w-3 h-3 me-1" />
+                                      {t("تفعيل", "Activate")}
+                                    </>
+                                  )}
+                                </Button>
+                              )}
+                              {merchant.status === "approved" && merchant.subscriptionStatus !== "active" && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleActivateSubscription(merchant)}
+                                  disabled={actionLoading === merchant.uid}
+                                  className="border-blue-500/40 text-blue-400 hover:bg-blue-500/10 hover:text-blue-300 h-8 px-3 text-xs"
+                                  data-testid={`button-activate-sub-${merchant.uid}`}
+                                >
+                                  {actionLoading === merchant.uid ? (
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                  ) : (
+                                    <>
+                                      <Zap className="w-3 h-3 me-1" />
+                                      {t("تفعيل الاشتراك", "Activate Sub")}
+                                    </>
+                                  )}
+                                </Button>
+                              )}
+                              {merchant.status !== "suspended" && merchant.status !== "rejected" && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleSuspend(merchant)}
+                                  disabled={actionLoading === merchant.uid}
+                                  className="border-yellow-500/40 text-yellow-400 hover:bg-yellow-500/10 hover:text-yellow-300 h-8 px-3 text-xs"
+                                  data-testid={`button-suspend-${merchant.uid}`}
+                                >
+                                  {actionLoading === merchant.uid ? (
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                  ) : (
+                                    <>
+                                      <XCircle className="w-3 h-3 me-1" />
+                                      {t("إيقاف", "Suspend")}
+                                    </>
+                                  )}
+                                </Button>
+                              )}
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => handleActivate(merchant)}
+                                onClick={() => setDeleteTarget(merchant)}
                                 disabled={actionLoading === merchant.uid}
-                                className="border-green-500/40 text-green-400 hover:bg-green-500/10 hover:text-green-300 h-8 px-3 text-xs"
-                                data-testid={`button-activate-${merchant.uid}`}
+                                className="border-red-500/40 text-red-400 hover:bg-red-500/10 hover:text-red-300 h-8 px-3 text-xs"
+                                data-testid={`button-delete-${merchant.uid}`}
                               >
-                                {actionLoading === merchant.uid ? (
-                                  <Loader2 className="w-3 h-3 animate-spin" />
-                                ) : (
-                                  <>
-                                    <CheckCircle className="w-3 h-3 me-1" />
-                                    {t("تفعيل", "Activate")}
-                                  </>
-                                )}
+                                <Trash2 className="w-3 h-3 me-1" />
+                                {t("حذف", "Delete")}
                               </Button>
-                            )}
-                            {merchant.status !== "suspended" && merchant.status !== "rejected" && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleSuspend(merchant)}
-                                disabled={actionLoading === merchant.uid}
-                                className="border-yellow-500/40 text-yellow-400 hover:bg-yellow-500/10 hover:text-yellow-300 h-8 px-3 text-xs"
-                                data-testid={`button-suspend-${merchant.uid}`}
-                              >
-                                {actionLoading === merchant.uid ? (
-                                  <Loader2 className="w-3 h-3 animate-spin" />
-                                ) : (
-                                  <>
-                                    <XCircle className="w-3 h-3 me-1" />
-                                    {t("إيقاف", "Suspend")}
-                                  </>
-                                )}
-                              </Button>
-                            )}
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setDeleteTarget(merchant)}
-                              disabled={actionLoading === merchant.uid}
-                              className="border-red-500/40 text-red-400 hover:bg-red-500/10 hover:text-red-300 h-8 px-3 text-xs"
-                              data-testid={`button-delete-${merchant.uid}`}
-                            >
-                              <Trash2 className="w-3 h-3 me-1" />
-                              {t("حذف", "Delete")}
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>

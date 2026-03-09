@@ -3,6 +3,19 @@ import { z } from "zod";
 export const merchantStatusEnum = z.enum(["pending", "approved", "rejected", "suspended"]);
 export type MerchantStatus = z.infer<typeof merchantStatusEnum>;
 
+export const subscriptionStatusEnum = z.enum(["pending", "active", "expired", "cancelled"]);
+export type SubscriptionStatus = z.infer<typeof subscriptionStatusEnum>;
+
+export const planEnum = z.enum(["trial", "basic", "premium", "enterprise"]);
+export type Plan = z.infer<typeof planEnum>;
+
+export const planLabels: Record<string, { ar: string; en: string }> = {
+  trial: { ar: "تجريبي", en: "Trial" },
+  basic: { ar: "أساسي", en: "Basic" },
+  premium: { ar: "متقدم", en: "Premium" },
+  enterprise: { ar: "مؤسسي", en: "Enterprise" },
+};
+
 export const businessTypeEnum = z.enum(["restaurant", "cafe", "clinic", "other"]);
 export type BusinessType = z.infer<typeof businessTypeEnum>;
 
@@ -23,12 +36,16 @@ export const merchantSchema = z.object({
   logoUrl: z.string().optional(),
   googleMapsReviewUrl: z.string().url("رابط جوجل ماب غير صالح"),
   status: merchantStatusEnum.default("pending"),
+  subscriptionStatus: subscriptionStatusEnum.default("pending"),
+  plan: planEnum.default("trial"),
   createdAt: z.string(),
 });
 
 export const insertMerchantSchema = merchantSchema.omit({
   id: true,
   status: true,
+  subscriptionStatus: true,
+  plan: true,
   createdAt: true,
 });
 

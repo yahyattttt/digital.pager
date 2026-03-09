@@ -115,6 +115,8 @@ export default function RegisterPage() {
         logoUrl,
         googleMapsReviewUrl: data.googleMapsReviewUrl,
         status: "pending",
+        subscriptionStatus: "pending",
+        plan: "trial",
         createdAt: new Date().toISOString(),
       });
 

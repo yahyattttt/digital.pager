@@ -44,7 +44,9 @@ A multi-tenant SaaS platform for digital pager services (restaurants, cafes, cli
 - `email`: Email address
 - `logoUrl`: Uploaded logo path
 - `googleMapsReviewUrl`: Google Maps review link
-- `status`: "pending" | "approved" | "rejected"
+- `status`: "pending" | "approved" | "rejected" | "suspended" (account status)
+- `subscriptionStatus`: "pending" | "active" | "expired" | "cancelled" (subscription gate)
+- `plan`: "trial" | "basic" | "premium" | "enterprise" (subscription plan, default: "trial")
 - `createdAt`: ISO timestamp
 
 ## Pages
@@ -58,13 +60,23 @@ A multi-tenant SaaS platform for digital pager services (restaurants, cafes, cli
 ## Super Admin
 - Email-gated access: only `yahiatohary@hotmail.com` can access `/super-admin`
 - Non-admin users redirected to `/`
-- Stores management table: Store Name, Owner, Email, Type, Status
+- Stores management table: Store Name, Owner, Email, Status, Subscription
 - Status badges: Pending (yellow), Active (green), Suspended (red)
-- Action buttons: تفعيل (Activate), إيقاف (Suspend), حذف (Delete)
+- Subscription badges: Inactive (yellow), Active (green), Expired (orange), Cancelled (red)
+- Action buttons: تفعيل (Activate — sets both status + subscription), تفعيل الاشتراك (Activate Sub), إيقاف (Suspend), حذف (Delete)
 - Delete requires confirmation dialog
 - Real-time toast notifications on actions
-- Stats cards: Total, Pending, Active, Suspended
+- Stats cards: Total, Pending, Active, Suspended, Subscribed
 - Suspended/rejected merchants are signed out on login attempt
+
+## Subscription System
+- Two-layer gating: `status` (account approval) + `subscriptionStatus` (subscription gate)
+- Registration defaults: `subscriptionStatus: "pending"`, `plan: "trial"`
+- Dashboard shows "Subscription Required" screen if `subscriptionStatus !== "active"`, with WhatsApp contact button
+- Super Admin "Activate" button sets both `status: "approved"` AND `subscriptionStatus: "active"`
+- Separate "Activate Sub" button for re-activating subscription on already-approved stores
+- Modular plan enum (trial/basic/premium/enterprise) ready for Stripe/payment integration
+- Plan labels stored in schema with AR/EN translations
 
 ## Environment Variables
 - `VITE_FIREBASE_API_KEY` - Firebase API key

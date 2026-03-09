@@ -6,7 +6,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useLanguage } from "@/hooks/use-language";
 import { useWakeLock } from "@/hooks/use-wake-lock";
 import { useFullscreen } from "@/hooks/use-fullscreen";
-import { businessTypeLabels } from "@shared/schema";
+import { businessTypeLabels, planLabels } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,13 +15,14 @@ import {
   Store,
   Users,
   Bell,
-  Settings,
   Maximize,
   Minimize,
   Globe,
   CheckCircle,
-  Clock,
   UserPlus,
+  Lock,
+  MessageCircle,
+  CreditCard,
 } from "lucide-react";
 
 const businessTypeLabelsEn: Record<string, string> = {
@@ -30,6 +31,121 @@ const businessTypeLabelsEn: Record<string, string> = {
   clinic: "Clinic",
   other: "Other",
 };
+
+const ADMIN_WHATSAPP = "https://wa.me/966500000000";
+
+function SubscriptionRequiredScreen({
+  storeName,
+  plan,
+  onSignOut,
+  t,
+  toggleLanguage,
+  lang,
+}: {
+  storeName: string;
+  plan: string;
+  onSignOut: () => void;
+  t: (ar: string, en: string) => string;
+  toggleLanguage: () => void;
+  lang: string;
+}) {
+  const planLabel = planLabels[plan]
+    ? lang === "ar"
+      ? planLabels[plan].ar
+      : planLabels[plan].en
+    : plan;
+
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-primary/3 rounded-full blur-3xl" />
+      </div>
+
+      <Card className="w-full max-w-lg relative border-primary/20">
+        <CardContent className="pt-8 pb-8">
+          <div className="flex justify-end mb-4">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={toggleLanguage}
+              className="border-primary/30 hover:border-primary/60"
+              data-testid="button-toggle-language"
+            >
+              <Globe className="w-4 h-4" />
+            </Button>
+          </div>
+
+          <div className="text-center">
+            <div className="mx-auto w-20 h-20 rounded-full bg-primary/10 border-2 border-primary/30 flex items-center justify-center mb-6">
+              <Lock className="w-10 h-10 text-primary" data-testid="icon-subscription-lock" />
+            </div>
+
+            <h2 className="text-2xl font-bold mb-2" data-testid="text-subscription-title">
+              {t("الاشتراك مطلوب", "Subscription Required")}
+            </h2>
+
+            <p className="text-muted-foreground mb-6" data-testid="text-subscription-message">
+              {t(
+                `مرحباً بك في ${storeName}. لتفعيل لوحة التحكم واستخدام نظام البيجر الرقمي، يرجى تفعيل اشتراكك.`,
+                `Welcome to ${storeName}. To access the dashboard and use the digital pager system, please activate your subscription.`
+              )}
+            </p>
+
+            <div className="p-4 rounded-lg bg-muted/30 border border-border/50 mb-6">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm text-muted-foreground">
+                  {t("الخطة الحالية", "Current Plan")}
+                </span>
+                <Badge variant="secondary" data-testid="badge-current-plan">
+                  <CreditCard className="w-3 h-3 me-1" />
+                  {planLabel}
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">
+                  {t("حالة الاشتراك", "Subscription Status")}
+                </span>
+                <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30" data-testid="badge-subscription-status">
+                  {t("غير مفعّل", "Inactive")}
+                </Badge>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <Button
+                size="lg"
+                className="w-full h-14 text-base font-bold"
+                onClick={() => window.open(ADMIN_WHATSAPP, "_blank")}
+                data-testid="button-contact-whatsapp"
+              >
+                <MessageCircle className="w-5 h-5 me-2" />
+                {t("تواصل معنا عبر واتساب", "Contact Us on WhatsApp")}
+              </Button>
+
+              <p className="text-xs text-muted-foreground">
+                {t(
+                  "تواصل مع فريق الإدارة لتفعيل اشتراكك والبدء باستخدام النظام",
+                  "Contact the admin team to activate your subscription and start using the system"
+                )}
+              </p>
+
+              <Button
+                variant="outline"
+                onClick={onSignOut}
+                className="border-primary/30"
+                data-testid="button-sign-out"
+              >
+                <LogOut className="w-4 h-4 me-2" />
+                {t("تسجيل الخروج", "Sign Out")}
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
 
 export default function DashboardPage() {
   const [, setLocation] = useLocation();
@@ -58,10 +174,29 @@ export default function DashboardPage() {
     return null;
   }
 
+  if (merchant.subscriptionStatus !== "active") {
+    return (
+      <SubscriptionRequiredScreen
+        storeName={merchant.storeName}
+        plan={merchant.plan || "trial"}
+        onSignOut={handleSignOut}
+        t={t}
+        toggleLanguage={toggleLanguage}
+        lang={lang}
+      />
+    );
+  }
+
   const businessLabel =
     lang === "ar"
       ? businessTypeLabels[merchant.businessType] || merchant.businessType
       : businessTypeLabelsEn[merchant.businessType] || merchant.businessType;
+
+  const currentPlanLabel = planLabels[merchant.plan]
+    ? lang === "ar"
+      ? planLabels[merchant.plan].ar
+      : planLabels[merchant.plan].en
+    : merchant.plan;
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -106,7 +241,7 @@ export default function DashboardPage() {
             )}
 
             <Badge variant="default" className="hidden sm:inline-flex" data-testid="badge-status-approved">
-              {t("مفعّل", "Active")}
+              {currentPlanLabel}
             </Badge>
 
             <Button
