@@ -178,6 +178,57 @@
   animation: flash-red 0.6s ease-in-out infinite;
 }
 
+@keyframes led-spin {
+  0% { opacity: 0.15; }
+  10% { opacity: 1; }
+  30% { opacity: 0.15; }
+  100% { opacity: 0.15; }
+}
+
+@keyframes led-flash {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.1; }
+}
+
+@keyframes neon-pulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(255,0,0,0.15), 0 0 60px rgba(255,0,0,0.05); }
+  50% { box-shadow: 0 0 40px rgba(255,0,0,0.3), 0 0 100px rgba(255,0,0,0.1); }
+}
+
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+.pager-led-waiting {
+  animation: led-spin 2.4s ease-in-out infinite;
+}
+
+.pager-led-ready {
+  animation: led-flash 0.4s ease-in-out infinite;
+}
+
+.pager-neon-pulse {
+  animation: neon-pulse 2s ease-in-out infinite;
+}
+
+.pager-glow-pulse {
+  animation: glow-pulse 1.5s ease-in-out infinite;
+}
+
+@font-face {
+  font-family: 'DSEG7';
+  src: url('https://cdn.jsdelivr.net/npm/dseg@0.46.0/fonts/DSEG7-Classic/DSEG7Classic-Bold.woff2') format('woff2'),
+       url('https://cdn.jsdelivr.net/npm/dseg@0.46.0/fonts/DSEG7-Classic/DSEG7Classic-Bold.woff') format('woff');
+  font-weight: bold;
+  font-style: normal;
+  font-display: swap;
+}
+
+.font-dseg7 {
+  font-family: 'DSEG7', 'Courier New', monospace;
+}
+
 @layer base {
   * {
     @apply border-border;

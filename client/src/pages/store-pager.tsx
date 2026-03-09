@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
-import { Star, Store, AlertTriangle, Bell, BellOff, CheckCircle, Share2, MapPin, Copy, Send, Loader2 } from "lucide-react";
+import { Star, Store, AlertTriangle, Bell, BellOff, CheckCircle, Share2, MapPin, Copy, Send, Loader2, Navigation } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useWakeLock } from "@/hooks/use-wake-lock";
 import IosInstallPrompt from "@/components/ios-install-prompt";
@@ -356,43 +356,129 @@ function ShareAndReviewButtons({
   );
 }
 
+function PagerDevice({ orderNumber, isReady }: { orderNumber: string; isReady: boolean }) {
+  const leds = Array.from({ length: 12 }, (_, i) => {
+    const angle = (i * 360) / 12 - 90;
+    const rad = (angle * Math.PI) / 180;
+    const r = 47;
+    const cx = 50 + r * Math.cos(rad);
+    const cy = 50 + r * Math.sin(rad);
+    return { cx, cy, delay: `${(i * 0.2).toFixed(1)}s` };
+  });
+
+  return (
+    <div className="relative w-72 h-72 sm:w-80 sm:h-80 mx-auto" data-testid="pager-device">
+      <div
+        className={`absolute inset-0 rounded-full ${isReady ? "pager-neon-pulse" : ""}`}
+        style={{
+          background: "radial-gradient(circle at center, rgba(30,0,0,0.6) 30%, rgba(0,0,0,0.9) 70%)",
+        }}
+      />
+      <div
+        className="absolute rounded-full"
+        style={{
+          inset: "8%",
+          background: "radial-gradient(circle at 40% 35%, #1a1a1a 0%, #0a0a0a 50%, #000 100%)",
+          boxShadow: "inset 0 2px 20px rgba(0,0,0,0.8), inset 0 -1px 10px rgba(255,255,255,0.03), 0 0 30px rgba(0,0,0,0.5)",
+          border: "1px solid rgba(255,255,255,0.04)",
+        }}
+      />
+      <div
+        className="absolute rounded-full"
+        style={{
+          inset: "15%",
+          background: "radial-gradient(circle at 45% 40%, #141414 0%, #080808 60%, #000 100%)",
+          boxShadow: "inset 0 3px 15px rgba(0,0,0,0.9), 0 0 1px rgba(255,255,255,0.05)",
+          border: "1px solid rgba(255,255,255,0.02)",
+        }}
+      />
+      <svg
+        viewBox="0 0 100 100"
+        className="absolute inset-0 w-full h-full"
+        style={{ filter: isReady ? "url(#led-glow-ready)" : "url(#led-glow)" }}
+      >
+        <defs>
+          <filter id="led-glow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="1.2" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+          <filter id="led-glow-ready" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="2" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+        {leds.map((led, i) => (
+          <circle
+            key={i}
+            cx={led.cx}
+            cy={led.cy}
+            r={isReady ? "2.2" : "1.8"}
+            fill="#ff0000"
+            className={isReady ? "pager-led-ready" : "pager-led-waiting"}
+            style={{ animationDelay: led.delay }}
+          />
+        ))}
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <span
+          className="font-dseg7 text-red-500 tracking-wider select-none"
+          style={{
+            fontSize: orderNumber.length > 3 ? "3rem" : orderNumber.length > 2 ? "3.5rem" : "4.5rem",
+            textShadow: "0 0 20px rgba(255,0,0,0.6), 0 0 40px rgba(255,0,0,0.3), 0 0 60px rgba(255,0,0,0.15)",
+            letterSpacing: "0.08em",
+          }}
+          data-testid="text-pager-order-number"
+        >
+          {orderNumber}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function WaitingScreen({ orderNumber, storeName, storeId, googleMapsReviewUrl }: { orderNumber: string; storeName: string; storeId: string; googleMapsReviewUrl: string }) {
   return (
-    <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6 text-center">
-      <div className="mb-8">
-        <div className="relative mx-auto w-32 h-32">
-          <div className="absolute inset-0 rounded-full bg-red-600/20 animate-ping" />
-          <div className="absolute inset-3 rounded-full bg-red-600/30 animate-ping" style={{ animationDelay: "0.3s" }} />
-          <div className="absolute inset-6 rounded-full bg-red-600/40 animate-ping" style={{ animationDelay: "0.6s" }} />
-          <div className="relative w-32 h-32 rounded-full bg-red-600 flex items-center justify-center shadow-[0_0_60px_rgba(255,0,0,0.5)]">
-            <span className="text-white font-bold text-2xl" data-testid="text-pager-order-number">{orderNumber}</span>
-          </div>
+    <div
+      className="min-h-screen flex flex-col items-center justify-between py-10 px-6 text-center"
+      style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }}
+    >
+      <div className="w-full">
+        <h2
+          className="text-white/90 text-sm font-bold tracking-[0.3em] uppercase mb-1"
+          style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}
+          data-testid="text-pager-branding"
+        >
+          DIGITAL PAGER
+        </h2>
+        <p className="text-red-500/60 text-xs tracking-widest uppercase" data-testid="text-store-name-pager">
+          {storeName}
+        </p>
+      </div>
+
+      <div className="flex-1 flex flex-col items-center justify-center -mt-4">
+        <PagerDevice orderNumber={orderNumber} isReady={false} />
+
+        <div className="mt-8">
+          <p
+            className="text-red-400 text-lg font-bold"
+            dir="rtl"
+            data-testid="text-waiting-message"
+          >
+            جاري التحضير...
+          </p>
+          <p className="text-white/50 text-sm mt-2" data-testid="text-waiting-hint">
+            We'll buzz you!
+          </p>
         </div>
       </div>
 
-      <h1 className="text-white text-xl font-bold mb-2" data-testid="text-store-name-pager">
-        {storeName}
-      </h1>
-
-      <p
-        className="text-red-400 text-lg font-medium leading-relaxed max-w-sm"
-        dir="rtl"
-        data-testid="text-waiting-message"
-      >
-        جاري تحضير طلبك.. سنقوم بتنبيهك فور الجاهزية
-      </p>
-
-      <p className="text-gray-500 text-sm mt-4" data-testid="text-waiting-hint">
-        Your order is being prepared. We'll notify you when it's ready.
-      </p>
-
-      <div className="mt-12 flex items-center gap-2">
-        <div className="w-2 h-2 rounded-full bg-red-500 animate-bounce" style={{ animationDelay: "0s" }} />
-        <div className="w-2 h-2 rounded-full bg-red-500 animate-bounce" style={{ animationDelay: "0.15s" }} />
-        <div className="w-2 h-2 rounded-full bg-red-500 animate-bounce" style={{ animationDelay: "0.3s" }} />
-      </div>
-
-      <div className="mt-8">
+      <div className="w-full max-w-xs space-y-3">
         <ShareAndReviewButtons
           storeId={storeId}
           storeName={storeName}
@@ -423,65 +509,99 @@ function NotifiedScreen({
 }) {
   return (
     <div
-      className={`min-h-screen flex flex-col items-center justify-center p-6 text-center ${
-        alertActive ? "animate-flash-red" : "bg-red-600"
-      }`}
+      className={`min-h-screen flex flex-col items-center justify-between py-10 px-6 text-center ${alertActive ? "pager-neon-pulse" : ""}`}
+      style={{ background: alertActive
+        ? "linear-gradient(180deg, #0a0000 0%, #1a0000 30%, #0d0000 70%, #000 100%)"
+        : "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)"
+      }}
     >
-      <div className="mb-6">
-        <div className={`w-32 h-32 rounded-full flex items-center justify-center shadow-[0_0_80px_rgba(255,255,255,0.4)] ${alertActive ? "bg-white animate-pulse" : "bg-white"}`}>
-          <span className="text-red-600 font-bold text-3xl" data-testid="text-notified-order-number">{orderNumber}</span>
+      <div className="w-full">
+        <h2
+          className="text-white/90 text-sm font-bold tracking-[0.3em] uppercase mb-1"
+          style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}
+          data-testid="text-pager-branding-notified"
+        >
+          DIGITAL PAGER
+        </h2>
+        <p className="text-red-500/60 text-xs tracking-widest uppercase" data-testid="text-notified-store">
+          {storeName}
+        </p>
+      </div>
+
+      <div className="flex-1 flex flex-col items-center justify-center -mt-4">
+        <PagerDevice orderNumber={orderNumber} isReady={true} />
+
+        <div className="mt-8">
+          <p
+            className="text-white text-2xl font-black tracking-wide"
+            data-testid="text-notified-message"
+          >
+            ORDER READY!
+          </p>
+          <p
+            className="text-red-400 text-xl font-bold mt-1"
+            dir="rtl"
+            data-testid="text-notified-message-ar"
+          >
+            طلبك جاهز!
+          </p>
+          <p className="text-white/50 text-sm mt-3" data-testid="text-notified-hint">
+            Please proceed to the counter
+          </p>
+          <p className="text-white/40 text-sm mt-0.5" dir="rtl">
+            تفضل بالاستلام من الكاونتر
+          </p>
         </div>
       </div>
 
-      <h1 className="text-white text-2xl font-bold mb-3" data-testid="text-notified-store">{storeName}</h1>
+      <div className="w-full max-w-xs space-y-3">
+        {alertActive && (
+          <>
+            <Button
+              size="lg"
+              onClick={onStopAlert}
+              className="w-full h-14 font-bold text-base bg-transparent border-2 border-red-600 text-white hover:bg-red-600/20 rounded-xl"
+              style={{ boxShadow: "0 0 20px rgba(255,0,0,0.2), inset 0 0 20px rgba(255,0,0,0.05)" }}
+              data-testid="button-stop-alert"
+            >
+              <BellOff className="w-5 h-5 me-2" />
+              <span dir="rtl">تم الاستلام</span>
+              <span className="mx-1">-</span>
+              <span>Received</span>
+            </Button>
+          </>
+        )}
 
-      <p
-        className="text-white text-2xl font-bold leading-relaxed max-w-sm"
-        dir="rtl"
-        data-testid="text-notified-message"
-      >
-        طلبك جاهز! تفضل بالاستلام
-      </p>
-
-      <p className="text-white/80 text-base mt-2" data-testid="text-notified-hint">
-        Your order is ready! Please pick it up.
-      </p>
-
-      {alertActive && (
-        <div className="mt-8">
-          <Button
-            size="lg"
-            onClick={onStopAlert}
-            className="bg-white text-red-600 hover:bg-white/90 font-bold text-lg h-16 px-8 shadow-xl border-2 border-white/50"
-            data-testid="button-stop-alert"
+        {!alertActive && googleMapsReviewUrl && (
+          <a
+            href={googleMapsReviewUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 w-full h-14 font-bold text-base bg-transparent border-2 border-red-600/80 text-white hover:bg-red-600/20 rounded-xl transition-all"
+            style={{ boxShadow: "0 0 20px rgba(255,0,0,0.15), inset 0 0 20px rgba(255,0,0,0.03)" }}
+            data-testid="button-get-directions"
+            onClick={() => {
+              fetch(`/api/track/gmaps/${storeId}`, { method: "POST" }).catch(() => {});
+            }}
           >
-            <BellOff className="w-6 h-6 me-2" />
-            <span dir="rtl">تم الاستلام - إيقاف التنبيه</span>
-          </Button>
-          <p className="text-white/60 text-sm mt-3">Received - Stop Alert</p>
-        </div>
-      )}
+            <MapPin className="w-5 h-5 text-red-500" />
+            <span>Get Directions</span>
+            <span className="mx-1">|</span>
+            <span dir="rtl">الاتجاهات</span>
+          </a>
+        )}
 
-      {!alertActive && (
-        <div className="mt-8">
-          <div className="flex items-center justify-center gap-2 mb-6 text-white/70">
-            <CheckCircle className="w-5 h-5" />
-            <span dir="rtl" className="text-sm">تم إيقاف التنبيه</span>
-            <span className="text-xs">/ Alert stopped</span>
+        {!alertActive && showReview && (
+          <div className="pt-2 animate-in slide-in-from-bottom duration-700">
+            <ShareAndReviewButtons
+              storeId={storeId}
+              storeName={storeName}
+              googleMapsReviewUrl={googleMapsReviewUrl}
+              variant="dark"
+            />
           </div>
-        </div>
-      )}
-
-      {!alertActive && (
-        <div className="mt-4 animate-in slide-in-from-bottom duration-700">
-          <ShareAndReviewButtons
-            storeId={storeId}
-            storeName={storeName}
-            googleMapsReviewUrl={googleMapsReviewUrl}
-            variant="light"
-          />
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
@@ -637,8 +757,11 @@ export default function StorePagerPage() {
 
   if (loading) {
     content = (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }}>
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
+          <span className="text-white/30 text-xs tracking-[0.3em] uppercase">DIGITAL PAGER</span>
+        </div>
       </div>
     );
   } else if (serviceUnavailable) {
@@ -709,62 +832,70 @@ export default function StorePagerPage() {
     );
   } else if (merchant) {
     content = (
-      <div className="min-h-screen bg-black flex items-center justify-center p-6 relative">
-        <Card className="w-full max-w-sm border-red-600/20 bg-zinc-950">
-          <CardContent className="pt-8 pb-8">
-            <div className="text-center mb-8">
-              {merchant.logoUrl ? (
-                <img
-                  src={merchant.logoUrl}
-                  alt={merchant.storeName}
-                  className="w-20 h-20 rounded-full object-cover border-2 border-red-600/30 mx-auto mb-4"
-                  data-testid="img-store-logo"
-                />
-              ) : (
-                <div className="w-20 h-20 rounded-full bg-red-600/10 border-2 border-red-600/30 flex items-center justify-center mx-auto mb-4">
-                  <Store className="w-10 h-10 text-red-500" />
-                </div>
-              )}
-              <h1 className="text-white text-2xl font-bold mb-1" data-testid="text-store-name-entry">
-                {merchant.storeName}
-              </h1>
-              <p className="text-gray-400 text-sm" dir="rtl">
-                أدخل رقم طلبك للانتظار
-              </p>
-              <p className="text-gray-500 text-xs mt-1">
-                Enter your order number to start waiting
-              </p>
-            </div>
-            <form onSubmit={handleUnlockAndSubmit} className="space-y-4">
-              <Input
-                type="text"
-                inputMode="numeric"
-                placeholder="رقم الطلب / Order Number"
-                value={orderNumber}
-                onChange={(e) => setOrderNumber(e.target.value)}
-                className="h-16 text-center text-2xl font-bold bg-black border-red-600/30 text-white placeholder:text-gray-600 focus:border-red-500 focus:ring-red-500/20"
-                dir="ltr"
-                data-testid="input-order-number"
+      <div
+        className="min-h-screen flex flex-col items-center justify-center p-6 relative"
+        style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }}
+      >
+        <div className="w-full max-w-sm">
+          <div className="text-center mb-8">
+            {merchant.logoUrl ? (
+              <img
+                src={merchant.logoUrl}
+                alt={merchant.storeName}
+                className="w-20 h-20 rounded-full object-cover border-2 border-red-600/30 mx-auto mb-4"
+                style={{ boxShadow: "0 0 20px rgba(255,0,0,0.15)" }}
+                data-testid="img-store-logo"
               />
-              <Button
-                type="submit"
-                size="lg"
-                disabled={!orderNumber.trim()}
-                className="w-full h-14 text-lg font-bold bg-red-600 hover:bg-red-700 text-white disabled:opacity-30"
-                data-testid="button-submit-order"
+            ) : (
+              <div
+                className="w-20 h-20 rounded-full bg-black border-2 border-red-600/30 flex items-center justify-center mx-auto mb-4"
+                style={{ boxShadow: "0 0 20px rgba(255,0,0,0.15)" }}
               >
-                <Bell className="w-5 h-5 me-2" />
-                <span dir="rtl">ابدأ الانتظار واستقبل التنبيه</span>
-              </Button>
-              <p className="text-center text-gray-600 text-xs" dir="rtl">
-                بالضغط على الزر، سيتم تفعيل الصوت والاهتزاز للتنبيه
-              </p>
-              <p className="text-center text-gray-700 text-[10px]">
-                Pressing the button enables sound & vibration alerts
-              </p>
-            </form>
-          </CardContent>
-        </Card>
+                <Store className="w-10 h-10 text-red-500" />
+              </div>
+            )}
+            <h2 className="text-white/80 text-xs font-bold tracking-[0.3em] uppercase mb-3">DIGITAL PAGER</h2>
+            <h1 className="text-white text-2xl font-bold mb-1" data-testid="text-store-name-entry">
+              {merchant.storeName}
+            </h1>
+            <p className="text-white/40 text-sm mt-2" dir="rtl">
+              أدخل رقم طلبك للانتظار
+            </p>
+            <p className="text-white/30 text-xs mt-1">
+              Enter your order number to start waiting
+            </p>
+          </div>
+          <form onSubmit={handleUnlockAndSubmit} className="space-y-4">
+            <Input
+              type="text"
+              inputMode="numeric"
+              placeholder="رقم الطلب / Order Number"
+              value={orderNumber}
+              onChange={(e) => setOrderNumber(e.target.value)}
+              className="h-16 text-center text-2xl font-bold bg-black/80 border-red-600/30 text-red-400 placeholder:text-white/20 focus:border-red-500 focus:ring-red-500/20 rounded-xl"
+              style={{ boxShadow: "inset 0 2px 10px rgba(0,0,0,0.5)" }}
+              dir="ltr"
+              data-testid="input-order-number"
+            />
+            <Button
+              type="submit"
+              size="lg"
+              disabled={!orderNumber.trim()}
+              className="w-full h-14 text-lg font-bold bg-red-600 hover:bg-red-700 text-white disabled:opacity-30 rounded-xl"
+              style={{ boxShadow: "0 0 30px rgba(255,0,0,0.2)" }}
+              data-testid="button-submit-order"
+            >
+              <Bell className="w-5 h-5 me-2" />
+              <span dir="rtl">ابدأ الانتظار</span>
+            </Button>
+            <p className="text-center text-white/20 text-xs" dir="rtl">
+              بالضغط على الزر، سيتم تفعيل الصوت والاهتزاز للتنبيه
+            </p>
+            <p className="text-center text-white/15 text-[10px]">
+              Pressing the button enables sound & vibration alerts
+            </p>
+          </form>
+        </div>
       </div>
     );
   } else {
