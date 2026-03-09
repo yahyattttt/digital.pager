@@ -4,7 +4,6 @@ import { doc, getDoc, getDocs, setDoc, updateDoc, collection, query, where, onSn
 import { db, requestFCMToken } from "@/lib/firebase";
 import type { Merchant, Pager } from "@shared/schema";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Star, Store, AlertTriangle, Bell, BellOff, CheckCircle, Share2, MapPin, Copy, Send, Loader2, Navigation, RefreshCw } from "lucide-react";
@@ -666,6 +665,193 @@ function NotifiedScreen({
   );
 }
 
+function OrderSelectionScreen({
+  merchant,
+  storeId,
+  onSelectOrder,
+}: {
+  merchant: Merchant;
+  storeId: string;
+  onSelectOrder: (orderNumber: string) => void;
+}) {
+  const [activeOrders, setActiveOrders] = useState<{ docId: string; orderNumber: string }[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(true);
+  const [ordersError, setOrdersError] = useState(false);
+  const [confirmOrder, setConfirmOrder] = useState<string | null>(null);
+
+  useEffect(() => {
+    const pagersRef = collection(db, "merchants", storeId, "pagers");
+    const q = query(pagersRef, where("status", "==", "waiting"));
+    const unsub = onSnapshot(q, (snap) => {
+      const orders = snap.docs.map((d) => ({
+        docId: d.id,
+        orderNumber: String(d.data().orderNumber),
+      }));
+      orders.sort((a, b) => {
+        const na = parseInt(a.orderNumber, 10);
+        const nb = parseInt(b.orderNumber, 10);
+        if (!isNaN(na) && !isNaN(nb)) return na - nb;
+        return a.orderNumber.localeCompare(b.orderNumber);
+      });
+      setActiveOrders(orders);
+      setOrdersLoading(false);
+      setOrdersError(false);
+    }, () => {
+      setOrdersLoading(false);
+      setOrdersError(true);
+    });
+    return () => unsub();
+  }, [storeId]);
+
+  return (
+    <div
+      className="h-[100dvh] flex flex-col overflow-hidden"
+      style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }}
+      data-testid="order-selection-screen"
+    >
+      <div className="flex-shrink-0 pt-8 pb-4 px-5 text-center">
+        {merchant.logoUrl ? (
+          <img
+            src={merchant.logoUrl}
+            alt={merchant.storeName}
+            className="w-16 h-16 rounded-full object-cover border-2 border-red-600/30 mx-auto mb-3"
+            style={{ boxShadow: "0 0 20px rgba(255,0,0,0.15)" }}
+            data-testid="img-store-logo"
+          />
+        ) : (
+          <div
+            className="w-16 h-16 rounded-full bg-black border-2 border-red-600/30 flex items-center justify-center mx-auto mb-3"
+            style={{ boxShadow: "0 0 20px rgba(255,0,0,0.15)" }}
+          >
+            <Store className="w-8 h-8 text-red-500" />
+          </div>
+        )}
+        <h2 className="text-white/80 text-xs font-bold tracking-[0.3em] uppercase mb-2">DIGITAL PAGER</h2>
+        <h1 className="text-white text-xl font-bold" data-testid="text-store-name-entry">
+          {merchant.storeName}
+        </h1>
+        <p className="text-white/40 text-sm mt-2" dir="rtl">اختر رقم طلبك</p>
+        <p className="text-white/30 text-xs mt-0.5">Select your order number</p>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-5 pb-8">
+        {ordersLoading ? (
+          <div className="flex items-center justify-center py-20">
+            <div className="w-8 h-8 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : ordersError ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center" data-testid="orders-error-state">
+            <AlertTriangle className="w-10 h-10 text-red-500/50 mb-4" />
+            <p className="text-white/50 text-sm" dir="rtl">حدث خطأ في تحميل الطلبات</p>
+            <p className="text-white/30 text-xs mt-1">Could not load orders. Please refresh the page.</p>
+          </div>
+        ) : activeOrders.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center" data-testid="empty-orders-state">
+            <div
+              className="w-20 h-20 rounded-full bg-red-600/5 border border-red-600/15 flex items-center justify-center mb-5"
+              style={{ boxShadow: "0 0 30px rgba(255,0,0,0.05)" }}
+            >
+              <Bell className="w-9 h-9 text-red-500/40" />
+            </div>
+            <p className="text-white/60 text-base font-semibold mb-1" dir="rtl">
+              في انتظار طلبات جديدة...
+            </p>
+            <p className="text-white/40 text-sm">
+              Waiting for new orders to appear...
+            </p>
+            <p className="text-white/25 text-xs mt-4 max-w-[250px]" dir="rtl">
+              يرجى مراجعة الكاونتر إذا كنت قد طلبت للتو
+            </p>
+            <p className="text-white/20 text-xs mt-1 max-w-[250px]">
+              Please check with the counter if you just ordered
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-3" data-testid="order-grid">
+            {activeOrders.map((order) => (
+              <button
+                key={order.docId}
+                onClick={() => setConfirmOrder(order.orderNumber)}
+                className="aspect-square rounded-2xl border border-red-600/20 bg-black/60 flex items-center justify-center transition-all active:scale-95 hover:border-red-500/50 hover:bg-red-600/5"
+                style={{ boxShadow: "0 0 15px rgba(255,0,0,0.05), inset 0 1px 10px rgba(0,0,0,0.4)" }}
+                data-testid={`button-order-${order.orderNumber}`}
+              >
+                <span
+                  className="font-dseg7 text-red-500 select-none"
+                  style={{
+                    fontSize: order.orderNumber.length > 3 ? "1.5rem" : order.orderNumber.length > 2 ? "2rem" : "2.5rem",
+                    textShadow: "0 0 15px rgba(255,0,0,0.4), 0 0 30px rgba(255,0,0,0.2)",
+                  }}
+                >
+                  {order.orderNumber}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {confirmOrder && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-6"
+          onClick={() => setConfirmOrder(null)}
+          data-testid="confirm-order-modal"
+        >
+          <div
+            className="w-full max-w-xs rounded-2xl border border-red-600/30 bg-[#0a0a0a] p-6 text-center"
+            style={{ boxShadow: "0 0 60px rgba(255,0,0,0.1)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="w-24 h-24 rounded-full border border-red-600/20 bg-black mx-auto mb-5 flex items-center justify-center"
+              style={{ boxShadow: "0 0 30px rgba(255,0,0,0.1), inset 0 2px 15px rgba(0,0,0,0.8)" }}
+            >
+              <span
+                className="font-dseg7 text-red-500"
+                style={{
+                  fontSize: confirmOrder.length > 3 ? "1.8rem" : "2.5rem",
+                  textShadow: "0 0 20px rgba(255,0,0,0.5), 0 0 40px rgba(255,0,0,0.25)",
+                }}
+              >
+                {confirmOrder}
+              </span>
+            </div>
+
+            <p className="text-white text-lg font-bold mb-1" dir="rtl" data-testid="text-confirm-title">
+              تأكيد الطلب #{confirmOrder}
+            </p>
+            <p className="text-white/60 text-sm mb-6" data-testid="text-confirm-title-en">
+              Confirm Order #{confirmOrder}
+            </p>
+
+            <div className="space-y-3">
+              <Button
+                onClick={() => onSelectOrder(confirmOrder)}
+                className="w-full h-14 text-base font-bold bg-red-600 hover:bg-red-700 text-white rounded-xl"
+                style={{ boxShadow: "0 0 25px rgba(255,0,0,0.2)" }}
+                data-testid="button-confirm-yes"
+              >
+                <CheckCircle className="w-5 h-5 me-2" />
+                <span dir="rtl">نعم، هذا طلبي</span>
+              </Button>
+              <Button
+                onClick={() => setConfirmOrder(null)}
+                variant="outline"
+                className="w-full h-12 text-sm font-medium border-white/10 text-white/60 hover:bg-white/5 hover:text-white rounded-xl"
+                data-testid="button-confirm-cancel"
+              >
+                <span dir="rtl">إلغاء</span>
+                <span className="mx-1">|</span>
+                <span>Cancel</span>
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function StorePagerPage() {
   const params = useParams<{ storeId: string }>();
   const storeId = params.storeId;
@@ -683,6 +869,46 @@ export default function StorePagerPage() {
   const { unlock, play, stop: stopSound } = useAlertSound();
   const { start: startVibration, stop: stopVibration } = useVibrationLoop();
   const { isActive: wakeLockActive, isSupported: wakeLockSupported, requestWakeLock, releaseWakeLock } = useWakeLock(false);
+
+  const sessionKey = storeId ? `dp-session-${storeId}` : "";
+
+  useEffect(() => {
+    if (!sessionKey || !storeId) return;
+    const saved = localStorage.getItem(sessionKey);
+    if (!saved) return;
+    try {
+      const parsed = JSON.parse(saved);
+      if (!parsed.orderNumber || !parsed.timestamp) {
+        localStorage.removeItem(sessionKey);
+        return;
+      }
+      const fourHours = 4 * 60 * 60 * 1000;
+      if (Date.now() - parsed.timestamp >= fourHours) {
+        localStorage.removeItem(sessionKey);
+        return;
+      }
+      const pagersRef = collection(db, "merchants", storeId, "pagers");
+      const q = query(
+        pagersRef,
+        where("orderNumber", "==", parsed.orderNumber),
+        where("status", "in", ["waiting", "notified"])
+      );
+      getDocs(q).then((snap) => {
+        if (!snap.empty) {
+          setOrderNumber(parsed.orderNumber);
+          setSubmitted(true);
+          const pager = snap.docs[0].data() as Pager;
+          setPagerStatus(pager.status === "notified" ? "notified" : "waiting");
+        } else {
+          localStorage.removeItem(sessionKey);
+        }
+      }).catch(() => {
+        localStorage.removeItem(sessionKey);
+      });
+    } catch {
+      localStorage.removeItem(sessionKey);
+    }
+  }, [sessionKey, storeId]);
 
   const handlePullRefresh = useCallback(async () => {
     if (!storeId || !orderNumber || !submitted) return;
@@ -756,8 +982,19 @@ export default function StorePagerPage() {
       where("status", "in", ["waiting", "notified"])
     );
 
+    let firstSnapshot = true;
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      if (snapshot.empty) return;
+      if (snapshot.empty) {
+        if (!firstSnapshot) {
+          setSubmitted(false);
+          setOrderNumber("");
+          setPagerStatus("waiting");
+          if (sessionKey) localStorage.removeItem(sessionKey);
+        }
+        firstSnapshot = false;
+        return;
+      }
+      firstSnapshot = false;
 
       const pagerDoc = snapshot.docs[0];
       const pager = pagerDoc.data() as Pager;
@@ -780,7 +1017,7 @@ export default function StorePagerPage() {
     });
 
     return () => unsubscribe();
-  }, [submitted, storeId, orderNumber, play, startVibration]);
+  }, [submitted, storeId, orderNumber, play, startVibration, sessionKey]);
 
   useEffect(() => {
     return () => {
@@ -788,47 +1025,53 @@ export default function StorePagerPage() {
     };
   }, []);
 
-  async function handleUnlockAndSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!orderNumber.trim()) return;
-    unlock();
-    requestWakeLock();
-    hasPlayedNotification.current = false;
+  function handleSelectOrder(selectedOrderNumber: string) {
+    setOrderNumber(selectedOrderNumber);
+    setSubmitted(true);
     setPagerStatus("waiting");
+    hasPlayedNotification.current = false;
     setShowReview(false);
     setAlertActive(false);
-    setSubmitted(true);
+    unlock();
+    requestWakeLock();
+
+    if (sessionKey) {
+      localStorage.setItem(sessionKey, JSON.stringify({
+        orderNumber: selectedOrderNumber,
+        timestamp: Date.now(),
+      }));
+    }
 
     if ("Notification" in window && Notification.permission === "default") {
-      try {
-        await Notification.requestPermission();
-      } catch {}
+      Notification.requestPermission().catch(() => {});
     }
 
     if ("Notification" in window && Notification.permission === "granted" && storeId) {
-      try {
-        const token = await requestFCMToken();
-        if (token) {
-          const pagersRef = collection(db, "merchants", storeId, "pagers");
-          const q2 = query(
-            pagersRef,
-            where("orderNumber", "==", orderNumber.trim()),
-            where("status", "in", ["waiting", "notified"])
-          );
-          const unsub = onSnapshot(q2, async (snap) => {
-            if (!snap.empty) {
-              const pagerDoc = snap.docs[0];
-              try {
-                await updateDoc(pagerDoc.ref, { fcmToken: token });
-              } catch {}
-              unsub();
-            }
-          });
-          setTimeout(() => { try { unsub(); } catch {} }, 30000);
+      (async () => {
+        try {
+          const token = await requestFCMToken();
+          if (token) {
+            const pagersRef = collection(db, "merchants", storeId, "pagers");
+            const q2 = query(
+              pagersRef,
+              where("orderNumber", "==", selectedOrderNumber),
+              where("status", "in", ["waiting", "notified"])
+            );
+            const unsub = onSnapshot(q2, async (snap) => {
+              if (!snap.empty) {
+                const pagerDoc = snap.docs[0];
+                try {
+                  await updateDoc(pagerDoc.ref, { fcmToken: token });
+                } catch {}
+                unsub();
+              }
+            });
+            setTimeout(() => { try { unsub(); } catch {} }, 30000);
+          }
+        } catch (e) {
+          console.warn("FCM setup failed:", e);
         }
-      } catch (e) {
-        console.warn("FCM setup failed:", e);
-      }
+      })();
     }
   }
 
@@ -837,6 +1080,9 @@ export default function StorePagerPage() {
     stopVibration();
     setAlertActive(false);
     releaseWakeLock();
+    if (sessionKey) {
+      localStorage.removeItem(sessionKey);
+    }
   }
 
   let content: JSX.Element;
@@ -917,71 +1163,11 @@ export default function StorePagerPage() {
     );
   } else if (merchant) {
     content = (
-      <div
-        className="h-[100dvh] flex flex-col items-center justify-center p-6 relative overflow-hidden"
-        style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }}
-      >
-        <div className="w-full max-w-sm">
-          <div className="text-center mb-8">
-            {merchant.logoUrl ? (
-              <img
-                src={merchant.logoUrl}
-                alt={merchant.storeName}
-                className="w-20 h-20 rounded-full object-cover border-2 border-red-600/30 mx-auto mb-4"
-                style={{ boxShadow: "0 0 20px rgba(255,0,0,0.15)" }}
-                data-testid="img-store-logo"
-              />
-            ) : (
-              <div
-                className="w-20 h-20 rounded-full bg-black border-2 border-red-600/30 flex items-center justify-center mx-auto mb-4"
-                style={{ boxShadow: "0 0 20px rgba(255,0,0,0.15)" }}
-              >
-                <Store className="w-10 h-10 text-red-500" />
-              </div>
-            )}
-            <h2 className="text-white/80 text-xs font-bold tracking-[0.3em] uppercase mb-3">DIGITAL PAGER</h2>
-            <h1 className="text-white text-2xl font-bold mb-1" data-testid="text-store-name-entry">
-              {merchant.storeName}
-            </h1>
-            <p className="text-white/40 text-sm mt-2" dir="rtl">
-              أدخل رقم طلبك للانتظار
-            </p>
-            <p className="text-white/30 text-xs mt-1">
-              Enter your order number to start waiting
-            </p>
-          </div>
-          <form onSubmit={handleUnlockAndSubmit} className="space-y-4">
-            <Input
-              type="text"
-              inputMode="numeric"
-              placeholder="رقم الطلب / Order Number"
-              value={orderNumber}
-              onChange={(e) => setOrderNumber(e.target.value)}
-              className="h-16 text-center text-2xl font-bold bg-black/80 border-red-600/30 text-red-400 placeholder:text-white/20 focus:border-red-500 focus:ring-red-500/20 rounded-xl"
-              style={{ boxShadow: "inset 0 2px 10px rgba(0,0,0,0.5)" }}
-              dir="ltr"
-              data-testid="input-order-number"
-            />
-            <Button
-              type="submit"
-              size="lg"
-              disabled={!orderNumber.trim()}
-              className="w-full h-14 text-lg font-bold bg-red-600 hover:bg-red-700 text-white disabled:opacity-30 rounded-xl"
-              style={{ boxShadow: "0 0 30px rgba(255,0,0,0.2)" }}
-              data-testid="button-submit-order"
-            >
-              <Bell className="w-5 h-5 me-2" />
-              <span dir="rtl">ابدأ الانتظار</span>
-            </Button>
-            <p className="text-center text-white/20 text-xs" dir="rtl">
-              بالضغط على الزر، سيتم تفعيل الصوت والاهتزاز للتنبيه
-            </p>
-            <p className="text-center text-white/15 text-[10px]">
-              Pressing the button enables sound & vibration alerts
-            </p>
-          </form>
-        </div>
-      </div>
+      <OrderSelectionScreen
+        merchant={merchant}
+        storeId={storeId!}
+        onSelectOrder={handleSelectOrder}
+      />
     );
   } else {
     content = (
