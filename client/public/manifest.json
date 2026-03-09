@@ -1,14 +1,17 @@
 {
+  "id": "/",
   "name": "Digital Pager - بيجر رقمي",
   "short_name": "Digital Pager",
   "description": "نظام إدارة قوائم الانتظار الرقمي - Digital queue management system",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#000000",
   "theme_color": "#FF0000",
   "orientation": "any",
   "dir": "rtl",
   "lang": "ar",
+  "categories": ["business", "productivity", "food"],
   "gcm_sender_id": "103953800507",
   "icons": [
     {

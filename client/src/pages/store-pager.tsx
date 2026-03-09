@@ -10,7 +10,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Star, Store, AlertTriangle, Bell, BellOff, CheckCircle, Share2, MapPin, Copy, Send, Loader2, Navigation } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useWakeLock } from "@/hooks/use-wake-lock";
-import IosInstallPrompt from "@/components/ios-install-prompt";
 
 function useAlertSound() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -906,10 +905,5 @@ export default function StorePagerPage() {
     );
   }
 
-  return (
-    <>
-      <IosInstallPrompt />
-      {content}
-    </>
-  );
+  return content;
 }
