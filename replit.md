@@ -6,7 +6,7 @@ A multi-tenant SaaS platform for digital pager services (restaurants, cafes, cli
 - **Frontend:** React, Vite, TailwindCSS, shadcn/ui
 - **Backend:** Node.js, Express
 - **Database:** Firebase Firestore (NoSQL)
-- **Auth:** Firebase Auth (Email/Password with email verification)
+- **Auth:** Firebase Auth (Passwordless OTP via Resend + Custom Token)
 - **Push Notifications:** Firebase Cloud Messaging (FCM)
 - **File Uploads:** Multer (stored locally in `client/public/uploads/`)
 
@@ -103,12 +103,13 @@ A multi-tenant SaaS platform for digital pager services (restaurants, cafes, cli
 ## Passwordless OTP Authentication (Resend + Firebase Custom Tokens)
 - **No passwords** — both login and registration use email OTP only
 - **POST `/api/send-otp`**: Sends 6-digit OTP via Resend (dev mode: logs only in NODE_ENV=development)
-- **POST `/api/verify-otp`**: Validates OTP (5-min expiry, max 5 attempts, 6-digit format enforced) → finds/creates Firebase Auth user via Identity Toolkit REST API → returns Firebase custom token (JWT signed with service account RSA key)
+- **POST `/api/verify-otp`**: Validates OTP (10-min expiry, max 5 attempts, 6-digit format enforced) → finds/creates Firebase Auth user → returns Firebase custom token (JWT signed with service account RSA key)
 - **Custom Token Flow**: Server creates JWT with `iss/sub = service account email`, `aud = identitytoolkit`, `uid = Firebase user UID`, signed with RS256 using service account private key
 - **Client Auth**: Uses `signInWithCustomToken(auth, token)` — Firebase persistence keeps session across browser restarts
 - **Login flow**: Email → Send OTP → Enter 6-digit code → Sign in (if no merchant found, redirects to register)
 - **Registration flow**: Fill store details + email → Send OTP → Verify OTP (gets custom token + UID) → Sign in → Save merchant data to Firestore
-- OTPs stored in-memory Map (server-side); branded HTML email template (neon red/black theme, Arabic/English)
+- OTPs stored in Firestore `otp_codes` collection (persists across server restarts); branded HTML email template (neon red/black theme, Arabic/English)
+- Real-time merchant status via Firestore `onSnapshot` — admin approval/suspension reflects immediately in merchant dashboard
 - Error codes: `OTP_EXPIRED`, `INVALID_CODE`, `TOO_MANY_ATTEMPTS`, `NO_OTP`
 
 ## Registration Resilience

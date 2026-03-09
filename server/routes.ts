@@ -68,7 +68,126 @@ function getFCMAuth(): GoogleAuth | null {
   }
 }
 
-const otpStore = new Map<string, { code: string; expiresAt: number; attempts: number; sentAt: number }>();
+async function getFirestoreAccessToken(): Promise<string | null> {
+  const saJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  if (!saJson) return null;
+  try {
+    const credentials = JSON.parse(saJson);
+    const authClient = new GoogleAuth({
+      credentials,
+      scopes: ["https://www.googleapis.com/auth/datastore"],
+    });
+    const client = await authClient.getClient();
+    const tokenRes = await client.getAccessToken();
+    return tokenRes?.token || null;
+  } catch {
+    return null;
+  }
+}
+
+function getFirestoreBaseUrl(): string | null {
+  const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
+  if (!projectId) return null;
+  return `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
+}
+
+function sanitizeEmailKey(email: string): string {
+  return createHash("sha256").update(email.toLowerCase().trim()).digest("hex").slice(0, 40);
+}
+
+async function saveOtpToFirestore(email: string, code: string): Promise<boolean> {
+  const accessToken = await getFirestoreAccessToken();
+  const baseUrl = getFirestoreBaseUrl();
+  if (!accessToken || !baseUrl) return false;
+
+  const docId = sanitizeEmailKey(email);
+  const now = Date.now();
+  const data = {
+    fields: {
+      email: { stringValue: email.toLowerCase().trim() },
+      code: { stringValue: code },
+      expiresAt: { integerValue: String(now + 10 * 60 * 1000) },
+      attempts: { integerValue: "0" },
+      sentAt: { integerValue: String(now) },
+    },
+  };
+
+  try {
+    const res = await fetch(`${baseUrl}/otp_codes/${docId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      console.error(`[OTP] Firestore save failed:`, res.status, await res.text());
+      return false;
+    }
+    console.log(`[OTP] Saved OTP to Firestore for ${email}, docId: ${docId}`);
+    return true;
+  } catch (err) {
+    console.error(`[OTP] Firestore save error:`, err);
+    return false;
+  }
+}
+
+async function getOtpFromFirestore(email: string): Promise<{ code: string; expiresAt: number; attempts: number; sentAt: number } | null> {
+  const accessToken = await getFirestoreAccessToken();
+  const baseUrl = getFirestoreBaseUrl();
+  if (!accessToken || !baseUrl) return null;
+
+  const docId = sanitizeEmailKey(email);
+
+  try {
+    const res = await fetch(`${baseUrl}/otp_codes/${docId}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) {
+      console.log(`[OTP] Firestore lookup: no OTP doc found for ${email} (status ${res.status})`);
+      return null;
+    }
+    const doc = await res.json();
+    if (!doc.fields) return null;
+    return {
+      code: doc.fields.code?.stringValue || "",
+      expiresAt: parseInt(doc.fields.expiresAt?.integerValue || "0"),
+      attempts: parseInt(doc.fields.attempts?.integerValue || "0"),
+      sentAt: parseInt(doc.fields.sentAt?.integerValue || "0"),
+    };
+  } catch (err) {
+    console.error(`[OTP] Firestore lookup error:`, err);
+    return null;
+  }
+}
+
+async function updateOtpAttempts(email: string, attempts: number): Promise<void> {
+  const accessToken = await getFirestoreAccessToken();
+  const baseUrl = getFirestoreBaseUrl();
+  if (!accessToken || !baseUrl) return;
+
+  const docId = sanitizeEmailKey(email);
+  try {
+    await fetch(`${baseUrl}/otp_codes/${docId}?updateMask.fieldPaths=attempts`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ fields: { attempts: { integerValue: String(attempts) } } }),
+    });
+  } catch {}
+}
+
+async function deleteOtpFromFirestore(email: string): Promise<void> {
+  const accessToken = await getFirestoreAccessToken();
+  const baseUrl = getFirestoreBaseUrl();
+  if (!accessToken || !baseUrl) return;
+
+  const docId = sanitizeEmailKey(email);
+  try {
+    await fetch(`${baseUrl}/otp_codes/${docId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    console.log(`[OTP] Deleted OTP from Firestore for ${email}`);
+  } catch {}
+}
 
 function getServiceAccountCredentials(): { client_email: string; private_key: string; project_id: string } | null {
   const saJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
@@ -334,7 +453,8 @@ export async function registerRoutes(
       }
 
       const emailLower = email.toLowerCase().trim();
-      const existing = otpStore.get(emailLower);
+
+      const existing = await getOtpFromFirestore(emailLower);
       const OTP_COOLDOWN_MS = 60 * 1000;
       if (existing && existing.sentAt && (Date.now() - existing.sentAt) < OTP_COOLDOWN_MS) {
         const waitSeconds = Math.ceil((OTP_COOLDOWN_MS - (Date.now() - existing.sentAt)) / 1000);
@@ -342,14 +462,14 @@ export async function registerRoutes(
       }
 
       const code = String(Math.floor(100000 + Math.random() * 900000));
-      otpStore.set(emailLower, {
-        code,
-        expiresAt: Date.now() + 5 * 60 * 1000,
-        attempts: 0,
-        sentAt: Date.now(),
-      });
 
-      console.log(`[OTP] Generated OTP for ${emailLower}: ${code}`);
+      const saved = await saveOtpToFirestore(emailLower, code);
+      if (!saved) {
+        console.error(`[OTP] Failed to save OTP to Firestore for ${emailLower}`);
+        return res.status(500).json({ message: "Failed to store OTP. Please try again." });
+      }
+
+      console.log(`[OTP] Generated OTP for ${emailLower}: ${code} (stored in Firestore)`);
 
       const resendApiKey = process.env.RESEND_API_KEY;
       if (!resendApiKey) {
@@ -374,7 +494,7 @@ export async function registerRoutes(
             <div style="background: #111; border: 1px solid #333; border-radius: 8px; padding: 24px; text-align: center; margin-bottom: 24px;">
               <p style="color: #999; font-size: 14px; margin: 0 0 12px 0;">رمز التحقق الخاص بك</p>
               <div style="font-size: 36px; font-weight: bold; letter-spacing: 8px; color: #FF0000; font-family: monospace;">${code}</div>
-              <p style="color: #666; font-size: 12px; margin: 12px 0 0 0;">صالح لمدة 5 دقائق</p>
+              <p style="color: #666; font-size: 12px; margin: 12px 0 0 0;">صالح لمدة 10 دقائق / Valid for 10 minutes</p>
             </div>
             <p style="color: #666; font-size: 12px; text-align: center;">
               إذا لم تطلب هذا الرمز، تجاهل هذه الرسالة.
@@ -414,35 +534,37 @@ export async function registerRoutes(
 
       const emailLower = email.toLowerCase().trim();
       const DEV_MASTER_OTP = "123456";
-      const isMasterOtp = codeStr === DEV_MASTER_OTP;
+      const isMasterOtp = process.env.NODE_ENV !== "production" && codeStr === DEV_MASTER_OTP;
 
       if (isMasterOtp) {
         console.log(`[OTP] Master OTP used for ${emailLower} — bypassing verification`);
-        otpStore.delete(emailLower);
+        await deleteOtpFromFirestore(emailLower);
       } else {
-        const entry = otpStore.get(emailLower);
+        const entry = await getOtpFromFirestore(emailLower);
+        console.log(`[OTP-VERIFY] Email: ${emailLower}, OTP found: ${!!entry}, Expired: ${entry ? entry.expiresAt < Date.now() : "N/A"}, Attempts: ${entry?.attempts ?? "N/A"}`);
 
         if (!entry) {
           return res.status(400).json({ message: "No OTP found. Please request a new one.", errorCode: "NO_OTP" });
         }
 
         if (entry.expiresAt < Date.now()) {
-          otpStore.delete(emailLower);
+          await deleteOtpFromFirestore(emailLower);
           return res.status(400).json({ message: "OTP expired. Please request a new one.", errorCode: "OTP_EXPIRED" });
         }
 
         if (entry.attempts >= 5) {
-          otpStore.delete(emailLower);
+          await deleteOtpFromFirestore(emailLower);
           return res.status(429).json({ message: "Too many attempts. Please request a new OTP.", errorCode: "TOO_MANY_ATTEMPTS" });
         }
 
-        entry.attempts++;
+        await updateOtpAttempts(emailLower, entry.attempts + 1);
 
         if (entry.code !== codeStr) {
+          console.log(`[OTP-VERIFY] Code mismatch for ${emailLower}`);
           return res.status(400).json({ message: "Invalid OTP code.", errorCode: "INVALID_CODE" });
         }
 
-        otpStore.delete(emailLower);
+        await deleteOtpFromFirestore(emailLower);
       }
 
       const existingMerchant = await findMerchantByEmail(emailLower);
