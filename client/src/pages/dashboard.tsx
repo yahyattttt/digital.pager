@@ -174,8 +174,9 @@ function SubscriptionRequiredScreen({
 }
 
 export default function DashboardPage() {
+  console.log('Dashboard Loaded');
   const [, setLocation] = useLocation();
-  const { merchant, loading, logout } = useAuth();
+  const { merchant, logout } = useAuth();
   const { t, toggleLanguage, lang } = useLanguage();
   const { isActive: wakeLockActive, isSupported: wakeLockSupported } = useWakeLock();
   const { isFullscreen, toggleFullscreen, isSupported } = useFullscreen();
@@ -194,8 +195,7 @@ export default function DashboardPage() {
     const pagersRef = collection(db, "merchants", merchant.uid, "pagers");
     const q = query(
       pagersRef,
-      where("status", "in", ["waiting", "notified"]),
-      orderBy("createdAt", "asc")
+      where("status", "in", ["waiting", "notified"])
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -203,6 +203,7 @@ export default function DashboardPage() {
       snapshot.forEach((docSnap) => {
         docs.push({ ...(docSnap.data() as Pager), docId: docSnap.id });
       });
+      docs.sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
       setPagers(docs);
     }, (error) => {
       console.error("Pagers listener error:", error);
@@ -371,16 +372,12 @@ export default function DashboardPage() {
     }
   }
 
-  if (loading) {
+  if (!merchant) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     );
-  }
-
-  if (!merchant) {
-    return null;
   }
 
   if (merchant.subscriptionStatus !== "active") {

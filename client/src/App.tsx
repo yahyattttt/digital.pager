@@ -119,6 +119,15 @@ function PendingRoute() {
 
 function GuestRoute({ component: Component }: { component: () => JSX.Element | null }) {
   const { user, merchant, loading } = useAuth();
+  const [guestTimeout, setGuestTimeout] = useState(false);
+
+  useEffect(() => {
+    if (user && !merchant && !loading) {
+      const timer = setTimeout(() => setGuestTimeout(true), 5000);
+      return () => clearTimeout(timer);
+    }
+    setGuestTimeout(false);
+  }, [user, merchant, loading]);
 
   if (loading) {
     return (
@@ -132,11 +141,15 @@ function GuestRoute({ component: Component }: { component: () => JSX.Element | n
     if (user.email === SUPER_ADMIN_EMAIL) {
       return <Redirect to="/super-admin" />;
     }
-    if (merchant) {
-      if (merchant.status === "approved" || merchant.status === "pending") {
-        return <Redirect to="/dashboard" />;
-      }
-      return <Redirect to="/login" />;
+    if (!merchant && !guestTimeout) {
+      return (
+        <div className="min-h-screen bg-background flex items-center justify-center">
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        </div>
+      );
+    }
+    if (merchant && (merchant.status === "approved" || merchant.status === "pending")) {
+      return <Redirect to="/dashboard" />;
     }
   }
 
