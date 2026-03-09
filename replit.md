@@ -124,17 +124,25 @@ A multi-tenant SaaS platform for digital pager services (restaurants, cafes, cli
 - Server-side fallback writes to Firestore via REST API + service account OAuth2 token
 - Logo upload failure doesn't block registration (gracefully continues)
 
-## Super Admin
+## Super Admin (SaaS Dashboard)
 - Email-gated access: only `yahiatohary@hotmail.com` can access `/super-admin`
-- Non-admin users redirected to `/`
-- Stores management table: Store Name, Owner, Email, Status, Subscription
-- Status badges: Pending (yellow), Active (green), Suspended (red)
-- Subscription badges: Inactive (yellow), Active (green), Expired (orange), Cancelled (red)
-- Action buttons: تفعيل (Activate — sets both status + subscription), تفعيل الاشتراك (Activate Sub), إيقاف (Suspend), حذف (Delete)
-- Delete requires confirmation dialog
-- Real-time toast notifications on actions
-- Stats cards: Total, Pending, Active, Suspended, Subscribed
-- Suspended/rejected merchants are signed out on login attempt
+- Admin login bypasses merchant checks entirely (server returns `isAdmin: true`, client uses `window.location.href` redirect)
+- **Tabs**: Merchants, Settings
+- **Merchants Tab**:
+  - Stats cards: Total Merchants, Total Alerts Today (from API), Total Viral Shares, Active, Subscribed
+  - Table columns: Store Name, Owner, Status, Subscription, Expiry Date (inline editable), Shares, GMaps Clicks, Actions
+  - Actions: Activate/Suspend toggle, Activate Subscription, Login as Merchant (impersonation), Download QR, Delete
+  - Delete requires confirmation dialog
+- **Settings Tab**:
+  - Global settings form: App Name, Global Logo URL, Support WhatsApp, Global Theme Color (with color picker)
+  - Saves to Firestore `systemSettings/global` document
+- **API Routes**:
+  - `POST /api/admin/impersonate/:merchantId` - returns merchant data for impersonation
+  - `GET/POST /api/admin/settings` - CRUD for system settings
+  - `GET /api/admin/stats` - total alerts today count
+  - `POST /api/track/share/:storeId` - atomic increment sharesCount
+  - `POST /api/track/gmaps/:storeId` - atomic increment googleMapsClicks
+  - Admin routes verify admin email via `x-admin-email` header
 
 ## Subscription System
 - Two-layer gating: `status` (account approval) + `subscriptionStatus` (subscription gate)
@@ -144,6 +152,15 @@ A multi-tenant SaaS platform for digital pager services (restaurants, cafes, cli
 - Separate "Activate Sub" button for re-activating subscription on already-approved stores
 - Modular plan enum (trial/basic/premium/enterprise) ready for Stripe/payment integration
 - Plan labels stored in schema with AR/EN translations
+- `subscriptionExpiry` field (string/null) with countdown display on merchant dashboard
+
+## Marketing & Tracking
+- **Share Feature**: Customer page has "Share with Friends" button (Web Share API with clipboard fallback)
+  - Increments `sharesCount` atomically via Firestore field transforms
+- **Google Maps Feature**: "Rate us on Google Maps" button on customer page
+  - Increments `googleMapsClicks` atomically, then opens merchant's `googleMapsReviewUrl`
+- **Merchant Dashboard**: Shows Shares count and Google Maps Clicks cards with real-time updates via onSnapshot
+- Share URL format: `/s/{storeId}` (matches app routes)
 
 ## PWA (Progressive Web App)
 - `manifest.json` at `client/public/manifest.json` with neon red/black theme, `gcm_sender_id` for FCM

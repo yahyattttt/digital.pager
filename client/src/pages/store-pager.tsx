@@ -6,7 +6,8 @@ import type { Merchant, Pager } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Star, Store, AlertTriangle, Bell, BellOff, CheckCircle } from "lucide-react";
+import { Star, Store, AlertTriangle, Bell, BellOff, CheckCircle, Share2, MapPin, Copy } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import { useWakeLock } from "@/hooks/use-wake-lock";
 import IosInstallPrompt from "@/components/ios-install-prompt";
 
@@ -101,7 +102,94 @@ function useVibrationLoop() {
   return { start, stop };
 }
 
-function WaitingScreen({ orderNumber, storeName }: { orderNumber: string; storeName: string }) {
+function ShareAndReviewButtons({
+  storeId,
+  storeName,
+  googleMapsReviewUrl,
+  variant = "dark",
+}: {
+  storeId: string;
+  storeName: string;
+  googleMapsReviewUrl: string;
+  variant?: "dark" | "light";
+}) {
+  const { toast } = useToast();
+
+  async function handleShare() {
+    const shareUrl = `${window.location.origin}/s/${storeId}`;
+    const shareData = {
+      title: storeName,
+      text: `Check out ${storeName} - Digital Pager`,
+      url: shareUrl,
+    };
+
+    try {
+      await fetch(`/api/track/share/${storeId}`, { method: "POST" });
+    } catch {}
+
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+      } catch (err: any) {
+        if (err?.name !== "AbortError") {
+          await navigator.clipboard.writeText(shareUrl);
+          toast({ title: "تم نسخ الرابط", description: "Link copied to clipboard" });
+        }
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        toast({ title: "تم نسخ الرابط", description: "Link copied to clipboard" });
+      } catch {
+        toast({ title: "خطأ", description: "Could not copy link", variant: "destructive" });
+      }
+    }
+  }
+
+  async function handleGoogleMaps() {
+    try {
+      await fetch(`/api/track/gmaps/${storeId}`, { method: "POST" });
+    } catch {}
+    window.open(googleMapsReviewUrl, "_blank");
+  }
+
+  const isDark = variant === "dark";
+
+  return (
+    <div className="flex flex-col gap-3 w-full max-w-xs mx-auto">
+      <Button
+        size="lg"
+        onClick={handleShare}
+        className={`w-full font-bold text-base ${
+          isDark
+            ? "bg-zinc-800 text-white border border-zinc-700"
+            : "bg-white/20 text-white border border-white/30 backdrop-blur-sm"
+        }`}
+        data-testid="button-share"
+      >
+        <Share2 className="w-5 h-5 me-2" />
+        <span dir="rtl">شارك مع أصدقائك</span>
+      </Button>
+      {googleMapsReviewUrl && (
+        <Button
+          size="lg"
+          onClick={handleGoogleMaps}
+          className={`w-full font-bold text-base ${
+            isDark
+              ? "bg-zinc-800 text-white border border-zinc-700"
+              : "bg-white/20 text-white border border-white/30 backdrop-blur-sm"
+          }`}
+          data-testid="button-google-maps"
+        >
+          <MapPin className="w-5 h-5 me-2" />
+          <span dir="rtl">قيمنا على جوجل ماب</span>
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function WaitingScreen({ orderNumber, storeName, storeId, googleMapsReviewUrl }: { orderNumber: string; storeName: string; storeId: string; googleMapsReviewUrl: string }) {
   return (
     <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6 text-center">
       <div className="mb-8">
@@ -136,6 +224,15 @@ function WaitingScreen({ orderNumber, storeName }: { orderNumber: string; storeN
         <div className="w-2 h-2 rounded-full bg-red-500 animate-bounce" style={{ animationDelay: "0.15s" }} />
         <div className="w-2 h-2 rounded-full bg-red-500 animate-bounce" style={{ animationDelay: "0.3s" }} />
       </div>
+
+      <div className="mt-8">
+        <ShareAndReviewButtons
+          storeId={storeId}
+          storeName={storeName}
+          googleMapsReviewUrl={googleMapsReviewUrl}
+          variant="dark"
+        />
+      </div>
     </div>
   );
 }
@@ -143,6 +240,7 @@ function WaitingScreen({ orderNumber, storeName }: { orderNumber: string; storeN
 function NotifiedScreen({
   orderNumber,
   storeName,
+  storeId,
   googleMapsReviewUrl,
   showReview,
   alertActive,
@@ -150,6 +248,7 @@ function NotifiedScreen({
 }: {
   orderNumber: string;
   storeName: string;
+  storeId: string;
   googleMapsReviewUrl: string;
   showReview: boolean;
   alertActive: boolean;
@@ -206,18 +305,14 @@ function NotifiedScreen({
         </div>
       )}
 
-      {showReview && (
+      {!alertActive && (
         <div className="mt-4 animate-in slide-in-from-bottom duration-700">
-          <Button
-            size="lg"
-            onClick={() => window.open(googleMapsReviewUrl, "_blank")}
-            className="bg-white text-red-600 hover:bg-white/90 font-bold text-lg h-16 px-8 shadow-xl"
-            data-testid="button-google-review"
-          >
-            <Star className="w-6 h-6 me-2 fill-current" />
-            قيمنا على جوجل ماب
-          </Button>
-          <p className="text-white/60 text-sm mt-3">Rate us on Google Maps</p>
+          <ShareAndReviewButtons
+            storeId={storeId}
+            storeName={storeName}
+            googleMapsReviewUrl={googleMapsReviewUrl}
+            variant="light"
+          />
         </div>
       )}
     </div>
@@ -389,6 +484,7 @@ export default function StorePagerPage() {
       <NotifiedScreen
         orderNumber={orderNumber}
         storeName={merchant.storeName}
+        storeId={storeId!}
         googleMapsReviewUrl={merchant.googleMapsReviewUrl}
         showReview={showReview}
         alertActive={alertActive}
@@ -398,7 +494,7 @@ export default function StorePagerPage() {
   } else if (submitted && pagerStatus === "waiting") {
     content = (
       <>
-        <WaitingScreen orderNumber={orderNumber} storeName={merchant.storeName} />
+        <WaitingScreen orderNumber={orderNumber} storeName={merchant.storeName} storeId={storeId!} googleMapsReviewUrl={merchant.googleMapsReviewUrl} />
         {wakeLockSupported && (
           <div className="fixed bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-zinc-900/80 backdrop-blur-sm border border-zinc-800 rounded-full px-3 py-1.5">
             <div className={`w-2 h-2 rounded-full ${wakeLockActive ? "bg-green-500" : "bg-yellow-500 animate-pulse"}`} />

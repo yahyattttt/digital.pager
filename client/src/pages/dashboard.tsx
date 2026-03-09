@@ -49,6 +49,9 @@ import {
   Trash2,
   Download,
   Loader2,
+  Share2,
+  MapPin,
+  Clock,
 } from "lucide-react";
 
 const businessTypeLabelsEn: Record<string, string> = {
@@ -690,7 +693,7 @@ export default function DashboardPage() {
             )}
           </div>
 
-          <div className="grid grid-cols-3 gap-3 p-4 border-t border-border/30">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 p-4 border-t border-border/30">
             <Card className="border-primary/20">
               <CardContent className="p-4 flex items-center gap-3">
                 <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
@@ -715,6 +718,86 @@ export default function DashboardPage() {
                   <p className="text-xs text-muted-foreground">
                     {t("تم تنبيههم", "Paged")}
                   </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-primary/20">
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <Share2 className="w-6 h-6 text-primary" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold" data-testid="text-shares-count">{merchant.sharesCount ?? 0}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {t("المشاركات", "Shares")}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-primary/20">
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <MapPin className="w-6 h-6 text-primary" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold" data-testid="text-gmaps-clicks">{merchant.googleMapsClicks ?? 0}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {t("نقرات خرائط", "Maps Clicks")}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-primary/20">
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <Clock className="w-6 h-6 text-primary" />
+                </div>
+                <div>
+                  {(() => {
+                    const subStatus = merchant.subscriptionStatus || "pending";
+                    const expiry = merchant.subscriptionExpiry;
+                    let daysRemaining: number | null = null;
+                    let isExpired = false;
+
+                    if (expiry) {
+                      const expiryDate = new Date(expiry);
+                      const now = new Date();
+                      const diffMs = expiryDate.getTime() - now.getTime();
+                      daysRemaining = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+                      isExpired = daysRemaining <= 0;
+                    }
+
+                    return (
+                      <>
+                        {isExpired ? (
+                          <Badge className="bg-red-500/20 text-red-400 border-red-500/30" data-testid="badge-subscription-expired">
+                            {t("منتهي", "Expired")}
+                          </Badge>
+                        ) : subStatus === "active" ? (
+                          <Badge className="bg-green-500/20 text-green-400 border-green-500/30" data-testid="badge-subscription-active">
+                            {t("نشط", "Active")}
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" data-testid="badge-subscription-status">
+                            {subStatus === "pending" ? t("معلق", "Pending") : subStatus === "cancelled" ? t("ملغى", "Cancelled") : subStatus}
+                          </Badge>
+                        )}
+                        {daysRemaining !== null && !isExpired && (
+                          <p className="text-xs text-muted-foreground mt-0.5" data-testid="text-subscription-days">
+                            {daysRemaining} {t("يوم متبقي", "days left")}
+                          </p>
+                        )}
+                        {daysRemaining === null && (
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {t("الاشتراك", "Subscription")}
+                          </p>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               </CardContent>
             </Card>

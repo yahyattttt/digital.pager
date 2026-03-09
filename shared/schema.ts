@@ -52,9 +52,21 @@ export const merchantSchema = z.object({
   googleMapsReviewUrl: z.string().url("رابط جوجل ماب غير صالح"),
   status: merchantStatusEnum.default("pending"),
   subscriptionStatus: subscriptionStatusEnum.default("pending"),
+  subscriptionExpiry: z.string().nullable().optional(),
   plan: planEnum.default("trial"),
+  sharesCount: z.number().default(0),
+  googleMapsClicks: z.number().default(0),
   createdAt: z.string(),
 });
+
+export const systemSettingsSchema = z.object({
+  appName: z.string().default("Digital Pager"),
+  globalLogoUrl: z.string().optional(),
+  supportWhatsapp: z.string().default("966500000000"),
+  globalThemeColor: z.string().default("#ef0000"),
+});
+
+export type SystemSettings = z.infer<typeof systemSettingsSchema>;
 
 export const insertMerchantSchema = merchantSchema.omit({
   id: true,

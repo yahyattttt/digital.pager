@@ -1,14 +1,17 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { collection, getDocs, doc, updateDoc, deleteDoc } from "firebase/firestore";
+import { collection, getDocs, doc, updateDoc, deleteDoc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/hooks/use-auth";
 import { useLanguage } from "@/hooks/use-language";
 import { businessTypeLabels, planLabels } from "@shared/schema";
-import type { Merchant } from "@shared/schema";
+import type { Merchant, SystemSettings } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import {
   Table,
@@ -42,6 +45,13 @@ import {
   RefreshCw,
   CreditCard,
   Zap,
+  Download,
+  LogIn,
+  Share2,
+  MapPin,
+  Bell,
+  Settings,
+  Save,
 } from "lucide-react";
 
 const SUPER_ADMIN_EMAIL = "yahiatohary@hotmail.com";
@@ -57,26 +67,26 @@ function getStatusBadge(status: string, t: (ar: string, en: string) => string) {
   switch (status) {
     case "approved":
       return (
-        <Badge className="bg-green-500/20 text-green-400 border-green-500/30 hover:bg-green-500/30">
+        <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
           {t("مفعّل", "Active")}
         </Badge>
       );
     case "suspended":
       return (
-        <Badge className="bg-red-500/20 text-red-400 border-red-500/30 hover:bg-red-500/30">
+        <Badge className="bg-red-500/20 text-red-400 border-red-500/30">
           {t("موقوف", "Suspended")}
         </Badge>
       );
     case "rejected":
       return (
-        <Badge className="bg-red-500/20 text-red-400 border-red-500/30 hover:bg-red-500/30">
+        <Badge className="bg-red-500/20 text-red-400 border-red-500/30">
           {t("مرفوض", "Rejected")}
         </Badge>
       );
     case "pending":
     default:
       return (
-        <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 hover:bg-yellow-500/30">
+        <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
           {t("قيد الانتظار", "Pending")}
         </Badge>
       );
@@ -87,21 +97,21 @@ function getSubBadge(subStatus: string | undefined, t: (ar: string, en: string) 
   switch (subStatus) {
     case "active":
       return (
-        <Badge className="bg-green-500/20 text-green-400 border-green-500/30 hover:bg-green-500/30">
+        <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
           <CreditCard className="w-3 h-3 me-1" />
           {t("مفعّل", "Active")}
         </Badge>
       );
     case "expired":
       return (
-        <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/30 hover:bg-orange-500/30">
+        <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/30">
           <CreditCard className="w-3 h-3 me-1" />
           {t("منتهي", "Expired")}
         </Badge>
       );
     case "cancelled":
       return (
-        <Badge className="bg-red-500/20 text-red-400 border-red-500/30 hover:bg-red-500/30">
+        <Badge className="bg-red-500/20 text-red-400 border-red-500/30">
           <CreditCard className="w-3 h-3 me-1" />
           {t("ملغي", "Cancelled")}
         </Badge>
@@ -109,7 +119,7 @@ function getSubBadge(subStatus: string | undefined, t: (ar: string, en: string) 
     case "pending":
     default:
       return (
-        <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 hover:bg-yellow-500/30">
+        <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
           <CreditCard className="w-3 h-3 me-1" />
           {t("غير مفعّل", "Inactive")}
         </Badge>
@@ -119,7 +129,7 @@ function getSubBadge(subStatus: string | undefined, t: (ar: string, en: string) 
 
 export default function SuperAdminPage() {
   const [, setLocation] = useLocation();
-  const { user, loading: authLoading, logout } = useAuth();
+  const { user, loading: authLoading, logout, login } = useAuth();
   const { t, toggleLanguage, lang } = useLanguage();
   const { toast } = useToast();
 
@@ -127,6 +137,18 @@ export default function SuperAdminPage() {
   const [loadingData, setLoadingData] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Merchant | null>(null);
+  const [totalAlertsToday, setTotalAlertsToday] = useState(0);
+  const [editingExpiry, setEditingExpiry] = useState<string | null>(null);
+  const [expiryValue, setExpiryValue] = useState("");
+
+  const [settings, setSettings] = useState<SystemSettings>({
+    appName: "Digital Pager",
+    globalLogoUrl: "",
+    supportWhatsapp: "966500000000",
+    globalThemeColor: "#ef0000",
+  });
+  const [settingsLoading, setSettingsLoading] = useState(false);
+  const [settingsSaving, setSettingsSaving] = useState(false);
 
   const btLabels = lang === "ar" ? businessTypeLabels : businessTypeLabelsEn;
 
@@ -151,9 +173,45 @@ export default function SuperAdminPage() {
     }
   }
 
+  async function fetchTotalAlertsToday() {
+    try {
+      const res = await fetch("/api/admin/stats", {
+        headers: { "x-admin-email": user?.email || "" },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTotalAlertsToday(data.totalAlertsToday || 0);
+      }
+    } catch {
+      // silent
+    }
+  }
+
+  async function fetchSettings() {
+    setSettingsLoading(true);
+    try {
+      const docSnap = await getDoc(doc(db, "systemSettings", "global"));
+      if (docSnap.exists()) {
+        const data = docSnap.data() as SystemSettings;
+        setSettings({
+          appName: data.appName || "Digital Pager",
+          globalLogoUrl: data.globalLogoUrl || "",
+          supportWhatsapp: data.supportWhatsapp || "966500000000",
+          globalThemeColor: data.globalThemeColor || "#ef0000",
+        });
+      }
+    } catch {
+      // silent
+    } finally {
+      setSettingsLoading(false);
+    }
+  }
+
   useEffect(() => {
     if (!authLoading && user?.email === SUPER_ADMIN_EMAIL) {
       fetchMerchants();
+      fetchTotalAlertsToday();
+      fetchSettings();
     }
   }, [authLoading, user]);
 
@@ -276,6 +334,100 @@ export default function SuperAdminPage() {
     }
   }
 
+  async function handleImpersonate(merchant: Merchant) {
+    setActionLoading(merchant.uid);
+    try {
+      login(merchant.uid, merchant.email);
+      toast({
+        title: t("تسجيل دخول كتاجر", "Logged in as Merchant"),
+        description: t(
+          `تم تسجيل الدخول كـ "${merchant.storeName}"`,
+          `Logged in as "${merchant.storeName}"`
+        ),
+      });
+      setLocation("/dashboard");
+    } catch {
+      toast({
+        title: t("خطأ", "Error"),
+        description: t("فشل في تسجيل الدخول كتاجر", "Failed to impersonate merchant"),
+        variant: "destructive",
+      });
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function handleDownloadQR(merchant: Merchant) {
+    try {
+      const response = await fetch(`/api/qr/${merchant.uid}`);
+      if (!response.ok) throw new Error("Failed to download QR");
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `qr-${merchant.storeName}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch {
+      toast({
+        title: t("خطأ", "Error"),
+        description: t("فشل في تحميل QR", "Failed to download QR"),
+        variant: "destructive",
+      });
+    }
+  }
+
+  async function handleSaveExpiry(merchant: Merchant) {
+    setActionLoading(merchant.uid);
+    try {
+      await updateDoc(doc(db, "merchants", merchant.uid), {
+        subscriptionExpiry: expiryValue || null,
+      });
+      setMerchants((prev) =>
+        prev.map((m) =>
+          m.uid === merchant.uid
+            ? { ...m, subscriptionExpiry: expiryValue || null }
+            : m
+        )
+      );
+      setEditingExpiry(null);
+      setExpiryValue("");
+      toast({
+        title: t("تم الحفظ", "Saved"),
+        description: t("تم تحديث تاريخ الانتهاء", "Expiry date updated"),
+      });
+    } catch {
+      toast({
+        title: t("خطأ", "Error"),
+        description: t("فشل في تحديث تاريخ الانتهاء", "Failed to update expiry date"),
+        variant: "destructive",
+      });
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function handleSaveSettings() {
+    setSettingsSaving(true);
+    try {
+      await setDoc(doc(db, "systemSettings", "global"), settings);
+      toast({
+        title: t("تم الحفظ", "Saved"),
+        description: t("تم تحديث الإعدادات بنجاح", "Settings updated successfully"),
+      });
+    } catch {
+      toast({
+        title: t("خطأ", "Error"),
+        description: t("فشل في حفظ الإعدادات", "Failed to save settings"),
+        variant: "destructive",
+      });
+    } finally {
+      setSettingsSaving(false);
+    }
+  }
+
   function handleSignOut() {
     logout();
     setLocation("/");
@@ -294,11 +446,13 @@ export default function SuperAdminPage() {
     return null;
   }
 
+  const totalShares = merchants.reduce((sum, m) => sum + (m.sharesCount || 0), 0);
+
   const stats = {
     total: merchants.length,
-    pending: merchants.filter((m) => m.status === "pending").length,
+    alertsToday: totalAlertsToday,
+    totalShares,
     active: merchants.filter((m) => m.status === "approved").length,
-    suspended: merchants.filter((m) => m.status === "suspended" || m.status === "rejected").length,
     subActive: merchants.filter((m) => m.subscriptionStatus === "active").length,
   };
 
@@ -307,7 +461,7 @@ export default function SuperAdminPage() {
       <header className="border-b border-primary/30 px-6 py-4 bg-background/95 backdrop-blur-sm sticky top-0 z-20">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-md bg-primary/20 border border-primary/40 flex items-center justify-center">
               <Shield className="w-5 h-5 text-primary" />
             </div>
             <div>
@@ -323,7 +477,6 @@ export default function SuperAdminPage() {
               variant="outline"
               size="icon"
               onClick={toggleLanguage}
-              className="border-primary/30 hover:border-primary/60"
               data-testid="button-toggle-language"
             >
               <Globe className="w-4 h-4" />
@@ -332,7 +485,6 @@ export default function SuperAdminPage() {
               variant="outline"
               size="sm"
               onClick={handleSignOut}
-              className="border-primary/30 hover:border-primary/60"
               data-testid="button-sign-out"
             >
               <LogOut className="w-4 h-4 me-1.5" />
@@ -343,260 +495,444 @@ export default function SuperAdminPage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-6">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-          <Card className="border-primary/20 bg-primary/5">
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center flex-shrink-0">
-                <Store className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold" data-testid="text-stat-total">{stats.total}</p>
-                <p className="text-xs text-muted-foreground">{t("إجمالي المتاجر", "Total Stores")}</p>
-              </div>
-            </CardContent>
-          </Card>
+        <Tabs defaultValue="merchants" className="space-y-6">
+          <TabsList data-testid="tabs-admin">
+            <TabsTrigger value="merchants" data-testid="tab-merchants">
+              <Users className="w-4 h-4 me-1.5" />
+              {t("التجار", "Merchants")}
+            </TabsTrigger>
+            <TabsTrigger value="settings" data-testid="tab-settings">
+              <Settings className="w-4 h-4 me-1.5" />
+              {t("الإعدادات", "Settings")}
+            </TabsTrigger>
+          </TabsList>
 
-          <Card className="border-yellow-500/20 bg-yellow-500/5">
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center flex-shrink-0">
-                <Clock className="w-5 h-5 text-yellow-500" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-yellow-400" data-testid="text-stat-pending">{stats.pending}</p>
-                <p className="text-xs text-muted-foreground">{t("قيد الانتظار", "Pending")}</p>
-              </div>
-            </CardContent>
-          </Card>
+          <TabsContent value="merchants" className="space-y-6">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              <Card>
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-md bg-primary/20 flex items-center justify-center flex-shrink-0">
+                    <Store className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold" data-testid="text-stat-total">{stats.total}</p>
+                    <p className="text-xs text-muted-foreground">{t("إجمالي التجار", "Total Merchants")}</p>
+                  </div>
+                </CardContent>
+              </Card>
 
-          <Card className="border-green-500/20 bg-green-500/5">
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center flex-shrink-0">
-                <CheckCircle className="w-5 h-5 text-green-500" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-green-400" data-testid="text-stat-active">{stats.active}</p>
-                <p className="text-xs text-muted-foreground">{t("مفعّل", "Active")}</p>
-              </div>
-            </CardContent>
-          </Card>
+              <Card>
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-md bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+                    <Bell className="w-5 h-5 text-blue-500" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-blue-400" data-testid="text-stat-alerts-today">{stats.alertsToday}</p>
+                    <p className="text-xs text-muted-foreground">{t("تنبيهات اليوم", "Alerts Today")}</p>
+                  </div>
+                </CardContent>
+              </Card>
 
-          <Card className="border-red-500/20 bg-red-500/5">
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center flex-shrink-0">
-                <XCircle className="w-5 h-5 text-red-500" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-red-400" data-testid="text-stat-suspended">{stats.suspended}</p>
-                <p className="text-xs text-muted-foreground">{t("موقوف", "Suspended")}</p>
-              </div>
-            </CardContent>
-          </Card>
+              <Card>
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-md bg-purple-500/20 flex items-center justify-center flex-shrink-0">
+                    <Share2 className="w-5 h-5 text-purple-500" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-purple-400" data-testid="text-stat-shares">{stats.totalShares}</p>
+                    <p className="text-xs text-muted-foreground">{t("مشاركات فيروسية", "Viral Shares")}</p>
+                  </div>
+                </CardContent>
+              </Card>
 
-          <Card className="border-blue-500/20 bg-blue-500/5">
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">
-                <CreditCard className="w-5 h-5 text-blue-500" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-blue-400" data-testid="text-stat-subscribed">{stats.subActive}</p>
-                <p className="text-xs text-muted-foreground">{t("مشتركين", "Subscribed")}</p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+              <Card>
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-md bg-green-500/20 flex items-center justify-center flex-shrink-0">
+                    <CheckCircle className="w-5 h-5 text-green-500" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-green-400" data-testid="text-stat-active">{stats.active}</p>
+                    <p className="text-xs text-muted-foreground">{t("مفعّل", "Active")}</p>
+                  </div>
+                </CardContent>
+              </Card>
 
-        <Card className="border-primary/20">
-          <CardHeader className="flex flex-row items-center justify-between pb-4">
-            <div className="flex items-center gap-2">
-              <Users className="w-5 h-5 text-primary" />
-              <h2 className="font-bold text-lg" data-testid="text-stores-title">
-                {t("إدارة المتاجر", "Stores Management")}
-              </h2>
+              <Card>
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-md bg-orange-500/20 flex items-center justify-center flex-shrink-0">
+                    <CreditCard className="w-5 h-5 text-orange-500" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-orange-400" data-testid="text-stat-subscribed">{stats.subActive}</p>
+                    <p className="text-xs text-muted-foreground">{t("مشتركين", "Subscribed")}</p>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={fetchMerchants}
-              disabled={loadingData}
-              className="border-primary/30"
-              data-testid="button-refresh"
-            >
-              <RefreshCw className={`w-4 h-4 me-1.5 ${loadingData ? "animate-spin" : ""}`} />
-              {t("تحديث", "Refresh")}
-            </Button>
-          </CardHeader>
-          <CardContent className="p-0">
-            {loadingData ? (
-              <div className="flex items-center justify-center py-16">
-                <Loader2 className="w-8 h-8 text-primary animate-spin" />
-              </div>
-            ) : merchants.length === 0 ? (
-              <div className="text-center py-16">
-                <Store className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-                <p className="text-muted-foreground" data-testid="text-no-stores">
-                  {t("لا توجد متاجر مسجلة", "No stores registered")}
-                </p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="border-primary/10 hover:bg-transparent">
-                      <TableHead className="text-muted-foreground font-semibold">
-                        {t("اسم المتجر", "Store Name")}
-                      </TableHead>
-                      <TableHead className="text-muted-foreground font-semibold">
-                        {t("المالك", "Owner")}
-                      </TableHead>
-                      <TableHead className="text-muted-foreground font-semibold">
-                        {t("البريد الإلكتروني", "Email")}
-                      </TableHead>
-                      <TableHead className="text-muted-foreground font-semibold">
-                        {t("الحالة", "Status")}
-                      </TableHead>
-                      <TableHead className="text-muted-foreground font-semibold">
-                        {t("الاشتراك", "Subscription")}
-                      </TableHead>
-                      <TableHead className="text-muted-foreground font-semibold text-center">
-                        {t("الإجراءات", "Actions")}
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {merchants.map((merchant) => {
-                      const pLabel = planLabels[merchant.plan]
-                        ? lang === "ar"
-                          ? planLabels[merchant.plan].ar
-                          : planLabels[merchant.plan].en
-                        : merchant.plan || "trial";
 
-                      return (
-                        <TableRow
-                          key={merchant.uid}
-                          className="border-primary/10 hover:bg-primary/5"
-                          data-testid={`row-store-${merchant.uid}`}
-                        >
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              {merchant.logoUrl ? (
-                                <img
-                                  src={merchant.logoUrl}
-                                  alt=""
-                                  className="w-8 h-8 rounded-full object-cover border border-border"
-                                />
-                              ) : (
-                                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                                  <Store className="w-4 h-4 text-primary" />
-                                </div>
-                              )}
-                              <div>
-                                <span className="font-medium block" data-testid={`text-store-name-${merchant.uid}`}>
-                                  {merchant.storeName}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                  {btLabels[merchant.businessType] || merchant.businessType}
-                                </span>
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell data-testid={`text-owner-${merchant.uid}`}>
-                            {merchant.ownerName}
-                          </TableCell>
-                          <TableCell>
-                            <span className="text-sm text-muted-foreground" dir="ltr" data-testid={`text-email-${merchant.uid}`}>
-                              {merchant.email}
-                            </span>
-                          </TableCell>
-                          <TableCell data-testid={`badge-status-${merchant.uid}`}>
-                            {getStatusBadge(merchant.status, t)}
-                          </TableCell>
-                          <TableCell data-testid={`badge-sub-${merchant.uid}`}>
-                            <div className="flex flex-col gap-1">
-                              {getSubBadge(merchant.subscriptionStatus, t)}
-                              <span className="text-[10px] text-muted-foreground">{pLabel}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                              {merchant.status !== "approved" && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleActivate(merchant)}
-                                  disabled={actionLoading === merchant.uid}
-                                  className="border-green-500/40 text-green-400 hover:bg-green-500/10 hover:text-green-300 h-8 px-3 text-xs"
-                                  data-testid={`button-activate-${merchant.uid}`}
-                                >
-                                  {actionLoading === merchant.uid ? (
-                                    <Loader2 className="w-3 h-3 animate-spin" />
-                                  ) : (
-                                    <>
-                                      <CheckCircle className="w-3 h-3 me-1" />
-                                      {t("تفعيل", "Activate")}
-                                    </>
-                                  )}
-                                </Button>
-                              )}
-                              {merchant.status === "approved" && merchant.subscriptionStatus !== "active" && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleActivateSubscription(merchant)}
-                                  disabled={actionLoading === merchant.uid}
-                                  className="border-blue-500/40 text-blue-400 hover:bg-blue-500/10 hover:text-blue-300 h-8 px-3 text-xs"
-                                  data-testid={`button-activate-sub-${merchant.uid}`}
-                                >
-                                  {actionLoading === merchant.uid ? (
-                                    <Loader2 className="w-3 h-3 animate-spin" />
-                                  ) : (
-                                    <>
-                                      <Zap className="w-3 h-3 me-1" />
-                                      {t("تفعيل الاشتراك", "Activate Sub")}
-                                    </>
-                                  )}
-                                </Button>
-                              )}
-                              {merchant.status !== "suspended" && merchant.status !== "rejected" && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleSuspend(merchant)}
-                                  disabled={actionLoading === merchant.uid}
-                                  className="border-yellow-500/40 text-yellow-400 hover:bg-yellow-500/10 hover:text-yellow-300 h-8 px-3 text-xs"
-                                  data-testid={`button-suspend-${merchant.uid}`}
-                                >
-                                  {actionLoading === merchant.uid ? (
-                                    <Loader2 className="w-3 h-3 animate-spin" />
-                                  ) : (
-                                    <>
-                                      <XCircle className="w-3 h-3 me-1" />
-                                      {t("إيقاف", "Suspend")}
-                                    </>
-                                  )}
-                                </Button>
-                              )}
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => setDeleteTarget(merchant)}
-                                disabled={actionLoading === merchant.uid}
-                                className="border-red-500/40 text-red-400 hover:bg-red-500/10 hover:text-red-300 h-8 px-3 text-xs"
-                                data-testid={`button-delete-${merchant.uid}`}
-                              >
-                                <Trash2 className="w-3 h-3 me-1" />
-                                {t("حذف", "Delete")}
-                              </Button>
-                            </div>
-                          </TableCell>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between gap-2 pb-4">
+                <div className="flex items-center gap-2">
+                  <Users className="w-5 h-5 text-primary" />
+                  <h2 className="font-bold text-lg" data-testid="text-stores-title">
+                    {t("إدارة التجار", "Merchants Management")}
+                  </h2>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => { fetchMerchants(); fetchTotalAlertsToday(); }}
+                  disabled={loadingData}
+                  data-testid="button-refresh"
+                >
+                  <RefreshCw className={`w-4 h-4 me-1.5 ${loadingData ? "animate-spin" : ""}`} />
+                  {t("تحديث", "Refresh")}
+                </Button>
+              </CardHeader>
+              <CardContent className="p-0">
+                {loadingData ? (
+                  <div className="flex items-center justify-center py-16">
+                    <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                  </div>
+                ) : merchants.length === 0 ? (
+                  <div className="text-center py-16">
+                    <Store className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
+                    <p className="text-muted-foreground" data-testid="text-no-stores">
+                      {t("لا توجد متاجر مسجلة", "No stores registered")}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="border-primary/10 hover:bg-transparent">
+                          <TableHead className="text-muted-foreground font-semibold">
+                            {t("اسم المتجر", "Store Name")}
+                          </TableHead>
+                          <TableHead className="text-muted-foreground font-semibold">
+                            {t("المالك", "Owner")}
+                          </TableHead>
+                          <TableHead className="text-muted-foreground font-semibold">
+                            {t("الحالة", "Status")}
+                          </TableHead>
+                          <TableHead className="text-muted-foreground font-semibold">
+                            {t("الاشتراك", "Subscription")}
+                          </TableHead>
+                          <TableHead className="text-muted-foreground font-semibold">
+                            {t("تاريخ الانتهاء", "Expiry Date")}
+                          </TableHead>
+                          <TableHead className="text-muted-foreground font-semibold text-center">
+                            {t("مشاركات", "Shares")}
+                          </TableHead>
+                          <TableHead className="text-muted-foreground font-semibold text-center">
+                            {t("نقرات خرائط", "GMaps")}
+                          </TableHead>
+                          <TableHead className="text-muted-foreground font-semibold text-center">
+                            {t("الإجراءات", "Actions")}
+                          </TableHead>
                         </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                      </TableHeader>
+                      <TableBody>
+                        {merchants.map((merchant) => {
+                          const pLabel = planLabels[merchant.plan]
+                            ? lang === "ar"
+                              ? planLabels[merchant.plan].ar
+                              : planLabels[merchant.plan].en
+                            : merchant.plan || "trial";
+
+                          return (
+                            <TableRow
+                              key={merchant.uid}
+                              className="border-primary/10"
+                              data-testid={`row-store-${merchant.uid}`}
+                            >
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  {merchant.logoUrl ? (
+                                    <img
+                                      src={merchant.logoUrl}
+                                      alt=""
+                                      className="w-8 h-8 rounded-full object-cover border border-border"
+                                    />
+                                  ) : (
+                                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                                      <Store className="w-4 h-4 text-primary" />
+                                    </div>
+                                  )}
+                                  <div>
+                                    <span className="font-medium block" data-testid={`text-store-name-${merchant.uid}`}>
+                                      {merchant.storeName}
+                                    </span>
+                                    <span className="text-xs text-muted-foreground">
+                                      {btLabels[merchant.businessType] || merchant.businessType}
+                                    </span>
+                                  </div>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div>
+                                  <span className="block" data-testid={`text-owner-${merchant.uid}`}>
+                                    {merchant.ownerName}
+                                  </span>
+                                  <span className="text-xs text-muted-foreground" dir="ltr" data-testid={`text-email-${merchant.uid}`}>
+                                    {merchant.email}
+                                  </span>
+                                </div>
+                              </TableCell>
+                              <TableCell data-testid={`badge-status-${merchant.uid}`}>
+                                {getStatusBadge(merchant.status, t)}
+                              </TableCell>
+                              <TableCell data-testid={`badge-sub-${merchant.uid}`}>
+                                <div className="flex flex-col gap-1">
+                                  {getSubBadge(merchant.subscriptionStatus, t)}
+                                  <span className="text-[10px] text-muted-foreground">{pLabel}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                {editingExpiry === merchant.uid ? (
+                                  <div className="flex items-center gap-1">
+                                    <Input
+                                      type="date"
+                                      value={expiryValue}
+                                      onChange={(e) => setExpiryValue(e.target.value)}
+                                      className="w-36 text-xs"
+                                      data-testid={`input-expiry-${merchant.uid}`}
+                                    />
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      onClick={() => handleSaveExpiry(merchant)}
+                                      disabled={actionLoading === merchant.uid}
+                                      data-testid={`button-save-expiry-${merchant.uid}`}
+                                    >
+                                      <Save className="w-4 h-4" />
+                                    </Button>
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      onClick={() => { setEditingExpiry(null); setExpiryValue(""); }}
+                                      data-testid={`button-cancel-expiry-${merchant.uid}`}
+                                    >
+                                      <XCircle className="w-4 h-4" />
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    className="text-sm text-muted-foreground cursor-pointer hover:underline"
+                                    onClick={() => {
+                                      setEditingExpiry(merchant.uid);
+                                      setExpiryValue(merchant.subscriptionExpiry || "");
+                                    }}
+                                    data-testid={`text-expiry-${merchant.uid}`}
+                                  >
+                                    {merchant.subscriptionExpiry
+                                      ? new Date(merchant.subscriptionExpiry).toLocaleDateString()
+                                      : t("غير محدد", "Not set")}
+                                  </button>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-center" data-testid={`text-shares-${merchant.uid}`}>
+                                <div className="flex items-center justify-center gap-1">
+                                  <Share2 className="w-3 h-3 text-muted-foreground" />
+                                  <span>{merchant.sharesCount || 0}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-center" data-testid={`text-gmaps-${merchant.uid}`}>
+                                <div className="flex items-center justify-center gap-1">
+                                  <MapPin className="w-3 h-3 text-muted-foreground" />
+                                  <span>{merchant.googleMapsClicks || 0}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center justify-center gap-1 flex-wrap">
+                                  {merchant.status !== "approved" ? (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleActivate(merchant)}
+                                      disabled={actionLoading === merchant.uid}
+                                      data-testid={`button-activate-${merchant.uid}`}
+                                    >
+                                      {actionLoading === merchant.uid ? (
+                                        <Loader2 className="w-3 h-3 animate-spin" />
+                                      ) : (
+                                        <>
+                                          <CheckCircle className="w-3 h-3 me-1" />
+                                          {t("تفعيل", "Activate")}
+                                        </>
+                                      )}
+                                    </Button>
+                                  ) : (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleSuspend(merchant)}
+                                      disabled={actionLoading === merchant.uid}
+                                      data-testid={`button-suspend-${merchant.uid}`}
+                                    >
+                                      {actionLoading === merchant.uid ? (
+                                        <Loader2 className="w-3 h-3 animate-spin" />
+                                      ) : (
+                                        <>
+                                          <XCircle className="w-3 h-3 me-1" />
+                                          {t("إيقاف", "Suspend")}
+                                        </>
+                                      )}
+                                    </Button>
+                                  )}
+                                  {merchant.status === "approved" && merchant.subscriptionStatus !== "active" && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleActivateSubscription(merchant)}
+                                      disabled={actionLoading === merchant.uid}
+                                      data-testid={`button-activate-sub-${merchant.uid}`}
+                                    >
+                                      {actionLoading === merchant.uid ? (
+                                        <Loader2 className="w-3 h-3 animate-spin" />
+                                      ) : (
+                                        <>
+                                          <Zap className="w-3 h-3 me-1" />
+                                          {t("اشتراك", "Sub")}
+                                        </>
+                                      )}
+                                    </Button>
+                                  )}
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    onClick={() => handleImpersonate(merchant)}
+                                    disabled={actionLoading === merchant.uid}
+                                    data-testid={`button-impersonate-${merchant.uid}`}
+                                  >
+                                    <LogIn className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    onClick={() => handleDownloadQR(merchant)}
+                                    data-testid={`button-download-qr-${merchant.uid}`}
+                                  >
+                                    <Download className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    onClick={() => setDeleteTarget(merchant)}
+                                    disabled={actionLoading === merchant.uid}
+                                    data-testid={`button-delete-${merchant.uid}`}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="settings" className="space-y-6">
+            <Card>
+              <CardHeader className="flex flex-row items-center gap-2 pb-4">
+                <Settings className="w-5 h-5 text-primary" />
+                <h2 className="font-bold text-lg" data-testid="text-settings-title">
+                  {t("إعدادات النظام", "System Settings")}
+                </h2>
+              </CardHeader>
+              <CardContent>
+                {settingsLoading ? (
+                  <div className="flex items-center justify-center py-16">
+                    <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                  </div>
+                ) : (
+                  <div className="space-y-6 max-w-lg">
+                    <div className="space-y-2">
+                      <Label htmlFor="appName" data-testid="label-app-name">
+                        {t("اسم التطبيق", "App Name")}
+                      </Label>
+                      <Input
+                        id="appName"
+                        value={settings.appName}
+                        onChange={(e) => setSettings((s) => ({ ...s, appName: e.target.value }))}
+                        data-testid="input-app-name"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="globalLogoUrl" data-testid="label-logo-url">
+                        {t("رابط الشعار العام", "Global Logo URL")}
+                      </Label>
+                      <Input
+                        id="globalLogoUrl"
+                        value={settings.globalLogoUrl || ""}
+                        onChange={(e) => setSettings((s) => ({ ...s, globalLogoUrl: e.target.value }))}
+                        placeholder="https://example.com/logo.png"
+                        data-testid="input-logo-url"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="supportWhatsapp" data-testid="label-whatsapp">
+                        {t("رقم واتساب الدعم", "Support WhatsApp")}
+                      </Label>
+                      <Input
+                        id="supportWhatsapp"
+                        value={settings.supportWhatsapp}
+                        onChange={(e) => setSettings((s) => ({ ...s, supportWhatsapp: e.target.value }))}
+                        placeholder="966500000000"
+                        dir="ltr"
+                        data-testid="input-whatsapp"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="globalThemeColor" data-testid="label-theme-color">
+                        {t("لون السمة العام", "Global Theme Color")}
+                      </Label>
+                      <div className="flex items-center gap-3">
+                        <Input
+                          id="globalThemeColor"
+                          type="color"
+                          value={settings.globalThemeColor}
+                          onChange={(e) => setSettings((s) => ({ ...s, globalThemeColor: e.target.value }))}
+                          className="w-16 p-1"
+                          data-testid="input-theme-color"
+                        />
+                        <Input
+                          value={settings.globalThemeColor}
+                          onChange={(e) => setSettings((s) => ({ ...s, globalThemeColor: e.target.value }))}
+                          placeholder="#ef0000"
+                          dir="ltr"
+                          className="flex-1"
+                          data-testid="input-theme-color-text"
+                        />
+                      </div>
+                    </div>
+
+                    <Button
+                      onClick={handleSaveSettings}
+                      disabled={settingsSaving}
+                      data-testid="button-save-settings"
+                    >
+                      {settingsSaving ? (
+                        <Loader2 className="w-4 h-4 me-1.5 animate-spin" />
+                      ) : (
+                        <Save className="w-4 h-4 me-1.5" />
+                      )}
+                      {t("حفظ الإعدادات", "Save Settings")}
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </main>
 
       <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>

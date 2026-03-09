@@ -605,6 +605,264 @@ export async function registerRoutes(
     }
   });
 
+  const SUPER_ADMIN_EMAIL_GLOBAL = "yahiatohary@hotmail.com";
+
+  async function isAdminRequest(req: any): Promise<boolean> {
+    const adminEmail = req.headers["x-admin-email"];
+    if (!adminEmail || typeof adminEmail !== "string") return false;
+    return adminEmail.toLowerCase().trim() === SUPER_ADMIN_EMAIL_GLOBAL;
+  }
+
+  app.post("/api/admin/impersonate/:merchantId", async (req, res) => {
+    try {
+      if (!(await isAdminRequest(req))) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+
+      const { merchantId } = req.params;
+      const accessToken = await getFirestoreAccessToken();
+      const baseUrl = getFirestoreBaseUrl();
+      if (!accessToken || !baseUrl) {
+        return res.status(500).json({ message: "Firestore not configured" });
+      }
+
+      const docRes = await fetch(`${baseUrl}/merchants/${merchantId}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!docRes.ok) {
+        return res.status(404).json({ message: "Merchant not found" });
+      }
+      const doc = await docRes.json();
+      const fields = doc.fields;
+      if (!fields) {
+        return res.status(404).json({ message: "Merchant data missing" });
+      }
+
+      const uid = fields.uid?.stringValue || merchantId;
+      const email = fields.email?.stringValue || "";
+
+      const customToken = createFirebaseCustomToken(uid);
+      if (!customToken) {
+        return res.status(500).json({ message: "Failed to generate token" });
+      }
+
+      return res.json({ success: true, uid, email, customToken });
+    } catch (error) {
+      console.error("Impersonate error:", error);
+      return res.status(500).json({ message: "Impersonation failed" });
+    }
+  });
+
+  app.get("/api/admin/settings", async (_req, res) => {
+    try {
+      const accessToken = await getFirestoreAccessToken();
+      const baseUrl = getFirestoreBaseUrl();
+      if (!accessToken || !baseUrl) {
+        return res.status(500).json({ message: "Firestore not configured" });
+      }
+
+      const docRes = await fetch(`${baseUrl}/systemSettings/global`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      if (!docRes.ok) {
+        return res.json({
+          appName: "Digital Pager",
+          globalLogoUrl: "",
+          supportWhatsapp: "966500000000",
+          globalThemeColor: "#ef0000",
+        });
+      }
+
+      const doc = await docRes.json();
+      const fields = doc.fields || {};
+      return res.json({
+        appName: fields.appName?.stringValue || "Digital Pager",
+        globalLogoUrl: fields.globalLogoUrl?.stringValue || "",
+        supportWhatsapp: fields.supportWhatsapp?.stringValue || "966500000000",
+        globalThemeColor: fields.globalThemeColor?.stringValue || "#ef0000",
+      });
+    } catch (error) {
+      console.error("Get settings error:", error);
+      return res.status(500).json({ message: "Failed to get settings" });
+    }
+  });
+
+  app.post("/api/admin/settings", async (req, res) => {
+    try {
+      if (!(await isAdminRequest(req))) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+
+      const { appName, globalLogoUrl, supportWhatsapp, globalThemeColor } = req.body;
+      const accessToken = await getFirestoreAccessToken();
+      const baseUrl = getFirestoreBaseUrl();
+      if (!accessToken || !baseUrl) {
+        return res.status(500).json({ message: "Firestore not configured" });
+      }
+
+      const data = {
+        fields: {
+          appName: { stringValue: appName || "Digital Pager" },
+          globalLogoUrl: { stringValue: globalLogoUrl || "" },
+          supportWhatsapp: { stringValue: supportWhatsapp || "966500000000" },
+          globalThemeColor: { stringValue: globalThemeColor || "#ef0000" },
+        },
+      };
+
+      const patchRes = await fetch(`${baseUrl}/systemSettings/global`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify(data),
+      });
+
+      if (!patchRes.ok) {
+        const errText = await patchRes.text();
+        console.error("Settings save error:", patchRes.status, errText);
+        return res.status(500).json({ message: "Failed to save settings" });
+      }
+
+      return res.json({ success: true });
+    } catch (error) {
+      console.error("Save settings error:", error);
+      return res.status(500).json({ message: "Failed to save settings" });
+    }
+  });
+
+  app.post("/api/track/share/:storeId", async (req, res) => {
+    try {
+      const { storeId } = req.params;
+      const accessToken = await getFirestoreAccessToken();
+      const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
+      if (!accessToken || !projectId) {
+        return res.status(500).json({ message: "Firestore not configured" });
+      }
+
+      const commitUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:commit`;
+      const docPath = `projects/${projectId}/databases/(default)/documents/merchants/${storeId}`;
+      await fetch(commitUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          writes: [{
+            transform: {
+              document: docPath,
+              fieldTransforms: [{
+                fieldPath: "sharesCount",
+                increment: { integerValue: "1" },
+              }],
+            },
+          }],
+        }),
+      });
+
+      return res.json({ success: true });
+    } catch (error) {
+      console.error("Track share error:", error);
+      return res.status(500).json({ message: "Failed to track share" });
+    }
+  });
+
+  app.post("/api/track/gmaps/:storeId", async (req, res) => {
+    try {
+      const { storeId } = req.params;
+      const accessToken = await getFirestoreAccessToken();
+      const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
+      if (!accessToken || !projectId) {
+        return res.status(500).json({ message: "Firestore not configured" });
+      }
+
+      const commitUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:commit`;
+      const docPath = `projects/${projectId}/databases/(default)/documents/merchants/${storeId}`;
+      await fetch(commitUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          writes: [{
+            transform: {
+              document: docPath,
+              fieldTransforms: [{
+                fieldPath: "googleMapsClicks",
+                increment: { integerValue: "1" },
+              }],
+            },
+          }],
+        }),
+      });
+
+      return res.json({ success: true });
+    } catch (error) {
+      console.error("Track gmaps error:", error);
+      return res.status(500).json({ message: "Failed to track gmaps click" });
+    }
+  });
+
+  app.get("/api/admin/stats", async (req, res) => {
+    try {
+      if (!(await isAdminRequest(req))) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+
+      const accessToken = await getFirestoreAccessToken();
+      const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
+      if (!accessToken || !projectId) {
+        return res.status(500).json({ message: "Firestore not configured" });
+      }
+
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+
+      const query = {
+        structuredQuery: {
+          from: [{ collectionId: "pagers", allDescendants: true }],
+          where: {
+            compositeFilter: {
+              op: "AND",
+              filters: [
+                {
+                  fieldFilter: {
+                    field: { fieldPath: "status" },
+                    op: "EQUAL",
+                    value: { stringValue: "notified" },
+                  },
+                },
+                {
+                  fieldFilter: {
+                    field: { fieldPath: "notifiedAt" },
+                    op: "GREATER_THAN_OR_EQUAL",
+                    value: { stringValue: todayStart.toISOString() },
+                  },
+                },
+              ],
+            },
+          },
+        },
+      };
+
+      const queryRes = await fetch(
+        `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+          body: JSON.stringify(query),
+        }
+      );
+
+      let totalAlertsToday = 0;
+      if (queryRes.ok) {
+        const results = await queryRes.json();
+        if (Array.isArray(results)) {
+          totalAlertsToday = results.filter((r: any) => r.document).length;
+        }
+      }
+
+      return res.json({ totalAlertsToday });
+    } catch (error) {
+      console.error("Admin stats error:", error);
+      return res.status(500).json({ message: "Failed to get stats" });
+    }
+  });
+
   app.post("/api/register-merchant", async (req, res) => {
     try {
       const authHeader = req.headers.authorization;
