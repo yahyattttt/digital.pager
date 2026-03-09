@@ -9,6 +9,7 @@
   "orientation": "any",
   "dir": "rtl",
   "lang": "ar",
+  "gcm_sender_id": "103953800507",
   "icons": [
     {
       "src": "/icon-72x72.png",

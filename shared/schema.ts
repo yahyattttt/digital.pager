@@ -36,6 +36,7 @@ export const pagerSchema = z.object({
   status: pagerStatusEnum.default("waiting"),
   createdAt: z.string(),
   notifiedAt: z.string().nullable().optional(),
+  fcmToken: z.string().nullable().optional(),
 });
 
 export type Pager = z.infer<typeof pagerSchema>;

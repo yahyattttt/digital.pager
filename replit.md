@@ -7,12 +7,13 @@ A multi-tenant SaaS platform for digital pager services (restaurants, cafes, cli
 - **Backend:** Node.js, Express
 - **Database:** Firebase Firestore (NoSQL)
 - **Auth:** Firebase Auth (Email/Password with email verification)
+- **Push Notifications:** Firebase Cloud Messaging (FCM)
 - **File Uploads:** Multer (stored locally in `client/public/uploads/`)
 
 ## Architecture
 - Multi-tenant: Each store's data is isolated in Firestore under `merchants/{uid}`
 - Firebase client SDK handles auth and Firestore on the frontend
-- Backend handles file uploads only (logo images)
+- Backend handles file uploads, QR generation, and FCM push relay
 - Admin approval gate: merchants start with `status: "pending"` until Super Admin changes to `"approved"` in Firestore
 - Bilingual UI (Arabic/English) with language toggle on every page
 
@@ -56,6 +57,7 @@ A multi-tenant SaaS platform for digital pager services (restaurants, cafes, cli
 - `storeId`: Parent merchant UID
 - `orderNumber`: Customer order number
 - `status`: "waiting" | "notified" | "completed"
+- `fcmToken`: FCM push notification token (optional, stored when customer grants permission)
 - `createdAt`: ISO timestamp
 - `notifiedAt`: ISO timestamp (set when notified)
 
@@ -85,6 +87,18 @@ A multi-tenant SaaS platform for digital pager services (restaurants, cafes, cli
 - Cleanup: audio paused + vibration stopped on component unmount
 - Store not found / inactive stores show error page
 
+## Firebase Cloud Messaging (FCM)
+- **Unified Service Worker:** `client/public/sw.js` handles both app-shell caching AND FCM background messages
+- `/firebase-messaging-sw.js` redirects 301 to `/sw.js` for FCM SDK compatibility
+- **Config Endpoint:** `/api/firebase-config` returns Firebase config JSON for SW initialization
+- **Token Flow:** Customer submits order → notification permission requested → FCM token stored in pager doc `fcmToken` field
+- **Push Relay:** Dashboard reads `fcmToken` from pager doc → fetches auth token from `/api/push-auth` → POST `/api/send-push` with `X-Push-Auth` header
+- **Auth Protection:** `/api/send-push` requires `X-Push-Auth` header derived from `SESSION_SECRET` (SHA-256 hash)
+- **Background Notifications:** SW shows notification with vibration, icon, requireInteraction when app is backgrounded
+- `messagingSenderId` extracted from `VITE_FIREBASE_APP_ID` (format `1:SENDER_ID:web:HEX`)
+- FCM Legacy HTTP API (`https://fcm.googleapis.com/fcm/send`) used with `FCM_SERVER_KEY`
+- Token persistence uses `onSnapshot` with retry (waits for pager doc to appear, 30s timeout)
+
 ## Super Admin
 - Email-gated access: only `yahiatohary@hotmail.com` can access `/super-admin`
 - Non-admin users redirected to `/`
@@ -107,9 +121,9 @@ A multi-tenant SaaS platform for digital pager services (restaurants, cafes, cli
 - Plan labels stored in schema with AR/EN translations
 
 ## PWA (Progressive Web App)
-- `manifest.json` at `client/public/manifest.json` with neon red/black theme
+- `manifest.json` at `client/public/manifest.json` with neon red/black theme, `gcm_sender_id` for FCM
 - Icons: 72, 96, 128, 144, 152, 192, 384, 512px (generated from favicon.png)
-- Service worker at `client/public/sw.js` with app-shell caching + navigation fallback
+- Unified service worker at `client/public/sw.js` with app-shell caching + FCM background messages + navigation fallback
 - Apple meta tags: `apple-mobile-web-app-capable`, `apple-touch-icon`, `apple-mobile-web-app-status-bar-style`
 - Service worker registered inline in `client/index.html`
 - iOS Install Prompt (`client/src/components/ios-install-prompt.tsx`):
@@ -129,14 +143,20 @@ A multi-tenant SaaS platform for digital pager services (restaurants, cafes, cli
 - `VITE_FIREBASE_API_KEY` - Firebase API key
 - `VITE_FIREBASE_PROJECT_ID` - Firebase project ID
 - `VITE_FIREBASE_APP_ID` - Firebase app ID
+- `VITE_FIREBASE_VAPID_KEY` - Firebase Cloud Messaging VAPID key (for FCM token generation)
+- `FCM_SERVER_KEY` - Firebase Cloud Messaging server key (for sending push notifications)
+- `SESSION_SECRET` - Session secret (also used to derive push auth tokens)
 
 ## Key Files
-- `client/src/lib/firebase.ts` - Firebase initialization
+- `client/src/lib/firebase.ts` - Firebase initialization + FCM token generation
 - `client/src/hooks/use-auth.ts` - Auth state hook (context-based)
 - `client/src/hooks/use-language.ts` - Language context (AR/EN toggle)
 - `client/src/hooks/use-wake-lock.ts` - Screen Wake Lock API hook
 - `client/src/hooks/use-fullscreen.ts` - Fullscreen API hook
 - `shared/schema.ts` - Zod schemas for merchant data with Arabic validation messages
 - `client/src/pages/super-admin.tsx` - Super Admin dashboard
-- `client/src/pages/store-pager.tsx` - Public customer pager page
-- `server/routes.ts` - Express API routes (logo upload, QR generation)
+- `client/src/pages/store-pager.tsx` - Public customer pager page with FCM integration
+- `client/src/pages/dashboard.tsx` - Kiosk dashboard with push notification sending
+- `client/src/components/ios-install-prompt.tsx` - iOS PWA install prompt
+- `client/public/sw.js` - Unified service worker (caching + FCM background messages)
+- `server/routes.ts` - Express API routes (logo upload, QR generation, FCM push relay, Firebase config)

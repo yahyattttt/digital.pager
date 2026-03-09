@@ -266,6 +266,29 @@ export default function DashboardPage() {
         status: "notified",
         notifiedAt: new Date().toISOString(),
       });
+
+      const pagerSnap = await import("firebase/firestore").then(m => m.getDoc(pagerRef));
+      const pagerData = pagerSnap.data();
+      if (pagerData?.fcmToken) {
+        try {
+          const authRes = await fetch("/api/push-auth");
+          const { pushToken } = await authRes.json();
+          fetch("/api/send-push", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Push-Auth": pushToken,
+            },
+            body: JSON.stringify({
+              token: pagerData.fcmToken,
+              storeName: merchant.storeName,
+              orderNumber: pager.orderNumber,
+              storeId: merchant.uid,
+            }),
+          }).catch(() => {});
+        } catch {}
+      }
+
       toast({
         title: t("تم التنبيه", "Notified"),
         description: t(
@@ -282,7 +305,7 @@ export default function DashboardPage() {
     } finally {
       setNotifyLoading(null);
     }
-  }, [merchant?.uid, t, toast]);
+  }, [merchant?.uid, merchant?.storeName, t, toast]);
 
   const handleComplete = useCallback(async (pager: Pager & { docId: string }) => {
     if (!merchant?.uid) return;

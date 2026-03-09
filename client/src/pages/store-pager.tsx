@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "wouter";
-import { doc, getDoc, collection, query, where, onSnapshot } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { doc, getDoc, setDoc, updateDoc, collection, query, where, onSnapshot } from "firebase/firestore";
+import { db, requestFCMToken } from "@/lib/firebase";
 import type { Merchant, Pager } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -307,7 +307,7 @@ export default function StorePagerPage() {
     };
   }, []);
 
-  function handleUnlockAndSubmit(e: React.FormEvent) {
+  async function handleUnlockAndSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!orderNumber.trim()) return;
     unlock();
@@ -317,6 +317,38 @@ export default function StorePagerPage() {
     setShowReview(false);
     setAlertActive(false);
     setSubmitted(true);
+
+    if ("Notification" in window && Notification.permission === "default") {
+      try {
+        await Notification.requestPermission();
+      } catch {}
+    }
+
+    if ("Notification" in window && Notification.permission === "granted" && storeId) {
+      try {
+        const token = await requestFCMToken();
+        if (token) {
+          const pagersRef = collection(db, "merchants", storeId, "pagers");
+          const q2 = query(
+            pagersRef,
+            where("orderNumber", "==", orderNumber.trim()),
+            where("status", "in", ["waiting", "notified"])
+          );
+          const unsub = onSnapshot(q2, async (snap) => {
+            if (!snap.empty) {
+              const pagerDoc = snap.docs[0];
+              try {
+                await updateDoc(pagerDoc.ref, { fcmToken: token });
+              } catch {}
+              unsub();
+            }
+          });
+          setTimeout(() => { try { unsub(); } catch {} }, 30000);
+        }
+      } catch (e) {
+        console.warn("FCM setup failed:", e);
+      }
+    }
   }
 
   function handleStopAlert() {
