@@ -353,7 +353,7 @@ export default function DashboardPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [storeOpen, setStoreOpen] = useState<boolean>((merchant as any)?.storeOpen !== false);
   const [selectedPagerId, setSelectedPagerId] = useState<string | null>(null);
-  const [lastOrderNumber, setLastOrderNumber] = useState<number>(0);
+  const [nextOrderNumber, setNextOrderNumber] = useState<number>(1);
   const [showShiftStart, setShowShiftStart] = useState(false);
   const [shiftStartNumber, setShiftStartNumber] = useState("");
   const [quickAddLoading, setQuickAddLoading] = useState(false);
@@ -366,11 +366,21 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!merchant?.uid) return;
     const counterRef = doc(db, "merchants", merchant.uid, "settings", "orderCounter");
-    const unsub = onSnapshot(counterRef, (snap) => {
+    const unsub = onSnapshot(counterRef, async (snap) => {
       if (snap.exists()) {
         const data = snap.data();
-        setLastOrderNumber(data.lastOrderNumber || 0);
-        setCounterLoaded(true);
+        if (data.nextOrderNumber !== undefined) {
+          const val = parseInt(String(data.nextOrderNumber), 10);
+          setNextOrderNumber(isNaN(val) || val < 1 ? 1 : val);
+          setCounterLoaded(true);
+        } else if (data.lastOrderNumber !== undefined) {
+          const legacy = parseInt(String(data.lastOrderNumber), 10);
+          const migrated = (isNaN(legacy) || legacy < 0 ? 0 : legacy) + 1;
+          await setDoc(counterRef, { nextOrderNumber: migrated }, { merge: true });
+        } else {
+          setShowShiftStart(true);
+          setCounterLoaded(true);
+        }
       } else {
         setShowShiftStart(true);
         setCounterLoaded(true);
@@ -476,41 +486,18 @@ export default function DashboardPage() {
 
   const isApproved = merchant?.status === "approved";
 
-  const handleSmartAdd = useCallback(async (manualNumber?: string) => {
+  const handleQuickAdd = useCallback(async () => {
     if (!merchant?.uid || !isApproved || quickAddLoading) return;
-    const manual = manualNumber?.trim();
-    if (manual) {
-      const parsed = parseInt(manual, 10);
-      if (isNaN(parsed) || parsed <= 0 || String(parsed) !== manual) {
-        toast({
-          title: t("رقم غير صالح", "Invalid Number"),
-          description: t("أدخل رقم صحيح موجب", "Enter a positive whole number"),
-          variant: "destructive",
-        });
-        return;
-      }
-    }
     setQuickAddLoading(true);
     try {
       const counterRef = doc(db, "merchants", merchant.uid, "settings", "orderCounter");
-      let orderNum: number;
-      const manualParsed = manual ? parseInt(manual, 10) : NaN;
-
-      if (manual && !isNaN(manualParsed)) {
-        orderNum = manualParsed;
-        await runTransaction(db, async (txn) => {
-          await txn.get(counterRef);
-          txn.set(counterRef, { lastOrderNumber: orderNum }, { merge: true } as any);
-        });
-      } else {
-        orderNum = 1;
-        await runTransaction(db, async (txn) => {
-          const snap = await txn.get(counterRef);
-          const current = snap.exists() ? (snap.data().lastOrderNumber || 0) : 0;
-          orderNum = current + 1;
-          txn.set(counterRef, { lastOrderNumber: orderNum }, { merge: true } as any);
-        });
-      }
+      let orderNum = 1;
+      await runTransaction(db, async (txn) => {
+        const snap = await txn.get(counterRef);
+        const current = snap.exists() ? parseInt(String(snap.data().nextOrderNumber), 10) : 1;
+        orderNum = isNaN(current) || current < 1 ? 1 : current;
+        txn.set(counterRef, { nextOrderNumber: orderNum + 1 }, { merge: true } as any);
+      });
 
       const pagersRef = collection(db, "merchants", merchant.uid, "pagers");
       await addDoc(pagersRef, {
@@ -543,27 +530,78 @@ export default function DashboardPage() {
     }
   }, [merchant?.uid, isApproved, quickAddLoading, t, toast]);
 
+  const handleManualAdd = useCallback(async (manualNumber: string) => {
+    if (!merchant?.uid || !isApproved || quickAddLoading) return;
+    const trimmed = manualNumber.trim();
+    const parsed = parseInt(trimmed, 10);
+    if (!trimmed || isNaN(parsed) || parsed <= 0 || String(parsed) !== trimmed) {
+      toast({
+        title: t("رقم غير صالح", "Invalid Number"),
+        description: t("أدخل رقم صحيح موجب", "Enter a positive whole number"),
+        variant: "destructive",
+      });
+      return;
+    }
+    setQuickAddLoading(true);
+    try {
+      const counterRef = doc(db, "merchants", merchant.uid, "settings", "orderCounter");
+      await runTransaction(db, async (txn) => {
+        await txn.get(counterRef);
+        txn.set(counterRef, { nextOrderNumber: parsed + 1 }, { merge: true } as any);
+      });
+
+      const pagersRef = collection(db, "merchants", merchant.uid, "pagers");
+      await addDoc(pagersRef, {
+        storeId: merchant.uid,
+        orderNumber: String(parsed),
+        status: "waiting",
+        createdAt: new Date().toISOString(),
+        notifiedAt: null,
+      });
+
+      toast({
+        title: t(`تم إضافة الطلب #${parsed}`, `Order #${parsed} added`),
+        description: t(
+          `الرقم التالي تلقائياً سيكون #${parsed + 1}`,
+          `Next auto-number will be #${parsed + 1}`
+        ),
+      });
+      setNewOrderNumber("");
+      setShowAddDialog(false);
+      return true;
+    } catch {
+      toast({
+        title: t("خطأ", "Error"),
+        description: t("فشل في إضافة الطلب", "Failed to add order"),
+        variant: "destructive",
+      });
+      return false;
+    } finally {
+      setQuickAddLoading(false);
+    }
+  }, [merchant?.uid, isApproved, quickAddLoading, t, toast]);
+
   const handleShiftStart = useCallback(async () => {
     if (!merchant?.uid) return;
     const num = parseInt(shiftStartNumber.trim(), 10);
-    if (isNaN(num) || num < 0) {
+    if (isNaN(num) || num < 1) {
       toast({
         title: t("خطأ", "Error"),
-        description: t("أدخل رقم صالح", "Enter a valid number"),
+        description: t("أدخل رقم صالح (1 أو أكثر)", "Enter a valid number (1 or more)"),
         variant: "destructive",
       });
       return;
     }
     try {
       const counterRef = doc(db, "merchants", merchant.uid, "settings", "orderCounter");
-      await setDoc(counterRef, { lastOrderNumber: num }, { merge: true });
+      await setDoc(counterRef, { nextOrderNumber: num }, { merge: true });
       setShowShiftStart(false);
       setShiftStartNumber("");
       toast({
         title: t("تم تعيين الرقم", "Counter Set"),
         description: t(
-          `سيبدأ الطلب التالي من #${num + 1}`,
-          `Next order will start from #${num + 1}`
+          `الطلب التالي سيكون #${num}`,
+          `Next order will be #${num}`
         ),
       });
     } catch {
@@ -579,12 +617,12 @@ export default function DashboardPage() {
     if (!merchant?.uid) return;
     try {
       const counterRef = doc(db, "merchants", merchant.uid, "settings", "orderCounter");
-      await setDoc(counterRef, { lastOrderNumber: resetTo }, { merge: true });
+      await setDoc(counterRef, { nextOrderNumber: resetTo }, { merge: true });
       toast({
         title: t("تم إعادة التعيين", "Counter Reset"),
         description: t(
-          `سيبدأ الطلب التالي من #${resetTo + 1}`,
-          `Next order will start from #${resetTo + 1}`
+          `الطلب التالي سيكون #${resetTo}`,
+          `Next order will be #${resetTo}`
         ),
       });
     } catch {
@@ -989,9 +1027,10 @@ export default function DashboardPage() {
                 onComplete={handleComplete}
                 onRemove={handleRemove}
                 onNavigate={(v: DashboardView) => { setCurrentView(v); setSelectedPagerId(null); }}
-                onSmartAdd={handleSmartAdd}
+                onQuickAdd={handleQuickAdd}
+                onManualAdd={handleManualAdd}
                 quickAddLoading={quickAddLoading}
-                lastOrderNumber={lastOrderNumber}
+                nextOrderNumber={nextOrderNumber}
                 counterLoaded={counterLoaded}
                 notifyLoading={notifyLoading}
                 t={t}
@@ -1008,9 +1047,10 @@ export default function DashboardPage() {
                 onComplete={handleComplete}
                 onRemove={handleRemove}
                 onAdd={() => setShowAddDialog(true)}
-                onSmartAdd={handleSmartAdd}
+                onQuickAdd={handleQuickAdd}
+                onManualAdd={handleManualAdd}
                 quickAddLoading={quickAddLoading}
-                lastOrderNumber={lastOrderNumber}
+                nextOrderNumber={nextOrderNumber}
                 counterLoaded={counterLoaded}
                 notifyLoading={notifyLoading}
                 selectedPagerId={selectedPagerId}
@@ -1045,7 +1085,7 @@ export default function DashboardPage() {
                 merchant={merchant}
                 onDownloadQR={handleDownloadQR}
                 qrLoading={qrLoading}
-                lastOrderNumber={lastOrderNumber}
+                nextOrderNumber={nextOrderNumber}
                 onResetCounter={handleResetCounter}
                 onOpenShiftStart={() => setShowShiftStart(true)}
                 t={t}
@@ -1081,12 +1121,12 @@ export default function DashboardPage() {
               <Input
                 type="text"
                 inputMode="numeric"
-                placeholder={t("رقم الطلب (اختياري)", "Order Number (optional)")}
+                placeholder={t("رقم مخصص", "Custom Number")}
                 value={newOrderNumber}
                 onChange={(e) => setNewOrderNumber(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    handleSmartAdd(newOrderNumber || undefined);
+                  if (e.key === "Enter" && newOrderNumber.trim()) {
+                    handleManualAdd(newOrderNumber);
                   }
                 }}
                 className="flex-1 h-16 text-center text-xl font-bold border-white/10 focus:border-primary focus:ring-primary/20 bg-white/[0.03]"
@@ -1095,28 +1135,32 @@ export default function DashboardPage() {
                 data-testid="input-new-order-number"
               />
               <Button
-                onClick={() => handleSmartAdd(newOrderNumber || undefined)}
-                disabled={quickAddLoading || !counterLoaded}
-                className="h-16 px-6 bg-primary hover:bg-primary/90 font-bold text-base"
-                data-testid="button-quick-add"
+                onClick={() => handleManualAdd(newOrderNumber)}
+                disabled={quickAddLoading || !newOrderNumber.trim()}
+                className="h-16 px-5 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 font-bold"
+                data-testid="button-manual-add"
               >
                 {quickAddLoading ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
-                  <>
-                    <Zap className="w-5 h-5 me-2" />
-                    {newOrderNumber.trim() ? t("إضافة", "Add") : `#${lastOrderNumber + 1}`}
-                  </>
+                  <Plus className="w-5 h-5" />
                 )}
               </Button>
             </div>
 
-            <p className="text-xs text-muted-foreground text-center">
-              {newOrderNumber.trim()
-                ? t(`سيتم إضافة الطلب #${newOrderNumber.trim()} والمتابعة من بعده`, `Will add order #${newOrderNumber.trim()} and continue from there`)
-                : t(`اتركه فارغاً للإضافة التلقائية #${lastOrderNumber + 1}`, `Leave empty to auto-add #${lastOrderNumber + 1}`)
-              }
-            </p>
+            <Button
+              onClick={handleQuickAdd}
+              disabled={quickAddLoading || !counterLoaded}
+              className="w-full h-14 bg-primary hover:bg-primary/90 font-bold text-lg rounded-xl shadow-lg shadow-primary/20 active:scale-[0.98] transition-all"
+              data-testid="button-quick-add"
+            >
+              {quickAddLoading ? (
+                <Loader2 className="w-5 h-5 animate-spin me-2" />
+              ) : (
+                <Zap className="w-5 h-5 me-2" />
+              )}
+              {t("إضافة سريعة", "Quick Add")} #{nextOrderNumber}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -1132,8 +1176,8 @@ export default function DashboardPage() {
           <div className="py-4 space-y-4">
             <p className="text-sm text-muted-foreground">
               {t(
-                "أدخل رقم الطلب الأخير لبدء العد التلقائي من بعده",
-                "Enter the last order number to start auto-counting from"
+                "أدخل رقم الطلب الذي تريد البدء منه",
+                "Enter the starting order number"
               )}
             </p>
             <Input
@@ -1153,14 +1197,14 @@ export default function DashboardPage() {
               data-testid="input-shift-start-number"
             />
             <p className="text-xs text-muted-foreground text-center">
-              {shiftStartNumber.trim() && !isNaN(parseInt(shiftStartNumber)) ? (
+              {shiftStartNumber.trim() && !isNaN(parseInt(shiftStartNumber)) && parseInt(shiftStartNumber) >= 1 ? (
                 <>
                   {t("الطلب التالي سيكون:", "Next order will be:")}
                   {" "}
-                  <span className="font-mono font-bold text-primary">#{parseInt(shiftStartNumber) + 1}</span>
+                  <span className="font-mono font-bold text-primary">#{parseInt(shiftStartNumber)}</span>
                 </>
               ) : (
-                t("أدخل 0 للبدء من الطلب #1", "Enter 0 to start from order #1")
+                t("أدخل 1 أو أكثر للبدء", "Enter 1 or more to start")
               )}
             </p>
           </div>
@@ -1169,8 +1213,8 @@ export default function DashboardPage() {
               variant="outline"
               onClick={() => {
                 setShowShiftStart(false);
-                setShiftStartNumber("0");
-                handleResetCounter(0);
+                setShiftStartNumber("1");
+                handleResetCounter(1);
               }}
               className="border-white/10"
               data-testid="button-start-from-one"
@@ -1179,7 +1223,7 @@ export default function DashboardPage() {
             </Button>
             <Button
               onClick={handleShiftStart}
-              disabled={!shiftStartNumber.trim() || isNaN(parseInt(shiftStartNumber))}
+              disabled={!shiftStartNumber.trim() || isNaN(parseInt(shiftStartNumber)) || parseInt(shiftStartNumber) < 1}
               className="bg-primary hover:bg-primary/90 font-bold"
               data-testid="button-confirm-shift-start"
             >
@@ -1203,9 +1247,10 @@ function OverviewView({
   onComplete,
   onRemove,
   onNavigate,
-  onSmartAdd,
+  onQuickAdd,
+  onManualAdd,
   quickAddLoading,
-  lastOrderNumber,
+  nextOrderNumber,
   counterLoaded,
   notifyLoading,
   t,
@@ -1221,18 +1266,19 @@ function OverviewView({
   onComplete: (pager: Pager & { docId: string }) => void;
   onRemove: (pager: Pager & { docId: string }) => void;
   onNavigate: (view: DashboardView) => void;
-  onSmartAdd: (manualNumber?: string) => Promise<boolean | undefined>;
+  onQuickAdd: () => Promise<boolean | undefined>;
+  onManualAdd: (num: string) => Promise<boolean | undefined>;
   quickAddLoading: boolean;
-  lastOrderNumber: number;
+  nextOrderNumber: number;
   counterLoaded: boolean;
   notifyLoading: string | null;
   t: (ar: string, en: string) => string;
   lang: string;
 }) {
   const [overviewInput, setOverviewInput] = useState("");
-  const handleAdd = async () => {
-    if (quickAddLoading || isPending) return;
-    const ok = await onSmartAdd(overviewInput || undefined);
+  const handleManual = async () => {
+    if (quickAddLoading || isPending || !overviewInput.trim()) return;
+    const ok = await onManualAdd(overviewInput);
     if (ok) setOverviewInput("");
   };
   return (
@@ -1255,33 +1301,42 @@ function OverviewView({
       </div>
 
       {counterLoaded && (
-        <div className="flex gap-2" data-testid="overview-order-entry">
+        <div className="flex gap-2 items-center" data-testid="overview-order-entry">
           <Input
             type="text"
             inputMode="numeric"
-            placeholder={t("رقم يدوي", "Manual #")}
+            placeholder={t("رقم مخصص", "Custom Number")}
             value={overviewInput}
             onChange={(e) => setOverviewInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); }}
+            onKeyDown={(e) => { if (e.key === "Enter" && overviewInput.trim()) handleManual(); }}
             className="w-28 sm:w-36 h-16 text-center text-lg font-bold border-white/10 focus:border-primary focus:ring-primary/20 bg-white/[0.03] rounded-xl"
             dir="ltr"
             data-testid="input-order-overview"
           />
           <Button
-            onClick={handleAdd}
+            onClick={handleManual}
+            disabled={quickAddLoading || isPending || !overviewInput.trim()}
+            className="h-16 px-4 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 font-bold rounded-xl"
+            data-testid="button-manual-add-overview"
+          >
+            {quickAddLoading && overviewInput.trim() ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <Plus className="w-5 h-5" />
+            )}
+          </Button>
+          <Button
+            onClick={async () => { await onQuickAdd(); }}
             disabled={quickAddLoading || isPending}
             className="flex-1 h-16 bg-primary hover:bg-primary/90 font-bold text-lg rounded-xl shadow-lg shadow-primary/20 active:scale-[0.98] transition-all"
             data-testid="button-quick-add-overview"
           >
-            {quickAddLoading ? (
+            {quickAddLoading && !overviewInput.trim() ? (
               <Loader2 className="w-6 h-6 animate-spin me-3" />
             ) : (
               <Zap className="w-6 h-6 me-3" />
             )}
-            {overviewInput.trim()
-              ? `${t("إضافة", "Add")} #${overviewInput.trim()}`
-              : `${t("إضافة سريعة", "Quick Add")} #${lastOrderNumber + 1}`
-            }
+            {t("إضافة سريعة", "Quick Add")} #{nextOrderNumber}
           </Button>
         </div>
       )}
@@ -1483,9 +1538,10 @@ function WaitlistView({
   onComplete,
   onRemove,
   onAdd,
-  onSmartAdd,
+  onQuickAdd,
+  onManualAdd,
   quickAddLoading,
-  lastOrderNumber,
+  nextOrderNumber,
   counterLoaded,
   notifyLoading,
   selectedPagerId,
@@ -1500,9 +1556,10 @@ function WaitlistView({
   onComplete: (pager: Pager & { docId: string }) => void;
   onRemove: (pager: Pager & { docId: string }) => void;
   onAdd: () => void;
-  onSmartAdd: (manualNumber?: string) => Promise<boolean | undefined>;
+  onQuickAdd: () => Promise<boolean | undefined>;
+  onManualAdd: (num: string) => Promise<boolean | undefined>;
   quickAddLoading: boolean;
-  lastOrderNumber: number;
+  nextOrderNumber: number;
   counterLoaded: boolean;
   notifyLoading: string | null;
   selectedPagerId: string | null;
@@ -1511,9 +1568,9 @@ function WaitlistView({
   lang: string;
 }) {
   const [waitlistInput, setWaitlistInput] = useState("");
-  const handleAdd = async () => {
-    if (quickAddLoading || isPending) return;
-    const ok = await onSmartAdd(waitlistInput || undefined);
+  const handleManual = async () => {
+    if (quickAddLoading || isPending || !waitlistInput.trim()) return;
+    const ok = await onManualAdd(waitlistInput);
     if (ok) setWaitlistInput("");
   };
   const allPagers = [...waitingPagers, ...notifiedPagers];
@@ -1574,33 +1631,42 @@ function WaitlistView({
       </div>
 
       {counterLoaded && (
-        <div className="flex gap-2" data-testid="waitlist-order-entry">
+        <div className="flex gap-2 items-center" data-testid="waitlist-order-entry">
           <Input
             type="text"
             inputMode="numeric"
-            placeholder={t("رقم يدوي", "Manual #")}
+            placeholder={t("رقم مخصص", "Custom Number")}
             value={waitlistInput}
             onChange={(e) => setWaitlistInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); }}
+            onKeyDown={(e) => { if (e.key === "Enter" && waitlistInput.trim()) handleManual(); }}
             className="w-28 sm:w-36 h-16 text-center text-lg font-bold border-white/10 focus:border-primary focus:ring-primary/20 bg-white/[0.03] rounded-xl"
             dir="ltr"
             data-testid="input-order-waitlist"
           />
           <Button
-            onClick={handleAdd}
+            onClick={handleManual}
+            disabled={quickAddLoading || isPending || !waitlistInput.trim()}
+            className="h-16 px-4 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 font-bold rounded-xl"
+            data-testid="button-manual-add-waitlist"
+          >
+            {quickAddLoading && waitlistInput.trim() ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <Plus className="w-5 h-5" />
+            )}
+          </Button>
+          <Button
+            onClick={async () => { await onQuickAdd(); }}
             disabled={quickAddLoading || isPending}
             className="flex-1 h-16 bg-primary hover:bg-primary/90 font-bold text-lg rounded-xl shadow-lg shadow-primary/20 active:scale-[0.98] transition-all"
             data-testid="button-quick-add-waitlist"
           >
-            {quickAddLoading ? (
+            {quickAddLoading && !waitlistInput.trim() ? (
               <Loader2 className="w-6 h-6 animate-spin me-3" />
             ) : (
               <Zap className="w-6 h-6 me-3" />
             )}
-            {waitlistInput.trim()
-              ? `${t("إضافة", "Add")} #${waitlistInput.trim()}`
-              : `${t("إضافة سريعة", "Quick Add")} #${lastOrderNumber + 1}`
-            }
+            {t("إضافة سريعة", "Quick Add")} #{nextOrderNumber}
           </Button>
         </div>
       )}
@@ -2158,7 +2224,7 @@ function SettingsView({
   merchant,
   onDownloadQR,
   qrLoading,
-  lastOrderNumber,
+  nextOrderNumber,
   onResetCounter,
   onOpenShiftStart,
   t,
@@ -2167,7 +2233,7 @@ function SettingsView({
   merchant: any;
   onDownloadQR: () => void;
   qrLoading: boolean;
-  lastOrderNumber: number;
+  nextOrderNumber: number;
   onResetCounter: (n: number) => void;
   onOpenShiftStart: () => void;
   t: (ar: string, en: string) => string;
@@ -2191,23 +2257,22 @@ function SettingsView({
           </h3>
           <div className="space-y-4">
             <div className="flex items-center justify-between py-2 border-b border-white/[0.04]">
-              <span className="text-sm text-muted-foreground">{t("آخر رقم طلب", "Last Order Number")}</span>
-              <span className="text-lg font-mono font-bold text-primary" data-testid="text-last-order-number">#{lastOrderNumber}</span>
-            </div>
-            <div className="flex items-center justify-between py-2 border-b border-white/[0.04]">
-              <span className="text-sm text-muted-foreground">{t("الطلب التالي", "Next Order")}</span>
-              <span className="text-sm font-mono font-bold">#{lastOrderNumber + 1}</span>
+              <span className="text-sm text-muted-foreground">{t("الطلب التالي", "Next Order Number")}</span>
+              <span className="text-lg font-mono font-bold text-primary" data-testid="text-next-order-number">#{nextOrderNumber}</span>
             </div>
 
+            <p className="text-xs text-muted-foreground">
+              {t("أدخل رقم الطلب الذي تريد البدء منه", "Enter the starting order number")}
+            </p>
             <div className="flex gap-2">
               <Input
                 type="text"
                 inputMode="numeric"
-                placeholder={t("رقم جديد", "New number")}
+                placeholder={t("رقم البداية", "Starting number")}
                 value={resetValue}
                 onChange={(e) => setResetValue(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && resetValue.trim() && !isNaN(parseInt(resetValue))) {
+                  if (e.key === "Enter" && resetValue.trim() && !isNaN(parseInt(resetValue)) && parseInt(resetValue) >= 1) {
                     onResetCounter(parseInt(resetValue));
                     setResetValue("");
                   }
@@ -2219,12 +2284,12 @@ function SettingsView({
               <Button
                 variant="outline"
                 onClick={() => {
-                  if (resetValue.trim() && !isNaN(parseInt(resetValue))) {
+                  if (resetValue.trim() && !isNaN(parseInt(resetValue)) && parseInt(resetValue) >= 1) {
                     onResetCounter(parseInt(resetValue));
                     setResetValue("");
                   }
                 }}
-                disabled={!resetValue.trim() || isNaN(parseInt(resetValue))}
+                disabled={!resetValue.trim() || isNaN(parseInt(resetValue)) || parseInt(resetValue) < 1}
                 className="h-12 border-white/10"
                 data-testid="button-set-counter"
               >
@@ -2235,7 +2300,7 @@ function SettingsView({
             <div className="flex gap-2">
               <Button
                 variant="outline"
-                onClick={() => { onResetCounter(0); }}
+                onClick={() => { onResetCounter(1); }}
                 className="flex-1 h-12 border-red-500/15 text-red-400 hover:bg-red-500/10"
                 data-testid="button-reset-to-one"
               >
