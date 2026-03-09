@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 export function useWakeLock(autoAcquire: boolean = true) {
   const [isActive, setIsActive] = useState(false);
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+  const wasManuallyAcquired = useRef(false);
   const isSupported = "wakeLock" in navigator;
 
   const requestWakeLock = useCallback(async () => {
@@ -11,6 +12,7 @@ export function useWakeLock(autoAcquire: boolean = true) {
     try {
       const lock = await navigator.wakeLock.request("screen");
       wakeLockRef.current = lock;
+      wasManuallyAcquired.current = true;
       setIsActive(true);
       lock.addEventListener("release", () => {
         wakeLockRef.current = null;
@@ -23,6 +25,7 @@ export function useWakeLock(autoAcquire: boolean = true) {
   }, [isSupported]);
 
   const releaseWakeLock = useCallback(async () => {
+    wasManuallyAcquired.current = false;
     if (wakeLockRef.current) {
       try {
         await wakeLockRef.current.release();
@@ -38,8 +41,10 @@ export function useWakeLock(autoAcquire: boolean = true) {
     }
 
     function handleVisibilityChange() {
-      if (autoAcquire && document.visibilityState === "visible" && !wakeLockRef.current) {
-        requestWakeLock();
+      if (document.visibilityState === "visible" && !wakeLockRef.current) {
+        if (autoAcquire || wasManuallyAcquired.current) {
+          requestWakeLock();
+        }
       }
     }
     document.addEventListener("visibilitychange", handleVisibilityChange);

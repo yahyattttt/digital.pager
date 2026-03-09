@@ -87,7 +87,9 @@ A multi-tenant SaaS platform for digital pager services (restaurants, cafes, cli
 - Cleanup: audio paused + vibration stopped on component unmount
 - Store not found / inactive stores show error page
 
-## Firebase Cloud Messaging (FCM)
+## Firebase Cloud Messaging (FCM V1)
+- **FCM V1 API:** Uses `google-auth-library` with service account (`FIREBASE_SERVICE_ACCOUNT_JSON`) for OAuth2 tokens
+- **Endpoint:** `https://fcm.googleapis.com/v1/projects/{projectId}/messages:send`
 - **Unified Service Worker:** `client/public/sw.js` handles both app-shell caching AND FCM background messages
 - `/firebase-messaging-sw.js` redirects 301 to `/sw.js` for FCM SDK compatibility
 - **Config Endpoint:** `/api/firebase-config` returns Firebase config JSON for SW initialization
@@ -96,8 +98,16 @@ A multi-tenant SaaS platform for digital pager services (restaurants, cafes, cli
 - **Auth Protection:** `/api/send-push` requires `X-Push-Auth` header derived from `SESSION_SECRET` (SHA-256 hash)
 - **Background Notifications:** SW shows notification with vibration, icon, requireInteraction when app is backgrounded
 - `messagingSenderId` extracted from `VITE_FIREBASE_APP_ID` (format `1:SENDER_ID:web:HEX`)
-- FCM Legacy HTTP API (`https://fcm.googleapis.com/fcm/send`) used with `FCM_SERVER_KEY`
 - Token persistence uses `onSnapshot` with retry (waits for pager doc to appear, 30s timeout)
+
+## Email OTP Verification (Resend)
+- Registration requires 6-digit email OTP verification before account creation
+- **POST `/api/send-otp`**: Sends OTP via Resend (or logs to console if `RESEND_API_KEY` not set)
+- **POST `/api/verify-otp`**: Validates the 6-digit code (5-min expiry, max 5 attempts)
+- OTPs stored in-memory Map (server-side)
+- Registration form: email field has "Send Verification Code" button, OTP input appears after sending
+- Submit button disabled until OTP verified
+- Branded HTML email template (neon red/black theme, Arabic/English)
 
 ## Super Admin
 - Email-gated access: only `yahiatohary@hotmail.com` can access `/super-admin`
@@ -137,6 +147,7 @@ A multi-tenant SaaS platform for digital pager services (restaurants, cafes, cli
 - `client/src/hooks/use-wake-lock.ts` supports auto-acquire (dashboard) and manual mode (pager)
 - Dashboard: `useWakeLock()` — auto-acquires on mount, re-acquires on visibility change
 - Store Pager: `useWakeLock(false)` — acquires on form submit, releases on alert stop
+- **iOS Fix:** Wake lock re-acquires on visibility change even in manual mode (once initially activated via `wasManuallyAcquired` flag), preventing iOS from losing the lock on tab switch
 - Green/yellow indicator pill shown at bottom of waiting screen
 
 ## Environment Variables
@@ -144,8 +155,9 @@ A multi-tenant SaaS platform for digital pager services (restaurants, cafes, cli
 - `VITE_FIREBASE_PROJECT_ID` - Firebase project ID
 - `VITE_FIREBASE_APP_ID` - Firebase app ID
 - `VITE_FIREBASE_VAPID_KEY` - Firebase Cloud Messaging VAPID key (for FCM token generation)
-- `FCM_SERVER_KEY` - Firebase Cloud Messaging server key (for sending push notifications)
+- `FIREBASE_SERVICE_ACCOUNT_JSON` - Firebase service account JSON (for FCM V1 OAuth2 authentication)
 - `SESSION_SECRET` - Session secret (also used to derive push auth tokens)
+- `RESEND_API_KEY` - Resend API key for sending OTP emails (optional; logs to console if not set)
 
 ## Key Files
 - `client/src/lib/firebase.ts` - Firebase initialization + FCM token generation

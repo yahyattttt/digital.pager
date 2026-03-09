@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { createUserWithEmailAndPassword, sendEmailVerification } from "firebase/auth";
+import { createUserWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { registerFormSchema, type RegisterFormData, businessTypeLabels } from "@shared/schema";
@@ -26,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Upload, Store, User, Mail, Lock, MapPin, Loader2, CheckCircle, ArrowRight, ArrowLeft, Briefcase, Globe, Bell } from "lucide-react";
+import { Upload, Store, User, Mail, Lock, MapPin, Loader2, CheckCircle, ArrowRight, ArrowLeft, Briefcase, Globe, Bell, ShieldCheck } from "lucide-react";
 
 const businessTypeLabelsEn: Record<string, string> = {
   restaurant: "Restaurant",
@@ -44,6 +44,13 @@ export default function RegisterPage() {
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [registrationComplete, setRegistrationComplete] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [otpStep, setOtpStep] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpVerifying, setOtpVerifying] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
 
   const form = useForm<RegisterFormData>({
     resolver: zodResolver(registerFormSchema),
@@ -88,6 +95,97 @@ export default function RegisterPage() {
     return data.url;
   }
 
+  async function handleSendOtp() {
+    const email = form.getValues("email");
+    if (!email) {
+      toast({
+        title: t("البريد الإلكتروني مطلوب", "Email required"),
+        description: t("يرجى إدخال البريد الإلكتروني أولاً.", "Please enter your email first."),
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const emailValid = await form.trigger("email");
+    if (!emailValid) return;
+
+    setOtpSending(true);
+    try {
+      const res = await fetch("/api/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setOtpSent(true);
+        setOtpStep(true);
+        toast({
+          title: t("تم إرسال رمز التحقق", "OTP Sent"),
+          description: t("تحقق من بريدك الإلكتروني للحصول على الرمز المكون من 6 أرقام.", "Check your email for the 6-digit code."),
+        });
+      } else {
+        toast({
+          title: t("خطأ", "Error"),
+          description: data.message || t("فشل إرسال رمز التحقق.", "Failed to send OTP."),
+          variant: "destructive",
+        });
+      }
+    } catch {
+      toast({
+        title: t("خطأ", "Error"),
+        description: t("فشل إرسال رمز التحقق.", "Failed to send OTP."),
+        variant: "destructive",
+      });
+    } finally {
+      setOtpSending(false);
+    }
+  }
+
+  async function handleVerifyOtp() {
+    if (otpCode.length !== 6) {
+      toast({
+        title: t("رمز غير صحيح", "Invalid code"),
+        description: t("يرجى إدخال الرمز المكون من 6 أرقام.", "Please enter the 6-digit code."),
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setOtpVerifying(true);
+    try {
+      const email = form.getValues("email");
+      const res = await fetch("/api/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, code: otpCode }),
+      });
+      const data = await res.json();
+      if (res.ok && data.verified) {
+        setOtpVerified(true);
+        setOtpStep(false);
+        toast({
+          title: t("تم التحقق", "Verified"),
+          description: t("تم التحقق من البريد الإلكتروني بنجاح.", "Email verified successfully."),
+        });
+      } else {
+        toast({
+          title: t("رمز غير صحيح", "Invalid code"),
+          description: data.message || t("الرمز غير صحيح. حاول مرة أخرى.", "Invalid code. Try again."),
+          variant: "destructive",
+        });
+      }
+    } catch {
+      toast({
+        title: t("خطأ", "Error"),
+        description: t("فشل التحقق.", "Verification failed."),
+        variant: "destructive",
+      });
+    } finally {
+      setOtpVerifying(false);
+    }
+  }
+
   async function onSubmit(data: RegisterFormData) {
     if (!logoFile) {
       toast({
@@ -97,10 +195,17 @@ export default function RegisterPage() {
       });
       return;
     }
+    if (!otpVerified) {
+      toast({
+        title: t("التحقق من البريد مطلوب", "Email verification required"),
+        description: t("يرجى التحقق من بريدك الإلكتروني أولاً.", "Please verify your email first."),
+        variant: "destructive",
+      });
+      return;
+    }
     setIsSubmitting(true);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
-      await sendEmailVerification(userCredential.user);
 
       let logoUrl = "";
       if (logoFile) logoUrl = await uploadLogo(logoFile);
@@ -319,14 +424,85 @@ export default function RegisterPage() {
                         <FormControl>
                           <div className="relative">
                             <Mail className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                            <Input type="email" placeholder="you@store.com" className="pr-10 h-12 bg-background border-border text-foreground" dir="ltr" data-testid="input-email" {...field} />
+                            <Input
+                              type="email"
+                              placeholder="you@store.com"
+                              className="pr-10 h-12 bg-background border-border text-foreground"
+                              dir="ltr"
+                              data-testid="input-email"
+                              disabled={otpVerified}
+                              {...field}
+                            />
+                            {otpVerified && (
+                              <ShieldCheck className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500" />
+                            )}
                           </div>
                         </FormControl>
                         <FormMessage />
+                        {!otpVerified && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={handleSendOtp}
+                            disabled={otpSending || otpVerified}
+                            className="mt-2 h-8 text-xs border-primary/30 hover:border-primary/60"
+                            data-testid="button-send-otp"
+                          >
+                            {otpSending ? (
+                              <><Loader2 className="w-3 h-3 me-1 animate-spin" />{t("جاري الإرسال...", "Sending...")}</>
+                            ) : otpSent ? (
+                              t("إعادة إرسال الرمز", "Resend Code")
+                            ) : (
+                              t("إرسال رمز التحقق", "Send Verification Code")
+                            )}
+                          </Button>
+                        )}
                       </FormItem>
                     )}
                   />
                 </div>
+
+                {otpStep && !otpVerified && (
+                  <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
+                    <p className="text-sm text-muted-foreground mb-3">
+                      {t("أدخل الرمز المكون من 6 أرقام الذي تم إرساله إلى بريدك الإلكتروني", "Enter the 6-digit code sent to your email")}
+                    </p>
+                    <div className="flex gap-3 items-center">
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={6}
+                        placeholder="000000"
+                        value={otpCode}
+                        onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                        className="h-12 text-center text-2xl tracking-[0.5em] font-mono bg-background border-border max-w-[200px]"
+                        dir="ltr"
+                        data-testid="input-otp-code"
+                      />
+                      <Button
+                        type="button"
+                        onClick={handleVerifyOtp}
+                        disabled={otpVerifying || otpCode.length !== 6}
+                        className="h-12 px-6"
+                        data-testid="button-verify-otp"
+                      >
+                        {otpVerifying ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          t("تحقق", "Verify")
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {otpVerified && (
+                  <div className="flex items-center gap-2 text-green-500 text-sm bg-green-500/5 border border-green-500/20 rounded-lg px-4 py-2">
+                    <ShieldCheck className="w-4 h-4" />
+                    {t("تم التحقق من البريد الإلكتروني بنجاح", "Email verified successfully")}
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                   <FormField
@@ -364,7 +540,7 @@ export default function RegisterPage() {
                   />
                 </div>
 
-                <Button type="submit" className="w-full h-12 text-base font-bold" disabled={isSubmitting} data-testid="button-register-submit">
+                <Button type="submit" className="w-full h-12 text-base font-bold" disabled={isSubmitting || !otpVerified} data-testid="button-register-submit">
                   {isSubmitting ? (
                     <>
                       <Loader2 className="w-4 h-4 me-2 animate-spin" />
