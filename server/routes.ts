@@ -376,7 +376,9 @@ export async function registerRoutes(
       const { Resend } = await import("resend");
       const resend = new Resend(resendApiKey);
 
-      await resend.emails.send({
+      console.log(`[OTP] Sending OTP email to: ${emailLower}, from: onboarding@resend.dev`);
+
+      const sendResult = await resend.emails.send({
         from: "Digital Pager <onboarding@resend.dev>",
         to: emailLower,
         subject: "رمز التحقق - Digital Pager Verification Code",
@@ -399,6 +401,17 @@ export async function registerRoutes(
         `,
       });
 
+      console.log(`[OTP] Resend API response:`, JSON.stringify(sendResult));
+
+      if (sendResult.error) {
+        console.error(`[OTP] Resend error:`, JSON.stringify(sendResult.error));
+        return res.status(500).json({
+          message: `Email send failed: ${sendResult.error.message || "Unknown error"}`,
+          resendError: sendResult.error,
+        });
+      }
+
+      console.log(`[OTP] Email sent successfully, id: ${sendResult.data?.id}`);
       return res.json({ success: true, message: "OTP sent" });
     } catch (error) {
       console.error("Send OTP error:", error);
