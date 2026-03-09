@@ -797,6 +797,40 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/track/qrscan/:storeId", async (req, res) => {
+    try {
+      const { storeId } = req.params;
+      const accessToken = await getFirestoreAccessToken();
+      const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
+      if (!accessToken || !projectId) {
+        return res.status(500).json({ message: "Firestore not configured" });
+      }
+
+      const commitUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:commit`;
+      const docPath = `projects/${projectId}/databases/(default)/documents/merchants/${storeId}`;
+      await fetch(commitUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          writes: [{
+            transform: {
+              document: docPath,
+              fieldTransforms: [{
+                fieldPath: "qrScans",
+                increment: { integerValue: "1" },
+              }],
+            },
+          }],
+        }),
+      });
+
+      return res.json({ success: true });
+    } catch (error) {
+      console.error("Track QR scan error:", error);
+      return res.status(500).json({ message: "Failed to track QR scan" });
+    }
+  });
+
   app.get("/api/admin/stats", async (req, res) => {
     try {
       if (!(await isAdminRequest(req))) {

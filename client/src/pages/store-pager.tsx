@@ -361,6 +361,16 @@ export default function StorePagerPage() {
   }, [storeId]);
 
   useEffect(() => {
+    if (!storeId) return;
+    const scanKey = `dp-qrscan-${storeId}`;
+    const lastScan = localStorage.getItem(scanKey);
+    const oneHour = 60 * 60 * 1000;
+    if (lastScan && Date.now() - parseInt(lastScan) < oneHour) return;
+    localStorage.setItem(scanKey, String(Date.now()));
+    fetch(`/api/track/qrscan/${storeId}`, { method: "POST" }).catch(() => {});
+  }, [storeId]);
+
+  useEffect(() => {
     if (!submitted || !storeId || !orderNumber) return;
 
     const pagersRef = collection(db, "merchants", storeId, "pagers");

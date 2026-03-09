@@ -159,7 +159,11 @@ A multi-tenant SaaS platform for digital pager services (restaurants, cafes, cli
   - Increments `sharesCount` atomically via Firestore field transforms
 - **Google Maps Feature**: "Rate us on Google Maps" button on customer page
   - Increments `googleMapsClicks` atomically, then opens merchant's `googleMapsReviewUrl`
-- **Merchant Dashboard**: Shows Shares count and Google Maps Clicks cards with real-time updates via onSnapshot
+- **QR Scan Tracking**: Customer pager page (`/s/:storeId`) increments `qrScans` on page load
+  - Session protection: localStorage dedup key `dp-qrscan-{storeId}` limits to 1 count per hour per user
+  - `POST /api/track/qrscan/:storeId` uses atomic Firestore field transform
+  - Super Admin table shows "QR Scans" column; Merchant dashboard shows "Total Visitors via QR" card
+- **Merchant Dashboard**: Shows Shares, Google Maps Clicks, and QR Scans cards with real-time updates via onSnapshot
 - Share URL format: `/s/{storeId}` (matches app routes)
 
 ## PWA (Progressive Web App)

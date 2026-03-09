@@ -52,6 +52,7 @@ import {
   Bell,
   Settings,
   Save,
+  QrCode,
 } from "lucide-react";
 
 const SUPER_ADMIN_EMAIL = "yahiatohary@hotmail.com";
@@ -628,6 +629,9 @@ export default function SuperAdminPage() {
                             {t("نقرات خرائط", "GMaps")}
                           </TableHead>
                           <TableHead className="text-muted-foreground font-semibold text-center">
+                            {t("مسح QR", "QR Scans")}
+                          </TableHead>
+                          <TableHead className="text-muted-foreground font-semibold text-center">
                             {t("الإجراءات", "Actions")}
                           </TableHead>
                         </TableRow>
@@ -741,6 +745,12 @@ export default function SuperAdminPage() {
                                 <div className="flex items-center justify-center gap-1">
                                   <MapPin className="w-3 h-3 text-muted-foreground" />
                                   <span>{merchant.googleMapsClicks || 0}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center justify-center gap-1">
+                                  <QrCode className="w-3.5 h-3.5 text-muted-foreground" />
+                                  <span>{merchant.qrScans || 0}</span>
                                 </div>
                               </TableCell>
                               <TableCell>

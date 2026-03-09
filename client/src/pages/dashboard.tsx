@@ -693,7 +693,7 @@ export default function DashboardPage() {
             )}
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 p-4 border-t border-border/30">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3 p-4 border-t border-border/30">
             <Card className="border-primary/20">
               <CardContent className="p-4 flex items-center gap-3">
                 <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
@@ -745,6 +745,20 @@ export default function DashboardPage() {
                   <p className="text-2xl font-bold" data-testid="text-gmaps-clicks">{merchant.googleMapsClicks ?? 0}</p>
                   <p className="text-xs text-muted-foreground">
                     {t("نقرات خرائط", "Maps Clicks")}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-primary/20">
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <QrCode className="w-6 h-6 text-primary" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold" data-testid="text-qr-scans">{merchant.qrScans ?? 0}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {t("زوار QR", "Total Visitors via QR")}
                   </p>
                 </div>
               </CardContent>

@@ -56,6 +56,7 @@ export const merchantSchema = z.object({
   plan: planEnum.default("trial"),
   sharesCount: z.number().default(0),
   googleMapsClicks: z.number().default(0),
+  qrScans: z.number().default(0),
   createdAt: z.string(),
 });
 
