@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { signInWithCustomToken } from "firebase/auth";
@@ -52,6 +52,28 @@ export default function RegisterPage() {
   const [otpSent, setOtpSent] = useState(false);
   const [customToken, setCustomToken] = useState<string | null>(null);
   const [firebaseUid, setFirebaseUid] = useState<string | null>(null);
+  const [cooldown, setCooldown] = useState(0);
+  const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (cooldownRef.current) clearInterval(cooldownRef.current);
+    };
+  }, []);
+
+  function startCooldown() {
+    setCooldown(60);
+    if (cooldownRef.current) clearInterval(cooldownRef.current);
+    cooldownRef.current = setInterval(() => {
+      setCooldown((prev) => {
+        if (prev <= 1) {
+          if (cooldownRef.current) clearInterval(cooldownRef.current);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }
 
   const form = useForm<RegisterFormData>({
     resolver: zodResolver(registerFormSchema),
@@ -96,6 +118,8 @@ export default function RegisterPage() {
   }
 
   async function handleSendOtp() {
+    if (cooldown > 0) return;
+
     const email = form.getValues("email");
     if (!email) {
       toast({
@@ -119,6 +143,7 @@ export default function RegisterPage() {
       const data = await res.json();
       if (res.ok) {
         setOtpSent(true);
+        startCooldown();
         toast({
           title: t("تم إرسال رمز التحقق", "OTP Sent"),
           description: t("تحقق من بريدك الإلكتروني للحصول على الرمز المكون من 6 أرقام.", "Check your email for the 6-digit code."),
@@ -482,12 +507,14 @@ export default function RegisterPage() {
                             variant="outline"
                             size="sm"
                             onClick={handleSendOtp}
-                            disabled={otpSending || otpVerified}
+                            disabled={otpSending || otpVerified || cooldown > 0}
                             className="mt-2 h-8 text-xs border-primary/30 hover:border-primary/60"
                             data-testid="button-send-otp"
                           >
                             {otpSending ? (
                               <><Loader2 className="w-3 h-3 me-1 animate-spin" />{t("جاري الإرسال...", "Sending...")}</>
+                            ) : cooldown > 0 ? (
+                              t(`إعادة الإرسال بعد ${cooldown} ث`, `Resend in ${cooldown}s`)
                             ) : otpSent ? (
                               t("إعادة إرسال الرمز", "Resend Code")
                             ) : (

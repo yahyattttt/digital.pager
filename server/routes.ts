@@ -68,7 +68,7 @@ function getFCMAuth(): GoogleAuth | null {
   }
 }
 
-const otpStore = new Map<string, { code: string; expiresAt: number; attempts: number }>();
+const otpStore = new Map<string, { code: string; expiresAt: number; attempts: number; sentAt: number }>();
 
 function getServiceAccountCredentials(): { client_email: string; private_key: string; project_id: string } | null {
   const saJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
@@ -335,8 +335,10 @@ export async function registerRoutes(
 
       const emailLower = email.toLowerCase().trim();
       const existing = otpStore.get(emailLower);
-      if (existing && existing.expiresAt > Date.now() && (existing.expiresAt - Date.now()) > 4 * 60 * 1000) {
-        return res.status(429).json({ message: "OTP already sent. Please wait before requesting a new one." });
+      const OTP_COOLDOWN_MS = 60 * 1000;
+      if (existing && existing.sentAt && (Date.now() - existing.sentAt) < OTP_COOLDOWN_MS) {
+        const waitSeconds = Math.ceil((OTP_COOLDOWN_MS - (Date.now() - existing.sentAt)) / 1000);
+        return res.status(429).json({ message: `Please wait ${waitSeconds} seconds before requesting a new code.` });
       }
 
       const code = String(Math.floor(100000 + Math.random() * 900000));
@@ -344,6 +346,7 @@ export async function registerRoutes(
         code,
         expiresAt: Date.now() + 5 * 60 * 1000,
         attempts: 0,
+        sentAt: Date.now(),
       });
 
       console.log(`[OTP] Generated OTP for ${emailLower}: ${code}`);

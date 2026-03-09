@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { signInWithCustomToken, signOut } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
@@ -21,10 +21,34 @@ export default function LoginPage() {
   const [otpSent, setOtpSent] = useState(false);
   const [isSendingOtp, setIsSendingOtp] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+  const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (cooldownRef.current) clearInterval(cooldownRef.current);
+    };
+  }, []);
+
+  function startCooldown() {
+    setCooldown(60);
+    if (cooldownRef.current) clearInterval(cooldownRef.current);
+    cooldownRef.current = setInterval(() => {
+      setCooldown((prev) => {
+        if (prev <= 1) {
+          if (cooldownRef.current) clearInterval(cooldownRef.current);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }
 
   const BackArrow = isRTL ? ArrowRight : ArrowLeft;
 
   async function handleSendOtp() {
+    if (cooldown > 0) return;
+
     const trimmed = email.trim();
     if (!trimmed || !z.string().email().safeParse(trimmed).success) {
       toast({
@@ -45,6 +69,7 @@ export default function LoginPage() {
       const data = await res.json();
       if (res.ok) {
         setOtpSent(true);
+        startCooldown();
         toast({
           title: t("تم إرسال رمز التحقق", "OTP Sent"),
           description: t("تحقق من بريدك الإلكتروني للحصول على الرمز المكون من 6 أرقام.", "Check your email for the 6-digit code."),
@@ -297,11 +322,13 @@ export default function LoginPage() {
                       <button
                         type="button"
                         onClick={handleSendOtp}
-                        disabled={isSendingOtp}
+                        disabled={isSendingOtp || cooldown > 0}
                         className="text-xs text-primary hover:underline disabled:opacity-50"
                         data-testid="button-resend-otp"
                       >
-                        {t("إعادة إرسال الرمز", "Resend Code")}
+                        {cooldown > 0
+                          ? t(`إعادة الإرسال بعد ${cooldown} ث`, `Resend in ${cooldown}s`)
+                          : t("إعادة إرسال الرمز", "Resend Code")}
                       </button>
                     </div>
                   </div>
