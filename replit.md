@@ -18,7 +18,7 @@ The platform is built as a multi-tenant SaaS application where each merchant's d
 - **Theme**: A "neon red" (#FF0000) primary color on a "black" (#000000) background, establishing a dark-first design.
 - **Typography**: Uses Tajawal / Cairo fonts for Arabic text.
 - **Bilingual Support**: The UI is fully bilingual (Arabic/English) with dynamic RTL/LTR adjustments. A globe icon toggle is present on every page, and language preference is persisted in `localStorage`.
-- **Kiosk Mode Dashboard**: Designed for tablet landscape views (768-1024px) featuring a split-screen layout, extra-large touch buttons, a fullscreen mode utilizing the Fullscreen API, and a Screen Wake Lock to prevent dimming.
+- **Merchant Dashboard**: Professional SaaS dashboard with sidebar navigation (Dashboard, Waiting List, Digital Menu, Customer Feedback, Analytics, Settings). Sidebar shows subscription progress bar at top with days remaining. Header has Store Status toggle (Open/Closed, persisted to Firestore) and compact toolbar (QR download, language, fullscreen, add to waitlist). Overview page shows active waitlist count hero card, recent waiting/notified customers, and last 3 feedback items. Waiting List page is the hero view with large clean cards. Analytics page has dedicated marketing stats (QR scans, shares, maps clicks, notifications). Feedback is a full dedicated page. Settings shows store info + tools. Mobile-responsive with overlay sidebar and FAB button for adding to waitlist.
 - **Customer Pager UI**: Features a neon red pulse animation for waiting status, and a continuous flashing red/black screen with vibration and audio alerts upon notification. Includes a post-notification prompt for Google Maps reviews.
 
 ### Technical Implementations
