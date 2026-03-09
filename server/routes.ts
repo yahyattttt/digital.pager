@@ -566,6 +566,18 @@ export async function registerRoutes(
         await deleteOtpFromFirestore(emailLower);
       }
 
+      const SUPER_ADMIN_EMAIL = "yahiatohary@hotmail.com";
+
+      if (emailLower === SUPER_ADMIN_EMAIL) {
+        const uid = generateUidFromEmail(emailLower);
+        const customToken = createFirebaseCustomToken(uid);
+        if (!customToken) {
+          return res.status(500).json({ message: "Failed to generate authentication token." });
+        }
+        console.log(`[AUTH] Super admin login for ${emailLower}, uid: ${uid}`);
+        return res.json({ success: true, verified: true, customToken, uid, isNewUser: false, isAdmin: true });
+      }
+
       const existingMerchant = await findMerchantByEmail(emailLower);
       let uid: string;
       let isNewUser: boolean;

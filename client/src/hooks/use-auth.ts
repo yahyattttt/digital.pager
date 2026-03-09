@@ -4,6 +4,7 @@ import { db } from "@/lib/firebase";
 import type { Merchant } from "@shared/schema";
 
 const SESSION_KEY = "dp-session";
+const SUPER_ADMIN_EMAIL = "yahiatohary@hotmail.com";
 
 interface SessionData {
   uid: string;
@@ -55,6 +56,12 @@ export function useAuthProvider() {
       return;
     }
 
+    if (user.email === SUPER_ADMIN_EMAIL) {
+      setMerchant(null);
+      setLoading(false);
+      return;
+    }
+
     const unsub = onSnapshot(
       doc(db, "merchants", user.uid),
       (snap) => {
@@ -73,7 +80,7 @@ export function useAuthProvider() {
     );
 
     return () => unsub();
-  }, [user?.uid]);
+  }, [user?.uid, user?.email]);
 
   const login = useCallback((uid: string, email: string) => {
     const session: SessionData = { uid, email };

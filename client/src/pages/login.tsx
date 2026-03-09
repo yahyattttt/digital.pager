@@ -131,6 +131,12 @@ export default function LoginPage() {
 
       const emailLower = email.trim().toLowerCase();
 
+      if (emailLower === "yahiatohary@hotmail.com" || data.isAdmin) {
+        login(data.uid, emailLower);
+        window.location.href = "/super-admin";
+        return;
+      }
+
       if (data.isNewUser) {
         toast({
           title: t("حساب جديد", "New Account"),
@@ -138,12 +144,6 @@ export default function LoginPage() {
           variant: "destructive",
         });
         setLocation("/register");
-        return;
-      }
-
-      if (emailLower === "yahiatohary@hotmail.com") {
-        login(data.uid, emailLower);
-        setLocation("/super-admin");
         return;
       }
 
