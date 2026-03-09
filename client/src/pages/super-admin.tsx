@@ -62,6 +62,12 @@ import {
   FileText,
   AlertTriangle,
   Activity,
+  Search,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  ArrowUpDown,
+  Filter,
 } from "lucide-react";
 
 const SUPER_ADMIN_EMAIL = "yahiatohary@hotmail.com";
@@ -170,7 +176,82 @@ export default function SuperAdminPage() {
   const [reportData, setReportData] = useState<any>(null);
   const [reportLoading, setReportLoading] = useState(false);
 
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<string>("newest");
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
+
   const btLabels = lang === "ar" ? businessTypeLabels : businessTypeLabelsEn;
+
+  const filteredMerchants = (() => {
+    let list = [...merchants];
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      list = list.filter(
+        (m) =>
+          (m.storeName || "").toLowerCase().includes(q) ||
+          (m.ownerName || "").toLowerCase().includes(q) ||
+          (m.email || "").toLowerCase().includes(q)
+      );
+    }
+    if (statusFilter !== "all") {
+      if (statusFilter === "expired") {
+        list = list.filter((m) => m.subscriptionStatus === "expired");
+      } else {
+        list = list.filter((m) => m.status === statusFilter);
+      }
+    }
+    switch (sortBy) {
+      case "newest":
+        list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        break;
+      case "qrScans":
+        list.sort((a, b) => (b.qrScans || 0) - (a.qrScans || 0));
+        break;
+      case "shares":
+        list.sort((a, b) => (b.sharesCount || 0) - (a.sharesCount || 0));
+        break;
+      case "expiry":
+        list.sort((a, b) => {
+          if (!a.subscriptionExpiry) return 1;
+          if (!b.subscriptionExpiry) return -1;
+          return new Date(a.subscriptionExpiry).getTime() - new Date(b.subscriptionExpiry).getTime();
+        });
+        break;
+    }
+    return list;
+  })();
+
+  const totalPages = Math.max(1, Math.ceil(filteredMerchants.length / ITEMS_PER_PAGE));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedMerchants = filteredMerchants.slice(
+    (safePage - 1) * ITEMS_PER_PAGE,
+    safePage * ITEMS_PER_PAGE
+  );
+
+  const hasActiveFilters = searchQuery.trim() !== "" || statusFilter !== "all" || sortBy !== "newest";
+
+  function clearAllFilters() {
+    setSearchQuery("");
+    setStatusFilter("all");
+    setSortBy("newest");
+    setCurrentPage(1);
+  }
+
+  function highlightMatch(text: string) {
+    if (!searchQuery.trim()) return text;
+    const q = searchQuery.trim();
+    const idx = text.toLowerCase().indexOf(q.toLowerCase());
+    if (idx === -1) return text;
+    return (
+      <>
+        {text.slice(0, idx)}
+        <span className="bg-primary/30 text-primary font-semibold rounded px-0.5">{text.slice(idx, idx + q.length)}</span>
+        {text.slice(idx + q.length)}
+      </>
+    );
+  }
 
   async function fetchMerchants() {
     setLoadingData(true);
@@ -704,6 +785,87 @@ export default function SuperAdminPage() {
                 </Button>
               </CardHeader>
               <CardContent className="p-0">
+                {!loadingData && merchants.length > 0 && (
+                  <div className="p-4 space-y-3 border-b border-border/30">
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          placeholder={t("بحث بالاسم، المالك، أو البريد...", "Search by store name, owner, or email...")}
+                          value={searchQuery}
+                          onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                          className="ps-9 pe-9"
+                          data-testid="input-search-merchants"
+                        />
+                        {searchQuery && (
+                          <button
+                            onClick={() => { setSearchQuery(""); setCurrentPage(1); }}
+                            className="absolute end-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                            data-testid="button-clear-search"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                      <select
+                        value={sortBy}
+                        onChange={(e) => { setSortBy(e.target.value); setCurrentPage(1); }}
+                        className="h-10 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                        data-testid="select-sort-by"
+                      >
+                        <option value="newest">{t("الأحدث أولاً", "Newest First")}</option>
+                        <option value="qrScans">{t("الأكثر مسحاً", "Most QR Scans")}</option>
+                        <option value="shares">{t("الأكثر مشاركة", "Most Shares")}</option>
+                        <option value="expiry">{t("أقرب انتهاء", "Soonest Expiry")}</option>
+                      </select>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {[
+                        { key: "all", label: t("الكل", "All") },
+                        { key: "pending", label: t("قيد الانتظار", "Pending") },
+                        { key: "approved", label: t("مفعّل", "Active") },
+                        { key: "suspended", label: t("موقوف", "Suspended") },
+                        { key: "expired", label: t("منتهي", "Expired") },
+                      ].map((f) => (
+                        <Button
+                          key={f.key}
+                          size="sm"
+                          variant={statusFilter === f.key ? "default" : "outline"}
+                          onClick={() => { setStatusFilter(f.key); setCurrentPage(1); }}
+                          data-testid={`button-filter-${f.key}`}
+                          className={statusFilter === f.key ? "" : "border-border/50"}
+                        >
+                          {f.label}
+                          {f.key !== "all" && (
+                            <span className="ms-1.5 text-xs opacity-70">
+                              {f.key === "expired"
+                                ? merchants.filter((m) => m.subscriptionStatus === "expired").length
+                                : merchants.filter((m) => m.status === f.key).length}
+                            </span>
+                          )}
+                        </Button>
+                      ))}
+                      {hasActiveFilters && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={clearAllFilters}
+                          className="text-muted-foreground hover:text-foreground"
+                          data-testid="button-clear-filters"
+                        >
+                          <X className="w-3.5 h-3.5 me-1" />
+                          {t("مسح الفلاتر", "Clear All")}
+                        </Button>
+                      )}
+                      <span className="text-xs text-muted-foreground ms-auto" data-testid="text-results-count">
+                        {t(
+                          `${filteredMerchants.length} من ${merchants.length} تاجر`,
+                          `${filteredMerchants.length} of ${merchants.length} merchants`
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                )}
                 {loadingData ? (
                   <div className="flex items-center justify-center py-16">
                     <Loader2 className="w-8 h-8 text-primary animate-spin" />
@@ -714,6 +876,21 @@ export default function SuperAdminPage() {
                     <p className="text-muted-foreground" data-testid="text-no-stores">
                       {t("لا توجد متاجر مسجلة", "No stores registered")}
                     </p>
+                  </div>
+                ) : filteredMerchants.length === 0 ? (
+                  <div className="text-center py-16">
+                    <Search className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
+                    <p className="text-muted-foreground" data-testid="text-no-results">
+                      {t("لا توجد نتائج مطابقة", "No matching results")}
+                    </p>
+                    <Button
+                      variant="link"
+                      onClick={clearAllFilters}
+                      className="mt-2 text-primary"
+                      data-testid="button-clear-filters-empty"
+                    >
+                      {t("مسح الفلاتر", "Clear All Filters")}
+                    </Button>
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
@@ -750,7 +927,7 @@ export default function SuperAdminPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {merchants.map((merchant) => {
+                        {paginatedMerchants.map((merchant) => {
                           const pLabel = planLabels[merchant.plan]
                             ? lang === "ar"
                               ? planLabels[merchant.plan].ar
@@ -778,7 +955,7 @@ export default function SuperAdminPage() {
                                   )}
                                   <div>
                                     <span className="font-medium block" data-testid={`text-store-name-${merchant.uid}`}>
-                                      {merchant.storeName}
+                                      {highlightMatch(merchant.storeName || "")}
                                     </span>
                                     <span className="text-xs text-muted-foreground">
                                       {btLabels[merchant.businessType] || merchant.businessType}
@@ -789,10 +966,10 @@ export default function SuperAdminPage() {
                               <TableCell>
                                 <div>
                                   <span className="block" data-testid={`text-owner-${merchant.uid}`}>
-                                    {merchant.ownerName}
+                                    {highlightMatch(merchant.ownerName || "")}
                                   </span>
                                   <span className="text-xs text-muted-foreground" dir="ltr" data-testid={`text-email-${merchant.uid}`}>
-                                    {merchant.email}
+                                    {highlightMatch(merchant.email || "")}
                                   </span>
                                 </div>
                               </TableCell>
@@ -962,6 +1139,48 @@ export default function SuperAdminPage() {
                         })}
                       </TableBody>
                     </Table>
+                  </div>
+                )}
+                {!loadingData && filteredMerchants.length > ITEMS_PER_PAGE && (
+                  <div className="flex items-center justify-between p-4 border-t border-border/30">
+                    <span className="text-sm text-muted-foreground" data-testid="text-page-info">
+                      {t(
+                        `صفحة ${safePage} من ${totalPages}`,
+                        `Page ${safePage} of ${totalPages}`
+                      )}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={safePage <= 1}
+                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                        data-testid="button-prev-page"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </Button>
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                        <Button
+                          key={page}
+                          size="sm"
+                          variant={page === safePage ? "default" : "outline"}
+                          onClick={() => setCurrentPage(page)}
+                          data-testid={`button-page-${page}`}
+                          className="min-w-[36px]"
+                        >
+                          {page}
+                        </Button>
+                      ))}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={safePage >= totalPages}
+                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                        data-testid="button-next-page"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
                 )}
               </CardContent>
