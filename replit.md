@@ -30,11 +30,13 @@ A multi-tenant SaaS platform for digital pager services (restaurants, cafes, cli
 - Email/password/URL inputs always use `dir="ltr"`
 
 ## Dashboard - Kiosk Mode
-- Split-screen layout: sidebar (New Orders) + main area (Active Pagers)
+- Split-screen layout: sidebar (Waitlist) + main area (Notified Pagers)
 - Optimized for tablet landscape (768-1024px) with extra-large touch buttons
 - **Fullscreen Mode:** Maximize icon in header uses Fullscreen API to hide browser chrome
 - **Wake Lock:** Screen Wake Lock API prevents tablet screen from dimming; green indicator shows status
-- Stats bar at bottom: Waiting, Paged, Completed counts
+- **Waitlist Management:** Add orders via dialog, Notify button sends real-time alert, Complete/Remove buttons
+- **QR Code:** Download Store QR button in header + stats bar; generates neon red QR via server endpoint
+- Stats bar at bottom: Waiting count, Paged count, QR download link
 
 ## Data Model (Firestore: `merchants` collection)
 - `id` / `uid`: Firebase Auth UID
@@ -49,6 +51,14 @@ A multi-tenant SaaS platform for digital pager services (restaurants, cafes, cli
 - `plan`: "trial" | "basic" | "premium" | "enterprise" (subscription plan, default: "trial")
 - `createdAt`: ISO timestamp
 
+## Data Model (Firestore: `merchants/{uid}/pagers` subcollection)
+- `id`: Auto-generated Firestore document ID
+- `storeId`: Parent merchant UID
+- `orderNumber`: Customer order number
+- `status`: "waiting" | "notified" | "completed"
+- `createdAt`: ISO timestamp
+- `notifiedAt`: ISO timestamp (set when notified)
+
 ## Pages
 - `/` - Landing page (bilingual)
 - `/register` - Store registration with business type dropdown
@@ -56,6 +66,19 @@ A multi-tenant SaaS platform for digital pager services (restaurants, cafes, cli
 - `/pending` - Shown when merchant status is "pending"
 - `/dashboard` - Kiosk-mode dashboard (split-screen, fullscreen, wake lock)
 - `/super-admin` - Super Admin panel (only yahiatohary@hotmail.com)
+- `/s/:storeId` - Public customer pager page (no auth required)
+
+## Customer Pager System (`/s/:storeId`)
+- Public link for each store — customers enter their order number
+- Waiting screen: neon red pulse animation with Arabic waiting message
+- Real-time Firestore `onSnapshot` listener watches for status changes
+- When merchant clicks "Notify" in dashboard:
+  - Customer's phone vibrates (Vibration API: 300-100-300-100-500ms pattern)
+  - Screen turns solid neon red background
+  - Pleasant ascending beep plays (Web Audio API: 880→1100→1320 Hz sine wave)
+  - Text changes to: "طلبك جاهز! تفضل بالاستلام"
+- 2 minutes after notification → "قيمنا على جوجل ماب" review button appears
+- Store not found / inactive stores show error page
 
 ## Super Admin
 - Email-gated access: only `yahiatohary@hotmail.com` can access `/super-admin`
@@ -91,4 +114,5 @@ A multi-tenant SaaS platform for digital pager services (restaurants, cafes, cli
 - `client/src/hooks/use-fullscreen.ts` - Fullscreen API hook
 - `shared/schema.ts` - Zod schemas for merchant data with Arabic validation messages
 - `client/src/pages/super-admin.tsx` - Super Admin dashboard
-- `server/routes.ts` - Express API routes (logo upload)
+- `client/src/pages/store-pager.tsx` - Public customer pager page
+- `server/routes.ts` - Express API routes (logo upload, QR generation)

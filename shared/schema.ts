@@ -26,6 +26,20 @@ export const businessTypeLabels: Record<string, string> = {
   other: "أخرى",
 };
 
+export const pagerStatusEnum = z.enum(["waiting", "notified", "completed"]);
+export type PagerStatus = z.infer<typeof pagerStatusEnum>;
+
+export const pagerSchema = z.object({
+  id: z.string(),
+  storeId: z.string(),
+  orderNumber: z.string().min(1),
+  status: pagerStatusEnum.default("waiting"),
+  createdAt: z.string(),
+  notifiedAt: z.string().nullable().optional(),
+});
+
+export type Pager = z.infer<typeof pagerSchema>;
+
 export const merchantSchema = z.object({
   id: z.string(),
   uid: z.string(),

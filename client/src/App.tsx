@@ -12,6 +12,7 @@ import LoginPage from "@/pages/login";
 import PendingPage from "@/pages/pending";
 import DashboardPage from "@/pages/dashboard";
 import SuperAdminPage from "@/pages/super-admin";
+import StorePagerPage from "@/pages/store-pager";
 
 const SUPER_ADMIN_EMAIL = "yahiatohary@hotmail.com";
 
@@ -130,6 +131,7 @@ function Router() {
       <Route path="/super-admin">
         <SuperAdminRoute />
       </Route>
+      <Route path="/s/:storeId" component={StorePagerPage} />
       <Route component={NotFound} />
     </Switch>
   );
