@@ -1,6 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, ArrowLeft } from "lucide-react";
+import { AlertCircle, ArrowRight } from "lucide-react";
 import { useLocation } from "wouter";
 
 export default function NotFound() {
@@ -14,17 +14,17 @@ export default function NotFound() {
             <AlertCircle className="h-8 w-8 text-primary" data-testid="icon-not-found" />
           </div>
           <h1 className="text-2xl font-bold mb-2" data-testid="text-404-title">
-            404 - Page Not Found
+            404 - الصفحة غير موجودة
           </h1>
           <p className="text-sm text-muted-foreground mb-6" data-testid="text-404-message">
-            The page you're looking for doesn't exist or has been moved.
+            الصفحة التي تبحث عنها غير موجودة أو تم نقلها.
           </p>
           <Button
             onClick={() => setLocation("/")}
             data-testid="button-go-home"
           >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Home
+            <ArrowRight className="w-4 h-4 me-2" />
+            العودة للرئيسية
           </Button>
         </CardContent>
       </Card>

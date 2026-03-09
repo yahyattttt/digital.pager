@@ -18,11 +18,11 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Mail, Lock, Loader2, ArrowLeft } from "lucide-react";
+import { Mail, Lock, Loader2, ArrowRight } from "lucide-react";
 
 const loginSchema = z.object({
-  email: z.string().email("Invalid email address"),
-  password: z.string().min(1, "Password is required"),
+  email: z.string().email("البريد الإلكتروني غير صالح"),
+  password: z.string().min(1, "كلمة المرور مطلوبة"),
 });
 
 type LoginFormData = z.infer<typeof loginSchema>;
@@ -55,8 +55,8 @@ export default function LoginPage() {
 
       if (!merchantDoc.exists()) {
         toast({
-          title: "Account Not Found",
-          description: "No restaurant account found for this email.",
+          title: "الحساب غير موجود",
+          description: "لم يتم العثور على حساب متجر مرتبط بهذا البريد الإلكتروني.",
           variant: "destructive",
         });
         return;
@@ -71,9 +71,8 @@ export default function LoginPage() {
 
       if (merchant.status === "rejected") {
         toast({
-          title: "Account Rejected",
-          description:
-            "Your restaurant registration has been rejected. Please contact support.",
+          title: "تم رفض الحساب",
+          description: "تم رفض تسجيل متجرك. يرجى التواصل مع الدعم الفني.",
           variant: "destructive",
         });
         return;
@@ -81,16 +80,16 @@ export default function LoginPage() {
 
       setLocation("/dashboard");
     } catch (error: any) {
-      let message = "Login failed. Please try again.";
+      let message = "فشل تسجيل الدخول. يرجى المحاولة مرة أخرى.";
       if (
         error.code === "auth/user-not-found" ||
         error.code === "auth/wrong-password" ||
         error.code === "auth/invalid-credential"
       ) {
-        message = "Invalid email or password.";
+        message = "البريد الإلكتروني أو كلمة المرور غير صحيحة.";
       }
       toast({
-        title: "Login Error",
+        title: "خطأ في تسجيل الدخول",
         description: message,
         variant: "destructive",
       });
@@ -113,19 +112,18 @@ export default function LoginPage() {
             className="inline-flex items-center gap-2 text-muted-foreground text-sm mb-6 hover-elevate px-3 py-1.5 rounded-md"
             data-testid="link-back-home"
           >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Home
+            <ArrowRight className="w-4 h-4" />
+            العودة للرئيسية
           </button>
           <h1
             className="text-3xl font-bold tracking-tight"
             data-testid="text-login-title"
           >
-            Welcome Back
+            مرحباً بعودتك
           </h1>
           <p className="text-muted-foreground mt-2">
-            Sign in to your{" "}
-            <span className="text-primary font-semibold">Digital Pager</span>{" "}
-            dashboard
+            سجل دخولك إلى لوحة تحكم{" "}
+            <span className="text-primary font-semibold">Digital Pager</span>
           </p>
         </div>
 
@@ -141,14 +139,15 @@ export default function LoginPage() {
                   name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Email Address</FormLabel>
+                      <FormLabel>البريد الإلكتروني</FormLabel>
                       <FormControl>
                         <div className="relative">
-                          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                          <Mail className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                           <Input
                             type="email"
-                            placeholder="you@restaurant.com"
-                            className="pl-10"
+                            placeholder="you@store.com"
+                            className="pr-10"
+                            dir="ltr"
                             data-testid="input-email"
                             {...field}
                           />
@@ -164,14 +163,15 @@ export default function LoginPage() {
                   name="password"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Password</FormLabel>
+                      <FormLabel>كلمة المرور</FormLabel>
                       <FormControl>
                         <div className="relative">
-                          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                          <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                           <Input
                             type="password"
-                            placeholder="Enter your password"
-                            className="pl-10"
+                            placeholder="أدخل كلمة المرور"
+                            className="pr-10"
+                            dir="ltr"
                             data-testid="input-password"
                             {...field}
                           />
@@ -190,23 +190,23 @@ export default function LoginPage() {
                 >
                   {isSubmitting ? (
                     <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Signing In...
+                      <Loader2 className="w-4 h-4 me-2 animate-spin" />
+                      جاري تسجيل الدخول...
                     </>
                   ) : (
-                    "Sign In"
+                    "تسجيل الدخول"
                   )}
                 </Button>
 
                 <p className="text-center text-sm text-muted-foreground">
-                  Don't have an account?{" "}
+                  ليس لديك حساب؟{" "}
                   <button
                     type="button"
                     onClick={() => setLocation("/register")}
                     className="text-primary font-medium"
                     data-testid="link-to-register"
                   >
-                    Register
+                    سجل متجرك
                   </button>
                 </p>
               </form>

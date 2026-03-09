@@ -2,6 +2,7 @@ import { useLocation } from "wouter";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/hooks/use-auth";
+import { businessTypeLabels } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -36,7 +37,7 @@ export default function DashboardPage() {
             {merchant.logoUrl ? (
               <img
                 src={merchant.logoUrl}
-                alt="Logo"
+                alt="الشعار"
                 className="w-10 h-10 rounded-full object-cover border border-border"
                 data-testid="img-dashboard-logo"
               />
@@ -46,15 +47,17 @@ export default function DashboardPage() {
               </div>
             )}
             <div>
-              <h1 className="font-bold text-lg" data-testid="text-dashboard-restaurant">
-                {merchant.restaurantName}
+              <h1 className="font-bold text-lg" data-testid="text-dashboard-store">
+                {merchant.storeName}
               </h1>
-              <p className="text-xs text-muted-foreground">{merchant.email}</p>
+              <p className="text-xs text-muted-foreground">
+                {businessTypeLabels[merchant.businessType] || merchant.businessType} - {merchant.email}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <Badge variant="default" data-testid="badge-status-approved">
-              Approved
+              مفعّل
             </Badge>
             <Button
               variant="outline"
@@ -62,8 +65,8 @@ export default function DashboardPage() {
               onClick={handleSignOut}
               data-testid="button-sign-out"
             >
-              <LogOut className="w-4 h-4 mr-2" />
-              Sign Out
+              <LogOut className="w-4 h-4 me-2" />
+              خروج
             </Button>
           </div>
         </div>
@@ -71,7 +74,7 @@ export default function DashboardPage() {
 
       <main className="max-w-7xl mx-auto px-6 py-8">
         <h2 className="text-2xl font-bold mb-6" data-testid="text-dashboard-title">
-          Dashboard
+          لوحة التحكم
         </h2>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -83,7 +86,7 @@ export default function DashboardPage() {
                 </div>
                 <div>
                   <p className="text-2xl font-bold" data-testid="text-waitlist-count">0</p>
-                  <p className="text-sm text-muted-foreground">Current Waitlist</p>
+                  <p className="text-sm text-muted-foreground">قائمة الانتظار الحالية</p>
                 </div>
               </div>
             </CardContent>
@@ -97,7 +100,7 @@ export default function DashboardPage() {
                 </div>
                 <div>
                   <p className="text-2xl font-bold" data-testid="text-paged-count">0</p>
-                  <p className="text-sm text-muted-foreground">Paged Today</p>
+                  <p className="text-sm text-muted-foreground">تم تنبيههم اليوم</p>
                 </div>
               </div>
             </CardContent>
@@ -110,8 +113,8 @@ export default function DashboardPage() {
                   <Settings className="w-6 h-6 text-primary" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold" data-testid="text-settings-label">Setup</p>
-                  <p className="text-sm text-muted-foreground">Configure Pager</p>
+                  <p className="text-2xl font-bold" data-testid="text-settings-label">إعداد</p>
+                  <p className="text-sm text-muted-foreground">إعدادات البيجر</p>
                 </div>
               </div>
             </CardContent>
@@ -120,11 +123,11 @@ export default function DashboardPage() {
 
         <Card className="mt-8 border-border/50">
           <CardHeader>
-            <h3 className="text-lg font-semibold">Welcome to Digital Pager</h3>
+            <h3 className="text-lg font-semibold">مرحباً بك في Digital Pager</h3>
           </CardHeader>
           <CardContent>
             <p className="text-muted-foreground" data-testid="text-welcome-message">
-              Your restaurant is approved and ready to use the digital pager system. Start managing your waitlist, notify guests, and streamline your seating process.
+              متجرك مفعّل وجاهز لاستخدام نظام البيجر الرقمي. ابدأ بإدارة قائمة الانتظار، وأشعر عملاءك، وسهّل عملية الاستقبال.
             </p>
           </CardContent>
         </Card>

@@ -37,13 +37,13 @@ export default function PendingPage() {
           </div>
 
           <h2 className="text-2xl font-bold mb-3" data-testid="text-pending-title">
-            Pending Approval
+            في انتظار الموافقة
           </h2>
 
           {merchant && (
             <div className="mb-4 p-3 rounded-md bg-muted/50">
-              <p className="text-sm font-medium" data-testid="text-restaurant-name">
-                {merchant.restaurantName}
+              <p className="text-sm font-medium" data-testid="text-store-name">
+                {merchant.storeName}
               </p>
               <p className="text-xs text-muted-foreground flex items-center justify-center gap-1 mt-1">
                 <Mail className="w-3 h-3" />
@@ -53,12 +53,12 @@ export default function PendingPage() {
           )}
 
           <p className="text-muted-foreground text-sm mb-6" data-testid="text-pending-message">
-            Your restaurant registration is currently under review. Our admin team will verify your details and approve your account shortly. You'll receive access to the dashboard once approved.
+            تم استلام طلبك بنجاح. سيقوم فريق الإدارة بمراجعته وتفعيل حسابك قريباً.
           </p>
 
           <div className="flex items-center justify-center gap-2 mb-6 p-3 rounded-md bg-primary/5 border border-primary/10">
             <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
-            <span className="text-sm text-muted-foreground">Status: <span className="text-yellow-500 font-semibold">Pending Review</span></span>
+            <span className="text-sm text-muted-foreground">الحالة: <span className="text-yellow-500 font-semibold">قيد المراجعة</span></span>
           </div>
 
           <Button
@@ -67,8 +67,8 @@ export default function PendingPage() {
             className="w-full"
             data-testid="button-sign-out"
           >
-            <LogOut className="w-4 h-4 mr-2" />
-            Sign Out
+            <LogOut className="w-4 h-4 me-2" />
+            تسجيل الخروج
           </Button>
         </CardContent>
       </Card>

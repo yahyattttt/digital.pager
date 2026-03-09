@@ -1,28 +1,28 @@
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Bell, Users, Zap, Shield, ArrowRight, Star } from "lucide-react";
+import { Bell, Users, Zap, Shield, ArrowLeft, Star } from "lucide-react";
 
 const features = [
   {
     icon: Bell,
-    title: "Instant Notifications",
-    description: "Page your guests via SMS or push notification when their table is ready.",
+    title: "إشعارات فورية",
+    description: "أبلغ عملاءك عبر الرسائل النصية أو الإشعارات الفورية عندما يحين دورهم.",
   },
   {
     icon: Users,
-    title: "Smart Waitlist",
-    description: "Manage your queue efficiently with real-time updates and estimated wait times.",
+    title: "قائمة انتظار ذكية",
+    description: "أدر قائمة الانتظار بكفاءة مع تحديثات لحظية وأوقات انتظار تقديرية.",
   },
   {
     icon: Zap,
-    title: "Quick Setup",
-    description: "Get started in minutes. No hardware needed — just your phone or tablet.",
+    title: "إعداد سريع",
+    description: "ابدأ في دقائق. لا تحتاج أجهزة إضافية — فقط هاتفك أو جهازك اللوحي.",
   },
   {
     icon: Shield,
-    title: "Multi-Tenant Security",
-    description: "Your data is fully isolated. Each restaurant gets its own secure workspace.",
+    title: "أمان متعدد المتاجر",
+    description: "بياناتك معزولة بالكامل. كل متجر يحصل على مساحة عمل آمنة خاصة به.",
   },
 ];
 
@@ -55,14 +55,14 @@ export default function LandingPage() {
               onClick={() => setLocation("/login")}
               data-testid="button-nav-login"
             >
-              Sign In
+              تسجيل الدخول
             </Button>
             <Button
               size="sm"
               onClick={() => setLocation("/register")}
               data-testid="button-nav-register"
             >
-              Get Started
+              سجل متجرك
             </Button>
           </div>
         </div>
@@ -72,23 +72,23 @@ export default function LandingPage() {
         <div className="text-center max-w-3xl mx-auto">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm font-medium mb-8">
             <Star className="w-3.5 h-3.5" />
-            The Modern Waitlist Solution
+            الحل العصري لإدارة قوائم الانتظار
           </div>
 
           <h1
             className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight leading-tight"
             data-testid="text-hero-title"
           >
-            Ditch the Buzzer.
+            تخلص من البيجر التقليدي.
             <br />
-            <span className="text-primary">Go Digital.</span>
+            <span className="text-primary">انطلق رقمياً.</span>
           </h1>
 
           <p
             className="mt-6 text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed"
             data-testid="text-hero-subtitle"
           >
-            Digital Pager replaces outdated pager systems with a sleek, modern solution. Notify guests instantly, manage your waitlist in real-time, and deliver a premium dining experience.
+            Digital Pager يستبدل أنظمة البيجر التقليدية بحل رقمي عصري. أشعر عملاءك فوراً، وأدر قائمة انتظارك بشكل لحظي، وقدم تجربة استثنائية.
           </p>
 
           <div className="mt-10 flex items-center justify-center gap-4 flex-wrap">
@@ -97,8 +97,8 @@ export default function LandingPage() {
               onClick={() => setLocation("/register")}
               data-testid="button-hero-register"
             >
-              Register Your Restaurant
-              <ArrowRight className="w-4 h-4 ml-2" />
+              سجل متجرك الآن
+              <ArrowLeft className="w-4 h-4 me-2" />
             </Button>
             <Button
               variant="outline"
@@ -106,7 +106,7 @@ export default function LandingPage() {
               onClick={() => setLocation("/login")}
               data-testid="button-hero-login"
             >
-              Sign In
+              تسجيل الدخول
             </Button>
           </div>
         </div>
@@ -125,7 +125,7 @@ export default function LandingPage() {
                 </div>
                 <h3
                   className="font-semibold mb-2"
-                  data-testid={`text-feature-title-${feature.title.toLowerCase().replace(/\s+/g, "-")}`}
+                  data-testid={`text-feature-title-${feature.title}`}
                 >
                   {feature.title}
                 </h3>
@@ -141,18 +141,18 @@ export default function LandingPage() {
       <section className="relative z-10 border-t border-border/30">
         <div className="max-w-6xl mx-auto px-6 py-16 text-center">
           <h2 className="text-2xl sm:text-3xl font-bold mb-4" data-testid="text-cta-title">
-            Ready to Modernize Your Waitlist?
+            مستعد لتطوير نظام الانتظار لديك؟
           </h2>
           <p className="text-muted-foreground mb-8 max-w-lg mx-auto">
-            Join hundreds of restaurants that trust Digital Pager to deliver a seamless guest experience.
+            انضم إلى مئات المتاجر التي تثق بـ Digital Pager لتقديم تجربة سلسة لعملائها.
           </p>
           <Button
             size="lg"
             onClick={() => setLocation("/register")}
             data-testid="button-cta-register"
           >
-            Get Started Free
-            <ArrowRight className="w-4 h-4 ml-2" />
+            ابدأ مجاناً
+            <ArrowLeft className="w-4 h-4 me-2" />
           </Button>
         </div>
       </section>
@@ -165,7 +165,7 @@ export default function LandingPage() {
             </div>
             <span className="font-medium">Digital Pager</span>
           </div>
-          <p>&copy; {new Date().getFullYear()} Digital Pager. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} Digital Pager. جميع الحقوق محفوظة.</p>
         </div>
       </footer>
     </div>

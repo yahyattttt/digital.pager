@@ -4,12 +4,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { createUserWithEmailAndPassword, sendEmailVerification } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
-import { registerFormSchema, type RegisterFormData } from "@shared/schema";
+import { registerFormSchema, type RegisterFormData, businessTypeLabels } from "@shared/schema";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import {
   Form,
@@ -19,7 +18,14 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Upload, Store, User, Mail, Lock, MapPin, Loader2, CheckCircle, ArrowLeft } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Upload, Store, User, Mail, Lock, MapPin, Loader2, CheckCircle, ArrowRight, Briefcase } from "lucide-react";
 
 export default function RegisterPage() {
   const [, setLocation] = useLocation();
@@ -33,7 +39,8 @@ export default function RegisterPage() {
   const form = useForm<RegisterFormData>({
     resolver: zodResolver(registerFormSchema),
     defaultValues: {
-      restaurantName: "",
+      storeName: "",
+      businessType: undefined,
       ownerName: "",
       email: "",
       password: "",
@@ -47,8 +54,8 @@ export default function RegisterPage() {
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
         toast({
-          title: "File too large",
-          description: "Logo must be under 5MB",
+          title: "الملف كبير جداً",
+          description: "يجب أن يكون حجم الشعار أقل من 5 ميجابايت",
           variant: "destructive",
         });
         return;
@@ -69,7 +76,7 @@ export default function RegisterPage() {
       method: "POST",
       body: formData,
     });
-    if (!res.ok) throw new Error("Failed to upload logo");
+    if (!res.ok) throw new Error("فشل رفع الشعار");
     const data = await res.json();
     return data.url;
   }
@@ -77,8 +84,8 @@ export default function RegisterPage() {
   async function onSubmit(data: RegisterFormData) {
     if (!logoFile) {
       toast({
-        title: "Logo Required",
-        description: "Please upload your restaurant logo.",
+        title: "الشعار مطلوب",
+        description: "يرجى رفع شعار المتجر.",
         variant: "destructive",
       });
       return;
@@ -101,27 +108,28 @@ export default function RegisterPage() {
       await setDoc(doc(db, "merchants", userCredential.user.uid), {
         id: userCredential.user.uid,
         uid: userCredential.user.uid,
-        restaurantName: data.restaurantName,
+        storeName: data.storeName,
+        businessType: data.businessType,
         ownerName: data.ownerName,
         email: data.email,
         logoUrl,
-        googleMapsReviewUrl: data.googleMapsReviewUrl || "",
+        googleMapsReviewUrl: data.googleMapsReviewUrl,
         status: "pending",
         createdAt: new Date().toISOString(),
       });
 
       setRegistrationComplete(true);
     } catch (error: any) {
-      let message = "Registration failed. Please try again.";
+      let message = "فشل التسجيل. يرجى المحاولة مرة أخرى.";
       if (error.code === "auth/email-already-in-use") {
-        message = "This email is already registered. Please log in instead.";
+        message = "هذا البريد الإلكتروني مسجل بالفعل. يرجى تسجيل الدخول.";
       } else if (error.code === "auth/weak-password") {
-        message = "Password is too weak. Please use at least 6 characters.";
+        message = "كلمة المرور ضعيفة. يرجى استخدام 6 أحرف على الأقل.";
       } else if (error.code === "auth/invalid-email") {
-        message = "Invalid email address.";
+        message = "البريد الإلكتروني غير صالح.";
       }
       toast({
-        title: "Registration Error",
+        title: "خطأ في التسجيل",
         description: message,
         variant: "destructive",
       });
@@ -144,29 +152,24 @@ export default function RegisterPage() {
               <CheckCircle className="w-8 h-8 text-primary" data-testid="icon-success" />
             </div>
             <h2 className="text-2xl font-bold mb-3" data-testid="text-success-title">
-              Registration Submitted
+              تم استلام طلبك بنجاح
             </h2>
-            <p className="text-muted-foreground mb-2" data-testid="text-success-message">
-              Your restaurant has been registered successfully.
-            </p>
-            <p className="text-muted-foreground text-sm mb-6">
-              A verification email has been sent to your inbox. Your account is now
-              <span className="text-yellow-500 font-semibold"> pending approval </span>
-              by our admin team. You'll be notified once your account is activated.
+            <p className="text-muted-foreground text-sm mb-6" data-testid="text-success-message">
+              تم استلام طلبك بنجاح. سيقوم فريق الإدارة بمراجعته وتفعيل حسابك قريباً.
             </p>
             <div className="flex flex-col gap-3">
               <Button
                 onClick={() => setLocation("/login")}
                 data-testid="button-go-to-login"
               >
-                Go to Login
+                تسجيل الدخول
               </Button>
               <Button
                 variant="outline"
                 onClick={() => setLocation("/")}
                 data-testid="button-back-home"
               >
-                Back to Home
+                العودة للرئيسية
               </Button>
             </div>
           </CardContent>
@@ -189,14 +192,14 @@ export default function RegisterPage() {
             className="inline-flex items-center gap-2 text-muted-foreground text-sm mb-6 hover-elevate px-3 py-1.5 rounded-md"
             data-testid="link-back-home"
           >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Home
+            <ArrowRight className="w-4 h-4" />
+            العودة للرئيسية
           </button>
           <h1 className="text-3xl font-bold tracking-tight" data-testid="text-register-title">
-            Register Your Restaurant
+            سجل متجرك
           </h1>
           <p className="text-muted-foreground mt-2">
-            Join <span className="text-primary font-semibold">Digital Pager</span> and modernize your waitlist
+            انضم إلى <span className="text-primary font-semibold">Digital Pager</span> وطوّر نظام الانتظار لديك
           </p>
         </div>
 
@@ -214,14 +217,14 @@ export default function RegisterPage() {
                     {logoPreview ? (
                       <img
                         src={logoPreview}
-                        alt="Logo preview"
+                        alt="معاينة الشعار"
                         className="w-full h-full object-cover"
                         data-testid="img-logo-preview"
                       />
                     ) : (
                       <div className="flex flex-col items-center text-muted-foreground">
                         <Upload className="w-6 h-6 mb-1" />
-                        <span className="text-[10px]">Upload Logo</span>
+                        <span className="text-[10px]">رفع الشعار</span>
                       </div>
                     )}
                   </button>
@@ -234,23 +237,23 @@ export default function RegisterPage() {
                     data-testid="input-logo-file"
                   />
                   <p className="text-xs text-muted-foreground mt-2">
-                    {logoFile ? logoFile.name : "PNG, JPG up to 5MB"}
+                    {logoFile ? logoFile.name : "PNG, JPG حتى 5 ميجابايت"}
                   </p>
                 </div>
 
                 <FormField
                   control={form.control}
-                  name="restaurantName"
+                  name="storeName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Restaurant Name</FormLabel>
+                      <FormLabel>اسم المتجر</FormLabel>
                       <FormControl>
                         <div className="relative">
-                          <Store className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                          <Store className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                           <Input
-                            placeholder="Your Restaurant Name"
-                            className="pl-10"
-                            data-testid="input-restaurant-name"
+                            placeholder="اسم المتجر"
+                            className="pr-10"
+                            data-testid="input-store-name"
                             {...field}
                           />
                         </div>
@@ -262,16 +265,43 @@ export default function RegisterPage() {
 
                 <FormField
                   control={form.control}
+                  name="businessType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>نوع النشاط</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-business-type">
+                            <div className="flex items-center gap-2">
+                              <Briefcase className="w-4 h-4 text-muted-foreground" />
+                              <SelectValue placeholder="اختر نوع النشاط" />
+                            </div>
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="restaurant" data-testid="option-restaurant">مطعم</SelectItem>
+                          <SelectItem value="cafe" data-testid="option-cafe">مقهى</SelectItem>
+                          <SelectItem value="clinic" data-testid="option-clinic">عيادة</SelectItem>
+                          <SelectItem value="other" data-testid="option-other">أخرى</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
                   name="ownerName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Owner Name</FormLabel>
+                      <FormLabel>اسم المالك</FormLabel>
                       <FormControl>
                         <div className="relative">
-                          <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                          <User className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                           <Input
-                            placeholder="Full Name"
-                            className="pl-10"
+                            placeholder="الاسم الكامل"
+                            className="pr-10"
                             data-testid="input-owner-name"
                             {...field}
                           />
@@ -287,14 +317,15 @@ export default function RegisterPage() {
                   name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Email Address</FormLabel>
+                      <FormLabel>البريد الإلكتروني</FormLabel>
                       <FormControl>
                         <div className="relative">
-                          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                          <Mail className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                           <Input
                             type="email"
-                            placeholder="you@restaurant.com"
-                            className="pl-10"
+                            placeholder="you@store.com"
+                            className="pr-10"
+                            dir="ltr"
                             data-testid="input-email"
                             {...field}
                           />
@@ -310,14 +341,15 @@ export default function RegisterPage() {
                   name="password"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Password</FormLabel>
+                      <FormLabel>كلمة المرور</FormLabel>
                       <FormControl>
                         <div className="relative">
-                          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                          <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                           <Input
                             type="password"
-                            placeholder="Min. 6 characters"
-                            className="pl-10"
+                            placeholder="6 أحرف على الأقل"
+                            className="pr-10"
+                            dir="ltr"
                             data-testid="input-password"
                             {...field}
                           />
@@ -333,13 +365,14 @@ export default function RegisterPage() {
                   name="googleMapsReviewUrl"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Google Maps Review URL</FormLabel>
+                      <FormLabel>رابط تقييم جوجل ماب</FormLabel>
                       <FormControl>
                         <div className="relative">
-                          <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                          <MapPin className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                           <Input
                             placeholder="https://maps.google.com/..."
-                            className="pl-10"
+                            className="pr-10"
+                            dir="ltr"
                             data-testid="input-google-maps-url"
                             {...field}
                           />
@@ -358,23 +391,23 @@ export default function RegisterPage() {
                 >
                   {isSubmitting ? (
                     <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Creating Account...
+                      <Loader2 className="w-4 h-4 me-2 animate-spin" />
+                      جاري إنشاء الحساب...
                     </>
                   ) : (
-                    "Register Restaurant"
+                    "سجل متجرك الآن"
                   )}
                 </Button>
 
                 <p className="text-center text-sm text-muted-foreground">
-                  Already have an account?{" "}
+                  لديك حساب بالفعل؟{" "}
                   <button
                     type="button"
                     onClick={() => setLocation("/login")}
                     className="text-primary font-medium"
                     data-testid="link-to-login"
                   >
-                    Sign in
+                    تسجيل الدخول
                   </button>
                 </p>
               </form>
