@@ -29,7 +29,7 @@ The platform is built as a multi-tenant SaaS application where each merchant's d
 - **PWA**: The application is a Progressive Web App (PWA) with a `manifest.json`, various icon sizes, and a unified service worker for offline capabilities and push notifications. An iOS-specific install prompt is included for Safari users.
 - **Real-time Updates**: Extensive use of `onSnapshot` listeners in Firestore ensures real-time updates across the dashboard and customer pager.
 - **Tracking & Marketing**: Features include sharing via Web Share API, Google Maps review prompts, and QR scan tracking, all implemented with atomic increment operations in Firestore.
-- **Super Admin Panel**: A dedicated admin interface, accessible via email gating, provides comprehensive merchant management, global settings, and impersonation capabilities.
+- **Super Admin Panel**: A dedicated admin interface, accessible via email gating, provides comprehensive merchant management, global settings, impersonation capabilities, system health monitoring (error logs from `system_errors` Firestore collection with bell icon + badge in header), and merchant value reports (ROI generator with stats aggregation and conversion rate).
 - **Subscription System**: A two-layer gating system (`status` and `subscriptionStatus`) is in place to manage merchant access based on account approval and subscription validity.
 
 ## External Dependencies

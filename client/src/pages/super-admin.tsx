@@ -1232,9 +1232,7 @@ export default function SuperAdminPage() {
                     <div>
                       <p className="text-sm text-muted-foreground">{t("معدل التحويل", "Conversion Rate")}</p>
                       <p className="text-3xl font-bold text-primary" data-testid="text-report-conversion">
-                        {reportData.qrScans > 0
-                          ? ((reportData.notificationsSent / reportData.qrScans) * 100).toFixed(1)
-                          : "0.0"}%
+                        {reportData.conversionRate ?? 0}%
                       </p>
                     </div>
                     <div className="w-12 h-12 rounded-md bg-primary/20 flex items-center justify-center">
