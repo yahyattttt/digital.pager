@@ -328,5 +328,81 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/register-merchant", async (req, res) => {
+    try {
+      const { uid, storeName, businessType, ownerName, email, logoUrl, googleMapsReviewUrl } = req.body;
+      if (!uid || !email || !storeName) {
+        return res.status(400).json({ message: "Missing required fields" });
+      }
+
+      const saJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+      if (!saJson) {
+        return res.status(500).json({ message: "Service account not configured" });
+      }
+
+      let credentials;
+      try {
+        credentials = JSON.parse(saJson);
+      } catch {
+        return res.status(500).json({ message: "Invalid service account" });
+      }
+
+      const auth = new GoogleAuth({
+        credentials,
+        scopes: ["https://www.googleapis.com/auth/datastore"],
+      });
+      const client = await auth.getClient();
+      const tokenRes = await client.getAccessToken();
+      const accessToken = tokenRes?.token;
+      if (!accessToken) {
+        return res.status(500).json({ message: "Failed to get access token" });
+      }
+
+      const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
+      if (!projectId) {
+        return res.status(500).json({ message: "Project ID not configured" });
+      }
+
+      const merchantData = {
+        fields: {
+          id: { stringValue: uid },
+          uid: { stringValue: uid },
+          storeName: { stringValue: storeName || "" },
+          businessType: { stringValue: businessType || "other" },
+          ownerName: { stringValue: ownerName || "" },
+          email: { stringValue: email },
+          logoUrl: { stringValue: logoUrl || "" },
+          googleMapsReviewUrl: { stringValue: googleMapsReviewUrl || "" },
+          status: { stringValue: "pending" },
+          subscriptionStatus: { stringValue: "pending" },
+          plan: { stringValue: "trial" },
+          createdAt: { stringValue: new Date().toISOString() },
+        },
+      };
+
+      const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/merchants?documentId=${uid}`;
+      const response = await fetch(firestoreUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(merchantData),
+      });
+
+      if (response.ok) {
+        console.log("Merchant registered via server fallback:", uid);
+        return res.json({ success: true });
+      } else {
+        const errorText = await response.text();
+        console.error("Firestore REST API error:", response.status, errorText);
+        return res.status(response.status).json({ message: "Failed to save merchant data" });
+      }
+    } catch (error) {
+      console.error("Register merchant error:", error);
+      return res.status(500).json({ message: "Registration failed" });
+    }
+  });
+
   return httpServer;
 }

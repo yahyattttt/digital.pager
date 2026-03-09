@@ -205,12 +205,35 @@ export default function RegisterPage() {
     }
     setIsSubmitting(true);
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
+      let userCredential;
+      try {
+        userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
+      } catch (authError: any) {
+        console.error("Firebase Auth error:", authError.code, authError.message);
+        let message = t("فشل التسجيل. يرجى المحاولة مرة أخرى.", "Registration failed. Please try again.");
+        if (authError.code === "auth/email-already-in-use") {
+          message = t("هذا البريد الإلكتروني مسجل بالفعل. يرجى تسجيل الدخول بدلاً من ذلك.", "This email is already in use. Please sign in instead.");
+        } else if (authError.code === "auth/weak-password") {
+          message = t("كلمة المرور ضعيفة. يجب أن تكون 6 أحرف على الأقل.", "Password is too weak. Must be at least 6 characters.");
+        } else if (authError.code === "auth/invalid-email") {
+          message = t("البريد الإلكتروني غير صالح.", "Invalid email address.");
+        }
+        toast({
+          title: t("خطأ في التسجيل", "Registration Error"),
+          description: message,
+          variant: "destructive",
+        });
+        return;
+      }
 
       let logoUrl = "";
-      if (logoFile) logoUrl = await uploadLogo(logoFile);
+      try {
+        if (logoFile) logoUrl = await uploadLogo(logoFile);
+      } catch (uploadError) {
+        console.error("Logo upload error:", uploadError);
+      }
 
-      await setDoc(doc(db, "merchants", userCredential.user.uid), {
+      const merchantData = {
         id: userCredential.user.uid,
         uid: userCredential.user.uid,
         storeName: data.storeName,
@@ -223,21 +246,41 @@ export default function RegisterPage() {
         subscriptionStatus: "pending",
         plan: "trial",
         createdAt: new Date().toISOString(),
-      });
+      };
+
+      try {
+        await setDoc(doc(db, "merchants", userCredential.user.uid), merchantData);
+      } catch (firestoreError: any) {
+        console.error("Firestore write error:", firestoreError.code, firestoreError.message);
+        try {
+          const res = await fetch("/api/register-merchant", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(merchantData),
+          });
+          if (!res.ok) {
+            throw new Error("Server registration failed");
+          }
+        } catch (serverError) {
+          console.error("Server registration fallback error:", serverError);
+          toast({
+            title: t("خطأ في حفظ البيانات", "Data Save Error"),
+            description: t(
+              "تم إنشاء الحساب لكن فشل حفظ بيانات المتجر. يرجى التواصل مع الدعم.",
+              "Account created but store data save failed. Please contact support."
+            ),
+            variant: "destructive",
+          });
+          return;
+        }
+      }
 
       setRegistrationComplete(true);
     } catch (error: any) {
-      let message = t("فشل التسجيل. يرجى المحاولة مرة أخرى.", "Registration failed. Please try again.");
-      if (error.code === "auth/email-already-in-use") {
-        message = t("هذا البريد الإلكتروني مسجل بالفعل.", "This email is already registered.");
-      } else if (error.code === "auth/weak-password") {
-        message = t("كلمة المرور ضعيفة.", "Password is too weak.");
-      } else if (error.code === "auth/invalid-email") {
-        message = t("البريد الإلكتروني غير صالح.", "Invalid email address.");
-      }
+      console.error("Registration error:", error);
       toast({
         title: t("خطأ في التسجيل", "Registration Error"),
-        description: message,
+        description: t("فشل التسجيل. يرجى المحاولة مرة أخرى.", "Registration failed. Please try again."),
         variant: "destructive",
       });
     } finally {

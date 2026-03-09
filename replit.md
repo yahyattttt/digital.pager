@@ -63,8 +63,8 @@ A multi-tenant SaaS platform for digital pager services (restaurants, cafes, cli
 
 ## Pages
 - `/` - Landing page (bilingual)
-- `/register` - Store registration with business type dropdown
-- `/login` - Sign in
+- `/register` - Store registration with OTP email verification, business type dropdown
+- `/login` - Sign in with "Forgot Password?" link (Firebase sendPasswordResetEmail)
 - `/pending` - Shown when merchant status is "pending"
 - `/dashboard` - Kiosk-mode dashboard (split-screen, fullscreen, wake lock)
 - `/super-admin` - Super Admin panel (only yahiatohary@hotmail.com)
@@ -108,6 +108,17 @@ A multi-tenant SaaS platform for digital pager services (restaurants, cafes, cli
 - Registration form: email field has "Send Verification Code" button, OTP input appears after sending
 - Submit button disabled until OTP verified
 - Branded HTML email template (neon red/black theme, Arabic/English)
+
+## Registration Resilience
+- Separate error handling for Firebase Auth errors vs Firestore write errors
+- If client-side Firestore `setDoc` fails (permissions/rules), falls back to **POST `/api/register-merchant`** (server-side via Firestore REST API + service account)
+- Clear error messages: "Email already in use", "Password too weak", "Invalid email"
+- Logo upload failure doesn't block registration (gracefully continues)
+
+## Forgot Password
+- Login page has "نسيت كلمة المرور؟ / Forgot Password?" link (data-testid="link-forgot-password")
+- Uses Firebase `sendPasswordResetEmail` — sends reset link to user's email
+- Handles edge cases: empty email, user not found, rate limiting
 
 ## Super Admin
 - Email-gated access: only `yahiatohary@hotmail.com` can access `/super-admin`

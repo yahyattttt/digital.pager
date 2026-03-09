@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { signInWithEmailAndPassword, signOut } from "firebase/auth";
+import { signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { z } from "zod";
@@ -33,6 +33,7 @@ export default function LoginPage() {
   const { toast } = useToast();
   const { t, toggleLanguage, isRTL } = useLanguage();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
 
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -43,6 +44,46 @@ export default function LoginPage() {
   });
 
   const BackArrow = isRTL ? ArrowRight : ArrowLeft;
+
+  async function handleForgotPassword() {
+    const email = form.getValues("email");
+    if (!email) {
+      toast({
+        title: t("البريد الإلكتروني مطلوب", "Email required"),
+        description: t("يرجى إدخال بريدك الإلكتروني أولاً ثم الضغط على نسيت كلمة المرور.", "Please enter your email first, then click Forgot Password."),
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsResettingPassword(true);
+    try {
+      await sendPasswordResetEmail(auth, email);
+      toast({
+        title: t("تم إرسال رابط إعادة التعيين", "Reset Link Sent"),
+        description: t(
+          "تم إرسال رابط إعادة تعيين كلمة المرور إلى بريدك الإلكتروني. تحقق من صندوق الوارد.",
+          "A password reset link has been sent to your email. Check your inbox."
+        ),
+      });
+    } catch (error: any) {
+      let message = t("فشل إرسال رابط إعادة التعيين.", "Failed to send reset link.");
+      if (error.code === "auth/user-not-found") {
+        message = t("لم يتم العثور على حساب بهذا البريد الإلكتروني.", "No account found with this email.");
+      } else if (error.code === "auth/invalid-email") {
+        message = t("البريد الإلكتروني غير صالح.", "Invalid email address.");
+      } else if (error.code === "auth/too-many-requests") {
+        message = t("تم إرسال عدة طلبات. يرجى الانتظار قليلاً.", "Too many requests. Please wait a moment.");
+      }
+      toast({
+        title: t("خطأ", "Error"),
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsResettingPassword(false);
+    }
+  }
 
   async function onSubmit(data: LoginFormData) {
     setIsSubmitting(true);
@@ -221,7 +262,20 @@ export default function LoginPage() {
                   name="password"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-foreground">{t("كلمة المرور", "Password")}</FormLabel>
+                      <div className="flex items-center justify-between">
+                        <FormLabel className="text-foreground">{t("كلمة المرور", "Password")}</FormLabel>
+                        <button
+                          type="button"
+                          onClick={handleForgotPassword}
+                          disabled={isResettingPassword}
+                          className="text-xs text-primary hover:text-primary/80 hover:underline transition-colors disabled:opacity-50"
+                          data-testid="link-forgot-password"
+                        >
+                          {isResettingPassword
+                            ? t("جاري الإرسال...", "Sending...")
+                            : t("نسيت كلمة المرور؟", "Forgot Password?")}
+                        </button>
+                      </div>
                       <FormControl>
                         <div className="relative">
                           <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
