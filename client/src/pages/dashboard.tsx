@@ -608,12 +608,14 @@ export default function DashboardPage() {
     );
   }
 
-  if (merchant.subscriptionStatus !== "active") {
+  const effectiveSubscriptionStatus = merchant.subscriptionStatus || "pending";
+
+  if (effectiveSubscriptionStatus !== "active") {
     return (
       <SubscriptionRequiredScreen
         storeName={merchant.storeName}
         plan={merchant.plan || "trial"}
-        subscriptionStatus={merchant.subscriptionStatus}
+        subscriptionStatus={effectiveSubscriptionStatus}
         subscriptionExpiry={merchant.subscriptionExpiry}
         onSignOut={handleSignOut}
         t={t}

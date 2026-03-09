@@ -1463,5 +1463,85 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/admin/repair-merchant/:merchantId", async (req, res) => {
+    try {
+      if (!(await isAdminRequest(req))) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+
+      const { merchantId } = req.params;
+      const accessToken = await getFirestoreAccessToken();
+      const baseUrl = getFirestoreBaseUrl();
+      if (!accessToken || !baseUrl) {
+        return res.status(500).json({ message: "Firestore not configured" });
+      }
+
+      const docRes = await fetch(`${baseUrl}/merchants/${merchantId}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      if (!docRes.ok) {
+        return res.status(404).json({ message: "Merchant not found" });
+      }
+
+      const doc = await docRes.json();
+      const fields = doc.fields || {};
+
+      const updates: Record<string, any> = {};
+      const missingFields: string[] = [];
+
+      if (!fields.role?.stringValue) {
+        updates["role"] = { stringValue: "merchant" };
+        missingFields.push("role");
+      }
+      if (!fields.status?.stringValue) {
+        updates["status"] = { stringValue: "approved" };
+        missingFields.push("status");
+      }
+      if (!fields.subscriptionStatus?.stringValue) {
+        updates["subscriptionStatus"] = { stringValue: "active" };
+        missingFields.push("subscriptionStatus");
+      }
+      if (!fields.subscriptionExpiry?.stringValue) {
+        const expiryDate = new Date();
+        expiryDate.setDate(expiryDate.getDate() + 30);
+        updates["subscriptionExpiry"] = { stringValue: expiryDate.toISOString() };
+        missingFields.push("subscriptionExpiry");
+      }
+      if (!fields.subscriptionStartAt?.stringValue) {
+        updates["subscriptionStartAt"] = { stringValue: new Date().toISOString() };
+        missingFields.push("subscriptionStartAt");
+      }
+
+      if (Object.keys(updates).length === 0) {
+        return res.json({ message: "All fields are present, no repair needed", fields: Object.keys(fields) });
+      }
+
+      const patchRes = await fetch(
+        `${baseUrl}/merchants/${merchantId}?updateMask.fieldPaths=${Object.keys(updates).join("&updateMask.fieldPaths=")}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ fields: { ...fields, ...updates } }),
+        }
+      );
+
+      if (!patchRes.ok) {
+        const errText = await patchRes.text();
+        console.error("Repair PATCH failed:", errText);
+        return res.status(500).json({ message: "Failed to repair merchant" });
+      }
+
+      console.log(`Repaired merchant ${merchantId}, fixed fields: ${missingFields.join(", ")}`);
+      return res.json({ message: "Merchant repaired", fixedFields: missingFields });
+    } catch (error) {
+      console.error("Repair merchant error:", error);
+      return res.status(500).json({ message: "Failed to repair merchant" });
+    }
+  });
+
   return httpServer;
 }
