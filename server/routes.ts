@@ -113,7 +113,7 @@ async function saveOtpToFirestore(email: string, code: string): Promise<boolean>
   };
 
   try {
-    const res = await fetch(`${baseUrl}/otp_codes/${docId}`, {
+    const res = await fetch(`${baseUrl}/otps/${docId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
       body: JSON.stringify(data),
@@ -122,7 +122,7 @@ async function saveOtpToFirestore(email: string, code: string): Promise<boolean>
       console.error(`[OTP] Firestore save failed:`, res.status, await res.text());
       return false;
     }
-    console.log(`[OTP] Saved OTP to Firestore for ${email}, docId: ${docId}`);
+    console.log(`[OTP] Saved OTP to Firestore (otps collection) for ${email}, docId: ${docId}`);
     return true;
   } catch (err) {
     console.error(`[OTP] Firestore save error:`, err);
@@ -138,11 +138,11 @@ async function getOtpFromFirestore(email: string): Promise<{ code: string; expir
   const docId = sanitizeEmailKey(email);
 
   try {
-    const res = await fetch(`${baseUrl}/otp_codes/${docId}`, {
+    const res = await fetch(`${baseUrl}/otps/${docId}`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     if (!res.ok) {
-      console.log(`[OTP] Firestore lookup: no OTP doc found for ${email} (status ${res.status})`);
+      console.log(`[OTP] Firestore lookup: no OTP doc found in 'otps' for ${email} (status ${res.status})`);
       return null;
     }
     const doc = await res.json();
@@ -166,7 +166,7 @@ async function updateOtpAttempts(email: string, attempts: number): Promise<void>
 
   const docId = sanitizeEmailKey(email);
   try {
-    await fetch(`${baseUrl}/otp_codes/${docId}?updateMask.fieldPaths=attempts`, {
+    await fetch(`${baseUrl}/otps/${docId}?updateMask.fieldPaths=attempts`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
       body: JSON.stringify({ fields: { attempts: { integerValue: String(attempts) } } }),
@@ -181,11 +181,11 @@ async function deleteOtpFromFirestore(email: string): Promise<void> {
 
   const docId = sanitizeEmailKey(email);
   try {
-    await fetch(`${baseUrl}/otp_codes/${docId}`, {
+    await fetch(`${baseUrl}/otps/${docId}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${accessToken}` },
     });
-    console.log(`[OTP] Deleted OTP from Firestore for ${email}`);
+    console.log(`[OTP] Deleted OTP from Firestore (otps) for ${email}`);
   } catch {}
 }
 
@@ -537,8 +537,7 @@ export async function registerRoutes(
       const isMasterOtp = process.env.NODE_ENV !== "production" && codeStr === DEV_MASTER_OTP;
 
       if (isMasterOtp) {
-        console.log(`[OTP] Master OTP used for ${emailLower} — bypassing verification`);
-        await deleteOtpFromFirestore(emailLower);
+        console.log(`[OTP] Master OTP used for ${emailLower} — skipping Firestore check entirely`);
       } else {
         const entry = await getOtpFromFirestore(emailLower);
         console.log(`[OTP-VERIFY] Email: ${emailLower}, OTP found: ${!!entry}, Expired: ${entry ? entry.expiresAt < Date.now() : "N/A"}, Attempts: ${entry?.attempts ?? "N/A"}`);
