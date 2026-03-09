@@ -36,6 +36,33 @@ const upload = multer({
   },
 });
 
+async function logSystemError(merchantId: string, errorType: string, errorMessage: string): Promise<void> {
+  const accessToken = await getFirestoreAccessToken();
+  const baseUrl = getFirestoreBaseUrl();
+  if (!accessToken || !baseUrl) return;
+
+  const docId = randomUUID();
+  const data = {
+    fields: {
+      merchantId: { stringValue: merchantId || "unknown" },
+      errorType: { stringValue: errorType },
+      errorMessage: { stringValue: errorMessage },
+      timestamp: { stringValue: new Date().toISOString() },
+      resolved: { booleanValue: false },
+    },
+  };
+
+  try {
+    await fetch(`${baseUrl}/system_errors/${docId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify(data),
+    });
+  } catch (err) {
+    console.error("[ERROR-LOG] Failed to log system error:", err);
+  }
+}
+
 function getFirebaseConfig() {
   const appId = process.env.VITE_FIREBASE_APP_ID || "";
   const senderIdMatch = appId.match(/^\d+:(\d+):/);
@@ -352,11 +379,13 @@ export async function registerRoutes(
       const expectedToken = createHash("sha256").update(sessionSecret + ":push-auth").digest("hex").substring(0, 32);
       const authHeader = req.headers["x-push-auth"];
       if (authHeader !== expectedToken) {
+        await logSystemError(req.body?.storeId || "unknown", "push_auth_failed", "Push auth token mismatch - unauthorized request");
         return res.status(403).json({ message: "Unauthorized" });
       }
 
       const { token, storeName, orderNumber, storeId } = req.body;
       if (!token) {
+        await logSystemError(storeId || "unknown", "invalid_token", "Missing FCM token in push request");
         return res.status(400).json({ message: "Missing FCM token" });
       }
 
@@ -429,6 +458,7 @@ export async function registerRoutes(
         result = JSON.parse(responseText);
       } catch {
         console.error("FCM V1 non-JSON response:", response.status, responseText.substring(0, 200));
+        await logSystemError(storeId || "unknown", "fcm_invalid_response", `FCM returned non-JSON response: ${response.status}`);
         return res.status(502).json({ success: false, message: "FCM returned invalid response" });
       }
 
@@ -437,10 +467,12 @@ export async function registerRoutes(
         return res.json({ success: true, result });
       } else {
         console.error("FCM V1 send error:", result);
+        await logSystemError(storeId || "unknown", "fcm_send_error", `FCM send failed (${response.status}): ${JSON.stringify(result).substring(0, 500)}`);
         return res.status(response.status).json({ success: false, error: result });
       }
     } catch (error) {
       console.error("Push notification error:", error);
+      await logSystemError(req.body?.storeId || "unknown", "push_exception", `Push notification exception: ${error instanceof Error ? error.message : String(error)}`);
       return res.status(500).json({ message: "Failed to send push notification" });
     }
   });
@@ -975,6 +1007,192 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Register merchant error:", error);
       return res.status(500).json({ message: "Registration failed" });
+    }
+  });
+
+  app.get("/api/admin/errors", async (req, res) => {
+    try {
+      if (!(await isAdminRequest(req))) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+
+      const accessToken = await getFirestoreAccessToken();
+      const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
+      if (!accessToken || !projectId) {
+        return res.status(500).json({ message: "Firestore not configured" });
+      }
+
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+      const query = {
+        structuredQuery: {
+          from: [{ collectionId: "system_errors" }],
+          where: {
+            fieldFilter: {
+              field: { fieldPath: "timestamp" },
+              op: "GREATER_THAN_OR_EQUAL",
+              value: { stringValue: twentyFourHoursAgo },
+            },
+          },
+          orderBy: [{ field: { fieldPath: "timestamp" }, direction: "DESCENDING" }],
+          limit: 100,
+        },
+      };
+
+      const queryRes = await fetch(
+        `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+          body: JSON.stringify(query),
+        }
+      );
+
+      if (!queryRes.ok) {
+        return res.status(500).json({ message: "Failed to query errors" });
+      }
+
+      const results = await queryRes.json();
+      const errors: any[] = [];
+
+      if (Array.isArray(results)) {
+        for (const r of results) {
+          if (r.document) {
+            const fields = r.document.fields || {};
+            const docName = r.document.name || "";
+            const id = docName.split("/").pop() || "";
+            errors.push({
+              id,
+              merchantId: fields.merchantId?.stringValue || "",
+              errorType: fields.errorType?.stringValue || "",
+              errorMessage: fields.errorMessage?.stringValue || "",
+              timestamp: fields.timestamp?.stringValue || "",
+              resolved: fields.resolved?.booleanValue || false,
+            });
+          }
+        }
+      }
+
+      return res.json({ errors });
+    } catch (error) {
+      console.error("Get admin errors error:", error);
+      return res.status(500).json({ message: "Failed to get errors" });
+    }
+  });
+
+  app.post("/api/admin/errors/:errorId/resolve", async (req, res) => {
+    try {
+      if (!(await isAdminRequest(req))) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+
+      const { errorId } = req.params;
+      const accessToken = await getFirestoreAccessToken();
+      const baseUrl = getFirestoreBaseUrl();
+      if (!accessToken || !baseUrl) {
+        return res.status(500).json({ message: "Firestore not configured" });
+      }
+
+      const patchRes = await fetch(`${baseUrl}/system_errors/${errorId}?updateMask.fieldPaths=resolved`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ fields: { resolved: { booleanValue: true } } }),
+      });
+
+      if (!patchRes.ok) {
+        return res.status(500).json({ message: "Failed to resolve error" });
+      }
+
+      return res.json({ success: true });
+    } catch (error) {
+      console.error("Resolve error error:", error);
+      return res.status(500).json({ message: "Failed to resolve error" });
+    }
+  });
+
+  app.get("/api/admin/merchant-report/:merchantId", async (req, res) => {
+    try {
+      if (!(await isAdminRequest(req))) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+
+      const { merchantId } = req.params;
+      const accessToken = await getFirestoreAccessToken();
+      const baseUrl = getFirestoreBaseUrl();
+      const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
+      if (!accessToken || !baseUrl || !projectId) {
+        return res.status(500).json({ message: "Firestore not configured" });
+      }
+
+      const docRes = await fetch(`${baseUrl}/merchants/${merchantId}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!docRes.ok) {
+        return res.status(404).json({ message: "Merchant not found" });
+      }
+      const doc = await docRes.json();
+      const fields = doc.fields || {};
+
+      const qrScans = parseInt(fields.qrScans?.integerValue || "0");
+      const sharesCount = parseInt(fields.sharesCount?.integerValue || "0");
+      const googleMapsClicks = parseInt(fields.googleMapsClicks?.integerValue || "0");
+      const storeName = fields.storeName?.stringValue || "";
+      const logoUrl = fields.logoUrl?.stringValue || "";
+
+      const pagersQuery = {
+        structuredQuery: {
+          from: [{ collectionId: "pagers" }],
+          select: { fields: [{ fieldPath: "status" }] },
+        },
+      };
+
+      const pagersRes = await fetch(
+        `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/merchants/${merchantId}:runQuery`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+          body: JSON.stringify(pagersQuery),
+        }
+      );
+
+      let totalNotificationsSent = 0;
+      let totalCompleted = 0;
+      let totalPagers = 0;
+
+      if (pagersRes.ok) {
+        const pagersResults = await pagersRes.json();
+        if (Array.isArray(pagersResults)) {
+          for (const r of pagersResults) {
+            if (r.document) {
+              totalPagers++;
+              const status = r.document.fields?.status?.stringValue || "";
+              if (status === "notified" || status === "completed") {
+                totalNotificationsSent++;
+              }
+              if (status === "completed") {
+                totalCompleted++;
+              }
+            }
+          }
+        }
+      }
+
+      const conversionRate = qrScans > 0 ? Math.round((totalNotificationsSent / qrScans) * 100) : 0;
+
+      return res.json({
+        storeName,
+        logoUrl,
+        qrScans,
+        totalNotificationsSent,
+        sharesCount,
+        googleMapsClicks,
+        conversionRate,
+        totalPagers,
+        totalCompleted,
+      });
+    } catch (error) {
+      console.error("Merchant report error:", error);
+      return res.status(500).json({ message: "Failed to generate report" });
     }
   });
 

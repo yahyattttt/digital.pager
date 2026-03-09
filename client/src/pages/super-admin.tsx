@@ -32,6 +32,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Shield,
   LogOut,
   Globe,
@@ -53,6 +59,9 @@ import {
   Settings,
   Save,
   QrCode,
+  FileText,
+  AlertTriangle,
+  Activity,
 } from "lucide-react";
 
 const SUPER_ADMIN_EMAIL = "yahiatohary@hotmail.com";
@@ -151,6 +160,16 @@ export default function SuperAdminPage() {
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [settingsSaving, setSettingsSaving] = useState(false);
 
+  const [systemErrors, setSystemErrors] = useState<any[]>([]);
+  const [errorsLoading, setErrorsLoading] = useState(false);
+  const [healthDialogOpen, setHealthDialogOpen] = useState(false);
+  const [resolvingError, setResolvingError] = useState<string | null>(null);
+
+  const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const [reportMerchant, setReportMerchant] = useState<Merchant | null>(null);
+  const [reportData, setReportData] = useState<any>(null);
+  const [reportLoading, setReportLoading] = useState(false);
+
   const btLabels = lang === "ar" ? businessTypeLabels : businessTypeLabelsEn;
 
   async function fetchMerchants() {
@@ -188,6 +207,72 @@ export default function SuperAdminPage() {
     }
   }
 
+  async function fetchSystemErrors() {
+    setErrorsLoading(true);
+    try {
+      const res = await fetch("/api/admin/errors", {
+        headers: { "x-admin-email": user?.email || "" },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSystemErrors(Array.isArray(data) ? data : data?.errors || []);
+      }
+    } catch {
+      // silent
+    } finally {
+      setErrorsLoading(false);
+    }
+  }
+
+  async function handleResolveError(errorId: string) {
+    setResolvingError(errorId);
+    try {
+      const res = await fetch(`/api/admin/errors/${errorId}/resolve`, {
+        method: "POST",
+        headers: { "x-admin-email": user?.email || "" },
+      });
+      if (res.ok) {
+        setSystemErrors((prev) => prev.filter((e) => e.id !== errorId));
+        toast({
+          title: t("تم الحل", "Resolved"),
+          description: t("تم حل الخطأ بنجاح", "Error resolved successfully"),
+        });
+      }
+    } catch {
+      toast({
+        title: t("خطأ", "Error"),
+        description: t("فشل في حل الخطأ", "Failed to resolve error"),
+        variant: "destructive",
+      });
+    } finally {
+      setResolvingError(null);
+    }
+  }
+
+  async function handleOpenReport(merchant: Merchant) {
+    setReportMerchant(merchant);
+    setReportDialogOpen(true);
+    setReportLoading(true);
+    setReportData(null);
+    try {
+      const res = await fetch(`/api/admin/merchant-report/${merchant.uid}`, {
+        headers: { "x-admin-email": user?.email || "" },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setReportData(data);
+      }
+    } catch {
+      toast({
+        title: t("خطأ", "Error"),
+        description: t("فشل في تحميل التقرير", "Failed to load report"),
+        variant: "destructive",
+      });
+    } finally {
+      setReportLoading(false);
+    }
+  }
+
   async function fetchSettings() {
     setSettingsLoading(true);
     try {
@@ -213,6 +298,7 @@ export default function SuperAdminPage() {
       fetchMerchants();
       fetchTotalAlertsToday();
       fetchSettings();
+      fetchSystemErrors();
     }
   }, [authLoading, user]);
 
@@ -474,6 +560,33 @@ export default function SuperAdminPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => { setHealthDialogOpen(true); fetchSystemErrors(); }}
+              className="relative"
+              data-testid="button-health-monitor"
+            >
+              <Bell className="w-4 h-4" />
+              {systemErrors.filter((e) => !e.resolved).length > 0 ? (
+                <span className="absolute -top-1.5 -end-1.5 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-1" data-testid="badge-error-count">
+                  {systemErrors.filter((e) => !e.resolved).length}
+                </span>
+              ) : null}
+            </Button>
+            <div className="flex items-center gap-1.5" data-testid="status-system-health">
+              {systemErrors.filter((e) => !e.resolved).length === 0 ? (
+                <>
+                  <div className="w-2.5 h-2.5 rounded-full bg-green-500" />
+                  <span className="text-xs text-green-500 hidden sm:inline">{t("النظام يعمل", "All Systems Nominal")}</span>
+                </>
+              ) : (
+                <>
+                  <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+                  <span className="text-xs text-red-500 hidden sm:inline">{t("مشاكل نشطة", "Active Issues")}</span>
+                </>
+              )}
+            </div>
             <Button
               variant="outline"
               size="icon"
@@ -811,6 +924,14 @@ export default function SuperAdminPage() {
                                   <Button
                                     size="icon"
                                     variant="ghost"
+                                    onClick={() => handleOpenReport(merchant)}
+                                    data-testid={`button-report-${merchant.uid}`}
+                                  >
+                                    <FileText className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
                                     onClick={() => handleImpersonate(merchant)}
                                     disabled={actionLoading === merchant.uid}
                                     data-testid={`button-impersonate-${merchant.uid}`}
@@ -973,6 +1094,177 @@ export default function SuperAdminPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={healthDialogOpen} onOpenChange={setHealthDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto" data-testid="dialog-health-monitor">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Activity className="w-5 h-5 text-primary" />
+              {t("مراقبة صحة النظام", "System Health Monitor")}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {errorsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-6 h-6 text-primary animate-spin" />
+              </div>
+            ) : systemErrors.filter((e) => !e.resolved).length === 0 ? (
+              <div className="text-center py-12">
+                <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3" />
+                <p className="font-semibold text-green-500" data-testid="text-no-errors">
+                  {t("جميع الأنظمة تعمل بشكل طبيعي", "All Systems Nominal")}
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {t("لا توجد أخطاء في آخر 24 ساعة", "No errors in the last 24 hours")}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {systemErrors.filter((e) => !e.resolved).map((error) => (
+                  <Card key={error.id} data-testid={`card-error-${error.id}`}>
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                          <div className="w-8 h-8 rounded-md bg-red-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                            <AlertTriangle className="w-4 h-4 text-red-500" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Badge className="bg-red-500/20 text-red-400 border-red-500/30">
+                                {error.errorType || "unknown"}
+                              </Badge>
+                              <span className="text-xs text-muted-foreground" data-testid={`text-error-time-${error.id}`}>
+                                {error.timestamp ? new Date(error.timestamp).toLocaleString() : "N/A"}
+                              </span>
+                            </div>
+                            <p className="text-sm mt-1.5" data-testid={`text-error-message-${error.id}`}>
+                              {error.errorMessage || t("رسالة غير متوفرة", "No message available")}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1" data-testid={`text-error-merchant-${error.id}`}>
+                              {t("التاجر:", "Merchant:")} {error.merchantId || "N/A"}
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleResolveError(error.id)}
+                          disabled={resolvingError === error.id}
+                          data-testid={`button-resolve-error-${error.id}`}
+                        >
+                          {resolvingError === error.id ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <>
+                              <CheckCircle className="w-3 h-3 me-1" />
+                              {t("حل", "Resolve")}
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={reportDialogOpen} onOpenChange={(open) => { setReportDialogOpen(open); if (!open) { setReportMerchant(null); setReportData(null); } }}>
+        <DialogContent className="max-w-lg" data-testid="dialog-merchant-report">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3">
+              {reportMerchant?.logoUrl ? (
+                <img src={reportMerchant.logoUrl} alt="" className="w-10 h-10 rounded-full object-cover border border-border" />
+              ) : (
+                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Store className="w-5 h-5 text-primary" />
+                </div>
+              )}
+              <div>
+                <span className="block" data-testid="text-report-merchant-name">{reportMerchant?.storeName}</span>
+                <span className="text-xs text-muted-foreground font-normal">{t("تقرير القيمة", "Value Report")}</span>
+              </div>
+            </DialogTitle>
+          </DialogHeader>
+
+          {reportLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-6 h-6 text-primary animate-spin" />
+            </div>
+          ) : reportData ? (
+            <div className="space-y-5">
+              <div className="grid grid-cols-2 gap-3">
+                <Card>
+                  <CardContent className="p-4 text-center">
+                    <QrCode className="w-6 h-6 text-primary mx-auto mb-1.5" />
+                    <p className="text-2xl font-bold" data-testid="text-report-qr-scans">{reportData.qrScans || 0}</p>
+                    <p className="text-xs text-muted-foreground">{t("مسح QR", "QR Scans")}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4 text-center">
+                    <Bell className="w-6 h-6 text-blue-500 mx-auto mb-1.5" />
+                    <p className="text-2xl font-bold" data-testid="text-report-notifications">{reportData.notificationsSent || 0}</p>
+                    <p className="text-xs text-muted-foreground">{t("إشعارات مرسلة", "Notifications Sent")}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4 text-center">
+                    <Share2 className="w-6 h-6 text-purple-500 mx-auto mb-1.5" />
+                    <p className="text-2xl font-bold" data-testid="text-report-shares">{reportData.shares || 0}</p>
+                    <p className="text-xs text-muted-foreground">{t("مشاركات", "Shares")}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4 text-center">
+                    <MapPin className="w-6 h-6 text-green-500 mx-auto mb-1.5" />
+                    <p className="text-2xl font-bold" data-testid="text-report-gmaps">{reportData.gmapsClicks || 0}</p>
+                    <p className="text-xs text-muted-foreground">{t("نقرات خرائط", "GMaps Clicks")}</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <p className="text-sm text-muted-foreground">{t("معدل التحويل", "Conversion Rate")}</p>
+                      <p className="text-3xl font-bold text-primary" data-testid="text-report-conversion">
+                        {reportData.qrScans > 0
+                          ? ((reportData.notificationsSent / reportData.qrScans) * 100).toFixed(1)
+                          : "0.0"}%
+                      </p>
+                    </div>
+                    <div className="w-12 h-12 rounded-md bg-primary/20 flex items-center justify-center">
+                      <Activity className="w-6 h-6 text-primary" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-primary/30">
+                <CardContent className="p-4">
+                  <p className="text-sm leading-relaxed" data-testid="text-report-summary">
+                    {t(
+                      `هذا الشهر، وفّر نظامنا لفريقك ما يقارب ${Math.round((reportData.notificationsSent || 0) * 2)} دقيقة وتفاعل مع ${reportData.qrScans || 0} عميل.`,
+                      `This month, our system saved your staff ${Math.round((reportData.notificationsSent || 0) * 2)} minutes and engaged ${reportData.qrScans || 0} customers.`
+                    )}
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <AlertTriangle className="w-8 h-8 text-muted-foreground/30 mx-auto mb-3" />
+              <p className="text-muted-foreground" data-testid="text-report-error">
+                {t("فشل في تحميل بيانات التقرير", "Failed to load report data")}
+              </p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

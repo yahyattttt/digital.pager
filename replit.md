@@ -1,210 +1,46 @@
 # Digital Pager
 
-A multi-tenant SaaS platform for digital pager services (restaurants, cafes, clinics, etc.).
+## Overview
+Digital Pager is a multi-tenant SaaS platform designed to provide digital pager services for various businesses like restaurants, cafes, and clinics. It aims to modernize the customer waiting experience by replacing traditional physical pagers with a digital system that notifies customers via their smartphones. The platform supports bilingual interactions (Arabic/English), features a kiosk-mode dashboard for merchants, and a public customer pager interface with real-time notifications, a Google Maps review prompt, and social sharing capabilities. The business vision is to capture a significant market share in the digital notification space for service-oriented businesses, enhancing customer satisfaction and operational efficiency for merchants.
 
-## Tech Stack
-- **Frontend:** React, Vite, TailwindCSS, shadcn/ui
-- **Backend:** Node.js, Express
-- **Database:** Firebase Firestore (NoSQL)
-- **Auth:** Firebase Auth (Passwordless OTP via Resend + Custom Token)
-- **Push Notifications:** Firebase Cloud Messaging (FCM)
-- **File Uploads:** Multer (stored locally in `client/public/uploads/`)
+## User Preferences
+I prefer clear and concise communication.
+I value iterative development and expect to be informed about progress regularly.
+I prefer detailed explanations for complex design choices or technical implementations.
+I want the agent to ask for confirmation before making any major architectural changes or significant code refactoring.
+Do not make changes to the `shared/schema.ts` file without explicit instruction.
+Ensure all UI components are responsive and adapt to both desktop and mobile views.
 
-## Architecture
-- Multi-tenant: Each store's data is isolated in Firestore under `merchants/{uid}`
-- Firebase client SDK handles auth and Firestore on the frontend
-- Backend handles file uploads, QR generation, and FCM push relay
-- Admin approval gate: merchants start with `status: "pending"` until Super Admin changes to `"approved"` in Firestore
-- Bilingual UI (Arabic/English) with language toggle on every page
+## System Architecture
+The platform is built as a multi-tenant SaaS application where each merchant's data is isolated within Firebase Firestore under a unique UID. The architecture comprises a React frontend with Vite, TailwindCSS, and shadcn/ui for a modern and responsive user experience. The backend is built with Node.js and Express, handling file uploads, QR code generation, and Firebase Cloud Messaging (FCM) push notification relay.
 
-## Theme
-- Neon Red (#FF0000) primary on Black (#000000) background
-- Font: Tajawal / Cairo (Arabic fonts)
-- Dark-first design (`:root` uses dark colors)
+### UI/UX Decisions
+- **Theme**: A "neon red" (#FF0000) primary color on a "black" (#000000) background, establishing a dark-first design.
+- **Typography**: Uses Tajawal / Cairo fonts for Arabic text.
+- **Bilingual Support**: The UI is fully bilingual (Arabic/English) with dynamic RTL/LTR adjustments. A globe icon toggle is present on every page, and language preference is persisted in `localStorage`.
+- **Kiosk Mode Dashboard**: Designed for tablet landscape views (768-1024px) featuring a split-screen layout, extra-large touch buttons, a fullscreen mode utilizing the Fullscreen API, and a Screen Wake Lock to prevent dimming.
+- **Customer Pager UI**: Features a neon red pulse animation for waiting status, and a continuous flashing red/black screen with vibration and audio alerts upon notification. Includes a post-notification prompt for Google Maps reviews.
 
-## Language & Direction
-- Bilingual: Arabic (default, RTL) and English (LTR)
-- Language persisted in localStorage (`dp-lang`)
-- `useLanguage()` hook provides `t(ar, en)` helper, `toggleLanguage()`, `isRTL`, `lang`
-- Globe icon toggle appears on every page (nav bar, login, register, pending, dashboard)
-- HTML `dir` and `lang` attributes updated dynamically on language switch
-- Email/password/URL inputs always use `dir="ltr"`
+### Technical Implementations
+- **Authentication**: Passwordless OTP authentication via email using Resend for sending OTPs. Session management is handled via `localStorage` on the client-side, bypassing Firebase Auth SDK for core login flows.
+- **Database**: Firebase Firestore (NoSQL) is used for all data storage, with a `merchants` collection and a `pagers` subcollection.
+- **Push Notifications**: Firebase Cloud Messaging (FCM V1) is implemented using `google-auth-library` for secure OAuth2 token generation. A unified service worker (`sw.js`) handles both app-shell caching and FCM background messages.
+- **File Uploads**: Multer is used for handling local logo uploads, stored in `client/public/uploads/`.
+- **PWA**: The application is a Progressive Web App (PWA) with a `manifest.json`, various icon sizes, and a unified service worker for offline capabilities and push notifications. An iOS-specific install prompt is included for Safari users.
+- **Real-time Updates**: Extensive use of `onSnapshot` listeners in Firestore ensures real-time updates across the dashboard and customer pager.
+- **Tracking & Marketing**: Features include sharing via Web Share API, Google Maps review prompts, and QR scan tracking, all implemented with atomic increment operations in Firestore.
+- **Super Admin Panel**: A dedicated admin interface, accessible via email gating, provides comprehensive merchant management, global settings, and impersonation capabilities.
+- **Subscription System**: A two-layer gating system (`status` and `subscriptionStatus`) is in place to manage merchant access based on account approval and subscription validity.
 
-## Dashboard - Kiosk Mode
-- Split-screen layout: sidebar (Waitlist) + main area (Notified Pagers)
-- Optimized for tablet landscape (768-1024px) with extra-large touch buttons
-- **Fullscreen Mode:** Maximize icon in header uses Fullscreen API to hide browser chrome
-- **Wake Lock:** Screen Wake Lock API prevents tablet screen from dimming; green indicator shows status
-- **Waitlist Management:** Add orders via dialog, Notify button sends real-time alert, Complete/Remove buttons
-- **QR Code:** Download Store QR button in header + stats bar; generates neon red QR via server endpoint
-- Stats bar at bottom: Waiting count, Paged count, QR download link
-
-## Data Model (Firestore: `merchants` collection)
-- `id` / `uid`: Firebase Auth UID
-- `storeName`: Store name (اسم المتجر)
-- `businessType`: "restaurant" | "cafe" | "clinic" | "other" (نوع النشاط)
-- `ownerName`: Owner name (اسم المالك)
-- `email`: Email address
-- `logoUrl`: Uploaded logo path
-- `googleMapsReviewUrl`: Google Maps review link
-- `status`: "pending" | "approved" | "rejected" | "suspended" (account status)
-- `subscriptionStatus`: "pending" | "active" | "expired" | "cancelled" (subscription gate)
-- `plan`: "trial" | "basic" | "premium" | "enterprise" (subscription plan, default: "trial")
-- `createdAt`: ISO timestamp
-
-## Data Model (Firestore: `merchants/{uid}/pagers` subcollection)
-- `id`: Auto-generated Firestore document ID
-- `storeId`: Parent merchant UID
-- `orderNumber`: Customer order number
-- `status`: "waiting" | "notified" | "completed"
-- `fcmToken`: FCM push notification token (optional, stored when customer grants permission)
-- `createdAt`: ISO timestamp
-- `notifiedAt`: ISO timestamp (set when notified)
-
-## Pages
-- `/` - Landing page (bilingual)
-- `/register` - Store registration with passwordless OTP email verification, business type dropdown
-- `/login` - Passwordless OTP sign in (email → OTP code → signInWithCustomToken)
-- `/pending` - Shown when merchant status is "pending"
-- `/dashboard` - Kiosk-mode dashboard (split-screen, fullscreen, wake lock)
-- `/super-admin` - Super Admin panel (only yahiatohary@hotmail.com)
-- `/s/:storeId` - Public customer pager page (no auth required)
-
-## Customer Pager System (`/s/:storeId`)
-- Public link for each store — customers enter their order number
-- Entry screen: order number input + "ابدأ الانتظار واستقبل التنبيه" button (unlocks audio context for autoplay policy)
-- Waiting screen: neon red pulse animation with Arabic waiting message + bouncing dots
-- Real-time Firestore `onSnapshot` listener watches for status changes
-- When merchant clicks "Notify" in dashboard:
-  - Customer's phone vibrates continuously (Vibration API loop: 500-200-500-200-800ms via setInterval)
-  - Screen flashes red/black (CSS `animate-flash-red` keyframe at 0.6s)
-  - `alert.mp3` plays on loop (HTMLAudioElement, unlocked via user gesture on submit)
-  - Text changes to: "طلبك جاهز! تفضل بالاستلام"
-  - "تم الاستلام - إيقاف التنبيه" button stops all alerts (audio, vibration, flashing)
-- After alert stopped: screen stays solid red with "تم إيقاف التنبيه" confirmation
-- 2 minutes after notification → "قيمنا على جوجل ماب" review button appears
-- Audio file: `client/public/alert.mp3` (copied from attached_assets)
-- Cleanup: audio paused + vibration stopped on component unmount
-- Store not found / inactive stores show error page
-
-## Firebase Cloud Messaging (FCM V1)
-- **FCM V1 API:** Uses `google-auth-library` with service account (`FIREBASE_SERVICE_ACCOUNT_JSON`) for OAuth2 tokens
-- **Endpoint:** `https://fcm.googleapis.com/v1/projects/{projectId}/messages:send`
-- **Unified Service Worker:** `client/public/sw.js` handles both app-shell caching AND FCM background messages
-- `/firebase-messaging-sw.js` redirects 301 to `/sw.js` for FCM SDK compatibility
-- **Config Endpoint:** `/api/firebase-config` returns Firebase config JSON for SW initialization
-- **Token Flow:** Customer submits order → notification permission requested → FCM token stored in pager doc `fcmToken` field
-- **Push Relay:** Dashboard reads `fcmToken` from pager doc → fetches auth token from `/api/push-auth` → POST `/api/send-push` with `X-Push-Auth` header
-- **Auth Protection:** `/api/send-push` requires `X-Push-Auth` header derived from `SESSION_SECRET` (SHA-256 hash)
-- **Background Notifications:** SW shows notification with vibration, icon, requireInteraction when app is backgrounded
-- `messagingSenderId` extracted from `VITE_FIREBASE_APP_ID` (format `1:SENDER_ID:web:HEX`)
-- Token persistence uses `onSnapshot` with retry (waits for pager doc to appear, 30s timeout)
-
-## Passwordless OTP Authentication (Resend + Session-based)
-- **No passwords** — both login and registration use email OTP only
-- **POST `/api/send-otp`**: Sends 6-digit OTP via Resend, stores OTP in Firestore `otps` collection
-- **POST `/api/verify-otp`**: Validates OTP (10-min expiry, max 5 attempts, 6-digit format enforced) → returns UID and custom token
-- **Session-based auth**: Client stores `{uid, email}` in localStorage (`dp-session`), no Firebase Auth SDK needed for login
-- **No `signInWithCustomToken`** — completely removed Firebase Auth client dependency; sessions are managed via localStorage
-- **Login flow**: Email → Send OTP → Enter 6-digit code → Server verifies → Client stores session → Navigate to dashboard
-- **Registration flow**: Fill store details + email → Send OTP → Verify OTP (gets UID) → Store session → Save merchant data to Firestore
-- OTPs stored in Firestore `otps` collection (persists across server restarts); branded HTML email template (neon red/black theme, Arabic/English)
-- Real-time merchant status via Firestore `onSnapshot` — admin approval/suspension reflects immediately in merchant dashboard
-- Master OTP `123456` works in dev mode (NODE_ENV !== "production"), bypasses Firestore OTP check entirely
-- Error codes: `OTP_EXPIRED`, `INVALID_CODE`, `TOO_MANY_ATTEMPTS`, `NO_OTP`
-
-## Route Guards (App.tsx)
-- **ProtectedRoute**: Shows spinner while `loading` or while `user` exists but `merchant` hasn't loaded yet (5s timeout before redirecting to /pending). Rejected/suspended merchants redirected to /login.
-- **PendingRoute**: Shows spinner while merchant loading; redirects to /dashboard if merchant exists with approved/pending status.
-- **GuestRoute**: Redirects logged-in users to appropriate pages based on role/status.
-- **login()** sets `loading=true` to prevent route guards from making premature redirect decisions before merchant data loads from Firestore onSnapshot.
-
-## Registration Resilience
-- If client-side Firestore `setDoc` fails, falls back to **POST `/api/register-merchant`** (requires `Authorization: Bearer <idToken>` header)
-- Server-side fallback writes to Firestore via REST API + service account OAuth2 token
-- Logo upload failure doesn't block registration (gracefully continues)
-
-## Super Admin (SaaS Dashboard)
-- Email-gated access: only `yahiatohary@hotmail.com` can access `/super-admin`
-- Admin login bypasses merchant checks entirely (server returns `isAdmin: true`, client uses `window.location.href` redirect)
-- **Tabs**: Merchants, Settings
-- **Merchants Tab**:
-  - Stats cards: Total Merchants, Total Alerts Today (from API), Total Viral Shares, Active, Subscribed
-  - Table columns: Store Name, Owner, Status, Subscription, Expiry Date (inline editable), Shares, GMaps Clicks, Actions
-  - Actions: Activate/Suspend toggle, Activate Subscription, Login as Merchant (impersonation), Download QR, Delete
-  - Delete requires confirmation dialog
-- **Settings Tab**:
-  - Global settings form: App Name, Global Logo URL, Support WhatsApp, Global Theme Color (with color picker)
-  - Saves to Firestore `systemSettings/global` document
-- **API Routes**:
-  - `POST /api/admin/impersonate/:merchantId` - returns merchant data for impersonation
-  - `GET/POST /api/admin/settings` - CRUD for system settings
-  - `GET /api/admin/stats` - total alerts today count
-  - `POST /api/track/share/:storeId` - atomic increment sharesCount
-  - `POST /api/track/gmaps/:storeId` - atomic increment googleMapsClicks
-  - Admin routes verify admin email via `x-admin-email` header
-
-## Subscription System
-- Two-layer gating: `status` (account approval) + `subscriptionStatus` (subscription gate)
-- Registration defaults: `subscriptionStatus: "pending"`, `plan: "trial"`
-- Dashboard shows "Subscription Required" screen if `subscriptionStatus !== "active"`, with WhatsApp contact button
-- Super Admin "Activate" button sets both `status: "approved"` AND `subscriptionStatus: "active"`
-- Separate "Activate Sub" button for re-activating subscription on already-approved stores
-- Modular plan enum (trial/basic/premium/enterprise) ready for Stripe/payment integration
-- Plan labels stored in schema with AR/EN translations
-- `subscriptionExpiry` field (string/null) with countdown display on merchant dashboard
-
-## Marketing & Tracking
-- **Share Feature**: Customer page has "Share with Friends" button (Web Share API with clipboard fallback)
-  - Increments `sharesCount` atomically via Firestore field transforms
-- **Google Maps Feature**: "Rate us on Google Maps" button on customer page
-  - Increments `googleMapsClicks` atomically, then opens merchant's `googleMapsReviewUrl`
-- **QR Scan Tracking**: Customer pager page (`/s/:storeId`) increments `qrScans` on page load
-  - Session protection: localStorage dedup key `dp-qrscan-{storeId}` limits to 1 count per hour per user
-  - `POST /api/track/qrscan/:storeId` uses atomic Firestore field transform
-  - Super Admin table shows "QR Scans" column; Merchant dashboard shows "Total Visitors via QR" card
-- **Merchant Dashboard**: Shows Shares, Google Maps Clicks, and QR Scans cards with real-time updates via onSnapshot
-- Share URL format: `/s/{storeId}` (matches app routes)
-
-## PWA (Progressive Web App)
-- `manifest.json` at `client/public/manifest.json` with neon red/black theme, `gcm_sender_id` for FCM
-- Icons: 72, 96, 128, 144, 152, 192, 384, 512px (generated from favicon.png)
-- Unified service worker at `client/public/sw.js` with app-shell caching + FCM background messages + navigation fallback
-- Apple meta tags: `apple-mobile-web-app-capable`, `apple-touch-icon`, `apple-mobile-web-app-status-bar-style`
-- Service worker registered inline in `client/index.html`
-- iOS Install Prompt (`client/src/components/ios-install-prompt.tsx`):
-  - Detects iOS Safari (non-standalone) via UA sniffing
-  - Shows after 2s delay with Share icon → Plus icon instructions (AR/EN)
-  - Explains alert benefits of home screen install
-  - Dismissible with localStorage persistence (`dp-ios-prompt-dismissed`)
-  - Rendered at top level of store-pager across all states
-
-## Screen Wake Lock
-- `client/src/hooks/use-wake-lock.ts` supports auto-acquire (dashboard) and manual mode (pager)
-- Dashboard: `useWakeLock()` — auto-acquires on mount, re-acquires on visibility change
-- Store Pager: `useWakeLock(false)` — acquires on form submit, releases on alert stop
-- **iOS Fix:** Wake lock re-acquires on visibility change even in manual mode (once initially activated via `wasManuallyAcquired` flag), preventing iOS from losing the lock on tab switch
-- Green/yellow indicator pill shown at bottom of waiting screen
-
-## Environment Variables
-- `VITE_FIREBASE_API_KEY` - Firebase API key
-- `VITE_FIREBASE_PROJECT_ID` - Firebase project ID
-- `VITE_FIREBASE_APP_ID` - Firebase app ID
-- `VITE_FIREBASE_VAPID_KEY` - Firebase Cloud Messaging VAPID key (for FCM token generation)
-- `FIREBASE_SERVICE_ACCOUNT_JSON` - Firebase service account JSON (for FCM V1 OAuth2 authentication)
-- `SESSION_SECRET` - Session secret (also used to derive push auth tokens)
-- `RESEND_API_KEY` - Resend API key for sending OTP emails (optional; logs to console if not set)
-
-## Key Files
-- `client/src/lib/firebase.ts` - Firebase initialization + FCM token generation
-- `client/src/hooks/use-auth.ts` - Auth state hook (context-based)
-- `client/src/hooks/use-language.ts` - Language context (AR/EN toggle)
-- `client/src/hooks/use-wake-lock.ts` - Screen Wake Lock API hook
-- `client/src/hooks/use-fullscreen.ts` - Fullscreen API hook
-- `shared/schema.ts` - Zod schemas for merchant data with Arabic validation messages
-- `client/src/pages/super-admin.tsx` - Super Admin dashboard
-- `client/src/pages/store-pager.tsx` - Public customer pager page with FCM integration
-- `client/src/pages/dashboard.tsx` - Kiosk dashboard with push notification sending
-- `client/src/components/ios-install-prompt.tsx` - iOS PWA install prompt
-- `client/public/sw.js` - Unified service worker (caching + FCM background messages)
-- `server/routes.ts` - Express API routes (logo upload, QR generation, FCM push relay, Firebase config)
+## External Dependencies
+- **Firebase Firestore**: Main database for all application data.
+- **Firebase Authentication**: Used for UID generation and custom token creation for the passwordless OTP system.
+- **Firebase Cloud Messaging (FCM)**: For sending real-time push notifications to customer devices.
+- **Resend**: Used for sending OTP emails during the authentication process.
+- **Multer**: For handling local file uploads (specifically merchant logos).
+- **Vite**: Frontend build tool.
+- **React**: Frontend JavaScript library.
+- **TailwindCSS**: CSS framework for styling.
+- **shadcn/ui**: UI component library built on Tailwind CSS.
+- **Node.js/Express**: Backend server environment and framework.
+- **`google-auth-library`**: For OAuth2 authentication with FCM V1 API.
