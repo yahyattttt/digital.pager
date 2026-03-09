@@ -106,6 +106,25 @@ A multi-tenant SaaS platform for digital pager services (restaurants, cafes, cli
 - Modular plan enum (trial/basic/premium/enterprise) ready for Stripe/payment integration
 - Plan labels stored in schema with AR/EN translations
 
+## PWA (Progressive Web App)
+- `manifest.json` at `client/public/manifest.json` with neon red/black theme
+- Icons: 72, 96, 128, 144, 152, 192, 384, 512px (generated from favicon.png)
+- Service worker at `client/public/sw.js` with app-shell caching + navigation fallback
+- Apple meta tags: `apple-mobile-web-app-capable`, `apple-touch-icon`, `apple-mobile-web-app-status-bar-style`
+- Service worker registered inline in `client/index.html`
+- iOS Install Prompt (`client/src/components/ios-install-prompt.tsx`):
+  - Detects iOS Safari (non-standalone) via UA sniffing
+  - Shows after 2s delay with Share icon → Plus icon instructions (AR/EN)
+  - Explains alert benefits of home screen install
+  - Dismissible with localStorage persistence (`dp-ios-prompt-dismissed`)
+  - Rendered at top level of store-pager across all states
+
+## Screen Wake Lock
+- `client/src/hooks/use-wake-lock.ts` supports auto-acquire (dashboard) and manual mode (pager)
+- Dashboard: `useWakeLock()` — auto-acquires on mount, re-acquires on visibility change
+- Store Pager: `useWakeLock(false)` — acquires on form submit, releases on alert stop
+- Green/yellow indicator pill shown at bottom of waiting screen
+
 ## Environment Variables
 - `VITE_FIREBASE_API_KEY` - Firebase API key
 - `VITE_FIREBASE_PROJECT_ID` - Firebase project ID

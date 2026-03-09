@@ -6,7 +6,9 @@ import type { Merchant, Pager } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Star, Send, Store, AlertTriangle, Bell, BellOff, CheckCircle } from "lucide-react";
+import { Star, Store, AlertTriangle, Bell, BellOff, CheckCircle } from "lucide-react";
+import { useWakeLock } from "@/hooks/use-wake-lock";
+import IosInstallPrompt from "@/components/ios-install-prompt";
 
 function useAlertSound() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -237,6 +239,7 @@ export default function StorePagerPage() {
   const reviewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { unlock, play, stop: stopSound } = useAlertSound();
   const { start: startVibration, stop: stopVibration } = useVibrationLoop();
+  const { isActive: wakeLockActive, isSupported: wakeLockSupported, requestWakeLock, releaseWakeLock } = useWakeLock(false);
 
   useEffect(() => {
     async function fetchStore() {
@@ -308,6 +311,7 @@ export default function StorePagerPage() {
     e.preventDefault();
     if (!orderNumber.trim()) return;
     unlock();
+    requestWakeLock();
     hasPlayedNotification.current = false;
     setPagerStatus("waiting");
     setShowReview(false);
@@ -319,18 +323,19 @@ export default function StorePagerPage() {
     stopSound();
     stopVibration();
     setAlertActive(false);
+    releaseWakeLock();
   }
 
+  let content: JSX.Element;
+
   if (loading) {
-    return (
+    content = (
       <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
       </div>
     );
-  }
-
-  if (notFound || !merchant) {
-    return (
+  } else if (notFound || !merchant) {
+    content = (
       <div className="min-h-screen bg-black flex items-center justify-center p-6">
         <Card className="w-full max-w-sm border-red-600/20 bg-black">
           <CardContent className="pt-8 pb-8 text-center">
@@ -347,10 +352,8 @@ export default function StorePagerPage() {
         </Card>
       </div>
     );
-  }
-
-  if (submitted && pagerStatus === "notified") {
-    return (
+  } else if (submitted && pagerStatus === "notified") {
+    content = (
       <NotifiedScreen
         orderNumber={orderNumber}
         storeName={merchant.storeName}
@@ -360,70 +363,90 @@ export default function StorePagerPage() {
         onStopAlert={handleStopAlert}
       />
     );
-  }
-
-  if (submitted && pagerStatus === "waiting") {
-    return <WaitingScreen orderNumber={orderNumber} storeName={merchant.storeName} />;
+  } else if (submitted && pagerStatus === "waiting") {
+    content = (
+      <>
+        <WaitingScreen orderNumber={orderNumber} storeName={merchant.storeName} />
+        {wakeLockSupported && (
+          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-zinc-900/80 backdrop-blur-sm border border-zinc-800 rounded-full px-3 py-1.5">
+            <div className={`w-2 h-2 rounded-full ${wakeLockActive ? "bg-green-500" : "bg-yellow-500 animate-pulse"}`} />
+            <span className="text-gray-400 text-[10px]">{wakeLockActive ? "Screen stays on" : "Requesting wake lock..."}</span>
+          </div>
+        )}
+      </>
+    );
+  } else if (merchant) {
+    content = (
+      <div className="min-h-screen bg-black flex items-center justify-center p-6 relative">
+        <Card className="w-full max-w-sm border-red-600/20 bg-zinc-950">
+          <CardContent className="pt-8 pb-8">
+            <div className="text-center mb-8">
+              {merchant.logoUrl ? (
+                <img
+                  src={merchant.logoUrl}
+                  alt={merchant.storeName}
+                  className="w-20 h-20 rounded-full object-cover border-2 border-red-600/30 mx-auto mb-4"
+                  data-testid="img-store-logo"
+                />
+              ) : (
+                <div className="w-20 h-20 rounded-full bg-red-600/10 border-2 border-red-600/30 flex items-center justify-center mx-auto mb-4">
+                  <Store className="w-10 h-10 text-red-500" />
+                </div>
+              )}
+              <h1 className="text-white text-2xl font-bold mb-1" data-testid="text-store-name-entry">
+                {merchant.storeName}
+              </h1>
+              <p className="text-gray-400 text-sm" dir="rtl">
+                أدخل رقم طلبك للانتظار
+              </p>
+              <p className="text-gray-500 text-xs mt-1">
+                Enter your order number to start waiting
+              </p>
+            </div>
+            <form onSubmit={handleUnlockAndSubmit} className="space-y-4">
+              <Input
+                type="text"
+                inputMode="numeric"
+                placeholder="رقم الطلب / Order Number"
+                value={orderNumber}
+                onChange={(e) => setOrderNumber(e.target.value)}
+                className="h-16 text-center text-2xl font-bold bg-black border-red-600/30 text-white placeholder:text-gray-600 focus:border-red-500 focus:ring-red-500/20"
+                dir="ltr"
+                data-testid="input-order-number"
+              />
+              <Button
+                type="submit"
+                size="lg"
+                disabled={!orderNumber.trim()}
+                className="w-full h-14 text-lg font-bold bg-red-600 hover:bg-red-700 text-white disabled:opacity-30"
+                data-testid="button-submit-order"
+              >
+                <Bell className="w-5 h-5 me-2" />
+                <span dir="rtl">ابدأ الانتظار واستقبل التنبيه</span>
+              </Button>
+              <p className="text-center text-gray-600 text-xs" dir="rtl">
+                بالضغط على الزر، سيتم تفعيل الصوت والاهتزاز للتنبيه
+              </p>
+              <p className="text-center text-gray-700 text-[10px]">
+                Pressing the button enables sound & vibration alerts
+              </p>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  } else {
+    content = (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
   }
 
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center p-6">
-      <Card className="w-full max-w-sm border-red-600/20 bg-zinc-950">
-        <CardContent className="pt-8 pb-8">
-          <div className="text-center mb-8">
-            {merchant.logoUrl ? (
-              <img
-                src={merchant.logoUrl}
-                alt={merchant.storeName}
-                className="w-20 h-20 rounded-full object-cover border-2 border-red-600/30 mx-auto mb-4"
-                data-testid="img-store-logo"
-              />
-            ) : (
-              <div className="w-20 h-20 rounded-full bg-red-600/10 border-2 border-red-600/30 flex items-center justify-center mx-auto mb-4">
-                <Store className="w-10 h-10 text-red-500" />
-              </div>
-            )}
-            <h1 className="text-white text-2xl font-bold mb-1" data-testid="text-store-name-entry">
-              {merchant.storeName}
-            </h1>
-            <p className="text-gray-400 text-sm" dir="rtl">
-              أدخل رقم طلبك للانتظار
-            </p>
-            <p className="text-gray-500 text-xs mt-1">
-              Enter your order number to start waiting
-            </p>
-          </div>
-
-          <form onSubmit={handleUnlockAndSubmit} className="space-y-4">
-            <Input
-              type="text"
-              inputMode="numeric"
-              placeholder="رقم الطلب / Order Number"
-              value={orderNumber}
-              onChange={(e) => setOrderNumber(e.target.value)}
-              className="h-16 text-center text-2xl font-bold bg-black border-red-600/30 text-white placeholder:text-gray-600 focus:border-red-500 focus:ring-red-500/20"
-              dir="ltr"
-              data-testid="input-order-number"
-            />
-            <Button
-              type="submit"
-              size="lg"
-              disabled={!orderNumber.trim()}
-              className="w-full h-14 text-lg font-bold bg-red-600 hover:bg-red-700 text-white disabled:opacity-30"
-              data-testid="button-submit-order"
-            >
-              <Bell className="w-5 h-5 me-2" />
-              <span dir="rtl">ابدأ الانتظار واستقبل التنبيه</span>
-            </Button>
-            <p className="text-center text-gray-600 text-xs" dir="rtl">
-              بالضغط على الزر، سيتم تفعيل الصوت والاهتزاز للتنبيه
-            </p>
-            <p className="text-center text-gray-700 text-[10px]">
-              Pressing the button enables sound & vibration alerts
-            </p>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+    <>
+      <IosInstallPrompt />
+      {content}
+    </>
   );
 }
