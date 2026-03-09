@@ -261,7 +261,7 @@ export async function registerRoutes(
       const resend = new Resend(resendApiKey);
 
       await resend.emails.send({
-        from: "Digital Pager <noreply@digitalpager.app>",
+        from: "Digital Pager <onboarding@resend.dev>",
         to: emailLower,
         subject: "رمز التحقق - Digital Pager Verification Code",
         html: `
