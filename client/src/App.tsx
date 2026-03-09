@@ -7,7 +7,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthContext, useAuthProvider, useAuth } from "@/hooks/use-auth";
 import { LanguageContext, useLanguageProvider } from "@/hooks/use-language";
 import NotFound from "@/pages/not-found";
-import IosInstallPrompt from "@/components/ios-install-prompt";
 import LandingPage from "@/pages/landing";
 import RegisterPage from "@/pages/register";
 import LoginPage from "@/pages/login";
@@ -207,7 +206,6 @@ function App() {
         <LanguageContext.Provider value={langValue}>
           <AuthContext.Provider value={authValue}>
             <Toaster />
-            <IosInstallPrompt />
             <Router />
           </AuthContext.Provider>
         </LanguageContext.Provider>
