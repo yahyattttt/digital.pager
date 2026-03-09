@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const merchantStatusEnum = z.enum(["pending", "approved", "rejected"]);
+export const merchantStatusEnum = z.enum(["pending", "approved", "rejected", "suspended"]);
 export type MerchantStatus = z.infer<typeof merchantStatusEnum>;
 
 export const businessTypeEnum = z.enum(["restaurant", "cafe", "clinic", "other"]);

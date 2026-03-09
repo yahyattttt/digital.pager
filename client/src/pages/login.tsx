@@ -58,6 +58,10 @@ export default function LoginPage() {
       );
 
       if (!merchantDoc.exists()) {
+        if (data.email === "yahiatohary@hotmail.com") {
+          setLocation("/super-admin");
+          return;
+        }
         toast({
           title: t("الحساب غير موجود", "Account not found"),
           description: t(
@@ -77,6 +81,7 @@ export default function LoginPage() {
       }
 
       if (merchant.status === "rejected") {
+        await signOut(auth);
         toast({
           title: t("تم رفض الحساب", "Account Rejected"),
           description: t(
@@ -85,6 +90,24 @@ export default function LoginPage() {
           ),
           variant: "destructive",
         });
+        return;
+      }
+
+      if (merchant.status === "suspended") {
+        await signOut(auth);
+        toast({
+          title: t("الحساب موقوف", "Account Suspended"),
+          description: t(
+            "تم إيقاف حسابك. يرجى التواصل مع الدعم الفني.",
+            "Your account has been suspended. Please contact support."
+          ),
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (data.email === "yahiatohary@hotmail.com") {
+        setLocation("/super-admin");
         return;
       }
 

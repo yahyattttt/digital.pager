@@ -53,6 +53,18 @@ A multi-tenant SaaS platform for digital pager services (restaurants, cafes, cli
 - `/login` - Sign in
 - `/pending` - Shown when merchant status is "pending"
 - `/dashboard` - Kiosk-mode dashboard (split-screen, fullscreen, wake lock)
+- `/super-admin` - Super Admin panel (only yahiatohary@hotmail.com)
+
+## Super Admin
+- Email-gated access: only `yahiatohary@hotmail.com` can access `/super-admin`
+- Non-admin users redirected to `/`
+- Stores management table: Store Name, Owner, Email, Type, Status
+- Status badges: Pending (yellow), Active (green), Suspended (red)
+- Action buttons: تفعيل (Activate), إيقاف (Suspend), حذف (Delete)
+- Delete requires confirmation dialog
+- Real-time toast notifications on actions
+- Stats cards: Total, Pending, Active, Suspended
+- Suspended/rejected merchants are signed out on login attempt
 
 ## Environment Variables
 - `VITE_FIREBASE_API_KEY` - Firebase API key
@@ -66,4 +78,5 @@ A multi-tenant SaaS platform for digital pager services (restaurants, cafes, cli
 - `client/src/hooks/use-wake-lock.ts` - Screen Wake Lock API hook
 - `client/src/hooks/use-fullscreen.ts` - Fullscreen API hook
 - `shared/schema.ts` - Zod schemas for merchant data with Arabic validation messages
+- `client/src/pages/super-admin.tsx` - Super Admin dashboard
 - `server/routes.ts` - Express API routes (logo upload)
