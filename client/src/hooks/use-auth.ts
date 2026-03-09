@@ -1,5 +1,5 @@
 import { useState, useEffect, createContext, useContext, useCallback } from "react";
-import { doc, onSnapshot } from "firebase/firestore";
+import { doc, onSnapshot, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Merchant } from "@shared/schema";
 
@@ -62,11 +62,25 @@ export function useAuthProvider() {
       return;
     }
 
+    const merchantDocRef = doc(db, "merchants", user.uid);
     const unsub = onSnapshot(
-      doc(db, "merchants", user.uid),
-      (snap) => {
+      merchantDocRef,
+      async (snap) => {
         if (snap.exists()) {
-          setMerchant(snap.data() as Merchant);
+          const data = snap.data() as Merchant;
+          if (
+            data.subscriptionStatus === "active" &&
+            data.subscriptionExpiry &&
+            new Date(data.subscriptionExpiry) < new Date()
+          ) {
+            try {
+              await updateDoc(merchantDocRef, { subscriptionStatus: "expired" });
+            } catch (e) {
+              console.error("Auto-expire update failed:", e);
+            }
+            return;
+          }
+          setMerchant(data);
         } else {
           setMerchant(null);
         }

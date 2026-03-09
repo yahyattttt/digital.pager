@@ -52,7 +52,10 @@ import {
   Share2,
   MapPin,
   Clock,
+  AlertTriangle,
+  ShieldCheck,
 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 
 const businessTypeLabelsEn: Record<string, string> = {
   restaurant: "Restaurant",
@@ -66,6 +69,8 @@ const ADMIN_WHATSAPP = "https://wa.me/966500000000";
 function SubscriptionRequiredScreen({
   storeName,
   plan,
+  subscriptionStatus,
+  subscriptionExpiry,
   onSignOut,
   t,
   toggleLanguage,
@@ -73,6 +78,8 @@ function SubscriptionRequiredScreen({
 }: {
   storeName: string;
   plan: string;
+  subscriptionStatus: string;
+  subscriptionExpiry?: string | null;
   onSignOut: () => void;
   t: (ar: string, en: string) => string;
   toggleLanguage: () => void;
@@ -84,14 +91,36 @@ function SubscriptionRequiredScreen({
       : planLabels[plan].en
     : plan;
 
+  const isExpired = subscriptionStatus === "expired";
+
+  let expiredAgoText = "";
+  if (isExpired && subscriptionExpiry) {
+    const expiryDate = new Date(subscriptionExpiry);
+    const now = new Date();
+    const diffMs = now.getTime() - expiryDate.getTime();
+    if (diffMs > 0) {
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      if (diffDays > 0) {
+        expiredAgoText = lang === "ar"
+          ? `انتهى منذ ${diffDays} يوم و ${diffHours} ساعة`
+          : `Expired ${diffDays} day${diffDays !== 1 ? "s" : ""} and ${diffHours} hour${diffHours !== 1 ? "s" : ""} ago`;
+      } else {
+        expiredAgoText = lang === "ar"
+          ? `انتهى منذ ${diffHours} ساعة`
+          : `Expired ${diffHours} hour${diffHours !== 1 ? "s" : ""} ago`;
+      }
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-primary/3 rounded-full blur-3xl" />
+        <div className={`absolute top-1/4 left-1/4 w-96 h-96 ${isExpired ? "bg-red-500/5" : "bg-primary/5"} rounded-full blur-3xl`} />
+        <div className={`absolute bottom-1/4 right-1/4 w-96 h-96 ${isExpired ? "bg-red-500/3" : "bg-primary/3"} rounded-full blur-3xl`} />
       </div>
 
-      <Card className="w-full max-w-lg relative border-primary/20">
+      <Card className={`w-full max-w-lg relative ${isExpired ? "border-red-500/30" : "border-primary/20"}`}>
         <CardContent className="pt-8 pb-8">
           <div className="flex justify-end mb-4">
             <Button
@@ -106,23 +135,40 @@ function SubscriptionRequiredScreen({
           </div>
 
           <div className="text-center">
-            <div className="mx-auto w-20 h-20 rounded-full bg-primary/10 border-2 border-primary/30 flex items-center justify-center mb-6">
-              <Lock className="w-10 h-10 text-primary" data-testid="icon-subscription-lock" />
+            <div className={`mx-auto w-20 h-20 rounded-full ${isExpired ? "bg-red-500/10 border-red-500/30" : "bg-primary/10 border-primary/30"} border-2 flex items-center justify-center mb-6`}>
+              {isExpired ? (
+                <Clock className="w-10 h-10 text-red-500" data-testid="icon-subscription-expired" />
+              ) : (
+                <Lock className="w-10 h-10 text-primary" data-testid="icon-subscription-lock" />
+              )}
             </div>
 
-            <h2 className="text-2xl font-bold mb-2" data-testid="text-subscription-title">
-              {t("الاشتراك مطلوب", "Subscription Required")}
+            <h2 className={`text-2xl font-bold mb-2 ${isExpired ? "text-red-500" : ""}`} data-testid="text-subscription-title">
+              {isExpired
+                ? t("انتهى الاشتراك", "Subscription Expired")
+                : t("الاشتراك مطلوب", "Subscription Required")}
             </h2>
 
+            {isExpired && expiredAgoText && (
+              <p className="text-red-400 text-sm font-medium mb-4" data-testid="text-expired-ago">
+                {expiredAgoText}
+              </p>
+            )}
+
             <p className="text-muted-foreground mb-6" data-testid="text-subscription-message">
-              {t(
-                `مرحباً بك في ${storeName}. لتفعيل لوحة التحكم واستخدام نظام البيجر الرقمي، يرجى تفعيل اشتراكك.`,
-                `Welcome to ${storeName}. To access the dashboard and use the digital pager system, please activate your subscription.`
-              )}
+              {isExpired
+                ? t(
+                    `اشتراك ${storeName} قد انتهى. لاستعادة الوصول إلى لوحة التحكم ونظام البيجر الرقمي، يرجى تجديد اشتراكك.`,
+                    `Your subscription for ${storeName} has expired. To restore access to the dashboard and digital pager system, please renew your subscription.`
+                  )
+                : t(
+                    `مرحباً بك في ${storeName}. لتفعيل لوحة التحكم واستخدام نظام البيجر الرقمي، يرجى تفعيل اشتراكك.`,
+                    `Welcome to ${storeName}. To access the dashboard and use the digital pager system, please activate your subscription.`
+                  )}
             </p>
 
             <div className="p-4 rounded-lg bg-muted/30 border border-border/50 mb-6">
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center justify-between gap-2 mb-3">
                 <span className="text-sm text-muted-foreground">
                   {t("الخطة الحالية", "Current Plan")}
                 </span>
@@ -131,32 +177,45 @@ function SubscriptionRequiredScreen({
                   {planLabel}
                 </Badge>
               </div>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <span className="text-sm text-muted-foreground">
                   {t("حالة الاشتراك", "Subscription Status")}
                 </span>
-                <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30" data-testid="badge-subscription-status">
-                  {t("غير مفعّل", "Inactive")}
-                </Badge>
+                {isExpired ? (
+                  <Badge className="bg-red-500/20 text-red-400 border-red-500/30" data-testid="badge-subscription-status">
+                    {t("منتهي", "Expired")}
+                  </Badge>
+                ) : (
+                  <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30" data-testid="badge-subscription-status">
+                    {t("غير مفعّل", "Inactive")}
+                  </Badge>
+                )}
               </div>
             </div>
 
             <div className="flex flex-col gap-3">
               <Button
                 size="lg"
-                className="w-full h-14 text-base font-bold"
+                className={`w-full h-14 text-base font-bold ${isExpired ? "bg-red-600 hover:bg-red-700 text-white" : ""}`}
                 onClick={() => window.open(ADMIN_WHATSAPP, "_blank")}
                 data-testid="button-contact-whatsapp"
               >
                 <MessageCircle className="w-5 h-5 me-2" />
-                {t("تواصل معنا عبر واتساب", "Contact Us on WhatsApp")}
+                {isExpired
+                  ? t("تجديد الاشتراك عبر واتساب", "Renew via WhatsApp")
+                  : t("تواصل معنا عبر واتساب", "Contact Us on WhatsApp")}
               </Button>
 
               <p className="text-xs text-muted-foreground">
-                {t(
-                  "تواصل مع فريق الإدارة لتفعيل اشتراكك والبدء باستخدام النظام",
-                  "Contact the admin team to activate your subscription and start using the system"
-                )}
+                {isExpired
+                  ? t(
+                      "تواصل مع فريق الإدارة لتجديد اشتراكك واستعادة الوصول",
+                      "Contact the admin team to renew your subscription and restore access"
+                    )
+                  : t(
+                      "تواصل مع فريق الإدارة لتفعيل اشتراكك والبدء باستخدام النظام",
+                      "Contact the admin team to activate your subscription and start using the system"
+                    )}
               </p>
 
               <Button
@@ -172,6 +231,117 @@ function SubscriptionRequiredScreen({
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function SubscriptionBanner({
+  merchant,
+  t,
+  lang,
+}: {
+  merchant: { subscriptionExpiry?: string | null; subscriptionStartAt?: string | null; subscriptionStatus?: string; plan?: string };
+  t: (ar: string, en: string) => string;
+  lang: string;
+}) {
+  const expiry = merchant.subscriptionExpiry;
+  const [now, setNow] = useState(new Date());
+
+  useEffect(() => {
+    if (!expiry) return;
+    const timer = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(timer);
+  }, [expiry]);
+
+  if (!expiry) return null;
+
+  const expiryDate = new Date(expiry);
+  const diffMs = expiryDate.getTime() - now.getTime();
+  const daysRemaining = Math.max(0, diffMs / (1000 * 60 * 60 * 24));
+  const daysRemainingWhole = Math.floor(daysRemaining);
+  const hoursRemaining = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+
+  let totalCycleDays = 30;
+  if (merchant.subscriptionStartAt) {
+    const startDate = new Date(merchant.subscriptionStartAt);
+    const cycleDiff = (expiryDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
+    if (cycleDiff > 0) totalCycleDays = Math.round(cycleDiff);
+  }
+  const progressPercent = Math.max(0, Math.min(100, (daysRemaining / totalCycleDays) * 100));
+
+  const isExpiringSoon = daysRemaining <= 7;
+  const isUrgent = daysRemaining <= 3;
+
+  let barColor = "bg-green-500";
+  let bannerBg = "bg-green-500/5 border-green-500/20";
+  let iconColor = "text-green-500";
+  let statusText = t("نشط", "Active");
+  let StatusIcon = ShieldCheck;
+
+  if (isUrgent) {
+    barColor = "bg-red-500";
+    bannerBg = "bg-red-500/5 border-red-500/20";
+    iconColor = "text-red-500";
+    statusText = t("ينتهي قريباً جداً", "Expiring Very Soon");
+    StatusIcon = AlertTriangle;
+  } else if (isExpiringSoon) {
+    barColor = "bg-orange-500";
+    bannerBg = "bg-orange-500/5 border-orange-500/20";
+    iconColor = "text-orange-500";
+    statusText = t("ينتهي قريباً", "Expiring Soon");
+    StatusIcon = AlertTriangle;
+  }
+
+  return (
+    <div className={`border-b ${bannerBg} px-4 py-3`} data-testid="banner-subscription-status">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${isExpiringSoon ? (isUrgent ? "bg-red-500/10" : "bg-orange-500/10") : "bg-green-500/10"}`}>
+            <StatusIcon className={`w-5 h-5 ${iconColor}`} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={`font-bold text-sm ${iconColor}`} data-testid="text-subscription-status-label">
+                {statusText}
+              </span>
+              {isExpiringSoon ? (
+                <span className="text-sm text-muted-foreground" data-testid="text-subscription-countdown">
+                  {t(
+                    `ينتهي اشتراكك خلال ${daysRemainingWhole} يوم، ${hoursRemaining} ساعة`,
+                    `Your subscription expires in ${daysRemainingWhole} days, ${hoursRemaining} hours`
+                  )}
+                </span>
+              ) : (
+                <span className="text-sm text-muted-foreground" data-testid="text-subscription-remaining">
+                  {daysRemainingWhole} {t("يوم متبقي", "days remaining")}
+                </span>
+              )}
+            </div>
+            <div className="mt-2 flex items-center gap-3">
+              <div className="flex-1 h-2 rounded-full bg-muted/50 overflow-hidden" data-testid="progress-subscription">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${barColor}`}
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+              <span className="text-xs text-muted-foreground flex-shrink-0">
+                {Math.round(progressPercent)}%
+              </span>
+            </div>
+          </div>
+        </div>
+        {isExpiringSoon && (
+          <Button
+            size="sm"
+            onClick={() => window.open(ADMIN_WHATSAPP, "_blank")}
+            className={isUrgent ? "bg-red-500 hover:bg-red-600 text-white flex-shrink-0" : "bg-orange-500 hover:bg-orange-600 text-white flex-shrink-0"}
+            data-testid="button-renew-whatsapp"
+          >
+            <MessageCircle className="w-4 h-4 me-1.5" />
+            {t("تواصل للتجديد", "Contact Admin to Renew")}
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
@@ -388,6 +558,8 @@ export default function DashboardPage() {
       <SubscriptionRequiredScreen
         storeName={merchant.storeName}
         plan={merchant.plan || "trial"}
+        subscriptionStatus={merchant.subscriptionStatus}
+        subscriptionExpiry={merchant.subscriptionExpiry}
         onSignOut={handleSignOut}
         t={t}
         toggleLanguage={toggleLanguage}
@@ -428,6 +600,8 @@ export default function DashboardPage() {
           </span>
         </div>
       )}
+      <SubscriptionBanner merchant={merchant} t={t} lang={lang} />
+
       <header className="border-b border-primary/20 px-4 py-3 flex-shrink-0">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -764,42 +938,66 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
 
-            <Card className="border-primary/20">
+            <Card className={`border-primary/20 ${(() => {
+              const expiry = merchant.subscriptionExpiry;
+              if (expiry) {
+                const diffMs = new Date(expiry).getTime() - Date.now();
+                const days = diffMs / (1000 * 60 * 60 * 24);
+                if (days <= 3) return "border-red-500/30";
+                if (days <= 7) return "border-orange-500/30";
+              }
+              return "";
+            })()}`}>
               <CardContent className="p-4 flex items-center gap-3">
-                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                  <Clock className="w-6 h-6 text-primary" />
+                <div className={`w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 ${(() => {
+                  const expiry = merchant.subscriptionExpiry;
+                  if (expiry) {
+                    const diffMs = new Date(expiry).getTime() - Date.now();
+                    const days = diffMs / (1000 * 60 * 60 * 24);
+                    if (days <= 3) return "bg-red-500/10";
+                    if (days <= 7) return "bg-orange-500/10";
+                  }
+                  return "bg-green-500/10";
+                })()}`}>
+                  {(() => {
+                    const expiry = merchant.subscriptionExpiry;
+                    if (expiry) {
+                      const diffMs = new Date(expiry).getTime() - Date.now();
+                      const days = diffMs / (1000 * 60 * 60 * 24);
+                      if (days <= 7) return <AlertTriangle className={`w-6 h-6 ${days <= 3 ? "text-red-500" : "text-orange-500"}`} />;
+                    }
+                    return <ShieldCheck className="w-6 h-6 text-green-500" />;
+                  })()}
                 </div>
                 <div>
                   {(() => {
-                    const subStatus = merchant.subscriptionStatus || "pending";
                     const expiry = merchant.subscriptionExpiry;
                     let daysRemaining: number | null = null;
-                    let isExpired = false;
 
                     if (expiry) {
-                      const expiryDate = new Date(expiry);
-                      const now = new Date();
-                      const diffMs = expiryDate.getTime() - now.getTime();
-                      daysRemaining = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-                      isExpired = daysRemaining <= 0;
+                      const diffMs = new Date(expiry).getTime() - Date.now();
+                      daysRemaining = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
                     }
+
+                    const isExpiringSoon = daysRemaining !== null && daysRemaining <= 7;
+                    const isUrgent = daysRemaining !== null && daysRemaining <= 3;
 
                     return (
                       <>
-                        {isExpired ? (
-                          <Badge className="bg-red-500/20 text-red-400 border-red-500/30" data-testid="badge-subscription-expired">
-                            {t("منتهي", "Expired")}
+                        {isUrgent ? (
+                          <Badge className="bg-red-500/20 text-red-400 border-red-500/30" data-testid="badge-subscription-urgent">
+                            {t("ينتهي قريباً", "Expiring Soon")}
                           </Badge>
-                        ) : subStatus === "active" ? (
+                        ) : isExpiringSoon ? (
+                          <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/30" data-testid="badge-subscription-warning">
+                            {t("ينتهي قريباً", "Expiring Soon")}
+                          </Badge>
+                        ) : (
                           <Badge className="bg-green-500/20 text-green-400 border-green-500/30" data-testid="badge-subscription-active">
                             {t("نشط", "Active")}
                           </Badge>
-                        ) : (
-                          <Badge variant="secondary" data-testid="badge-subscription-status">
-                            {subStatus === "pending" ? t("معلق", "Pending") : subStatus === "cancelled" ? t("ملغى", "Cancelled") : subStatus}
-                          </Badge>
                         )}
-                        {daysRemaining !== null && !isExpired && (
+                        {daysRemaining !== null && (
                           <p className="text-xs text-muted-foreground mt-0.5" data-testid="text-subscription-days">
                             {daysRemaining} {t("يوم متبقي", "days left")}
                           </p>

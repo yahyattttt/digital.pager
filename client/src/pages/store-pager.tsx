@@ -325,6 +325,7 @@ export default function StorePagerPage() {
   const [merchant, setMerchant] = useState<Merchant | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [serviceUnavailable, setServiceUnavailable] = useState(false);
   const [orderNumber, setOrderNumber] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [pagerStatus, setPagerStatus] = useState<"waiting" | "notified" | "completed">("waiting");
@@ -345,6 +346,8 @@ export default function StorePagerPage() {
           const data = merchantDoc.data() as Merchant;
           if (data.status === "approved" && data.subscriptionStatus === "active") {
             setMerchant(data);
+          } else if (data.status === "approved" && data.subscriptionStatus !== "active") {
+            setServiceUnavailable(true);
           } else {
             setNotFound(true);
           }
@@ -469,6 +472,30 @@ export default function StorePagerPage() {
     content = (
       <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  } else if (serviceUnavailable) {
+    content = (
+      <div className="min-h-screen bg-black flex items-center justify-center p-6">
+        <Card className="w-full max-w-sm border-red-600/20 bg-zinc-950">
+          <CardContent className="pt-8 pb-8 text-center">
+            <div className="mx-auto w-16 h-16 rounded-full bg-yellow-500/10 flex items-center justify-center mb-4">
+              <AlertTriangle className="w-8 h-8 text-yellow-500" />
+            </div>
+            <h2 className="text-white text-xl font-bold mb-2" dir="rtl" data-testid="text-service-unavailable">
+              الخدمة غير متاحة مؤقتاً
+            </h2>
+            <p className="text-white text-sm mb-1" data-testid="text-service-unavailable-en">
+              Service Temporarily Unavailable
+            </p>
+            <p className="text-gray-400 text-sm mt-4" dir="rtl" data-testid="text-service-unavailable-message">
+              هذه الخدمة غير متاحة حالياً. يرجى التواصل مع المنشأة مباشرة.
+            </p>
+            <p className="text-gray-500 text-xs mt-2" data-testid="text-service-unavailable-message-en">
+              This service is currently unavailable. Please contact the establishment directly.
+            </p>
+          </CardContent>
+        </Card>
       </div>
     );
   } else if (notFound || !merchant) {

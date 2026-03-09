@@ -155,7 +155,7 @@ export default function SuperAdminPage() {
   const [deleteTarget, setDeleteTarget] = useState<Merchant | null>(null);
   const [totalAlertsToday, setTotalAlertsToday] = useState(0);
   const [editingExpiry, setEditingExpiry] = useState<string | null>(null);
-  const [expiryValue, setExpiryValue] = useState("");
+  const [expiryDays, setExpiryDays] = useState<string>("");
 
   const [settings, setSettings] = useState<SystemSettings>({
     appName: "Digital Pager",
@@ -547,24 +547,58 @@ export default function SuperAdminPage() {
     }
   }
 
+  function getDaysRemaining(expiryDate: string | null | undefined): number | null {
+    if (!expiryDate) return null;
+    const now = new Date();
+    const expiry = new Date(expiryDate);
+    const diffMs = expiry.getTime() - now.getTime();
+    return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+  }
+
+  function isExpiringSoon(merchant: Merchant): boolean {
+    const days = getDaysRemaining(merchant.subscriptionExpiry);
+    return days !== null && days >= 0 && days <= 5 && merchant.subscriptionStatus === "active";
+  }
+
+  const expiringSoonCount = merchants.filter(isExpiringSoon).length;
+
   async function handleSaveExpiry(merchant: Merchant) {
+    const days = parseInt(expiryDays, 10);
+    if (!days || days <= 0) {
+      toast({
+        title: t("خطأ", "Error"),
+        description: t("يرجى إدخال عدد أيام صحيح", "Please enter a valid number of days"),
+        variant: "destructive",
+      });
+      return;
+    }
     setActionLoading(merchant.uid);
     try {
+      const now = new Date();
+      const expiryDate = new Date();
+      expiryDate.setDate(expiryDate.getDate() + days);
+      const expiryStr = expiryDate.toISOString().split("T")[0];
+      const startStr = now.toISOString().split("T")[0];
       await updateDoc(doc(db, "merchants", merchant.uid), {
-        subscriptionExpiry: expiryValue || null,
+        subscriptionExpiry: expiryStr,
+        subscriptionStartAt: startStr,
+        subscriptionStatus: "active",
       });
       setMerchants((prev) =>
         prev.map((m) =>
           m.uid === merchant.uid
-            ? { ...m, subscriptionExpiry: expiryValue || null }
+            ? { ...m, subscriptionExpiry: expiryStr, subscriptionStartAt: startStr, subscriptionStatus: "active" }
             : m
         )
       );
       setEditingExpiry(null);
-      setExpiryValue("");
+      setExpiryDays("");
       toast({
         title: t("تم الحفظ", "Saved"),
-        description: t("تم تحديث تاريخ الانتهاء", "Expiry date updated"),
+        description: t(
+          `تم تجديد الاشتراك لمدة ${days} يوم`,
+          `Subscription renewed for ${days} days`
+        ),
       });
     } catch {
       toast({
@@ -765,6 +799,27 @@ export default function SuperAdminPage() {
               </Card>
             </div>
 
+            {expiringSoonCount > 0 && (
+              <Card className="border-red-500/40 bg-red-500/5" data-testid="card-expiring-soon-warning">
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-md bg-red-500/20 flex items-center justify-center flex-shrink-0">
+                    <AlertTriangle className="w-5 h-5 text-red-500" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-red-500" data-testid="text-expiring-soon-count">
+                      {t(
+                        `${expiringSoonCount} تاجر ينتهي اشتراكهم خلال 5 أيام أو أقل`,
+                        `${expiringSoonCount} merchant(s) expiring within 5 days`
+                      )}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {t("يرجى تجديد الاشتراكات قبل انتهائها", "Please renew subscriptions before they expire")}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             <Card>
               <CardHeader className="flex flex-row items-center justify-between gap-2 pb-4">
                 <div className="flex items-center gap-2">
@@ -934,10 +989,13 @@ export default function SuperAdminPage() {
                               : planLabels[merchant.plan].en
                             : merchant.plan || "trial";
 
+                          const expiringSoon = isExpiringSoon(merchant);
+                          const daysLeft = getDaysRemaining(merchant.subscriptionExpiry);
+
                           return (
                             <TableRow
                               key={merchant.uid}
-                              className="border-primary/10"
+                              className={`border-primary/10 ${expiringSoon ? "bg-red-500/10" : ""}`}
                               data-testid={`row-store-${merchant.uid}`}
                             >
                               <TableCell>
@@ -980,47 +1038,77 @@ export default function SuperAdminPage() {
                                 <div className="flex flex-col gap-1">
                                   {getSubBadge(merchant.subscriptionStatus, t)}
                                   <span className="text-[10px] text-muted-foreground">{pLabel}</span>
+                                  {expiringSoon && (
+                                    <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-[10px]" data-testid={`badge-expiring-soon-${merchant.uid}`}>
+                                      <AlertTriangle className="w-3 h-3 me-1" />
+                                      {t(`ينتهي خلال ${daysLeft} يوم`, `Expires in ${daysLeft} day(s)`)}
+                                    </Badge>
+                                  )}
                                 </div>
                               </TableCell>
                               <TableCell>
                                 {editingExpiry === merchant.uid ? (
-                                  <div className="flex items-center gap-1">
-                                    <Input
-                                      type="date"
-                                      value={expiryValue}
-                                      onChange={(e) => setExpiryValue(e.target.value)}
-                                      className="w-36 text-xs"
-                                      data-testid={`input-expiry-${merchant.uid}`}
-                                    />
-                                    <Button
-                                      size="icon"
-                                      variant="ghost"
-                                      onClick={() => handleSaveExpiry(merchant)}
-                                      disabled={actionLoading === merchant.uid}
-                                      data-testid={`button-save-expiry-${merchant.uid}`}
-                                    >
-                                      <Save className="w-4 h-4" />
-                                    </Button>
-                                    <Button
-                                      size="icon"
-                                      variant="ghost"
-                                      onClick={() => { setEditingExpiry(null); setExpiryValue(""); }}
-                                      data-testid={`button-cancel-expiry-${merchant.uid}`}
-                                    >
-                                      <XCircle className="w-4 h-4" />
-                                    </Button>
+                                  <div className="flex flex-col gap-1.5">
+                                    <div className="flex items-center gap-1">
+                                      <Input
+                                        type="number"
+                                        min="1"
+                                        placeholder={t("عدد الأيام", "Days")}
+                                        value={expiryDays}
+                                        onChange={(e) => setExpiryDays(e.target.value)}
+                                        className="w-20 text-xs"
+                                        data-testid={`input-expiry-days-${merchant.uid}`}
+                                      />
+                                      <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        onClick={() => handleSaveExpiry(merchant)}
+                                        disabled={actionLoading === merchant.uid}
+                                        data-testid={`button-save-expiry-${merchant.uid}`}
+                                      >
+                                        <Save className="w-4 h-4" />
+                                      </Button>
+                                      <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        onClick={() => { setEditingExpiry(null); setExpiryDays(""); }}
+                                        data-testid={`button-cancel-expiry-${merchant.uid}`}
+                                      >
+                                        <XCircle className="w-4 h-4" />
+                                      </Button>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      {[30, 90, 365].map((d) => (
+                                        <Button
+                                          key={d}
+                                          size="sm"
+                                          variant={expiryDays === String(d) ? "default" : "outline"}
+                                          onClick={() => setExpiryDays(String(d))}
+                                          className="text-[10px] px-2"
+                                          data-testid={`button-preset-${d}-${merchant.uid}`}
+                                        >
+                                          {d}{t(" يوم", "d")}
+                                        </Button>
+                                      ))}
+                                    </div>
                                   </div>
                                 ) : (
                                   <button
-                                    className="text-sm text-muted-foreground cursor-pointer hover:underline"
+                                    className={`text-sm cursor-pointer hover:underline ${expiringSoon ? "text-red-400 font-semibold" : "text-muted-foreground"}`}
                                     onClick={() => {
                                       setEditingExpiry(merchant.uid);
-                                      setExpiryValue(merchant.subscriptionExpiry || "");
+                                      setExpiryDays("");
                                     }}
                                     data-testid={`text-expiry-${merchant.uid}`}
                                   >
                                     {merchant.subscriptionExpiry
-                                      ? new Date(merchant.subscriptionExpiry).toLocaleDateString()
+                                      ? (() => {
+                                          const dateStr = new Date(merchant.subscriptionExpiry).toLocaleDateString();
+                                          if (daysLeft !== null && daysLeft >= 0) {
+                                            return `${dateStr} (${daysLeft} ${t("يوم", "days")})`;
+                                          }
+                                          return dateStr;
+                                        })()
                                       : t("غير محدد", "Not set")}
                                   </button>
                                 )}
