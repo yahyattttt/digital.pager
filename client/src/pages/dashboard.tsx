@@ -499,9 +499,8 @@ export default function DashboardPage() {
       if (manual && !isNaN(manualParsed)) {
         orderNum = manualParsed;
         await runTransaction(db, async (txn) => {
-          const snap = await txn.get(counterRef);
-          const current = snap.exists() ? (snap.data().lastOrderNumber || 0) : 0;
-          txn.set(counterRef, { lastOrderNumber: Math.max(current, orderNum) }, { merge: true } as any);
+          await txn.get(counterRef);
+          txn.set(counterRef, { lastOrderNumber: orderNum }, { merge: true } as any);
         });
       } else {
         orderNum = 1;
