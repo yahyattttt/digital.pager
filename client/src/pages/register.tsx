@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { createUserWithEmailAndPassword } from "firebase/auth";
+import { signInWithCustomToken } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { registerFormSchema, type RegisterFormData, businessTypeLabels } from "@shared/schema";
@@ -26,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Upload, Store, User, Mail, Lock, MapPin, Loader2, CheckCircle, ArrowRight, ArrowLeft, Briefcase, Globe, Bell, ShieldCheck } from "lucide-react";
+import { Upload, Store, User, Mail, MapPin, Loader2, CheckCircle, ArrowRight, ArrowLeft, Briefcase, Globe, Bell, ShieldCheck, KeyRound } from "lucide-react";
 
 const businessTypeLabelsEn: Record<string, string> = {
   restaurant: "Restaurant",
@@ -45,12 +45,13 @@ export default function RegisterPage() {
   const [registrationComplete, setRegistrationComplete] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [otpStep, setOtpStep] = useState(false);
   const [otpCode, setOtpCode] = useState("");
   const [otpVerified, setOtpVerified] = useState(false);
   const [otpSending, setOtpSending] = useState(false);
   const [otpVerifying, setOtpVerifying] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
+  const [customToken, setCustomToken] = useState<string | null>(null);
+  const [firebaseUid, setFirebaseUid] = useState<string | null>(null);
 
   const form = useForm<RegisterFormData>({
     resolver: zodResolver(registerFormSchema),
@@ -59,7 +60,6 @@ export default function RegisterPage() {
       businessType: undefined,
       ownerName: "",
       email: "",
-      password: "",
       googleMapsReviewUrl: "",
     },
     mode: "onBlur",
@@ -119,7 +119,6 @@ export default function RegisterPage() {
       const data = await res.json();
       if (res.ok) {
         setOtpSent(true);
-        setOtpStep(true);
         toast({
           title: t("تم إرسال رمز التحقق", "OTP Sent"),
           description: t("تحقق من بريدك الإلكتروني للحصول على الرمز المكون من 6 أرقام.", "Check your email for the 6-digit code."),
@@ -163,15 +162,24 @@ export default function RegisterPage() {
       const data = await res.json();
       if (res.ok && data.verified) {
         setOtpVerified(true);
-        setOtpStep(false);
+        setCustomToken(data.customToken);
+        setFirebaseUid(data.uid);
         toast({
           title: t("تم التحقق", "Verified"),
           description: t("تم التحقق من البريد الإلكتروني بنجاح.", "Email verified successfully."),
         });
       } else {
+        let description = data.message || t("الرمز غير صحيح. حاول مرة أخرى.", "Invalid code. Try again.");
+        if (data.errorCode === "OTP_EXPIRED") {
+          description = t("انتهت صلاحية الرمز. يرجى طلب رمز جديد.", "OTP expired. Please request a new one.");
+        } else if (data.errorCode === "INVALID_CODE") {
+          description = t("الرمز غير صحيح. حاول مرة أخرى.", "Invalid code. Try again.");
+        } else if (data.errorCode === "TOO_MANY_ATTEMPTS") {
+          description = t("محاولات كثيرة. يرجى طلب رمز جديد.", "Too many attempts. Please request a new OTP.");
+        }
         toast({
-          title: t("رمز غير صحيح", "Invalid code"),
-          description: data.message || t("الرمز غير صحيح. حاول مرة أخرى.", "Invalid code. Try again."),
+          title: t("خطأ في التحقق", "Verification Error"),
+          description,
           variant: "destructive",
         });
       }
@@ -195,7 +203,7 @@ export default function RegisterPage() {
       });
       return;
     }
-    if (!otpVerified) {
+    if (!otpVerified || !customToken || !firebaseUid) {
       toast({
         title: t("التحقق من البريد مطلوب", "Email verification required"),
         description: t("يرجى التحقق من بريدك الإلكتروني أولاً.", "Please verify your email first."),
@@ -205,26 +213,7 @@ export default function RegisterPage() {
     }
     setIsSubmitting(true);
     try {
-      let userCredential;
-      try {
-        userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
-      } catch (authError: any) {
-        console.error("Firebase Auth error:", authError.code, authError.message);
-        let message = t("فشل التسجيل. يرجى المحاولة مرة أخرى.", "Registration failed. Please try again.");
-        if (authError.code === "auth/email-already-in-use") {
-          message = t("هذا البريد الإلكتروني مسجل بالفعل. يرجى تسجيل الدخول بدلاً من ذلك.", "This email is already in use. Please sign in instead.");
-        } else if (authError.code === "auth/weak-password") {
-          message = t("كلمة المرور ضعيفة. يجب أن تكون 6 أحرف على الأقل.", "Password is too weak. Must be at least 6 characters.");
-        } else if (authError.code === "auth/invalid-email") {
-          message = t("البريد الإلكتروني غير صالح.", "Invalid email address.");
-        }
-        toast({
-          title: t("خطأ في التسجيل", "Registration Error"),
-          description: message,
-          variant: "destructive",
-        });
-        return;
-      }
+      await signInWithCustomToken(auth, customToken);
 
       let logoUrl = "";
       try {
@@ -234,8 +223,8 @@ export default function RegisterPage() {
       }
 
       const merchantData = {
-        id: userCredential.user.uid,
-        uid: userCredential.user.uid,
+        id: firebaseUid,
+        uid: firebaseUid,
         storeName: data.storeName,
         businessType: data.businessType,
         ownerName: data.ownerName,
@@ -249,13 +238,18 @@ export default function RegisterPage() {
       };
 
       try {
-        await setDoc(doc(db, "merchants", userCredential.user.uid), merchantData);
+        await setDoc(doc(db, "merchants", firebaseUid), merchantData);
       } catch (firestoreError: any) {
         console.error("Firestore write error:", firestoreError.code, firestoreError.message);
         try {
+          const currentUser = auth.currentUser;
+          const idToken = currentUser ? await currentUser.getIdToken() : "";
           const res = await fetch("/api/register-merchant", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${idToken}`,
+            },
             body: JSON.stringify(merchantData),
           });
           if (!res.ok) {
@@ -310,8 +304,8 @@ export default function RegisterPage() {
               )}
             </p>
             <div className="flex flex-col gap-3">
-              <Button onClick={() => setLocation("/login")} className="h-12 font-bold" data-testid="button-go-to-login">
-                {t("تسجيل الدخول", "Sign In")}
+              <Button onClick={() => setLocation("/pending")} className="h-12 font-bold" data-testid="button-go-to-pending">
+                {t("حالة الطلب", "Check Status")}
               </Button>
               <Button variant="outline" onClick={() => setLocation("/")} data-testid="button-back-home">
                 {t("العودة للرئيسية", "Back to Home")}
@@ -506,7 +500,7 @@ export default function RegisterPage() {
                   />
                 </div>
 
-                {otpStep && !otpVerified && (
+                {otpSent && !otpVerified && (
                   <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
                     <p className="text-sm text-muted-foreground mb-3">
                       {t("أدخل الرمز المكون من 6 أرقام الذي تم إرساله إلى بريدك الإلكتروني", "Enter the 6-digit code sent to your email")}
@@ -527,13 +521,13 @@ export default function RegisterPage() {
                         type="button"
                         onClick={handleVerifyOtp}
                         disabled={otpVerifying || otpCode.length !== 6}
-                        className="h-12 px-6"
+                        className="h-12"
                         data-testid="button-verify-otp"
                       >
                         {otpVerifying ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
                         ) : (
-                          t("تحقق", "Verify")
+                          <><KeyRound className="w-4 h-4 me-1" />{t("تحقق", "Verify")}</>
                         )}
                       </Button>
                     </div>
@@ -541,62 +535,60 @@ export default function RegisterPage() {
                 )}
 
                 {otpVerified && (
-                  <div className="flex items-center gap-2 text-green-500 text-sm bg-green-500/5 border border-green-500/20 rounded-lg px-4 py-2">
+                  <div className="flex items-center gap-2 text-green-500 text-sm bg-green-500/10 border border-green-500/20 rounded-lg p-3">
                     <ShieldCheck className="w-4 h-4" />
                     {t("تم التحقق من البريد الإلكتروني بنجاح", "Email verified successfully")}
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                  <FormField
-                    control={form.control}
-                    name="password"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-foreground">{t("كلمة المرور", "Password")}</FormLabel>
-                        <FormControl>
-                          <div className="relative">
-                            <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                            <Input type="password" placeholder={t("6 أحرف على الأقل", "At least 6 characters")} className="pr-10 h-12 bg-background border-border text-foreground" dir="ltr" data-testid="input-password" {...field} />
-                          </div>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                <FormField
+                  control={form.control}
+                  name="googleMapsReviewUrl"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-foreground">{t("رابط جوجل ماب للتقييم", "Google Maps Review Link")}</FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <MapPin className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                          <Input
+                            type="url"
+                            placeholder="https://maps.google.com/..."
+                            className="pr-10 h-12 bg-background border-border text-foreground"
+                            dir="ltr"
+                            data-testid="input-google-maps-url"
+                            {...field}
+                          />
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-                  <FormField
-                    control={form.control}
-                    name="googleMapsReviewUrl"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-foreground">{t("رابط تقييم جوجل ماب", "Google Maps Review URL")}</FormLabel>
-                        <FormControl>
-                          <div className="relative">
-                            <MapPin className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                            <Input placeholder="https://maps.google.com/..." className="pr-10 h-12 bg-background border-border text-foreground" dir="ltr" data-testid="input-google-maps-url" {...field} />
-                          </div>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <Button type="submit" className="w-full h-12 text-base font-bold" disabled={isSubmitting || !otpVerified} data-testid="button-register-submit">
+                <Button
+                  type="submit"
+                  className="w-full h-12 text-base font-bold"
+                  disabled={isSubmitting || !otpVerified}
+                  data-testid="button-register-submit"
+                >
                   {isSubmitting ? (
                     <>
                       <Loader2 className="w-4 h-4 me-2 animate-spin" />
-                      {t("جاري إنشاء الحساب...", "Creating account...")}
+                      {t("جاري التسجيل...", "Registering...")}
                     </>
                   ) : (
-                    t("سجل متجرك الآن", "Register Now")
+                    t("تسجيل المتجر", "Register Store")
                   )}
                 </Button>
 
                 <p className="text-center text-sm text-muted-foreground">
                   {t("لديك حساب بالفعل؟", "Already have an account?")}{" "}
-                  <button type="button" onClick={() => setLocation("/login")} className="text-primary font-medium hover:underline" data-testid="link-to-login">
+                  <button
+                    type="button"
+                    onClick={() => setLocation("/login")}
+                    className="text-primary font-medium hover:underline"
+                    data-testid="link-to-login"
+                  >
                     {t("تسجيل الدخول", "Sign In")}
                   </button>
                 </p>

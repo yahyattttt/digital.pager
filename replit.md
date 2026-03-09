@@ -63,8 +63,8 @@ A multi-tenant SaaS platform for digital pager services (restaurants, cafes, cli
 
 ## Pages
 - `/` - Landing page (bilingual)
-- `/register` - Store registration with OTP email verification, business type dropdown
-- `/login` - Sign in with "Forgot Password?" link (Firebase sendPasswordResetEmail)
+- `/register` - Store registration with passwordless OTP email verification, business type dropdown
+- `/login` - Passwordless OTP sign in (email → OTP code → signInWithCustomToken)
 - `/pending` - Shown when merchant status is "pending"
 - `/dashboard` - Kiosk-mode dashboard (split-screen, fullscreen, wake lock)
 - `/super-admin` - Super Admin panel (only yahiatohary@hotmail.com)
@@ -100,25 +100,21 @@ A multi-tenant SaaS platform for digital pager services (restaurants, cafes, cli
 - `messagingSenderId` extracted from `VITE_FIREBASE_APP_ID` (format `1:SENDER_ID:web:HEX`)
 - Token persistence uses `onSnapshot` with retry (waits for pager doc to appear, 30s timeout)
 
-## Email OTP Verification (Resend)
-- Registration requires 6-digit email OTP verification before account creation
-- **POST `/api/send-otp`**: Sends OTP via Resend (or logs to console if `RESEND_API_KEY` not set)
-- **POST `/api/verify-otp`**: Validates the 6-digit code (5-min expiry, max 5 attempts)
-- OTPs stored in-memory Map (server-side)
-- Registration form: email field has "Send Verification Code" button, OTP input appears after sending
-- Submit button disabled until OTP verified
-- Branded HTML email template (neon red/black theme, Arabic/English)
+## Passwordless OTP Authentication (Resend + Firebase Custom Tokens)
+- **No passwords** — both login and registration use email OTP only
+- **POST `/api/send-otp`**: Sends 6-digit OTP via Resend (dev mode: logs only in NODE_ENV=development)
+- **POST `/api/verify-otp`**: Validates OTP (5-min expiry, max 5 attempts, 6-digit format enforced) → finds/creates Firebase Auth user via Identity Toolkit REST API → returns Firebase custom token (JWT signed with service account RSA key)
+- **Custom Token Flow**: Server creates JWT with `iss/sub = service account email`, `aud = identitytoolkit`, `uid = Firebase user UID`, signed with RS256 using service account private key
+- **Client Auth**: Uses `signInWithCustomToken(auth, token)` — Firebase persistence keeps session across browser restarts
+- **Login flow**: Email → Send OTP → Enter 6-digit code → Sign in (if no merchant found, redirects to register)
+- **Registration flow**: Fill store details + email → Send OTP → Verify OTP (gets custom token + UID) → Sign in → Save merchant data to Firestore
+- OTPs stored in-memory Map (server-side); branded HTML email template (neon red/black theme, Arabic/English)
+- Error codes: `OTP_EXPIRED`, `INVALID_CODE`, `TOO_MANY_ATTEMPTS`, `NO_OTP`
 
 ## Registration Resilience
-- Separate error handling for Firebase Auth errors vs Firestore write errors
-- If client-side Firestore `setDoc` fails (permissions/rules), falls back to **POST `/api/register-merchant`** (server-side via Firestore REST API + service account)
-- Clear error messages: "Email already in use", "Password too weak", "Invalid email"
+- If client-side Firestore `setDoc` fails, falls back to **POST `/api/register-merchant`** (requires `Authorization: Bearer <idToken>` header)
+- Server-side fallback writes to Firestore via REST API + service account OAuth2 token
 - Logo upload failure doesn't block registration (gracefully continues)
-
-## Forgot Password
-- Login page has "نسيت كلمة المرور؟ / Forgot Password?" link (data-testid="link-forgot-password")
-- Uses Firebase `sendPasswordResetEmail` — sends reset link to user's email
-- Handles edge cases: empty email, user not found, rate limiting
 
 ## Super Admin
 - Email-gated access: only `yahiatohary@hotmail.com` can access `/super-admin`

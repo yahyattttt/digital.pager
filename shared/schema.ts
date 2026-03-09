@@ -72,7 +72,6 @@ export const registerFormSchema = z.object({
   businessType: businessTypeEnum,
   ownerName: z.string().min(2, "اسم المالك يجب أن يكون حرفين على الأقل"),
   email: z.string().email("البريد الإلكتروني غير صالح"),
-  password: z.string().min(6, "كلمة المرور يجب أن تكون 6 أحرف على الأقل"),
   googleMapsReviewUrl: z.string().url("يرجى إدخال رابط جوجل ماب صالح"),
 });
 

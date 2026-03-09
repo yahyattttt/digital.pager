@@ -1,7 +1,5 @@
 import { useState } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from "firebase/auth";
+import { signInWithCustomToken, signOut } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { z } from "zod";
@@ -11,170 +9,165 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { Mail, Lock, Loader2, ArrowRight, ArrowLeft, Globe, Bell } from "lucide-react";
-
-const loginSchema = z.object({
-  email: z.string().email("البريد الإلكتروني غير صالح"),
-  password: z.string().min(1, "كلمة المرور مطلوبة"),
-});
-
-type LoginFormData = z.infer<typeof loginSchema>;
+import { Mail, Loader2, ArrowRight, ArrowLeft, Globe, Bell, KeyRound } from "lucide-react";
 
 export default function LoginPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { t, toggleLanguage, isRTL } = useLanguage();
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isResettingPassword, setIsResettingPassword] = useState(false);
 
-  const form = useForm<LoginFormData>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: {
-      email: "",
-      password: "",
-    },
-  });
+  const [email, setEmail] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const BackArrow = isRTL ? ArrowRight : ArrowLeft;
 
-  async function handleForgotPassword() {
-    const email = form.getValues("email");
-    if (!email) {
+  async function handleSendOtp() {
+    const trimmed = email.trim();
+    if (!trimmed || !z.string().email().safeParse(trimmed).success) {
       toast({
         title: t("البريد الإلكتروني مطلوب", "Email required"),
-        description: t("يرجى إدخال بريدك الإلكتروني أولاً ثم الضغط على نسيت كلمة المرور.", "Please enter your email first, then click Forgot Password."),
+        description: t("يرجى إدخال بريد إلكتروني صالح.", "Please enter a valid email address."),
         variant: "destructive",
       });
       return;
     }
 
-    setIsResettingPassword(true);
+    setIsSendingOtp(true);
     try {
-      await sendPasswordResetEmail(auth, email);
-      toast({
-        title: t("تم إرسال رابط إعادة التعيين", "Reset Link Sent"),
-        description: t(
-          "تم إرسال رابط إعادة تعيين كلمة المرور إلى بريدك الإلكتروني. تحقق من صندوق الوارد.",
-          "A password reset link has been sent to your email. Check your inbox."
-        ),
+      const res = await fetch("/api/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: trimmed }),
       });
-    } catch (error: any) {
-      let message = t("فشل إرسال رابط إعادة التعيين.", "Failed to send reset link.");
-      if (error.code === "auth/user-not-found") {
-        message = t("لم يتم العثور على حساب بهذا البريد الإلكتروني.", "No account found with this email.");
-      } else if (error.code === "auth/invalid-email") {
-        message = t("البريد الإلكتروني غير صالح.", "Invalid email address.");
-      } else if (error.code === "auth/too-many-requests") {
-        message = t("تم إرسال عدة طلبات. يرجى الانتظار قليلاً.", "Too many requests. Please wait a moment.");
+      const data = await res.json();
+      if (res.ok) {
+        setOtpSent(true);
+        toast({
+          title: t("تم إرسال رمز التحقق", "OTP Sent"),
+          description: t("تحقق من بريدك الإلكتروني للحصول على الرمز المكون من 6 أرقام.", "Check your email for the 6-digit code."),
+        });
+      } else {
+        toast({
+          title: t("خطأ", "Error"),
+          description: data.message || t("فشل إرسال رمز التحقق.", "Failed to send OTP."),
+          variant: "destructive",
+        });
       }
+    } catch {
       toast({
         title: t("خطأ", "Error"),
-        description: message,
+        description: t("فشل إرسال رمز التحقق.", "Failed to send OTP."),
         variant: "destructive",
       });
     } finally {
-      setIsResettingPassword(false);
+      setIsSendingOtp(false);
     }
   }
 
-  async function onSubmit(data: LoginFormData) {
-    setIsSubmitting(true);
+  async function handleVerifyAndLogin() {
+    if (otpCode.length !== 6) {
+      toast({
+        title: t("رمز غير صحيح", "Invalid code"),
+        description: t("يرجى إدخال الرمز المكون من 6 أرقام.", "Please enter the 6-digit code."),
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsVerifying(true);
     try {
-      const userCredential = await signInWithEmailAndPassword(
-        auth,
-        data.email,
-        data.password
-      );
+      const res = await fetch("/api/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), code: otpCode }),
+      });
+      const data = await res.json();
 
-      const merchantDoc = await getDoc(
-        doc(db, "merchants", userCredential.user.uid)
-      );
-
-      if (!merchantDoc.exists()) {
-        if (data.email === "yahiatohary@hotmail.com") {
-          setLocation("/super-admin");
-          return;
+      if (!res.ok || !data.verified) {
+        let description = data.message || t("فشل التحقق.", "Verification failed.");
+        if (data.errorCode === "OTP_EXPIRED") {
+          description = t("انتهت صلاحية الرمز. يرجى طلب رمز جديد.", "OTP expired. Please request a new one.");
+        } else if (data.errorCode === "INVALID_CODE") {
+          description = t("الرمز غير صحيح. حاول مرة أخرى.", "Invalid code. Try again.");
+        } else if (data.errorCode === "TOO_MANY_ATTEMPTS") {
+          description = t("محاولات كثيرة. يرجى طلب رمز جديد.", "Too many attempts. Please request a new OTP.");
         }
         toast({
-          title: t("الحساب غير موجود", "Account not found"),
-          description: t(
-            "لم يتم العثور على حساب متجر مرتبط بهذا البريد الإلكتروني.",
-            "No store account found for this email."
-          ),
+          title: t("خطأ في التحقق", "Verification Error"),
+          description,
           variant: "destructive",
         });
+        return;
+      }
+
+      await signInWithCustomToken(auth, data.customToken);
+
+      if (data.isNewUser) {
+        toast({
+          title: t("حساب جديد", "New Account"),
+          description: t("لم يتم العثور على متجر مسجل. يرجى التسجيل أولاً.", "No store found. Please register first."),
+          variant: "destructive",
+        });
+        await signOut(auth);
+        setLocation("/register");
+        return;
+      }
+
+      const emailLower = email.trim().toLowerCase();
+      if (emailLower === "yahiatohary@hotmail.com") {
+        setLocation("/super-admin");
+        return;
+      }
+
+      const merchantDoc = await getDoc(doc(db, "merchants", data.uid));
+      if (!merchantDoc.exists()) {
+        toast({
+          title: t("حساب غير مسجل", "Not Registered"),
+          description: t("لم يتم العثور على متجر مرتبط بهذا البريد. يرجى التسجيل.", "No store found for this email. Please register."),
+          variant: "destructive",
+        });
+        await signOut(auth);
+        setLocation("/register");
         return;
       }
 
       const merchant = merchantDoc.data();
-
       if (merchant.status === "pending") {
         setLocation("/pending");
         return;
       }
-
       if (merchant.status === "rejected") {
         await signOut(auth);
         toast({
           title: t("تم رفض الحساب", "Account Rejected"),
-          description: t(
-            "تم رفض تسجيل متجرك. يرجى التواصل مع الدعم الفني.",
-            "Your store registration was rejected. Please contact support."
-          ),
+          description: t("تم رفض تسجيل متجرك. يرجى التواصل مع الدعم الفني.", "Your store registration was rejected. Please contact support."),
           variant: "destructive",
         });
         return;
       }
-
       if (merchant.status === "suspended") {
         await signOut(auth);
         toast({
           title: t("الحساب موقوف", "Account Suspended"),
-          description: t(
-            "تم إيقاف حسابك. يرجى التواصل مع الدعم الفني.",
-            "Your account has been suspended. Please contact support."
-          ),
+          description: t("تم إيقاف حسابك. يرجى التواصل مع الدعم الفني.", "Your account has been suspended. Please contact support."),
           variant: "destructive",
         });
-        return;
-      }
-
-      if (data.email === "yahiatohary@hotmail.com") {
-        setLocation("/super-admin");
         return;
       }
 
       setLocation("/dashboard");
     } catch (error: any) {
-      let message = t(
-        "فشل تسجيل الدخول. يرجى المحاولة مرة أخرى.",
-        "Login failed. Please try again."
-      );
-      if (
-        error.code === "auth/user-not-found" ||
-        error.code === "auth/wrong-password" ||
-        error.code === "auth/invalid-credential"
-      ) {
-        message = t(
-          "البريد الإلكتروني أو كلمة المرور غير صحيحة.",
-          "Invalid email or password."
-        );
-      }
+      console.error("Login error:", error);
       toast({
         title: t("خطأ في تسجيل الدخول", "Login Error"),
-        description: message,
+        description: t("فشل تسجيل الدخول. يرجى المحاولة مرة أخرى.", "Login failed. Please try again."),
         variant: "destructive",
       });
     } finally {
-      setIsSubmitting(false);
+      setIsVerifying(false);
     }
   }
 
@@ -228,101 +221,125 @@ export default function LoginPage() {
 
         <Card className="border-primary/10 bg-card">
           <CardContent className="pt-6 pb-6 px-6 sm:px-8">
-            <Form {...form}>
-              <form
-                onSubmit={form.handleSubmit(onSubmit)}
-                className="space-y-5"
-              >
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-foreground">{t("البريد الإلكتروني", "Email")}</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Mail className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                          <Input
-                            type="email"
-                            placeholder="you@store.com"
-                            className="pr-10 h-12 bg-background border-border text-foreground"
-                            dir="ltr"
-                            data-testid="input-email"
-                            {...field}
-                          />
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+            <div className="space-y-5">
+              <div>
+                <label className="text-sm font-medium text-foreground mb-2 block">
+                  {t("البريد الإلكتروني", "Email")}
+                </label>
+                <div className="relative">
+                  <Mail className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    type="email"
+                    placeholder="you@store.com"
+                    className="pr-10 h-12 bg-background border-border text-foreground"
+                    dir="ltr"
+                    data-testid="input-email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    disabled={otpSent}
+                  />
+                </div>
+              </div>
 
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <div className="flex items-center justify-between">
-                        <FormLabel className="text-foreground">{t("كلمة المرور", "Password")}</FormLabel>
-                        <button
-                          type="button"
-                          onClick={handleForgotPassword}
-                          disabled={isResettingPassword}
-                          className="text-xs text-primary hover:text-primary/80 hover:underline transition-colors disabled:opacity-50"
-                          data-testid="link-forgot-password"
-                        >
-                          {isResettingPassword
-                            ? t("جاري الإرسال...", "Sending...")
-                            : t("نسيت كلمة المرور؟", "Forgot Password?")}
-                        </button>
-                      </div>
-                      <FormControl>
-                        <div className="relative">
-                          <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                          <Input
-                            type="password"
-                            placeholder={t("أدخل كلمة المرور", "Enter password")}
-                            className="pr-10 h-12 bg-background border-border text-foreground"
-                            dir="ltr"
-                            data-testid="input-password"
-                            {...field}
-                          />
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
+              {!otpSent ? (
                 <Button
-                  type="submit"
+                  type="button"
                   className="w-full h-12 text-base font-bold"
-                  disabled={isSubmitting}
-                  data-testid="button-login-submit"
+                  disabled={isSendingOtp}
+                  onClick={handleSendOtp}
+                  data-testid="button-send-otp"
                 >
-                  {isSubmitting ? (
+                  {isSendingOtp ? (
                     <>
                       <Loader2 className="w-4 h-4 me-2 animate-spin" />
-                      {t("جاري تسجيل الدخول...", "Signing in...")}
+                      {t("جاري الإرسال...", "Sending...")}
                     </>
                   ) : (
-                    t("تسجيل الدخول", "Sign In")
+                    <>
+                      <Mail className="w-4 h-4 me-2" />
+                      {t("إرسال رمز الدخول", "Send Login Code")}
+                    </>
                   )}
                 </Button>
+              ) : (
+                <>
+                  <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
+                    <p className="text-sm text-muted-foreground mb-3">
+                      {t("أدخل الرمز المكون من 6 أرقام الذي تم إرساله إلى بريدك الإلكتروني", "Enter the 6-digit code sent to your email")}
+                    </p>
+                    <div className="flex gap-3 items-center justify-center">
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={6}
+                        placeholder="000000"
+                        value={otpCode}
+                        onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                        className="h-12 text-center text-2xl tracking-[0.5em] font-mono bg-background border-border max-w-[200px]"
+                        dir="ltr"
+                        data-testid="input-otp-code"
+                        autoFocus
+                      />
+                    </div>
+                    <div className="mt-3 text-center">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOtpSent(false);
+                          setOtpCode("");
+                        }}
+                        className="text-xs text-primary hover:underline"
+                        data-testid="button-change-email"
+                      >
+                        {t("تغيير البريد الإلكتروني", "Change email")}
+                      </button>
+                      <span className="mx-2 text-muted-foreground">|</span>
+                      <button
+                        type="button"
+                        onClick={handleSendOtp}
+                        disabled={isSendingOtp}
+                        className="text-xs text-primary hover:underline disabled:opacity-50"
+                        data-testid="button-resend-otp"
+                      >
+                        {t("إعادة إرسال الرمز", "Resend Code")}
+                      </button>
+                    </div>
+                  </div>
 
-                <p className="text-center text-sm text-muted-foreground">
-                  {t("ليس لديك حساب؟", "Don't have an account?")}{" "}
-                  <button
+                  <Button
                     type="button"
-                    onClick={() => setLocation("/register")}
-                    className="text-primary font-medium hover:underline"
-                    data-testid="link-to-register"
+                    className="w-full h-12 text-base font-bold"
+                    disabled={isVerifying || otpCode.length !== 6}
+                    onClick={handleVerifyAndLogin}
+                    data-testid="button-login-submit"
                   >
-                    {t("سجل متجرك", "Register")}
-                  </button>
-                </p>
-              </form>
-            </Form>
+                    {isVerifying ? (
+                      <>
+                        <Loader2 className="w-4 h-4 me-2 animate-spin" />
+                        {t("جاري تسجيل الدخول...", "Signing in...")}
+                      </>
+                    ) : (
+                      <>
+                        <KeyRound className="w-4 h-4 me-2" />
+                        {t("تسجيل الدخول", "Sign In")}
+                      </>
+                    )}
+                  </Button>
+                </>
+              )}
+
+              <p className="text-center text-sm text-muted-foreground">
+                {t("ليس لديك حساب؟", "Don't have an account?")}{" "}
+                <button
+                  type="button"
+                  onClick={() => setLocation("/register")}
+                  className="text-primary font-medium hover:underline"
+                  data-testid="link-to-register"
+                >
+                  {t("سجل متجرك", "Register")}
+                </button>
+              </p>
+            </div>
           </CardContent>
         </Card>
       </div>

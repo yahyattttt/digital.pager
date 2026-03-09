@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
-import { randomUUID, createHash } from "crypto";
+import { randomUUID, createHash, createSign } from "crypto";
 import QRCode from "qrcode";
 import { GoogleAuth } from "google-auth-library";
 
@@ -69,6 +69,120 @@ function getFCMAuth(): GoogleAuth | null {
 }
 
 const otpStore = new Map<string, { code: string; expiresAt: number; attempts: number }>();
+
+function getServiceAccountCredentials(): { client_email: string; private_key: string; project_id: string } | null {
+  const saJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  if (!saJson) return null;
+  try {
+    return JSON.parse(saJson);
+  } catch {
+    return null;
+  }
+}
+
+function createFirebaseCustomToken(uid: string): string | null {
+  const creds = getServiceAccountCredentials();
+  if (!creds || !creds.private_key || !creds.client_email) return null;
+
+  const now = Math.floor(Date.now() / 1000);
+  const header = Buffer.from(JSON.stringify({ alg: "RS256", typ: "JWT" })).toString("base64url");
+  const payload = Buffer.from(JSON.stringify({
+    iss: creds.client_email,
+    sub: creds.client_email,
+    aud: "https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit",
+    iat: now,
+    exp: now + 3600,
+    uid,
+  })).toString("base64url");
+
+  const sign = createSign("RSA-SHA256");
+  sign.update(`${header}.${payload}`);
+  const signature = sign.sign(creds.private_key, "base64url");
+
+  return `${header}.${payload}.${signature}`;
+}
+
+async function getIdentityToolkitToken(): Promise<string | null> {
+  const creds = getServiceAccountCredentials();
+  if (!creds) return null;
+  try {
+    const authClient = new GoogleAuth({
+      credentials: creds,
+      scopes: ["https://www.googleapis.com/auth/identitytoolkit", "https://www.googleapis.com/auth/cloud-platform"],
+    });
+    const client = await authClient.getClient();
+    const tokenRes = await client.getAccessToken();
+    return tokenRes?.token || null;
+  } catch (e) {
+    console.error("Failed to get identity toolkit token:", e);
+    return null;
+  }
+}
+
+async function findFirebaseUserByEmail(email: string): Promise<{ uid: string } | null> {
+  const accessToken = await getIdentityToolkitToken();
+  if (!accessToken) return null;
+
+  const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
+  if (!projectId) return null;
+
+  try {
+    const res = await fetch(
+      `https://identitytoolkit.googleapis.com/v1/projects/${projectId}/accounts:lookup`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ email: [email] }),
+      }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.users && data.users.length > 0) {
+      return { uid: data.users[0].localId };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function createFirebaseUser(email: string): Promise<{ uid: string } | null> {
+  const accessToken = await getIdentityToolkitToken();
+  if (!accessToken) return null;
+
+  const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
+  if (!projectId) return null;
+
+  try {
+    const res = await fetch(
+      `https://identitytoolkit.googleapis.com/v1/projects/${projectId}/accounts`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          email,
+          emailVerified: true,
+        }),
+      }
+    );
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error("Create Firebase user error:", res.status, errorText);
+      return null;
+    }
+    const data = await res.json();
+    return { uid: data.localId };
+  } catch (e) {
+    console.error("Create Firebase user exception:", e);
+    return null;
+  }
+}
 
 export async function registerRoutes(
   httpServer: Server,
@@ -253,7 +367,9 @@ export async function registerRoutes(
 
       const resendApiKey = process.env.RESEND_API_KEY;
       if (!resendApiKey) {
-        console.log(`[DEV] OTP for ${emailLower}: ${code}`);
+        if (process.env.NODE_ENV === "development") {
+          console.log(`[DEV] OTP for ${emailLower}: ${code}`);
+        }
         return res.json({ success: true, message: "OTP sent (dev mode - check server logs)" });
       }
 
@@ -290,38 +406,61 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/verify-otp", (req, res) => {
+  app.post("/api/verify-otp", async (req, res) => {
     try {
       const { email, code } = req.body;
-      if (!email || !code) {
+      if (!email || typeof email !== "string" || !code || typeof code !== "string") {
         return res.status(400).json({ message: "Email and code are required" });
+      }
+
+      const codeStr = String(code).trim();
+      if (!/^\d{6}$/.test(codeStr)) {
+        return res.status(400).json({ message: "OTP must be a 6-digit code.", errorCode: "INVALID_CODE" });
       }
 
       const emailLower = email.toLowerCase().trim();
       const entry = otpStore.get(emailLower);
 
       if (!entry) {
-        return res.status(400).json({ message: "No OTP found. Please request a new one." });
+        return res.status(400).json({ message: "No OTP found. Please request a new one.", errorCode: "NO_OTP" });
       }
 
       if (entry.expiresAt < Date.now()) {
         otpStore.delete(emailLower);
-        return res.status(400).json({ message: "OTP expired. Please request a new one." });
+        return res.status(400).json({ message: "OTP expired. Please request a new one.", errorCode: "OTP_EXPIRED" });
       }
 
       if (entry.attempts >= 5) {
         otpStore.delete(emailLower);
-        return res.status(429).json({ message: "Too many attempts. Please request a new OTP." });
+        return res.status(429).json({ message: "Too many attempts. Please request a new OTP.", errorCode: "TOO_MANY_ATTEMPTS" });
       }
 
       entry.attempts++;
 
-      if (entry.code !== code.trim()) {
-        return res.status(400).json({ message: "Invalid OTP code." });
+      if (entry.code !== codeStr) {
+        return res.status(400).json({ message: "Invalid OTP code.", errorCode: "INVALID_CODE" });
       }
 
       otpStore.delete(emailLower);
-      return res.json({ success: true, verified: true });
+
+      let existingUser = await findFirebaseUserByEmail(emailLower);
+      let isNewUser = false;
+
+      if (!existingUser) {
+        existingUser = await createFirebaseUser(emailLower);
+        isNewUser = true;
+        if (!existingUser) {
+          return res.status(500).json({ message: "Failed to create user account." });
+        }
+      }
+
+      const customToken = createFirebaseCustomToken(existingUser.uid);
+      if (!customToken) {
+        return res.status(500).json({ message: "Failed to generate authentication token." });
+      }
+
+      console.log(`OTP verified for ${emailLower}, uid: ${existingUser.uid}, isNewUser: ${isNewUser}`);
+      return res.json({ success: true, verified: true, customToken, uid: existingUser.uid, isNewUser });
     } catch (error) {
       console.error("Verify OTP error:", error);
       return res.status(500).json({ message: "Verification failed" });
@@ -330,6 +469,11 @@ export async function registerRoutes(
 
   app.post("/api/register-merchant", async (req, res) => {
     try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
       const { uid, storeName, businessType, ownerName, email, logoUrl, googleMapsReviewUrl } = req.body;
       if (!uid || !email || !storeName) {
         return res.status(400).json({ message: "Missing required fields" });
