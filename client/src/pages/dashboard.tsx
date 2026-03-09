@@ -54,6 +54,9 @@ import {
   Clock,
   AlertTriangle,
   ShieldCheck,
+  Star,
+  Eye,
+  MessageSquare,
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 
@@ -361,6 +364,10 @@ export default function DashboardPage() {
   const [addLoading, setAddLoading] = useState(false);
   const [notifyLoading, setNotifyLoading] = useState<string | null>(null);
   const [qrLoading, setQrLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<"notified" | "feedback">("notified");
+  const [feedbacks, setFeedbacks] = useState<Array<{ id: string; merchantId: string; stars: number; comment: string; timestamp: string; read: boolean }>>([]);
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [markingRead, setMarkingRead] = useState<string | null>(null);
 
   useEffect(() => {
     if (!merchant?.uid) return;
@@ -392,6 +399,54 @@ export default function DashboardPage() {
 
     return () => unsubscribe();
   }, [merchant?.uid]);
+
+  const fetchFeedbacks = useCallback(async () => {
+    if (!merchant?.uid) return;
+    setFeedbackLoading(true);
+    try {
+      const res = await fetch(`/api/feedback/${merchant.uid}`);
+      if (res.ok) {
+        const data = await res.json();
+        setFeedbacks(Array.isArray(data) ? data : data?.feedbacks || []);
+      }
+    } catch {
+      console.error("Failed to fetch feedbacks");
+    } finally {
+      setFeedbackLoading(false);
+    }
+  }, [merchant?.uid]);
+
+  useEffect(() => {
+    fetchFeedbacks();
+  }, [fetchFeedbacks]);
+
+  useEffect(() => {
+    if (activeTab === "feedback") {
+      fetchFeedbacks();
+    }
+  }, [activeTab, fetchFeedbacks]);
+
+  const handleMarkAsRead = useCallback(async (feedbackId: string) => {
+    setMarkingRead(feedbackId);
+    try {
+      const res = await fetch(`/api/feedback/${feedbackId}/read`, { method: "POST" });
+      if (res.ok) {
+        setFeedbacks(prev => prev.map(f => f.id === feedbackId ? { ...f, read: true } : f));
+        toast({
+          title: t("تم التحديث", "Updated"),
+          description: t("تم تحديد الملاحظة كمقروءة", "Feedback marked as read"),
+        });
+      }
+    } catch {
+      toast({
+        title: t("خطأ", "Error"),
+        description: t("فشل في تحديث الملاحظة", "Failed to update feedback"),
+        variant: "destructive",
+      });
+    } finally {
+      setMarkingRead(null);
+    }
+  }, [t, toast]);
 
   function handleSignOut() {
     logout();
@@ -583,6 +638,7 @@ export default function DashboardPage() {
 
   const waitingPagers = pagers.filter((p) => p.status === "waiting");
   const notifiedPagers = pagers.filter((p) => p.status === "notified");
+  const unreadFeedbackCount = feedbacks.filter(f => !f.read).length;
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -789,81 +845,198 @@ export default function DashboardPage() {
         </aside>
 
         <main className="flex flex-col overflow-hidden">
-          <div className="p-4 border-b border-border/30 flex items-center justify-between">
-            <h2 className="font-bold text-base flex items-center gap-2" data-testid="text-main-title">
-              <Bell className="w-5 h-5 text-primary" />
-              {t("تم التنبيه", "Notified")}
-            </h2>
-            <Badge variant="secondary" data-testid="badge-pagers-count">
-              {notifiedPagers.length}
-            </Badge>
+          <div className="p-4 border-b border-border/30 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Button
+                variant={activeTab === "notified" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setActiveTab("notified")}
+                className={activeTab === "notified" ? "" : "border-border/50"}
+                data-testid="button-tab-notified"
+              >
+                <Bell className="w-4 h-4 me-1.5" />
+                {t("تم التنبيه", "Notified Customers")}
+                <Badge variant="secondary" className="ms-1.5 no-default-hover-elevate no-default-active-elevate" data-testid="badge-pagers-count">
+                  {notifiedPagers.length}
+                </Badge>
+              </Button>
+              <Button
+                variant={activeTab === "feedback" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setActiveTab("feedback")}
+                className={`relative ${activeTab === "feedback" ? "" : "border-border/50"}`}
+                data-testid="button-tab-feedback"
+              >
+                <MessageSquare className="w-4 h-4 me-1.5" />
+                {t("ملاحظات العملاء", "Customer Feedback")}
+                {unreadFeedbackCount > 0 && (
+                  <Badge className="ms-1.5 bg-red-500 text-white border-red-600 no-default-hover-elevate no-default-active-elevate" data-testid="badge-unread-feedback-count">
+                    {unreadFeedbackCount}
+                  </Badge>
+                )}
+              </Button>
+            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto p-4">
-            {notifiedPagers.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-center py-12">
-                <div className="w-20 h-20 rounded-full bg-muted/50 flex items-center justify-center mb-4">
-                  <Bell className="w-10 h-10 text-muted-foreground/50" />
-                </div>
-                <p className="text-muted-foreground text-lg font-medium" data-testid="text-no-pagers">
-                  {t("لا توجد طلبات تم تنبيهها", "No notified orders")}
-                </p>
-                <p className="text-muted-foreground/50 text-sm mt-1">
-                  {t(
-                    "اضغط 'تنبيه' على طلب في قائمة الانتظار لإرسال إشعار للعميل",
-                    "Click 'Notify' on a waiting order to alert the customer"
-                  )}
-                </p>
-              </div>
+            {activeTab === "notified" ? (
+              <>
+                {notifiedPagers.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-center py-12">
+                    <div className="w-20 h-20 rounded-full bg-muted/50 flex items-center justify-center mb-4">
+                      <Bell className="w-10 h-10 text-muted-foreground/50" />
+                    </div>
+                    <p className="text-muted-foreground text-lg font-medium" data-testid="text-no-pagers">
+                      {t("لا توجد طلبات تم تنبيهها", "No notified orders")}
+                    </p>
+                    <p className="text-muted-foreground/50 text-sm mt-1">
+                      {t(
+                        "اضغط 'تنبيه' على طلب في قائمة الانتظار لإرسال إشعار للعميل",
+                        "Click 'Notify' on a waiting order to alert the customer"
+                      )}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {notifiedPagers.map((pager) => (
+                      <Card key={pager.docId} className="border-green-500/20 bg-green-500/5" data-testid={`card-notified-${pager.docId}`}>
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                              <div className="w-10 h-10 rounded-lg bg-green-500/20 border border-green-500/30 flex items-center justify-center">
+                                <span className="text-green-400 font-bold">{pager.orderNumber}</span>
+                              </div>
+                              <div>
+                                <p className="font-medium text-sm">
+                                  {t("طلب", "Order")} #{pager.orderNumber}
+                                </p>
+                                <p className="text-xs text-green-400">
+                                  {t("تم التنبيه", "Notified")}
+                                </p>
+                              </div>
+                            </div>
+                            <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
+                              <BellRing className="w-3 h-3 me-1" />
+                              {t("مُنبّه", "Paged")}
+                            </Badge>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleComplete(pager)}
+                              className="flex-1 h-9 border-green-500/30 text-green-400 hover:bg-green-500/10"
+                              data-testid={`button-complete-${pager.docId}`}
+                            >
+                              <CheckCircle className="w-3 h-3 me-1" />
+                              {t("مكتمل", "Complete")}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleRemove(pager)}
+                              className="h-9 border-red-500/30 text-red-400 hover:bg-red-500/10"
+                              data-testid={`button-remove-notified-${pager.docId}`}
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {notifiedPagers.map((pager) => (
-                  <Card key={pager.docId} className="border-green-500/20 bg-green-500/5" data-testid={`card-notified-${pager.docId}`}>
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <div className="w-10 h-10 rounded-lg bg-green-500/20 border border-green-500/30 flex items-center justify-center">
-                            <span className="text-green-400 font-bold">{pager.orderNumber}</span>
+              <>
+                {feedbackLoading ? (
+                  <div className="flex flex-col items-center justify-center h-full text-center py-12">
+                    <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
+                    <p className="text-muted-foreground text-sm">
+                      {t("جاري التحميل...", "Loading...")}
+                    </p>
+                  </div>
+                ) : feedbacks.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-center py-12">
+                    <div className="w-20 h-20 rounded-full bg-muted/50 flex items-center justify-center mb-4">
+                      <MessageSquare className="w-10 h-10 text-muted-foreground/50" />
+                    </div>
+                    <p className="text-muted-foreground text-lg font-medium" data-testid="text-no-feedbacks">
+                      {t("لا توجد ملاحظات", "No feedback yet")}
+                    </p>
+                    <p className="text-muted-foreground/50 text-sm mt-1">
+                      {t(
+                        "ستظهر هنا ملاحظات العملاء ذوي التقييمات المنخفضة",
+                        "Low-rating customer feedback will appear here"
+                      )}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {feedbacks.map((feedback) => (
+                      <Card
+                        key={feedback.id}
+                        className={`${!feedback.read ? "border-orange-500/30 bg-orange-500/5" : "border-border/30"}`}
+                        data-testid={`card-feedback-${feedback.id}`}
+                      >
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-1">
+                              {[1, 2, 3, 4, 5].map((s) => (
+                                <Star
+                                  key={s}
+                                  className={`w-4 h-4 ${s <= feedback.stars ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground/30"}`}
+                                  data-testid={`star-${feedback.id}-${s}`}
+                                />
+                              ))}
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              {!feedback.read && (
+                                <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/30" data-testid={`badge-unread-${feedback.id}`}>
+                                  {t("جديد", "Unread")}
+                                </Badge>
+                              )}
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-medium text-sm">
-                              {t("طلب", "Order")} #{pager.orderNumber}
+                          {feedback.comment && (
+                            <p className="text-sm mb-3" data-testid={`text-feedback-comment-${feedback.id}`}>
+                              {feedback.comment}
                             </p>
-                            <p className="text-xs text-green-400">
-                              {t("تم التنبيه", "Notified")}
+                          )}
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-xs text-muted-foreground" data-testid={`text-feedback-time-${feedback.id}`}>
+                              {new Date(feedback.timestamp).toLocaleDateString(lang === "ar" ? "ar-SA" : "en-US", {
+                                year: "numeric",
+                                month: "short",
+                                day: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
                             </p>
+                            {!feedback.read && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleMarkAsRead(feedback.id)}
+                                disabled={markingRead === feedback.id}
+                                className="border-border/50"
+                                data-testid={`button-mark-read-${feedback.id}`}
+                              >
+                                {markingRead === feedback.id ? (
+                                  <Loader2 className="w-3 h-3 animate-spin me-1" />
+                                ) : (
+                                  <Eye className="w-3 h-3 me-1" />
+                                )}
+                                {t("تم القراءة", "Mark as Read")}
+                              </Button>
+                            )}
                           </div>
-                        </div>
-                        <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
-                          <BellRing className="w-3 h-3 me-1" />
-                          {t("مُنبّه", "Paged")}
-                        </Badge>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleComplete(pager)}
-                          className="flex-1 h-9 border-green-500/30 text-green-400 hover:bg-green-500/10"
-                          data-testid={`button-complete-${pager.docId}`}
-                        >
-                          <CheckCircle className="w-3 h-3 me-1" />
-                          {t("مكتمل", "Complete")}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleRemove(pager)}
-                          className="h-9 border-red-500/30 text-red-400 hover:bg-red-500/10"
-                          data-testid={`button-remove-notified-${pager.docId}`}
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
 

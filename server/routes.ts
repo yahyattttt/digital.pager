@@ -1110,6 +1110,273 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/feedback", async (req, res) => {
+    try {
+      const { merchantId, stars, comment } = req.body;
+      if (!merchantId || typeof merchantId !== "string") {
+        return res.status(400).json({ message: "merchantId is required" });
+      }
+      if (!stars || typeof stars !== "number" || stars < 1 || stars > 5) {
+        return res.status(400).json({ message: "stars must be a number between 1 and 5" });
+      }
+
+      const accessToken = await getFirestoreAccessToken();
+      const baseUrl = getFirestoreBaseUrl();
+      if (!accessToken || !baseUrl) {
+        return res.status(500).json({ message: "Firestore not configured" });
+      }
+
+      const docId = randomUUID();
+      const data = {
+        fields: {
+          merchantId: { stringValue: merchantId },
+          stars: { integerValue: String(stars) },
+          comment: { stringValue: comment || "" },
+          timestamp: { stringValue: new Date().toISOString() },
+          read: { booleanValue: false },
+        },
+      };
+
+      const patchRes = await fetch(`${baseUrl}/private_feedbacks/${docId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify(data),
+      });
+
+      if (!patchRes.ok) {
+        return res.status(500).json({ message: "Failed to save feedback" });
+      }
+
+      return res.json({ success: true, id: docId });
+    } catch (error) {
+      console.error("Save feedback error:", error);
+      return res.status(500).json({ message: "Failed to save feedback" });
+    }
+  });
+
+  app.get("/api/feedback/:merchantId", async (req, res) => {
+    try {
+      const { merchantId } = req.params;
+      const accessToken = await getFirestoreAccessToken();
+      const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
+      if (!accessToken || !projectId) {
+        return res.status(500).json({ message: "Firestore not configured" });
+      }
+
+      const query = {
+        structuredQuery: {
+          from: [{ collectionId: "private_feedbacks" }],
+          where: {
+            fieldFilter: {
+              field: { fieldPath: "merchantId" },
+              op: "EQUAL",
+              value: { stringValue: merchantId },
+            },
+          },
+          limit: 200,
+        },
+      };
+
+      const queryRes = await fetch(
+        `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+          body: JSON.stringify(query),
+        }
+      );
+
+      if (!queryRes.ok) {
+        const errText = await queryRes.text();
+        console.error("Feedback query error:", errText);
+        return res.status(500).json({ message: "Failed to query feedbacks" });
+      }
+
+      const results = await queryRes.json();
+      const feedbacks: any[] = [];
+
+      if (Array.isArray(results)) {
+        for (const r of results) {
+          if (r.document) {
+            const fields = r.document.fields || {};
+            const docName = r.document.name || "";
+            const id = docName.split("/").pop() || "";
+            feedbacks.push({
+              id,
+              merchantId: fields.merchantId?.stringValue || "",
+              stars: parseInt(fields.stars?.integerValue || "0"),
+              comment: fields.comment?.stringValue || "",
+              timestamp: fields.timestamp?.stringValue || "",
+              read: fields.read?.booleanValue || false,
+            });
+          }
+        }
+      }
+
+      feedbacks.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      return res.json({ feedbacks });
+    } catch (error) {
+      console.error("Get feedbacks error:", error);
+      return res.status(500).json({ message: "Failed to get feedbacks" });
+    }
+  });
+
+  app.post("/api/feedback/:feedbackId/read", async (req, res) => {
+    try {
+      const { feedbackId } = req.params;
+      const accessToken = await getFirestoreAccessToken();
+      const baseUrl = getFirestoreBaseUrl();
+      if (!accessToken || !baseUrl) {
+        return res.status(500).json({ message: "Firestore not configured" });
+      }
+
+      const patchRes = await fetch(`${baseUrl}/private_feedbacks/${feedbackId}?updateMask.fieldPaths=read`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ fields: { read: { booleanValue: true } } }),
+      });
+
+      if (!patchRes.ok) {
+        return res.status(500).json({ message: "Failed to mark feedback as read" });
+      }
+
+      return res.json({ success: true });
+    } catch (error) {
+      console.error("Mark feedback read error:", error);
+      return res.status(500).json({ message: "Failed to mark feedback as read" });
+    }
+  });
+
+  app.get("/api/admin/feedbacks", async (req, res) => {
+    try {
+      if (!(await isAdminRequest(req))) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+
+      const accessToken = await getFirestoreAccessToken();
+      const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
+      if (!accessToken || !projectId) {
+        return res.status(500).json({ message: "Firestore not configured" });
+      }
+
+      const query = {
+        structuredQuery: {
+          from: [{ collectionId: "private_feedbacks" }],
+          orderBy: [{ field: { fieldPath: "timestamp" }, direction: "DESCENDING" }],
+          limit: 500,
+        },
+      };
+
+      const queryRes = await fetch(
+        `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+          body: JSON.stringify(query),
+        }
+      );
+
+      if (!queryRes.ok) {
+        return res.status(500).json({ message: "Failed to query feedbacks" });
+      }
+
+      const results = await queryRes.json();
+      const feedbacks: any[] = [];
+
+      if (Array.isArray(results)) {
+        for (const r of results) {
+          if (r.document) {
+            const fields = r.document.fields || {};
+            const docName = r.document.name || "";
+            const id = docName.split("/").pop() || "";
+            feedbacks.push({
+              id,
+              merchantId: fields.merchantId?.stringValue || "",
+              stars: parseInt(fields.stars?.integerValue || "0"),
+              comment: fields.comment?.stringValue || "",
+              timestamp: fields.timestamp?.stringValue || "",
+              read: fields.read?.booleanValue || false,
+            });
+          }
+        }
+      }
+
+      return res.json({ feedbacks });
+    } catch (error) {
+      console.error("Get admin feedbacks error:", error);
+      return res.status(500).json({ message: "Failed to get feedbacks" });
+    }
+  });
+
+  app.get("/api/admin/feedbacks/:merchantId", async (req, res) => {
+    try {
+      if (!(await isAdminRequest(req))) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+
+      const { merchantId } = req.params;
+      const accessToken = await getFirestoreAccessToken();
+      const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
+      if (!accessToken || !projectId) {
+        return res.status(500).json({ message: "Firestore not configured" });
+      }
+
+      const query = {
+        structuredQuery: {
+          from: [{ collectionId: "private_feedbacks" }],
+          where: {
+            fieldFilter: {
+              field: { fieldPath: "merchantId" },
+              op: "EQUAL",
+              value: { stringValue: merchantId },
+            },
+          },
+          limit: 200,
+        },
+      };
+
+      const queryRes = await fetch(
+        `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+          body: JSON.stringify(query),
+        }
+      );
+
+      if (!queryRes.ok) {
+        return res.status(500).json({ message: "Failed to query feedbacks" });
+      }
+
+      const results = await queryRes.json();
+      const feedbacks: any[] = [];
+
+      if (Array.isArray(results)) {
+        for (const r of results) {
+          if (r.document) {
+            const fields = r.document.fields || {};
+            const docName = r.document.name || "";
+            const id = docName.split("/").pop() || "";
+            feedbacks.push({
+              id,
+              merchantId: fields.merchantId?.stringValue || "",
+              stars: parseInt(fields.stars?.integerValue || "0"),
+              comment: fields.comment?.stringValue || "",
+              timestamp: fields.timestamp?.stringValue || "",
+              read: fields.read?.booleanValue || false,
+            });
+          }
+        }
+      }
+
+      feedbacks.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      return res.json({ feedbacks });
+    } catch (error) {
+      console.error("Get admin merchant feedbacks error:", error);
+      return res.status(500).json({ message: "Failed to get feedbacks" });
+    }
+  });
+
   app.get("/api/admin/merchant-report/:merchantId", async (req, res) => {
     try {
       if (!(await isAdminRequest(req))) {

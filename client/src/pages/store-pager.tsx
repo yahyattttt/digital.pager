@@ -5,8 +5,9 @@ import { db, requestFCMToken } from "@/lib/firebase";
 import type { Merchant, Pager } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
-import { Star, Store, AlertTriangle, Bell, BellOff, CheckCircle, Share2, MapPin, Copy } from "lucide-react";
+import { Star, Store, AlertTriangle, Bell, BellOff, CheckCircle, Share2, MapPin, Copy, Send, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useWakeLock } from "@/hooks/use-wake-lock";
 import IosInstallPrompt from "@/components/ios-install-prompt";
@@ -102,6 +103,187 @@ function useVibrationLoop() {
   return { start, stop };
 }
 
+function StarRatingWidget({
+  storeId,
+  googleMapsReviewUrl,
+  variant = "dark",
+}: {
+  storeId: string;
+  googleMapsReviewUrl: string;
+  variant?: "dark" | "light";
+}) {
+  const { toast } = useToast();
+  const [selectedStars, setSelectedStars] = useState(0);
+  const [hoveredStar, setHoveredStar] = useState(0);
+  const [phase, setPhase] = useState<"rating" | "feedback" | "thankyou" | "redirecting">("rating");
+  const [comment, setComment] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const isDark = variant === "dark";
+
+  function handleStarClick(star: number) {
+    setSelectedStars(star);
+
+    if (star >= 4) {
+      setPhase("redirecting");
+      setTimeout(async () => {
+        try {
+          await fetch(`/api/track/gmaps/${storeId}`, { method: "POST" });
+        } catch {}
+        window.open(googleMapsReviewUrl, "_blank");
+        setPhase("thankyou");
+      }, 1500);
+    } else {
+      setPhase("feedback");
+    }
+  }
+
+  async function handleSubmitFeedback() {
+    if (!comment.trim()) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          merchantId: storeId,
+          stars: selectedStars,
+          comment: comment.trim(),
+          timestamp: new Date().toISOString(),
+        }),
+      });
+      if (res.ok) {
+        setPhase("thankyou");
+      } else {
+        toast({ title: "خطأ", description: "Failed to submit feedback", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "خطأ", description: "Failed to submit feedback", variant: "destructive" });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const starElements = (
+    <div className="flex items-center justify-center gap-2" data-testid="star-rating-widget">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <button
+          key={star}
+          type="button"
+          onClick={() => handleStarClick(star)}
+          onMouseEnter={() => setHoveredStar(star)}
+          onMouseLeave={() => setHoveredStar(0)}
+          className="transition-transform"
+          data-testid={`button-star-${star}`}
+        >
+          <Star
+            className={`w-10 h-10 transition-colors ${
+              star <= (hoveredStar || selectedStars)
+                ? "fill-yellow-400 text-yellow-400"
+                : isDark
+                  ? "text-zinc-600"
+                  : "text-white/40"
+            }`}
+          />
+        </button>
+      ))}
+    </div>
+  );
+
+  if (phase === "thankyou") {
+    return (
+      <div className="flex flex-col items-center gap-3 w-full max-w-xs mx-auto animate-in fade-in duration-500">
+        <CheckCircle className={`w-12 h-12 ${isDark ? "text-green-500" : "text-white"}`} />
+        <p className={`text-lg font-bold ${isDark ? "text-white" : "text-white"}`} dir="rtl" data-testid="text-feedback-thankyou">
+          شكراً لتقييمك!
+        </p>
+        <p className={`text-sm ${isDark ? "text-gray-400" : "text-white/70"}`} data-testid="text-feedback-thankyou-en">
+          Thank you for your feedback!
+        </p>
+      </div>
+    );
+  }
+
+  if (phase === "redirecting") {
+    return (
+      <div className="flex flex-col items-center gap-3 w-full max-w-xs mx-auto animate-in fade-in duration-500">
+        {starElements}
+        <div className="mt-2 flex flex-col items-center gap-2">
+          <CheckCircle className={`w-10 h-10 ${isDark ? "text-green-500" : "text-white"}`} />
+          <p className={`text-base font-bold ${isDark ? "text-white" : "text-white"}`} dir="rtl" data-testid="text-rating-thankyou">
+            شكراً لك! جاري تحويلك لجوجل ماب...
+          </p>
+          <p className={`text-xs ${isDark ? "text-gray-400" : "text-white/70"}`} data-testid="text-rating-redirect">
+            Thank you! Redirecting to Google Maps...
+          </p>
+          <Loader2 className={`w-5 h-5 animate-spin ${isDark ? "text-gray-400" : "text-white/60"}`} />
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === "feedback") {
+    return (
+      <div className="flex flex-col items-center gap-3 w-full max-w-xs mx-auto animate-in fade-in duration-500">
+        {starElements}
+        <p
+          className={`text-sm font-medium text-center mt-1 ${isDark ? "text-gray-300" : "text-white/90"}`}
+          dir="rtl"
+          data-testid="text-feedback-prompt"
+        >
+          نأسف لذلك! أخبرنا ما الذي يمكننا تحسينه
+        </p>
+        <p className={`text-xs text-center ${isDark ? "text-gray-500" : "text-white/60"}`} data-testid="text-feedback-prompt-en">
+          We're sorry! Please tell us what went wrong so we can fix it.
+        </p>
+        <Textarea
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          placeholder="اكتب ملاحظاتك هنا... / Write your feedback here..."
+          className={`w-full text-sm resize-none ${
+            isDark
+              ? "bg-black border-zinc-700 text-white placeholder:text-gray-600"
+              : "bg-white/10 border-white/20 text-white placeholder:text-white/40"
+          }`}
+          rows={3}
+          dir="rtl"
+          data-testid="textarea-feedback"
+        />
+        <Button
+          size="lg"
+          onClick={handleSubmitFeedback}
+          disabled={!comment.trim() || submitting}
+          className={`w-full font-bold text-base ${
+            isDark
+              ? "bg-red-600 text-white"
+              : "bg-white/20 text-white border border-white/30 backdrop-blur-sm"
+          }`}
+          data-testid="button-submit-feedback"
+        >
+          {submitting ? (
+            <Loader2 className="w-5 h-5 me-2 animate-spin" />
+          ) : (
+            <Send className="w-5 h-5 me-2" />
+          )}
+          <span dir="rtl">{submitting ? "جاري الإرسال..." : "إرسال الملاحظات"}</span>
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-3 w-full max-w-xs mx-auto">
+      <p className={`text-sm font-medium ${isDark ? "text-gray-300" : "text-white/90"}`} dir="rtl" data-testid="text-rate-prompt">
+        كيف كانت تجربتك؟
+      </p>
+      <p className={`text-xs ${isDark ? "text-gray-500" : "text-white/60"}`} data-testid="text-rate-prompt-en">
+        Rate your experience
+      </p>
+      {starElements}
+    </div>
+  );
+}
+
 function ShareAndReviewButtons({
   storeId,
   storeName,
@@ -146,13 +328,6 @@ function ShareAndReviewButtons({
     }
   }
 
-  async function handleGoogleMaps() {
-    try {
-      await fetch(`/api/track/gmaps/${storeId}`, { method: "POST" });
-    } catch {}
-    window.open(googleMapsReviewUrl, "_blank");
-  }
-
   const isDark = variant === "dark";
 
   return (
@@ -171,19 +346,11 @@ function ShareAndReviewButtons({
         <span dir="rtl">شارك مع أصدقائك</span>
       </Button>
       {googleMapsReviewUrl && (
-        <Button
-          size="lg"
-          onClick={handleGoogleMaps}
-          className={`w-full font-bold text-base ${
-            isDark
-              ? "bg-zinc-800 text-white border border-zinc-700"
-              : "bg-white/20 text-white border border-white/30 backdrop-blur-sm"
-          }`}
-          data-testid="button-google-maps"
-        >
-          <MapPin className="w-5 h-5 me-2" />
-          <span dir="rtl">قيمنا على جوجل ماب</span>
-        </Button>
+        <StarRatingWidget
+          storeId={storeId}
+          googleMapsReviewUrl={googleMapsReviewUrl}
+          variant={variant}
+        />
       )}
     </div>
   );
