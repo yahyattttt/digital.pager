@@ -258,7 +258,7 @@ export default function DashboardPage() {
   }, [merchant?.uid, newOrderNumber, t, toast]);
 
   const handleNotify = useCallback(async (pager: Pager & { docId: string }) => {
-    if (!merchant?.uid) return;
+    if (!merchant?.uid || merchant.status !== "approved") return;
     setNotifyLoading(pager.docId);
     try {
       const pagerRef = doc(db, "merchants", merchant.uid, "pagers", pager.docId);
@@ -397,6 +397,8 @@ export default function DashboardPage() {
     );
   }
 
+  const isPending = merchant.status !== "approved";
+
   const businessLabel =
     lang === "ar"
       ? businessTypeLabels[merchant.businessType] || merchant.businessType
@@ -413,6 +415,20 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
+      {isPending && (
+        <div
+          className="bg-yellow-500/10 border-b border-yellow-500/30 px-4 py-3 flex items-center justify-center gap-2 text-yellow-500"
+          data-testid="banner-pending-approval"
+        >
+          <Lock className="w-4 h-4 shrink-0" />
+          <span className="text-sm font-medium text-center">
+            {t(
+              "حسابك قيد المراجعة. يمكنك استكشاف الإعدادات، لكن بعض الوظائف معطلة حتى يتم التفعيل.",
+              "Your account is pending approval. You can explore settings, but some features are disabled until activated."
+            )}
+          </span>
+        </div>
+      )}
       <header className="border-b border-primary/20 px-4 py-3 flex-shrink-0">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -557,7 +573,7 @@ export default function DashboardPage() {
                       <Button
                         size="sm"
                         onClick={() => handleNotify(pager)}
-                        disabled={notifyLoading === pager.docId}
+                        disabled={isPending || notifyLoading === pager.docId}
                         className="h-10 px-4 bg-primary hover:bg-primary/90 font-bold"
                         data-testid={`button-notify-${pager.docId}`}
                       >

@@ -1,6 +1,6 @@
 import { useState, useEffect, createContext, useContext } from "react";
 import { onAuthStateChanged, type User } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import type { Merchant } from "@shared/schema";
 
@@ -8,14 +8,14 @@ interface AuthContextType {
   user: User | null;
   merchant: Merchant | null;
   loading: boolean;
-  refreshMerchant: () => Promise<void>;
+  refreshMerchant: () => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   merchant: null,
   loading: true,
-  refreshMerchant: async () => {},
+  refreshMerchant: () => {},
 });
 
 export function useAuthProvider() {
@@ -23,39 +23,47 @@ export function useAuthProvider() {
   const [merchant, setMerchant] = useState<Merchant | null>(null);
   const [loading, setLoading] = useState(true);
 
-  async function fetchMerchant(firebaseUser: User) {
-    try {
-      const merchantDoc = await getDoc(doc(db, "merchants", firebaseUser.uid));
-      if (merchantDoc.exists()) {
-        setMerchant(merchantDoc.data() as Merchant);
-      } else {
-        setMerchant(null);
-      }
-    } catch (error) {
-      console.error("Error fetching merchant data:", error);
-      setMerchant(null);
-    }
-  }
-
-  async function refreshMerchant() {
-    if (user) {
-      await fetchMerchant(user);
-    }
-  }
-
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    let unsubMerchant: (() => void) | null = null;
+
+    const unsubAuth = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
+
+      if (unsubMerchant) {
+        unsubMerchant();
+        unsubMerchant = null;
+      }
+
       if (firebaseUser) {
-        await fetchMerchant(firebaseUser);
+        unsubMerchant = onSnapshot(
+          doc(db, "merchants", firebaseUser.uid),
+          (snap) => {
+            if (snap.exists()) {
+              setMerchant(snap.data() as Merchant);
+            } else {
+              setMerchant(null);
+            }
+            setLoading(false);
+          },
+          (error) => {
+            console.error("Merchant snapshot error:", error);
+            setMerchant(null);
+            setLoading(false);
+          }
+        );
       } else {
         setMerchant(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubAuth();
+      if (unsubMerchant) unsubMerchant();
+    };
   }, []);
+
+  function refreshMerchant() {}
 
   return { user, merchant, loading, refreshMerchant };
 }

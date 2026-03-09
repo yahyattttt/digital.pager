@@ -49,7 +49,7 @@ function ProtectedRoute({ component: Component }: { component: () => JSX.Element
     return <Redirect to="/login" />;
   }
 
-  if (!merchant || merchant.status === "pending") {
+  if (!merchant) {
     return <Redirect to="/pending" />;
   }
 
@@ -75,12 +75,8 @@ function PendingRoute() {
     return <Redirect to="/login" />;
   }
 
-  if (merchant?.status === "approved") {
+  if (merchant && (merchant.status === "approved" || merchant.status === "pending")) {
     return <Redirect to="/dashboard" />;
-  }
-
-  if (merchant?.status === "suspended" || merchant?.status === "rejected") {
-    return <Redirect to="/login" />;
   }
 
   return <PendingPage />;
@@ -102,10 +98,10 @@ function GuestRoute({ component: Component }: { component: () => JSX.Element | n
       return <Redirect to="/super-admin" />;
     }
     if (merchant) {
-      if (merchant.status === "approved") {
+      if (merchant.status === "approved" || merchant.status === "pending") {
         return <Redirect to="/dashboard" />;
       }
-      return <Redirect to="/pending" />;
+      return <Redirect to="/login" />;
     }
   }
 
