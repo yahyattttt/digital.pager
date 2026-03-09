@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthContext, useAuthProvider, useAuth } from "@/hooks/use-auth";
+import { LanguageContext, useLanguageProvider } from "@/hooks/use-language";
 import NotFound from "@/pages/not-found";
 import LandingPage from "@/pages/landing";
 import RegisterPage from "@/pages/register";
@@ -103,14 +104,17 @@ function Router() {
 
 function App() {
   const authValue = useAuthProvider();
+  const langValue = useLanguageProvider();
 
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <AuthContext.Provider value={authValue}>
-          <Toaster />
-          <Router />
-        </AuthContext.Provider>
+        <LanguageContext.Provider value={langValue}>
+          <AuthContext.Provider value={authValue}>
+            <Toaster />
+            <Router />
+          </AuthContext.Provider>
+        </LanguageContext.Provider>
       </TooltipProvider>
     </QueryClientProvider>
   );

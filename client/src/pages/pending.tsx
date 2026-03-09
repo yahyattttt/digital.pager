@@ -2,13 +2,15 @@ import { useLocation } from "wouter";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/hooks/use-auth";
+import { useLanguage } from "@/hooks/use-language";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Clock, LogOut, Mail } from "lucide-react";
+import { Clock, LogOut, Mail, Globe } from "lucide-react";
 
 export default function PendingPage() {
   const [, setLocation] = useLocation();
   const { merchant, loading } = useAuth();
+  const { t, toggleLanguage } = useLanguage();
 
   async function handleSignOut() {
     await signOut(auth);
@@ -32,12 +34,24 @@ export default function PendingPage() {
 
       <Card className="w-full max-w-md relative border-yellow-500/20">
         <CardContent className="pt-8 pb-8 text-center">
+          <div className="flex justify-end mb-4">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={toggleLanguage}
+              className="border-primary/30 hover:border-primary/60"
+              data-testid="button-toggle-language"
+            >
+              <Globe className="w-4 h-4" />
+            </Button>
+          </div>
+
           <div className="mx-auto w-20 h-20 rounded-full bg-yellow-500/10 flex items-center justify-center mb-6">
             <Clock className="w-10 h-10 text-yellow-500" data-testid="icon-pending" />
           </div>
 
           <h2 className="text-2xl font-bold mb-3" data-testid="text-pending-title">
-            في انتظار الموافقة
+            {t("في انتظار الموافقة", "Pending Approval")}
           </h2>
 
           {merchant && (
@@ -53,22 +67,25 @@ export default function PendingPage() {
           )}
 
           <p className="text-muted-foreground text-sm mb-6" data-testid="text-pending-message">
-            تم استلام طلبك بنجاح. سيقوم فريق الإدارة بمراجعته وتفعيل حسابك قريباً.
+            {t(
+              "تم استلام طلبك بنجاح. سيقوم فريق الإدارة بمراجعته وتفعيل حسابك قريباً.",
+              "Your request has been received. Our team will review and activate your account soon."
+            )}
           </p>
 
           <div className="flex items-center justify-center gap-2 mb-6 p-3 rounded-md bg-primary/5 border border-primary/10">
             <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
-            <span className="text-sm text-muted-foreground">الحالة: <span className="text-yellow-500 font-semibold">قيد المراجعة</span></span>
+            <span className="text-sm text-muted-foreground">
+              {t("الحالة:", "Status:")}{" "}
+              <span className="text-yellow-500 font-semibold">
+                {t("قيد المراجعة", "Under Review")}
+              </span>
+            </span>
           </div>
 
-          <Button
-            variant="outline"
-            onClick={handleSignOut}
-            className="w-full"
-            data-testid="button-sign-out"
-          >
+          <Button variant="outline" onClick={handleSignOut} className="w-full" data-testid="button-sign-out">
             <LogOut className="w-4 h-4 me-2" />
-            تسجيل الخروج
+            {t("تسجيل الخروج", "Sign Out")}
           </Button>
         </CardContent>
       </Card>

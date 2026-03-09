@@ -1,16 +1,45 @@
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/hooks/use-auth";
+import { useLanguage } from "@/hooks/use-language";
+import { useWakeLock } from "@/hooks/use-wake-lock";
+import { useFullscreen } from "@/hooks/use-fullscreen";
 import { businessTypeLabels } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { LogOut, Store, Users, Bell, Settings } from "lucide-react";
+import {
+  LogOut,
+  Store,
+  Users,
+  Bell,
+  Settings,
+  Maximize,
+  Minimize,
+  Globe,
+  CheckCircle,
+  Clock,
+  UserPlus,
+} from "lucide-react";
+
+const businessTypeLabelsEn: Record<string, string> = {
+  restaurant: "Restaurant",
+  cafe: "Cafe",
+  clinic: "Clinic",
+  other: "Other",
+};
 
 export default function DashboardPage() {
   const [, setLocation] = useLocation();
   const { merchant, loading } = useAuth();
+  const { t, toggleLanguage, lang } = useLanguage();
+  const { isActive: wakeLockActive, isSupported: wakeLockSupported } = useWakeLock();
+  const { isFullscreen, toggleFullscreen, isSupported } = useFullscreen();
+
+  const [orders] = useState<any[]>([]);
+  const [activePagers] = useState<any[]>([]);
 
   async function handleSignOut() {
     await signOut(auth);
@@ -29,109 +58,212 @@ export default function DashboardPage() {
     return null;
   }
 
+  const businessLabel =
+    lang === "ar"
+      ? businessTypeLabels[merchant.businessType] || merchant.businessType
+      : businessTypeLabelsEn[merchant.businessType] || merchant.businessType;
+
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border/50 px-6 py-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+    <div className="min-h-screen bg-background flex flex-col">
+      <header className="border-b border-primary/20 px-4 py-3 flex-shrink-0">
+        <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             {merchant.logoUrl ? (
               <img
                 src={merchant.logoUrl}
-                alt="الشعار"
-                className="w-10 h-10 rounded-full object-cover border border-border"
+                alt={t("الشعار", "Logo")}
+                className="w-10 h-10 rounded-full object-cover border-2 border-primary/30"
                 data-testid="img-dashboard-logo"
               />
             ) : (
-              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center border-2 border-primary/30">
                 <Store className="w-5 h-5 text-primary" />
               </div>
             )}
             <div>
-              <h1 className="font-bold text-lg" data-testid="text-dashboard-store">
+              <h1 className="font-bold text-lg leading-tight" data-testid="text-dashboard-store">
                 {merchant.storeName}
               </h1>
               <p className="text-xs text-muted-foreground">
-                {businessTypeLabels[merchant.businessType] || merchant.businessType} - {merchant.email}
+                {businessLabel}
               </p>
             </div>
           </div>
+
           <div className="flex items-center gap-2">
-            <Badge variant="default" data-testid="badge-status-approved">
-              مفعّل
+            {wakeLockSupported && (
+              <div
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted/50 border border-border/50 text-xs"
+                data-testid="indicator-wake-lock"
+              >
+                <span className={`w-2 h-2 rounded-full ${wakeLockActive ? "bg-green-500 animate-pulse" : "bg-muted-foreground/50"}`} />
+                <span className="text-muted-foreground">
+                  {wakeLockActive
+                    ? t("الشاشة نشطة", "Screen Active")
+                    : t("الشاشة عادية", "Screen Normal")}
+                </span>
+              </div>
+            )}
+
+            <Badge variant="default" className="hidden sm:inline-flex" data-testid="badge-status-approved">
+              {t("مفعّل", "Active")}
             </Badge>
+
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={toggleLanguage}
+              className="border-primary/30 hover:border-primary/60"
+              data-testid="button-toggle-language"
+            >
+              <Globe className="w-4 h-4" />
+            </Button>
+
+            {isSupported && (
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={toggleFullscreen}
+                className="border-primary/30 hover:border-primary/60"
+                data-testid="button-toggle-fullscreen"
+              >
+                {isFullscreen ? (
+                  <Minimize className="w-4 h-4" />
+                ) : (
+                  <Maximize className="w-4 h-4" />
+                )}
+              </Button>
+            )}
+
             <Button
               variant="outline"
               size="sm"
               onClick={handleSignOut}
+              className="border-primary/30 hover:border-primary/60"
               data-testid="button-sign-out"
             >
-              <LogOut className="w-4 h-4 me-2" />
-              خروج
+              <LogOut className="w-4 h-4 me-1.5" />
+              <span className="hidden sm:inline">{t("خروج", "Sign Out")}</span>
             </Button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-8">
-        <h2 className="text-2xl font-bold mb-6" data-testid="text-dashboard-title">
-          لوحة التحكم
-        </h2>
+      <div className="flex-1 grid grid-cols-1 md:grid-cols-[340px_1fr] lg:grid-cols-[380px_1fr] overflow-hidden">
+        <aside className="border-e border-primary/20 flex flex-col overflow-hidden">
+          <div className="p-4 border-b border-border/30 flex items-center justify-between">
+            <h2 className="font-bold text-base flex items-center gap-2" data-testid="text-sidebar-title">
+              <UserPlus className="w-5 h-5 text-primary" />
+              {t("طلبات جديدة", "New Orders")}
+            </h2>
+            <Badge variant="secondary" data-testid="badge-orders-count">
+              {orders.length}
+            </Badge>
+          </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="hover-elevate border-border/50">
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-md bg-primary/10 flex items-center justify-center">
+          <div className="flex-1 overflow-y-auto p-3 space-y-2">
+            {orders.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-center py-12">
+                <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mb-4">
+                  <Users className="w-8 h-8 text-muted-foreground/50" />
+                </div>
+                <p className="text-muted-foreground text-sm" data-testid="text-no-orders">
+                  {t("لا توجد طلبات جديدة", "No new orders")}
+                </p>
+                <p className="text-muted-foreground/50 text-xs mt-1">
+                  {t("ستظهر الطلبات هنا عند وصولها", "Orders will appear here as they arrive")}
+                </p>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="p-3 border-t border-border/30">
+            <Button
+              size="lg"
+              className="w-full h-14 text-base font-bold border-2 border-primary"
+              data-testid="button-add-to-waitlist"
+            >
+              <UserPlus className="w-5 h-5 me-2" />
+              {t("إضافة للانتظار", "Add to Waitlist")}
+            </Button>
+          </div>
+        </aside>
+
+        <main className="flex flex-col overflow-hidden">
+          <div className="p-4 border-b border-border/30 flex items-center justify-between">
+            <h2 className="font-bold text-base flex items-center gap-2" data-testid="text-main-title">
+              <Bell className="w-5 h-5 text-primary" />
+              {t("البيجرات النشطة", "Active Pagers")}
+            </h2>
+            <Badge variant="secondary" data-testid="badge-pagers-count">
+              {activePagers.length}
+            </Badge>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4">
+            {activePagers.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-center py-12">
+                <div className="w-20 h-20 rounded-full bg-muted/50 flex items-center justify-center mb-4">
+                  <Bell className="w-10 h-10 text-muted-foreground/50" />
+                </div>
+                <p className="text-muted-foreground text-lg font-medium" data-testid="text-no-pagers">
+                  {t("لا توجد بيجرات نشطة", "No active pagers")}
+                </p>
+                <p className="text-muted-foreground/50 text-sm mt-1">
+                  {t(
+                    "أضف عملاء لقائمة الانتظار لبدء استخدام البيجر",
+                    "Add customers to the waitlist to start paging"
+                  )}
+                </p>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="grid grid-cols-3 gap-3 p-4 border-t border-border/30">
+            <Card className="border-primary/20">
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
                   <Users className="w-6 h-6 text-primary" />
                 </div>
                 <div>
                   <p className="text-2xl font-bold" data-testid="text-waitlist-count">0</p>
-                  <p className="text-sm text-muted-foreground">قائمة الانتظار الحالية</p>
+                  <p className="text-xs text-muted-foreground">
+                    {t("في الانتظار", "Waiting")}
+                  </p>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card className="hover-elevate border-border/50">
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-md bg-primary/10 flex items-center justify-center">
+            <Card className="border-primary/20">
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
                   <Bell className="w-6 h-6 text-primary" />
                 </div>
                 <div>
                   <p className="text-2xl font-bold" data-testid="text-paged-count">0</p>
-                  <p className="text-sm text-muted-foreground">تم تنبيههم اليوم</p>
+                  <p className="text-xs text-muted-foreground">
+                    {t("تم تنبيههم", "Paged")}
+                  </p>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card className="hover-elevate border-border/50">
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-md bg-primary/10 flex items-center justify-center">
-                  <Settings className="w-6 h-6 text-primary" />
+            <Card className="border-primary/20">
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <CheckCircle className="w-6 h-6 text-primary" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold" data-testid="text-settings-label">إعداد</p>
-                  <p className="text-sm text-muted-foreground">إعدادات البيجر</p>
+                  <p className="text-2xl font-bold" data-testid="text-completed-count">0</p>
+                  <p className="text-xs text-muted-foreground">
+                    {t("مكتمل", "Completed")}
+                  </p>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card className="mt-8 border-border/50">
-          <CardHeader>
-            <h3 className="text-lg font-semibold">مرحباً بك في Digital Pager</h3>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground" data-testid="text-welcome-message">
-              متجرك مفعّل وجاهز لاستخدام نظام البيجر الرقمي. ابدأ بإدارة قائمة الانتظار، وأشعر عملاءك، وسهّل عملية الاستقبال.
-            </p>
-          </CardContent>
-        </Card>
-      </main>
+              </CardContent>
+            </Card>
+          </div>
+        </main>
+      </div>
     </div>
   );
 }

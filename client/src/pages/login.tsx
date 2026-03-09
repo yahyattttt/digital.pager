@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/hooks/use-language";
 import {
   Form,
   FormControl,
@@ -18,7 +19,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Mail, Lock, Loader2, ArrowRight } from "lucide-react";
+import { Mail, Lock, Loader2, ArrowRight, ArrowLeft, Globe } from "lucide-react";
 
 const loginSchema = z.object({
   email: z.string().email("البريد الإلكتروني غير صالح"),
@@ -30,6 +31,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 export default function LoginPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { t, toggleLanguage, isRTL } = useLanguage();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<LoginFormData>({
@@ -39,6 +41,8 @@ export default function LoginPage() {
       password: "",
     },
   });
+
+  const BackArrow = isRTL ? ArrowRight : ArrowLeft;
 
   async function onSubmit(data: LoginFormData) {
     setIsSubmitting(true);
@@ -55,8 +59,11 @@ export default function LoginPage() {
 
       if (!merchantDoc.exists()) {
         toast({
-          title: "الحساب غير موجود",
-          description: "لم يتم العثور على حساب متجر مرتبط بهذا البريد الإلكتروني.",
+          title: t("الحساب غير موجود", "Account not found"),
+          description: t(
+            "لم يتم العثور على حساب متجر مرتبط بهذا البريد الإلكتروني.",
+            "No store account found for this email."
+          ),
           variant: "destructive",
         });
         return;
@@ -71,8 +78,11 @@ export default function LoginPage() {
 
       if (merchant.status === "rejected") {
         toast({
-          title: "تم رفض الحساب",
-          description: "تم رفض تسجيل متجرك. يرجى التواصل مع الدعم الفني.",
+          title: t("تم رفض الحساب", "Account Rejected"),
+          description: t(
+            "تم رفض تسجيل متجرك. يرجى التواصل مع الدعم الفني.",
+            "Your store registration was rejected. Please contact support."
+          ),
           variant: "destructive",
         });
         return;
@@ -80,16 +90,22 @@ export default function LoginPage() {
 
       setLocation("/dashboard");
     } catch (error: any) {
-      let message = "فشل تسجيل الدخول. يرجى المحاولة مرة أخرى.";
+      let message = t(
+        "فشل تسجيل الدخول. يرجى المحاولة مرة أخرى.",
+        "Login failed. Please try again."
+      );
       if (
         error.code === "auth/user-not-found" ||
         error.code === "auth/wrong-password" ||
         error.code === "auth/invalid-credential"
       ) {
-        message = "البريد الإلكتروني أو كلمة المرور غير صحيحة.";
+        message = t(
+          "البريد الإلكتروني أو كلمة المرور غير صحيحة.",
+          "Invalid email or password."
+        );
       }
       toast({
-        title: "خطأ في تسجيل الدخول",
+        title: t("خطأ في تسجيل الدخول", "Login Error"),
         description: message,
         variant: "destructive",
       });
@@ -107,23 +123,35 @@ export default function LoginPage() {
 
       <div className="w-full max-w-md relative">
         <div className="mb-8 text-center">
-          <button
-            onClick={() => setLocation("/")}
-            className="inline-flex items-center gap-2 text-muted-foreground text-sm mb-6 hover-elevate px-3 py-1.5 rounded-md"
-            data-testid="link-back-home"
-          >
-            <ArrowRight className="w-4 h-4" />
-            العودة للرئيسية
-          </button>
+          <div className="flex items-center justify-between mb-6">
+            <button
+              onClick={() => setLocation("/")}
+              className="inline-flex items-center gap-2 text-muted-foreground text-sm hover-elevate px-3 py-1.5 rounded-md"
+              data-testid="link-back-home"
+            >
+              <BackArrow className="w-4 h-4" />
+              {t("العودة للرئيسية", "Back to Home")}
+            </button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={toggleLanguage}
+              className="border-primary/30 hover:border-primary/60"
+              data-testid="button-toggle-language"
+            >
+              <Globe className="w-4 h-4" />
+            </Button>
+          </div>
           <h1
             className="text-3xl font-bold tracking-tight"
             data-testid="text-login-title"
           >
-            مرحباً بعودتك
+            {t("مرحباً بعودتك", "Welcome Back")}
           </h1>
           <p className="text-muted-foreground mt-2">
-            سجل دخولك إلى لوحة تحكم{" "}
-            <span className="text-primary font-semibold">Digital Pager</span>
+            {t("سجل دخولك إلى لوحة تحكم", "Sign in to your")}{" "}
+            <span className="text-primary font-semibold">Digital Pager</span>{" "}
+            {t("", "dashboard")}
           </p>
         </div>
 
@@ -139,7 +167,7 @@ export default function LoginPage() {
                   name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>البريد الإلكتروني</FormLabel>
+                      <FormLabel>{t("البريد الإلكتروني", "Email")}</FormLabel>
                       <FormControl>
                         <div className="relative">
                           <Mail className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -163,13 +191,13 @@ export default function LoginPage() {
                   name="password"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>كلمة المرور</FormLabel>
+                      <FormLabel>{t("كلمة المرور", "Password")}</FormLabel>
                       <FormControl>
                         <div className="relative">
                           <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                           <Input
                             type="password"
-                            placeholder="أدخل كلمة المرور"
+                            placeholder={t("أدخل كلمة المرور", "Enter password")}
                             className="pr-10"
                             dir="ltr"
                             data-testid="input-password"
@@ -191,22 +219,22 @@ export default function LoginPage() {
                   {isSubmitting ? (
                     <>
                       <Loader2 className="w-4 h-4 me-2 animate-spin" />
-                      جاري تسجيل الدخول...
+                      {t("جاري تسجيل الدخول...", "Signing in...")}
                     </>
                   ) : (
-                    "تسجيل الدخول"
+                    t("تسجيل الدخول", "Sign In")
                   )}
                 </Button>
 
                 <p className="text-center text-sm text-muted-foreground">
-                  ليس لديك حساب؟{" "}
+                  {t("ليس لديك حساب؟", "Don't have an account?")}{" "}
                   <button
                     type="button"
                     onClick={() => setLocation("/register")}
                     className="text-primary font-medium"
                     data-testid="link-to-register"
                   >
-                    سجل متجرك
+                    {t("سجل متجرك", "Register")}
                   </button>
                 </p>
               </form>
