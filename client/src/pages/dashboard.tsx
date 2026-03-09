@@ -346,6 +346,7 @@ export default function DashboardPage() {
   const [currentView, setCurrentView] = useState<DashboardView>("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [storeOpen, setStoreOpen] = useState<boolean>((merchant as any)?.storeOpen !== false);
+  const [selectedPagerId, setSelectedPagerId] = useState<string | null>(null);
 
   useEffect(() => {
     setStoreOpen((merchant as any)?.storeOpen !== false);
@@ -817,6 +818,7 @@ export default function DashboardPage() {
                   onClick={() => {
                     setCurrentView(item.id);
                     setSidebarOpen(false);
+                    setSelectedPagerId(null);
                   }}
                   aria-current={isActive ? "page" : undefined}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
@@ -869,7 +871,7 @@ export default function DashboardPage() {
                 onNotify={handleNotify}
                 onComplete={handleComplete}
                 onRemove={handleRemove}
-                onNavigate={setCurrentView}
+                onNavigate={(v: DashboardView) => { setCurrentView(v); setSelectedPagerId(null); }}
                 notifyLoading={notifyLoading}
                 t={t}
                 lang={lang}
@@ -886,6 +888,8 @@ export default function DashboardPage() {
                 onRemove={handleRemove}
                 onAdd={() => setShowAddDialog(true)}
                 notifyLoading={notifyLoading}
+                selectedPagerId={selectedPagerId}
+                onSelectPager={setSelectedPagerId}
                 t={t}
                 lang={lang}
               />
@@ -1240,6 +1244,8 @@ function WaitlistView({
   onRemove,
   onAdd,
   notifyLoading,
+  selectedPagerId,
+  onSelectPager,
   t,
   lang,
 }: {
@@ -1251,11 +1257,59 @@ function WaitlistView({
   onRemove: (pager: Pager & { docId: string }) => void;
   onAdd: () => void;
   notifyLoading: string | null;
+  selectedPagerId: string | null;
+  onSelectPager: (id: string | null) => void;
   t: (ar: string, en: string) => string;
   lang: string;
 }) {
+  const allPagers = [...waitingPagers, ...notifiedPagers];
+  const selectedPager = allPagers.find(p => p.docId === selectedPagerId) || null;
+
+  function renderOrderCard(pager: Pager & { docId: string }, isNotified: boolean) {
+    const isSelected = selectedPagerId === pager.docId;
+    return (
+      <button
+        key={pager.docId}
+        onClick={() => onSelectPager(isSelected ? null : pager.docId)}
+        className={`w-full text-start rounded-xl border p-4 transition-all ${
+          isSelected
+            ? "border-primary/40 bg-primary/5 shadow-lg shadow-primary/5"
+            : isNotified
+              ? "border-green-500/10 bg-green-500/[0.02] hover:border-green-500/20"
+              : "border-white/[0.06] bg-[#141414] hover:border-primary/20"
+        }`}
+        data-testid={isNotified ? `card-notified-${pager.docId}` : `card-waiting-${pager.docId}`}
+      >
+        <div className="flex items-center gap-3">
+          <div className={`w-14 h-14 rounded-2xl border flex items-center justify-center flex-shrink-0 ${
+            isNotified
+              ? "bg-green-500/10 border-green-500/15"
+              : "bg-primary/10 border-primary/15"
+          }`}>
+            <span className={`font-bold text-xl ${isNotified ? "text-green-400" : "text-primary"}`} data-testid={`text-order-num-${pager.docId}`}>
+              {pager.orderNumber}
+            </span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-sm">{t("طلب", "Order")} #{pager.orderNumber}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {pager.createdAt && new Date(pager.createdAt).toLocaleTimeString(lang === "ar" ? "ar-SA" : "en-US", { hour: "2-digit", minute: "2-digit" })}
+            </p>
+          </div>
+          <Badge className={`text-[10px] flex-shrink-0 ${
+            isNotified
+              ? "bg-green-500/15 text-green-400 border-green-500/20"
+              : "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"
+          }`}>
+            {isNotified ? t("مُنبّه", "Paged") : t("في الانتظار", "Waiting")}
+          </Badge>
+        </div>
+      </button>
+    );
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4" data-testid="waitlist-view">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold">{t("قائمة الانتظار", "Waiting List")}</h2>
@@ -1266,146 +1320,262 @@ function WaitlistView({
         <Button
           onClick={onAdd}
           disabled={isPending}
-          className="bg-primary hover:bg-primary/90 font-semibold"
+          className="bg-primary hover:bg-primary/90 font-semibold h-12 px-5"
           data-testid="button-add-waitlist-page"
         >
-          <UserPlus className="w-4 h-4 me-2" />
+          <UserPlus className="w-5 h-5 me-2" />
           {t("إضافة", "Add")}
         </Button>
       </div>
 
-      <div>
-        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-          {t("في الانتظار", "Waiting")} ({waitingPagers.length})
-        </h3>
-        {waitingPagers.length === 0 ? (
-          <Card className="border-white/[0.06] bg-[#141414]">
-            <CardContent className="py-16 flex flex-col items-center justify-center text-center">
-              <div className="w-20 h-20 rounded-full bg-white/[0.03] flex items-center justify-center mb-4">
-                <Users className="w-10 h-10 text-muted-foreground/30" />
+      <div className="flex gap-4">
+        <div className={`space-y-4 ${selectedPager ? "hidden lg:block lg:w-[400px] lg:flex-shrink-0" : "w-full"}`}>
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+            {t("في الانتظار", "Waiting")} ({waitingPagers.length})
+          </h3>
+          {waitingPagers.length === 0 && notifiedPagers.length === 0 ? (
+            <Card className="border-white/[0.06] bg-[#141414]">
+              <CardContent className="py-16 flex flex-col items-center justify-center text-center">
+                <div className="w-20 h-20 rounded-full bg-white/[0.03] flex items-center justify-center mb-4">
+                  <Users className="w-10 h-10 text-muted-foreground/30" />
+                </div>
+                <p className="text-muted-foreground font-medium" data-testid="text-no-orders">
+                  {t("لا توجد طلبات في الانتظار", "No orders waiting")}
+                </p>
+                <p className="text-muted-foreground/50 text-sm mt-1">
+                  {t("أضف عملاء لقائمة الانتظار", "Add customers to the waitlist")}
+                </p>
+                <Button
+                  onClick={onAdd}
+                  disabled={isPending}
+                  className="mt-4 bg-primary hover:bg-primary/90"
+                  data-testid="button-add-empty-state"
+                >
+                  <UserPlus className="w-4 h-4 me-2" />
+                  {t("إضافة أول عميل", "Add First Customer")}
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className={`space-y-2 ${selectedPager ? "" : "grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3"}`}>
+              {waitingPagers.map((pager) => (
+                selectedPager ? (
+                  <div key={pager.docId}>{renderOrderCard(pager, false)}</div>
+                ) : (
+                  <Card key={pager.docId} className="border-white/[0.06] bg-[#141414] hover:border-primary/20 transition-all hover:shadow-lg hover:shadow-primary/5" data-testid={`card-waiting-${pager.docId}`}>
+                    <CardContent className="p-5">
+                      <div className="flex items-center gap-4 mb-4">
+                        <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/15 flex items-center justify-center">
+                          <span className="text-primary font-bold text-2xl" data-testid={`text-order-num-${pager.docId}`}>
+                            {pager.orderNumber}
+                          </span>
+                        </div>
+                        <div>
+                          <p className="font-semibold">{t("طلب", "Order")} #{pager.orderNumber}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {pager.createdAt && new Date(pager.createdAt).toLocaleTimeString(lang === "ar" ? "ar-SA" : "en-US", { hour: "2-digit", minute: "2-digit" })}
+                          </p>
+                          <Badge className="mt-1.5 bg-yellow-500/10 text-yellow-400 border-yellow-500/20 text-[10px]">
+                            {t("في الانتظار", "Waiting")}
+                          </Badge>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={() => onNotify(pager)}
+                          disabled={isPending || notifyLoading === pager.docId}
+                          className="flex-1 h-14 bg-primary hover:bg-primary/90 font-bold text-base"
+                          data-testid={`button-notify-${pager.docId}`}
+                        >
+                          {notifyLoading === pager.docId ? (
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                          ) : (
+                            <>
+                              <BellRing className="w-5 h-5 me-2" />
+                              {t("تنبيه", "Notify")}
+                            </>
+                          )}
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          onClick={() => onRemove(pager)}
+                          className="h-14 w-14 border-red-500/15 text-red-400 hover:bg-red-500/10"
+                          data-testid={`button-remove-${pager.docId}`}
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              ))}
+            </div>
+          )}
+
+          {notifiedPagers.length > 0 && (
+            <div className="mt-4">
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                {t("تم التنبيه", "Notified")} ({notifiedPagers.length})
+              </h3>
+              <div className={`space-y-2 ${selectedPager ? "" : "grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3"}`}>
+                {notifiedPagers.map((pager) => (
+                  selectedPager ? (
+                    <div key={pager.docId}>{renderOrderCard(pager, true)}</div>
+                  ) : (
+                    <Card key={pager.docId} className="border-green-500/10 bg-green-500/[0.02]" data-testid={`card-notified-${pager.docId}`}>
+                      <CardContent className="p-5">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-14 h-14 rounded-2xl bg-green-500/10 border border-green-500/15 flex items-center justify-center">
+                              <span className="text-green-400 font-bold text-xl">{pager.orderNumber}</span>
+                            </div>
+                            <div>
+                              <p className="font-semibold">{t("طلب", "Order")} #{pager.orderNumber}</p>
+                              <p className="text-xs text-green-400 mt-0.5">{t("تم التنبيه", "Notified")}</p>
+                            </div>
+                          </div>
+                          <Badge className="bg-green-500/15 text-green-400 border-green-500/20">
+                            <BellRing className="w-3 h-3 me-1" />
+                            {t("مُنبّه", "Paged")}
+                          </Badge>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => onComplete(pager)}
+                            className="flex-1 h-12 border-green-500/20 text-green-400 hover:bg-green-500/10 font-semibold"
+                            data-testid={`button-complete-${pager.docId}`}
+                          >
+                            <CheckCircle className="w-4 h-4 me-1.5" />
+                            {t("مكتمل", "Complete")}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => onRemove(pager)}
+                            className="h-12 border-red-500/15 text-red-400 hover:bg-red-500/10"
+                            data-testid={`button-remove-notified-${pager.docId}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                ))}
               </div>
-              <p className="text-muted-foreground font-medium" data-testid="text-no-orders">
-                {t("لا توجد طلبات في الانتظار", "No orders waiting")}
-              </p>
-              <p className="text-muted-foreground/50 text-sm mt-1">
-                {t("أضف عملاء لقائمة الانتظار", "Add customers to the waitlist")}
-              </p>
-              <Button
-                onClick={onAdd}
-                disabled={isPending}
-                className="mt-4 bg-primary hover:bg-primary/90"
-                data-testid="button-add-empty-state"
-              >
-                <UserPlus className="w-4 h-4 me-2" />
-                {t("إضافة أول عميل", "Add First Customer")}
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {waitingPagers.map((pager) => (
-              <Card key={pager.docId} className="border-white/[0.06] bg-[#141414] hover:border-primary/20 transition-all hover:shadow-lg hover:shadow-primary/5" data-testid={`card-waiting-${pager.docId}`}>
-                <CardContent className="p-5">
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/15 flex items-center justify-center">
-                      <span className="text-primary font-bold text-2xl" data-testid={`text-order-num-${pager.docId}`}>
-                        {pager.orderNumber}
-                      </span>
-                    </div>
-                    <div>
-                      <p className="font-semibold">{t("طلب", "Order")} #{pager.orderNumber}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {pager.createdAt && new Date(pager.createdAt).toLocaleTimeString(lang === "ar" ? "ar-SA" : "en-US", { hour: "2-digit", minute: "2-digit" })}
-                      </p>
-                      <Badge className="mt-1.5 bg-yellow-500/10 text-yellow-400 border-yellow-500/20 text-[10px]">
-                        {t("في الانتظار", "Waiting")}
+            </div>
+          )}
+        </div>
+
+        {selectedPager && (
+          <div className="flex-1 min-w-0" data-testid="order-detail-panel">
+            <Card className="border-white/[0.06] bg-[#141414] sticky top-4">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-lg font-bold">{t("تفاصيل الطلب", "Order Details")}</h3>
+                  <button
+                    onClick={() => onSelectPager(null)}
+                    className="p-1.5 rounded-lg hover:bg-white/[0.06] text-muted-foreground"
+                    data-testid="button-close-detail"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-5 mb-8">
+                  <div className={`w-20 h-20 rounded-2xl border-2 flex items-center justify-center ${
+                    selectedPager.status === "notified"
+                      ? "bg-green-500/10 border-green-500/20"
+                      : "bg-primary/10 border-primary/20"
+                  }`}>
+                    <span className={`font-bold text-3xl ${
+                      selectedPager.status === "notified" ? "text-green-400" : "text-primary"
+                    }`}>
+                      {selectedPager.orderNumber}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-xl font-bold">{t("طلب", "Order")} #{selectedPager.orderNumber}</p>
+                    <Badge className={`mt-2 ${
+                      selectedPager.status === "notified"
+                        ? "bg-green-500/15 text-green-400 border-green-500/20"
+                        : "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"
+                    }`}>
+                      {selectedPager.status === "notified" ? t("تم التنبيه", "Notified") : t("في الانتظار", "Waiting")}
+                    </Badge>
+                  </div>
+                </div>
+
+                <div className="space-y-3 mb-8">
+                  <div className="flex items-center justify-between py-2 border-b border-white/[0.04]">
+                    <span className="text-sm text-muted-foreground">{t("الوقت", "Time")}</span>
+                    <span className="text-sm font-medium">
+                      {selectedPager.createdAt && new Date(selectedPager.createdAt).toLocaleTimeString(lang === "ar" ? "ar-SA" : "en-US", { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between py-2 border-b border-white/[0.04]">
+                    <span className="text-sm text-muted-foreground">{t("الحالة", "Status")}</span>
+                    <span className="text-sm font-medium">
+                      {selectedPager.status === "notified" ? t("تم التنبيه", "Notified") : t("في الانتظار", "Waiting")}
+                    </span>
+                  </div>
+                  {selectedPager.fcmToken && (
+                    <div className="flex items-center justify-between py-2 border-b border-white/[0.04]">
+                      <span className="text-sm text-muted-foreground">{t("إشعارات", "Push")}</span>
+                      <Badge className="bg-green-500/15 text-green-400 border-green-500/20 text-[10px]">
+                        {t("مفعّل", "Enabled")}
                       </Badge>
                     </div>
-                  </div>
-                  <div className="flex gap-2">
+                  )}
+                </div>
+
+                <div className="space-y-3">
+                  {selectedPager.status === "waiting" && (
                     <Button
-                      onClick={() => onNotify(pager)}
-                      disabled={isPending || notifyLoading === pager.docId}
-                      className="flex-1 h-12 bg-primary hover:bg-primary/90 font-bold text-base"
-                      data-testid={`button-notify-${pager.docId}`}
+                      onClick={() => onNotify(selectedPager)}
+                      disabled={isPending || notifyLoading === selectedPager.docId}
+                      className="w-full h-14 bg-primary hover:bg-primary/90 font-bold text-lg"
+                      data-testid={`button-notify-${selectedPager.docId}`}
                     >
-                      {notifyLoading === pager.docId ? (
+                      {notifyLoading === selectedPager.docId ? (
                         <Loader2 className="w-5 h-5 animate-spin" />
                       ) : (
                         <>
-                          <BellRing className="w-5 h-5 me-2" />
-                          {t("تنبيه", "Notify")}
+                          <BellRing className="w-6 h-6 me-2" />
+                          {t("تنبيه العميل", "Notify Customer")}
                         </>
                       )}
                     </Button>
+                  )}
+                  {selectedPager.status === "notified" && (
                     <Button
-                      size="icon"
                       variant="outline"
-                      onClick={() => onRemove(pager)}
-                      className="h-12 w-12 border-red-500/15 text-red-400 hover:bg-red-500/10"
-                      data-testid={`button-remove-${pager.docId}`}
+                      onClick={() => onComplete(selectedPager)}
+                      className="w-full h-14 border-green-500/20 text-green-400 hover:bg-green-500/10 font-bold text-lg"
+                      data-testid={`button-complete-${selectedPager.docId}`}
                     >
-                      <Trash2 className="w-5 h-5" />
+                      <CheckCircle className="w-6 h-6 me-2" />
+                      {t("تم الاستلام", "Mark Complete")}
                     </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  )}
+                  <Button
+                    variant="outline"
+                    onClick={() => { onRemove(selectedPager); onSelectPager(null); }}
+                    className="w-full h-12 border-red-500/15 text-red-400 hover:bg-red-500/10 font-semibold"
+                    data-testid={`button-remove-${selectedPager.docId}`}
+                  >
+                    <Trash2 className="w-5 h-5 me-2" />
+                    {t("حذف", "Remove")}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         )}
       </div>
-
-      {notifiedPagers.length > 0 && (
-        <div>
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-            {t("تم التنبيه", "Notified")} ({notifiedPagers.length})
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {notifiedPagers.map((pager) => (
-              <Card key={pager.docId} className="border-green-500/10 bg-green-500/[0.02]" data-testid={`card-notified-${pager.docId}`}>
-                <CardContent className="p-5">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-14 h-14 rounded-2xl bg-green-500/10 border border-green-500/15 flex items-center justify-center">
-                        <span className="text-green-400 font-bold text-xl">{pager.orderNumber}</span>
-                      </div>
-                      <div>
-                        <p className="font-semibold">{t("طلب", "Order")} #{pager.orderNumber}</p>
-                        <p className="text-xs text-green-400 mt-0.5">{t("تم التنبيه", "Notified")}</p>
-                      </div>
-                    </div>
-                    <Badge className="bg-green-500/15 text-green-400 border-green-500/20">
-                      <BellRing className="w-3 h-3 me-1" />
-                      {t("مُنبّه", "Paged")}
-                    </Badge>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => onComplete(pager)}
-                      className="flex-1 h-10 border-green-500/20 text-green-400 hover:bg-green-500/10 font-semibold"
-                      data-testid={`button-complete-${pager.docId}`}
-                    >
-                      <CheckCircle className="w-4 h-4 me-1.5" />
-                      {t("مكتمل", "Complete")}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => onRemove(pager)}
-                      className="h-10 border-red-500/15 text-red-400 hover:bg-red-500/10"
-                      data-testid={`button-remove-notified-${pager.docId}`}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

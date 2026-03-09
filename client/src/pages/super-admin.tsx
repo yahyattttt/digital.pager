@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useLocation } from "wouter";
 import { collection, getDocs, doc, updateDoc, deleteDoc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useLanguage } from "@/hooks/use-language";
 import { businessTypeLabels, planLabels } from "@shared/schema";
 import type { Merchant, SystemSettings } from "@shared/schema";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } from "recharts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -73,6 +74,101 @@ import {
 } from "lucide-react";
 
 const SUPER_ADMIN_EMAIL = "yahiatohary@hotmail.com";
+
+function AdminCharts({ merchants, t, lang }: { merchants: Merchant[]; t: (ar: string, en: string) => string; lang: string }) {
+  const signupData = useMemo(() => {
+    const monthCounts: Record<string, number> = {};
+    const now = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      monthCounts[key] = 0;
+    }
+    merchants.forEach(m => {
+      const ca = (m as any).createdAt;
+      if (!ca) return;
+      const d = new Date(ca);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      if (key in monthCounts) monthCounts[key]++;
+    });
+    return Object.entries(monthCounts).map(([month, count]) => ({
+      month: new Date(month + "-01").toLocaleDateString(lang === "ar" ? "ar-SA" : "en-US", { month: "short" }),
+      count,
+    }));
+  }, [merchants, lang]);
+
+  const expiryData = useMemo(() => {
+    const weekCounts: { label: string; count: number; color: string }[] = [];
+    const now = new Date();
+    const ranges = [
+      { label: t("منتهي", "Expired"), days: [-Infinity, 0], color: "#ef4444" },
+      { label: t("٠-٧ أيام", "0-7 days"), days: [0, 8], color: "#f97316" },
+      { label: t("٨-١٤ يوم", "8-14 days"), days: [8, 15], color: "#eab308" },
+      { label: t("١٥-٣٠ يوم", "15-30 days"), days: [15, 31], color: "#22c55e" },
+      { label: t("+٣٠ يوم", "30+ days"), days: [31, Infinity], color: "#3b82f6" },
+    ];
+    ranges.forEach(r => {
+      const count = merchants.filter(m => {
+        const exp = (m as any).subscriptionExpiry;
+        if (!exp) return false;
+        const diffDays = (new Date(exp).getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+        return diffDays >= r.days[0] && diffDays < r.days[1];
+      }).length;
+      weekCounts.push({ label: r.label, count, color: r.color });
+    });
+    return weekCounts;
+  }, [merchants, t]);
+
+  if (merchants.length === 0) return null;
+
+  return (
+    <div className="hidden lg:grid lg:grid-cols-2 gap-4" data-testid="admin-charts">
+      <Card className="border-white/[0.06] bg-[#141414]">
+        <CardContent className="p-5">
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">
+            {t("التسجيلات الجديدة", "New Signups")}
+          </h3>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={signupData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+              <XAxis dataKey="month" tick={{ fill: "#888", fontSize: 12 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: "#888", fontSize: 12 }} axisLine={false} tickLine={false} allowDecimals={false} />
+              <Tooltip
+                contentStyle={{ background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#fff" }}
+                cursor={{ fill: "rgba(255,50,50,0.05)" }}
+              />
+              <Bar dataKey="count" name={t("تسجيلات", "Signups")} fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+      <Card className="border-white/[0.06] bg-[#141414]">
+        <CardContent className="p-5">
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">
+            {t("انتهاء الاشتراكات", "Subscription Expiries")}
+          </h3>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={expiryData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+              <XAxis dataKey="label" tick={{ fill: "#888", fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: "#888", fontSize: 12 }} axisLine={false} tickLine={false} allowDecimals={false} />
+              <Tooltip
+                contentStyle={{ background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#fff" }}
+                cursor={{ fill: "rgba(255,50,50,0.05)" }}
+              />
+              <Bar dataKey="count" name={t("تجار", "Merchants")} radius={[4, 4, 0, 0]}>
+                {expiryData.map((entry, idx) => (
+                  <Cell key={idx} fill={entry.color} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
 
 const businessTypeLabelsEn: Record<string, string> = {
   restaurant: "Restaurant",
@@ -885,6 +981,8 @@ export default function SuperAdminPage() {
                 </CardContent>
               </Card>
             )}
+
+            <AdminCharts merchants={merchants} t={t} lang={lang} />
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between gap-2 pb-4">

@@ -1,15 +1,55 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, TouchEvent as ReactTouchEvent } from "react";
 import { useParams } from "wouter";
-import { doc, getDoc, setDoc, updateDoc, collection, query, where, onSnapshot } from "firebase/firestore";
+import { doc, getDoc, getDocs, setDoc, updateDoc, collection, query, where, onSnapshot } from "firebase/firestore";
 import { db, requestFCMToken } from "@/lib/firebase";
 import type { Merchant, Pager } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
-import { Star, Store, AlertTriangle, Bell, BellOff, CheckCircle, Share2, MapPin, Copy, Send, Loader2, Navigation } from "lucide-react";
+import { Star, Store, AlertTriangle, Bell, BellOff, CheckCircle, Share2, MapPin, Copy, Send, Loader2, Navigation, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useWakeLock } from "@/hooks/use-wake-lock";
+
+function usePullToRefresh(onRefresh: () => Promise<void>) {
+  const [pulling, setPulling] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [pullDistance, setPullDistance] = useState(0);
+  const startYRef = useRef(0);
+  const threshold = 80;
+
+  const handleTouchStart = useCallback((e: ReactTouchEvent) => {
+    if (window.scrollY === 0) {
+      startYRef.current = e.touches[0].clientY;
+    }
+  }, []);
+
+  const handleTouchMove = useCallback((e: ReactTouchEvent) => {
+    if (startYRef.current === 0 || refreshing) return;
+    const diff = e.touches[0].clientY - startYRef.current;
+    if (diff > 0 && window.scrollY === 0) {
+      setPullDistance(Math.min(diff * 0.5, 120));
+      setPulling(diff * 0.5 >= threshold);
+    }
+  }, [refreshing]);
+
+  const handleTouchEnd = useCallback(async () => {
+    if (pulling && !refreshing) {
+      setRefreshing(true);
+      setPullDistance(60);
+      try {
+        await onRefresh();
+      } finally {
+        setRefreshing(false);
+      }
+    }
+    setPullDistance(0);
+    setPulling(false);
+    startYRef.current = 0;
+  }, [pulling, refreshing, onRefresh]);
+
+  return { pullDistance, refreshing, pulling, handleTouchStart, handleTouchMove, handleTouchEnd };
+}
 
 function useAlertSound() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -441,13 +481,33 @@ function PagerDevice({ orderNumber, isReady }: { orderNumber: string; isReady: b
   );
 }
 
-function WaitingScreen({ orderNumber, storeName, storeId, googleMapsReviewUrl }: { orderNumber: string; storeName: string; storeId: string; googleMapsReviewUrl: string }) {
+function WaitingScreen({ orderNumber, storeName, storeId, googleMapsReviewUrl, onRefresh, pullProps }: {
+  orderNumber: string;
+  storeName: string;
+  storeId: string;
+  googleMapsReviewUrl: string;
+  onRefresh?: () => Promise<void>;
+  pullProps?: ReturnType<typeof usePullToRefresh>;
+}) {
   return (
     <div
-      className="min-h-screen flex flex-col items-center justify-between py-10 px-6 text-center"
+      className="h-[100dvh] flex flex-col items-center justify-between py-8 px-5 text-center overflow-hidden touch-pan-y"
       style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }}
+      onTouchStart={pullProps?.handleTouchStart}
+      onTouchMove={pullProps?.handleTouchMove}
+      onTouchEnd={pullProps?.handleTouchEnd}
+      data-testid="pager-waiting-screen"
     >
-      <div className="w-full">
+      {pullProps && pullProps.pullDistance > 0 && (
+        <div
+          className="absolute top-0 left-0 right-0 flex items-center justify-center transition-transform z-50"
+          style={{ transform: `translateY(${pullProps.pullDistance - 40}px)` }}
+        >
+          <RefreshCw className={`w-5 h-5 text-red-500 ${pullProps.refreshing ? "animate-spin" : ""} ${pullProps.pulling ? "text-red-400" : "text-red-500/40"}`} />
+        </div>
+      )}
+
+      <div className="w-full flex-shrink-0">
         <h2
           className="text-white/90 text-sm font-bold tracking-[0.3em] uppercase mb-1"
           style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}
@@ -460,10 +520,10 @@ function WaitingScreen({ orderNumber, storeName, storeId, googleMapsReviewUrl }:
         </p>
       </div>
 
-      <div className="flex-1 flex flex-col items-center justify-center -mt-4">
+      <div className="flex-1 flex flex-col items-center justify-center min-h-0">
         <PagerDevice orderNumber={orderNumber} isReady={false} />
 
-        <div className="mt-8">
+        <div className="mt-6">
           <p
             className="text-red-400 text-lg font-bold"
             dir="rtl"
@@ -471,13 +531,13 @@ function WaitingScreen({ orderNumber, storeName, storeId, googleMapsReviewUrl }:
           >
             جاري التحضير...
           </p>
-          <p className="text-white/50 text-sm mt-2" data-testid="text-waiting-hint">
+          <p className="text-white/50 text-sm mt-1.5" data-testid="text-waiting-hint">
             We'll buzz you!
           </p>
         </div>
       </div>
 
-      <div className="w-full max-w-xs space-y-3">
+      <div className="w-full max-w-xs space-y-2 flex-shrink-0">
         <ShareAndReviewButtons
           storeId={storeId}
           storeName={storeName}
@@ -508,11 +568,12 @@ function NotifiedScreen({
 }) {
   return (
     <div
-      className={`min-h-screen flex flex-col items-center justify-between py-10 px-6 text-center ${alertActive ? "pager-neon-pulse" : ""}`}
+      className={`h-[100dvh] flex flex-col items-center justify-between py-8 px-5 text-center overflow-hidden ${alertActive ? "pager-neon-pulse" : ""}`}
       style={{ background: alertActive
         ? "linear-gradient(180deg, #0a0000 0%, #1a0000 30%, #0d0000 70%, #000 100%)"
         : "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)"
       }}
+      data-testid="pager-notified-screen"
     >
       <div className="w-full">
         <h2
@@ -622,6 +683,32 @@ export default function StorePagerPage() {
   const { unlock, play, stop: stopSound } = useAlertSound();
   const { start: startVibration, stop: stopVibration } = useVibrationLoop();
   const { isActive: wakeLockActive, isSupported: wakeLockSupported, requestWakeLock, releaseWakeLock } = useWakeLock(false);
+
+  const handlePullRefresh = useCallback(async () => {
+    if (!storeId || !orderNumber || !submitted) return;
+    const pagersRef = collection(db, "merchants", storeId, "pagers");
+    const q = query(
+      pagersRef,
+      where("orderNumber", "==", orderNumber),
+      where("status", "in", ["waiting", "notified"])
+    );
+    const snap = await getDocs(q);
+    if (!snap.empty) {
+      const pager = snap.docs[0].data() as Pager;
+      if (pager.status === "notified" && !hasPlayedNotification.current) {
+        hasPlayedNotification.current = true;
+        setPagerStatus("notified");
+        setAlertActive(true);
+        play();
+        startVibration();
+        reviewTimerRef.current = setTimeout(() => {
+          setShowReview(true);
+        }, 2 * 60 * 1000);
+      }
+    }
+  }, [storeId, orderNumber, submitted, play, startVibration]);
+
+  const pullProps = usePullToRefresh(handlePullRefresh);
 
   useEffect(() => {
     async function fetchStore() {
@@ -756,7 +843,7 @@ export default function StorePagerPage() {
 
   if (loading) {
     content = (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }}>
+      <div className="h-[100dvh] flex items-center justify-center overflow-hidden" style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }}>
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
           <span className="text-white/30 text-xs tracking-[0.3em] uppercase">DIGITAL PAGER</span>
@@ -765,7 +852,7 @@ export default function StorePagerPage() {
     );
   } else if (serviceUnavailable) {
     content = (
-      <div className="min-h-screen bg-black flex items-center justify-center p-6">
+      <div className="h-[100dvh] bg-black flex items-center justify-center p-6 overflow-hidden">
         <Card className="w-full max-w-sm border-red-600/20 bg-zinc-950">
           <CardContent className="pt-8 pb-8 text-center">
             <div className="mx-auto w-16 h-16 rounded-full bg-yellow-500/10 flex items-center justify-center mb-4">
@@ -789,7 +876,7 @@ export default function StorePagerPage() {
     );
   } else if (notFound || !merchant) {
     content = (
-      <div className="min-h-screen bg-black flex items-center justify-center p-6">
+      <div className="h-[100dvh] bg-black flex items-center justify-center p-6 overflow-hidden">
         <Card className="w-full max-w-sm border-red-600/20 bg-black">
           <CardContent className="pt-8 pb-8 text-center">
             <div className="mx-auto w-16 h-16 rounded-full bg-red-600/10 flex items-center justify-center mb-4">
@@ -819,20 +906,19 @@ export default function StorePagerPage() {
     );
   } else if (submitted && pagerStatus === "waiting") {
     content = (
-      <>
-        <WaitingScreen orderNumber={orderNumber} storeName={merchant.storeName} storeId={storeId!} googleMapsReviewUrl={merchant.googleMapsReviewUrl} />
-        {wakeLockSupported && (
-          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-zinc-900/80 backdrop-blur-sm border border-zinc-800 rounded-full px-3 py-1.5">
-            <div className={`w-2 h-2 rounded-full ${wakeLockActive ? "bg-green-500" : "bg-yellow-500 animate-pulse"}`} />
-            <span className="text-gray-400 text-[10px]">{wakeLockActive ? "Screen stays on" : "Requesting wake lock..."}</span>
-          </div>
-        )}
-      </>
+      <WaitingScreen
+        orderNumber={orderNumber}
+        storeName={merchant.storeName}
+        storeId={storeId!}
+        googleMapsReviewUrl={merchant.googleMapsReviewUrl}
+        onRefresh={handlePullRefresh}
+        pullProps={pullProps}
+      />
     );
   } else if (merchant) {
     content = (
       <div
-        className="min-h-screen flex flex-col items-center justify-center p-6 relative"
+        className="h-[100dvh] flex flex-col items-center justify-center p-6 relative overflow-hidden"
         style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }}
       >
         <div className="w-full max-w-sm">
@@ -899,7 +985,7 @@ export default function StorePagerPage() {
     );
   } else {
     content = (
-      <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="h-[100dvh] bg-black flex items-center justify-center overflow-hidden">
         <div className="w-8 h-8 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
       </div>
     );
