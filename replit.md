@@ -100,17 +100,24 @@ A multi-tenant SaaS platform for digital pager services (restaurants, cafes, cli
 - `messagingSenderId` extracted from `VITE_FIREBASE_APP_ID` (format `1:SENDER_ID:web:HEX`)
 - Token persistence uses `onSnapshot` with retry (waits for pager doc to appear, 30s timeout)
 
-## Passwordless OTP Authentication (Resend + Firebase Custom Tokens)
+## Passwordless OTP Authentication (Resend + Session-based)
 - **No passwords** — both login and registration use email OTP only
-- **POST `/api/send-otp`**: Sends 6-digit OTP via Resend (dev mode: logs only in NODE_ENV=development)
-- **POST `/api/verify-otp`**: Validates OTP (10-min expiry, max 5 attempts, 6-digit format enforced) → finds/creates Firebase Auth user → returns Firebase custom token (JWT signed with service account RSA key)
-- **Custom Token Flow**: Server creates JWT with `iss/sub = service account email`, `aud = identitytoolkit`, `uid = Firebase user UID`, signed with RS256 using service account private key
-- **Client Auth**: Uses `signInWithCustomToken(auth, token)` — Firebase persistence keeps session across browser restarts
-- **Login flow**: Email → Send OTP → Enter 6-digit code → Sign in (if no merchant found, redirects to register)
-- **Registration flow**: Fill store details + email → Send OTP → Verify OTP (gets custom token + UID) → Sign in → Save merchant data to Firestore
-- OTPs stored in Firestore `otp_codes` collection (persists across server restarts); branded HTML email template (neon red/black theme, Arabic/English)
+- **POST `/api/send-otp`**: Sends 6-digit OTP via Resend, stores OTP in Firestore `otps` collection
+- **POST `/api/verify-otp`**: Validates OTP (10-min expiry, max 5 attempts, 6-digit format enforced) → returns UID and custom token
+- **Session-based auth**: Client stores `{uid, email}` in localStorage (`dp-session`), no Firebase Auth SDK needed for login
+- **No `signInWithCustomToken`** — completely removed Firebase Auth client dependency; sessions are managed via localStorage
+- **Login flow**: Email → Send OTP → Enter 6-digit code → Server verifies → Client stores session → Navigate to dashboard
+- **Registration flow**: Fill store details + email → Send OTP → Verify OTP (gets UID) → Store session → Save merchant data to Firestore
+- OTPs stored in Firestore `otps` collection (persists across server restarts); branded HTML email template (neon red/black theme, Arabic/English)
 - Real-time merchant status via Firestore `onSnapshot` — admin approval/suspension reflects immediately in merchant dashboard
+- Master OTP `123456` works in dev mode (NODE_ENV !== "production"), bypasses Firestore OTP check entirely
 - Error codes: `OTP_EXPIRED`, `INVALID_CODE`, `TOO_MANY_ATTEMPTS`, `NO_OTP`
+
+## Route Guards (App.tsx)
+- **ProtectedRoute**: Shows spinner while `loading` or while `user` exists but `merchant` hasn't loaded yet (5s timeout before redirecting to /pending). Rejected/suspended merchants redirected to /login.
+- **PendingRoute**: Shows spinner while merchant loading; redirects to /dashboard if merchant exists with approved/pending status.
+- **GuestRoute**: Redirects logged-in users to appropriate pages based on role/status.
+- **login()** sets `loading=true` to prevent route guards from making premature redirect decisions before merchant data loads from Firestore onSnapshot.
 
 ## Registration Resilience
 - If client-side Firestore `setDoc` fails, falls back to **POST `/api/register-merchant`** (requires `Authorization: Bearer <idToken>` header)

@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
-import { signOut } from "firebase/auth";
 import {
   collection,
   addDoc,
@@ -13,7 +12,7 @@ import {
   where,
   serverTimestamp,
 } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { useAuth } from "@/hooks/use-auth";
 import { useLanguage } from "@/hooks/use-language";
 import { useWakeLock } from "@/hooks/use-wake-lock";
@@ -176,7 +175,7 @@ function SubscriptionRequiredScreen({
 
 export default function DashboardPage() {
   const [, setLocation] = useLocation();
-  const { merchant, loading } = useAuth();
+  const { merchant, loading, logout } = useAuth();
   const { t, toggleLanguage, lang } = useLanguage();
   const { isActive: wakeLockActive, isSupported: wakeLockSupported } = useWakeLock();
   const { isFullscreen, toggleFullscreen, isSupported } = useFullscreen();
@@ -220,8 +219,8 @@ export default function DashboardPage() {
     return () => unsubscribe();
   }, [merchant?.uid]);
 
-  async function handleSignOut() {
-    await signOut(auth);
+  function handleSignOut() {
+    logout();
     setLocation("/");
   }
 

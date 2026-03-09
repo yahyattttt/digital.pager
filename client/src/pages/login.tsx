@@ -1,19 +1,20 @@
 import { useState, useRef, useEffect } from "react";
-import { signInWithCustomToken, signOut } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { z } from "zod";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import { useLanguage } from "@/hooks/use-language";
 import { Mail, Loader2, ArrowRight, ArrowLeft, Globe, Bell, KeyRound } from "lucide-react";
 
 export default function LoginPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { login } = useAuth();
   const { t, toggleLanguage, isRTL } = useLanguage();
 
   const [email, setEmail] = useState("");
@@ -128,7 +129,7 @@ export default function LoginPage() {
         return;
       }
 
-      await signInWithCustomToken(auth, data.customToken);
+      const emailLower = email.trim().toLowerCase();
 
       if (data.isNewUser) {
         toast({
@@ -136,13 +137,12 @@ export default function LoginPage() {
           description: t("لم يتم العثور على متجر مسجل. يرجى التسجيل أولاً.", "No store found. Please register first."),
           variant: "destructive",
         });
-        await signOut(auth);
         setLocation("/register");
         return;
       }
 
-      const emailLower = email.trim().toLowerCase();
       if (emailLower === "yahiatohary@hotmail.com") {
+        login(data.uid, emailLower);
         setLocation("/super-admin");
         return;
       }
@@ -154,18 +154,12 @@ export default function LoginPage() {
           description: t("لم يتم العثور على متجر مرتبط بهذا البريد. يرجى التسجيل.", "No store found for this email. Please register."),
           variant: "destructive",
         });
-        await signOut(auth);
         setLocation("/register");
         return;
       }
 
-      const merchant = merchantDoc.data();
-      if (merchant.status === "pending") {
-        setLocation("/pending");
-        return;
-      }
-      if (merchant.status === "rejected") {
-        await signOut(auth);
+      const merchantData = merchantDoc.data();
+      if (merchantData.status === "rejected") {
         toast({
           title: t("تم رفض الحساب", "Account Rejected"),
           description: t("تم رفض تسجيل متجرك. يرجى التواصل مع الدعم الفني.", "Your store registration was rejected. Please contact support."),
@@ -173,8 +167,7 @@ export default function LoginPage() {
         });
         return;
       }
-      if (merchant.status === "suspended") {
-        await signOut(auth);
+      if (merchantData.status === "suspended") {
         toast({
           title: t("الحساب موقوف", "Account Suspended"),
           description: t("تم إيقاف حسابك. يرجى التواصل مع الدعم الفني.", "Your account has been suspended. Please contact support."),
@@ -183,12 +176,13 @@ export default function LoginPage() {
         return;
       }
 
+      login(data.uid, emailLower);
       setLocation("/dashboard");
     } catch (error: any) {
       console.error("Login error:", error);
       toast({
         title: t("خطأ في تسجيل الدخول", "Login Error"),
-        description: t("فشل تسجيل الدخول. يرجى المحاولة مرة أخرى.", "Login failed. Please try again."),
+        description: error?.message || t("فشل تسجيل الدخول. يرجى المحاولة مرة أخرى.", "Login failed. Please try again."),
         variant: "destructive",
       });
     } finally {

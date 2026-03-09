@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Switch, Route, useLocation, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -36,6 +37,15 @@ function SuperAdminRoute() {
 
 function ProtectedRoute({ component: Component }: { component: () => JSX.Element | null }) {
   const { user, merchant, loading } = useAuth();
+  const [merchantTimeout, setMerchantTimeout] = useState(false);
+
+  useEffect(() => {
+    if (user && !merchant && !loading) {
+      const timer = setTimeout(() => setMerchantTimeout(true), 5000);
+      return () => clearTimeout(timer);
+    }
+    setMerchantTimeout(false);
+  }, [user, merchant, loading]);
 
   if (loading) {
     return (
@@ -49,11 +59,19 @@ function ProtectedRoute({ component: Component }: { component: () => JSX.Element
     return <Redirect to="/login" />;
   }
 
-  if (!merchant) {
+  if (!merchant && !merchantTimeout) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!merchant && merchantTimeout) {
     return <Redirect to="/pending" />;
   }
 
-  if (merchant.status === "rejected" || merchant.status === "suspended") {
+  if (merchant?.status === "rejected" || merchant?.status === "suspended") {
     return <Redirect to="/login" />;
   }
 
@@ -62,6 +80,15 @@ function ProtectedRoute({ component: Component }: { component: () => JSX.Element
 
 function PendingRoute() {
   const { user, merchant, loading } = useAuth();
+  const [pendingTimeout, setPendingTimeout] = useState(false);
+
+  useEffect(() => {
+    if (user && !merchant && !loading) {
+      const timer = setTimeout(() => setPendingTimeout(true), 5000);
+      return () => clearTimeout(timer);
+    }
+    setPendingTimeout(false);
+  }, [user, merchant, loading]);
 
   if (loading) {
     return (
@@ -73,6 +100,14 @@ function PendingRoute() {
 
   if (!user) {
     return <Redirect to="/login" />;
+  }
+
+  if (!merchant && !pendingTimeout) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
   }
 
   if (merchant && (merchant.status === "approved" || merchant.status === "pending")) {

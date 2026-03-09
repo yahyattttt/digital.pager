@@ -1,8 +1,7 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { collection, getDocs, doc, updateDoc, deleteDoc } from "firebase/firestore";
-import { signOut } from "firebase/auth";
-import { auth, db } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { useAuth } from "@/hooks/use-auth";
 import { useLanguage } from "@/hooks/use-language";
 import { businessTypeLabels, planLabels } from "@shared/schema";
@@ -120,7 +119,7 @@ function getSubBadge(subStatus: string | undefined, t: (ar: string, en: string) 
 
 export default function SuperAdminPage() {
   const [, setLocation] = useLocation();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, logout } = useAuth();
   const { t, toggleLanguage, lang } = useLanguage();
   const { toast } = useToast();
 
@@ -277,8 +276,8 @@ export default function SuperAdminPage() {
     }
   }
 
-  async function handleSignOut() {
-    await signOut(auth);
+  function handleSignOut() {
+    logout();
     setLocation("/");
   }
 

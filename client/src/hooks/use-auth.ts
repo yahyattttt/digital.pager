@@ -1,13 +1,21 @@
-import { useState, useEffect, createContext, useContext } from "react";
-import { onAuthStateChanged, type User } from "firebase/auth";
+import { useState, useEffect, createContext, useContext, useCallback } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import type { Merchant } from "@shared/schema";
 
+const SESSION_KEY = "dp-session";
+
+interface SessionData {
+  uid: string;
+  email: string;
+}
+
 interface AuthContextType {
-  user: User | null;
+  user: SessionData | null;
   merchant: Merchant | null;
   loading: boolean;
+  login: (uid: string, email: string) => void;
+  logout: () => void;
   refreshMerchant: () => void;
 }
 
@@ -15,57 +23,74 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   merchant: null,
   loading: true,
+  login: () => {},
+  logout: () => {},
   refreshMerchant: () => {},
 });
 
 export function useAuthProvider() {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<SessionData | null>(null);
   const [merchant, setMerchant] = useState<Merchant | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let unsubMerchant: (() => void) | null = null;
-
-    const unsubAuth = onAuthStateChanged(auth, (firebaseUser) => {
-      setUser(firebaseUser);
-
-      if (unsubMerchant) {
-        unsubMerchant();
-        unsubMerchant = null;
+    try {
+      const stored = localStorage.getItem(SESSION_KEY);
+      if (stored) {
+        const session: SessionData = JSON.parse(stored);
+        if (session.uid && session.email) {
+          setUser(session);
+          return;
+        }
       }
+    } catch {}
+    setUser(null);
+    setLoading(false);
+  }, []);
 
-      if (firebaseUser) {
-        unsubMerchant = onSnapshot(
-          doc(db, "merchants", firebaseUser.uid),
-          (snap) => {
-            if (snap.exists()) {
-              setMerchant(snap.data() as Merchant);
-            } else {
-              setMerchant(null);
-            }
-            setLoading(false);
-          },
-          (error) => {
-            console.error("Merchant snapshot error:", error);
-            setMerchant(null);
-            setLoading(false);
-          }
-        );
-      } else {
+  useEffect(() => {
+    if (!user?.uid) {
+      setMerchant(null);
+      setLoading(false);
+      return;
+    }
+
+    const unsub = onSnapshot(
+      doc(db, "merchants", user.uid),
+      (snap) => {
+        if (snap.exists()) {
+          setMerchant(snap.data() as Merchant);
+        } else {
+          setMerchant(null);
+        }
+        setLoading(false);
+      },
+      (error) => {
+        console.error("Merchant snapshot error:", error);
         setMerchant(null);
         setLoading(false);
       }
-    });
+    );
 
-    return () => {
-      unsubAuth();
-      if (unsubMerchant) unsubMerchant();
-    };
+    return () => unsub();
+  }, [user?.uid]);
+
+  const login = useCallback((uid: string, email: string) => {
+    const session: SessionData = { uid, email };
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    setLoading(true);
+    setUser(session);
+  }, []);
+
+  const logout = useCallback(() => {
+    localStorage.removeItem(SESSION_KEY);
+    setUser(null);
+    setMerchant(null);
   }, []);
 
   function refreshMerchant() {}
 
-  return { user, merchant, loading, refreshMerchant };
+  return { user, merchant, loading, login, logout, refreshMerchant };
 }
 
 export { AuthContext };

@@ -1,15 +1,15 @@
 import { useState, useRef, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { signInWithCustomToken } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { registerFormSchema, type RegisterFormData, businessTypeLabels } from "@shared/schema";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import { useLanguage } from "@/hooks/use-language";
 import {
   Form,
@@ -38,6 +38,7 @@ const businessTypeLabelsEn: Record<string, string> = {
 export default function RegisterPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { login } = useAuth();
   const { t, toggleLanguage, isRTL, lang } = useLanguage();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [logoFile, setLogoFile] = useState<File | null>(null);
@@ -238,7 +239,7 @@ export default function RegisterPage() {
     }
     setIsSubmitting(true);
     try {
-      await signInWithCustomToken(auth, customToken);
+      login(firebaseUid, data.email.toLowerCase().trim());
 
       let logoUrl = "";
       try {
@@ -267,13 +268,11 @@ export default function RegisterPage() {
       } catch (firestoreError: any) {
         console.error("Firestore write error:", firestoreError.code, firestoreError.message);
         try {
-          const currentUser = auth.currentUser;
-          const idToken = currentUser ? await currentUser.getIdToken() : "";
           const res = await fetch("/api/register-merchant", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              "Authorization": `Bearer ${idToken}`,
+              "Authorization": `Bearer ${customToken}`,
             },
             body: JSON.stringify(merchantData),
           });

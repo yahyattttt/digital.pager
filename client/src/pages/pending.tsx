@@ -1,6 +1,4 @@
 import { useLocation } from "wouter";
-import { signOut } from "firebase/auth";
-import { auth } from "@/lib/firebase";
 import { useAuth } from "@/hooks/use-auth";
 import { useLanguage } from "@/hooks/use-language";
 import { Button } from "@/components/ui/button";
@@ -9,11 +7,11 @@ import { Clock, LogOut, Mail, Globe } from "lucide-react";
 
 export default function PendingPage() {
   const [, setLocation] = useLocation();
-  const { merchant, loading } = useAuth();
+  const { merchant, loading, logout } = useAuth();
   const { t, toggleLanguage } = useLanguage();
 
-  async function handleSignOut() {
-    await signOut(auth);
+  function handleSignOut() {
+    logout();
     setLocation("/");
   }
 
