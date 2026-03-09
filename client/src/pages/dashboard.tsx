@@ -6,9 +6,12 @@ import {
   updateDoc,
   deleteDoc,
   doc,
+  getDoc,
+  setDoc,
   onSnapshot,
   query,
   where,
+  runTransaction,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/hooks/use-auth";
@@ -66,6 +69,9 @@ import {
   Plus,
   Power,
   PowerOff,
+  Zap,
+  RotateCcw,
+  Hash,
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 
@@ -347,10 +353,31 @@ export default function DashboardPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [storeOpen, setStoreOpen] = useState<boolean>((merchant as any)?.storeOpen !== false);
   const [selectedPagerId, setSelectedPagerId] = useState<string | null>(null);
+  const [lastOrderNumber, setLastOrderNumber] = useState<number>(0);
+  const [showShiftStart, setShowShiftStart] = useState(false);
+  const [shiftStartNumber, setShiftStartNumber] = useState("");
+  const [quickAddLoading, setQuickAddLoading] = useState(false);
+  const [counterLoaded, setCounterLoaded] = useState(false);
 
   useEffect(() => {
     setStoreOpen((merchant as any)?.storeOpen !== false);
   }, [(merchant as any)?.storeOpen]);
+
+  useEffect(() => {
+    if (!merchant?.uid) return;
+    const counterRef = doc(db, "merchants", merchant.uid, "settings", "orderCounter");
+    const unsub = onSnapshot(counterRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setLastOrderNumber(data.lastOrderNumber || 0);
+        setCounterLoaded(true);
+      } else {
+        setShowShiftStart(true);
+        setCounterLoaded(true);
+      }
+    });
+    return () => unsub();
+  }, [merchant?.uid]);
 
   useEffect(() => {
     if (!merchant?.uid) return;
@@ -447,18 +474,38 @@ export default function DashboardPage() {
     setLocation("/");
   }
 
+  const isApproved = merchant?.status === "approved";
+
+  const addOrderToWaitlist = useCallback(async (orderNum: string, advanceCounter = true) => {
+    if (!merchant?.uid || !orderNum.trim()) return;
+    const pagersRef = collection(db, "merchants", merchant.uid, "pagers");
+    await addDoc(pagersRef, {
+      storeId: merchant.uid,
+      orderNumber: orderNum.trim(),
+      status: "waiting",
+      createdAt: new Date().toISOString(),
+      notifiedAt: null,
+    });
+    if (advanceCounter) {
+      const counterRef = doc(db, "merchants", merchant.uid, "settings", "orderCounter");
+      const num = parseInt(orderNum.trim(), 10);
+      if (!isNaN(num)) {
+        await runTransaction(db, async (txn) => {
+          const snap = await txn.get(counterRef);
+          const current = snap.exists() ? (snap.data().lastOrderNumber || 0) : 0;
+          if (num > current) {
+            txn.set(counterRef, { lastOrderNumber: num }, { merge: true } as any);
+          }
+        });
+      }
+    }
+  }, [merchant?.uid]);
+
   const handleAddToWaitlist = useCallback(async () => {
-    if (!merchant?.uid || !newOrderNumber.trim()) return;
+    if (!merchant?.uid || !newOrderNumber.trim() || !isApproved) return;
     setAddLoading(true);
     try {
-      const pagersRef = collection(db, "merchants", merchant.uid, "pagers");
-      await addDoc(pagersRef, {
-        storeId: merchant.uid,
-        orderNumber: newOrderNumber.trim(),
-        status: "waiting",
-        createdAt: new Date().toISOString(),
-        notifiedAt: null,
-      });
+      await addOrderToWaitlist(newOrderNumber.trim());
       toast({
         title: t("تمت الإضافة", "Added"),
         description: t(
@@ -477,7 +524,98 @@ export default function DashboardPage() {
     } finally {
       setAddLoading(false);
     }
-  }, [merchant?.uid, newOrderNumber, t, toast]);
+  }, [merchant?.uid, isApproved, newOrderNumber, t, toast, addOrderToWaitlist]);
+
+  const handleQuickAdd = useCallback(async () => {
+    if (!merchant?.uid || !isApproved) return;
+    setQuickAddLoading(true);
+    try {
+      const counterRef = doc(db, "merchants", merchant.uid, "settings", "orderCounter");
+      let nextNum = 1;
+      await runTransaction(db, async (txn) => {
+        const snap = await txn.get(counterRef);
+        const current = snap.exists() ? (snap.data().lastOrderNumber || 0) : 0;
+        nextNum = current + 1;
+        txn.set(counterRef, { lastOrderNumber: nextNum }, { merge: true } as any);
+      });
+      const pagersRef = collection(db, "merchants", merchant.uid, "pagers");
+      await addDoc(pagersRef, {
+        storeId: merchant.uid,
+        orderNumber: String(nextNum),
+        status: "waiting",
+        createdAt: new Date().toISOString(),
+        notifiedAt: null,
+      });
+      toast({
+        title: t("تمت الإضافة", "Added"),
+        description: t(
+          `تم إضافة الطلب #${nextNum} لقائمة الانتظار`,
+          `Order #${nextNum} added successfully`
+        ),
+      });
+    } catch {
+      toast({
+        title: t("خطأ", "Error"),
+        description: t("فشل في إضافة الطلب", "Failed to add order"),
+        variant: "destructive",
+      });
+    } finally {
+      setQuickAddLoading(false);
+    }
+  }, [merchant?.uid, isApproved, addOrderToWaitlist, t, toast]);
+
+  const handleShiftStart = useCallback(async () => {
+    if (!merchant?.uid) return;
+    const num = parseInt(shiftStartNumber.trim(), 10);
+    if (isNaN(num) || num < 0) {
+      toast({
+        title: t("خطأ", "Error"),
+        description: t("أدخل رقم صالح", "Enter a valid number"),
+        variant: "destructive",
+      });
+      return;
+    }
+    try {
+      const counterRef = doc(db, "merchants", merchant.uid, "settings", "orderCounter");
+      await setDoc(counterRef, { lastOrderNumber: num }, { merge: true });
+      setShowShiftStart(false);
+      setShiftStartNumber("");
+      toast({
+        title: t("تم تعيين الرقم", "Counter Set"),
+        description: t(
+          `سيبدأ الطلب التالي من #${num + 1}`,
+          `Next order will start from #${num + 1}`
+        ),
+      });
+    } catch {
+      toast({
+        title: t("خطأ", "Error"),
+        description: t("فشل في تعيين العداد", "Failed to set counter"),
+        variant: "destructive",
+      });
+    }
+  }, [merchant?.uid, shiftStartNumber, t, toast]);
+
+  const handleResetCounter = useCallback(async (resetTo: number) => {
+    if (!merchant?.uid) return;
+    try {
+      const counterRef = doc(db, "merchants", merchant.uid, "settings", "orderCounter");
+      await setDoc(counterRef, { lastOrderNumber: resetTo }, { merge: true });
+      toast({
+        title: t("تم إعادة التعيين", "Counter Reset"),
+        description: t(
+          `سيبدأ الطلب التالي من #${resetTo + 1}`,
+          `Next order will start from #${resetTo + 1}`
+        ),
+      });
+    } catch {
+      toast({
+        title: t("خطأ", "Error"),
+        description: t("فشل في إعادة تعيين العداد", "Failed to reset counter"),
+        variant: "destructive",
+      });
+    }
+  }, [merchant?.uid, t, toast]);
 
   const handleNotify = useCallback(async (pager: Pager & { docId: string }) => {
     if (!merchant?.uid || merchant.status !== "approved") return;
@@ -872,6 +1010,10 @@ export default function DashboardPage() {
                 onComplete={handleComplete}
                 onRemove={handleRemove}
                 onNavigate={(v: DashboardView) => { setCurrentView(v); setSelectedPagerId(null); }}
+                onQuickAdd={handleQuickAdd}
+                quickAddLoading={quickAddLoading}
+                lastOrderNumber={lastOrderNumber}
+                counterLoaded={counterLoaded}
                 notifyLoading={notifyLoading}
                 t={t}
                 lang={lang}
@@ -887,6 +1029,10 @@ export default function DashboardPage() {
                 onComplete={handleComplete}
                 onRemove={handleRemove}
                 onAdd={() => setShowAddDialog(true)}
+                onQuickAdd={handleQuickAdd}
+                quickAddLoading={quickAddLoading}
+                lastOrderNumber={lastOrderNumber}
+                counterLoaded={counterLoaded}
                 notifyLoading={notifyLoading}
                 selectedPagerId={selectedPagerId}
                 onSelectPager={setSelectedPagerId}
@@ -920,6 +1066,9 @@ export default function DashboardPage() {
                 merchant={merchant}
                 onDownloadQR={handleDownloadQR}
                 qrLoading={qrLoading}
+                lastOrderNumber={lastOrderNumber}
+                onResetCounter={handleResetCounter}
+                onOpenShiftStart={() => setShowShiftStart(true)}
                 t={t}
                 lang={lang}
               />
@@ -941,55 +1090,139 @@ export default function DashboardPage() {
       )}
 
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="border-white/[0.08] bg-[#141414] sm:max-w-sm">
+        <DialogContent className="border-white/[0.08] bg-[#141414] sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <UserPlus className="w-5 h-5 text-primary" />
               {t("إضافة طلب جديد", "Add New Order")}
             </DialogTitle>
           </DialogHeader>
-          <div className="py-4">
+          <div className="py-2 space-y-4">
+            <Button
+              onClick={() => { handleQuickAdd(); setShowAddDialog(false); }}
+              disabled={quickAddLoading || !counterLoaded}
+              className="w-full h-20 bg-primary hover:bg-primary/90 font-bold text-xl rounded-xl shadow-lg shadow-primary/20 active:scale-[0.98] transition-all"
+              data-testid="button-quick-add"
+            >
+              {quickAddLoading ? (
+                <Loader2 className="w-6 h-6 animate-spin me-3" />
+              ) : (
+                <Zap className="w-7 h-7 me-3" />
+              )}
+              {t("إضافة سريعة", "Quick Add")} #{lastOrderNumber + 1}
+            </Button>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-white/[0.06]" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-[#141414] px-3 text-muted-foreground">
+                  {t("أو إدخال يدوي", "or manual entry")}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Input
+                type="text"
+                inputMode="numeric"
+                placeholder={t("رقم الطلب", "Order Number")}
+                value={newOrderNumber}
+                onChange={(e) => setNewOrderNumber(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && newOrderNumber.trim()) {
+                    handleAddToWaitlist();
+                  }
+                }}
+                className="flex-1 h-14 text-center text-xl font-bold border-white/10 focus:border-primary focus:ring-primary/20 bg-white/[0.03]"
+                dir="ltr"
+                data-testid="input-new-order-number"
+              />
+              <Button
+                onClick={handleAddToWaitlist}
+                disabled={!newOrderNumber.trim() || addLoading}
+                className="h-14 px-5 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 font-bold"
+                data-testid="button-confirm-add"
+              >
+                {addLoading ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Plus className="w-5 h-5" />
+                )}
+              </Button>
+            </div>
+
+            <p className="text-xs text-muted-foreground text-center">
+              {t("آخر رقم:", "Last number:")} <span className="font-mono font-bold text-foreground">{lastOrderNumber}</span>
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showShiftStart} onOpenChange={setShowShiftStart}>
+        <DialogContent className="border-white/[0.08] bg-[#141414] sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Hash className="w-5 h-5 text-primary" />
+              {t("بداية الوردية", "Shift Start")}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <p className="text-sm text-muted-foreground">
+              {t(
+                "أدخل رقم الطلب الأخير لبدء العد التلقائي من بعده",
+                "Enter the last order number to start auto-counting from"
+              )}
+            </p>
             <Input
               type="text"
               inputMode="numeric"
-              placeholder={t("رقم الطلب", "Order Number")}
-              value={newOrderNumber}
-              onChange={(e) => setNewOrderNumber(e.target.value)}
+              placeholder={t("مثال: 500", "e.g. 500")}
+              value={shiftStartNumber}
+              onChange={(e) => setShiftStartNumber(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && newOrderNumber.trim()) {
-                  handleAddToWaitlist();
+                if (e.key === "Enter" && shiftStartNumber.trim()) {
+                  handleShiftStart();
                 }
               }}
               className="h-16 text-center text-2xl font-bold border-white/10 focus:border-primary focus:ring-primary/20 bg-white/[0.03]"
               dir="ltr"
               autoFocus
-              data-testid="input-new-order-number"
+              data-testid="input-shift-start-number"
             />
+            <p className="text-xs text-muted-foreground text-center">
+              {shiftStartNumber.trim() && !isNaN(parseInt(shiftStartNumber)) ? (
+                <>
+                  {t("الطلب التالي سيكون:", "Next order will be:")}
+                  {" "}
+                  <span className="font-mono font-bold text-primary">#{parseInt(shiftStartNumber) + 1}</span>
+                </>
+              ) : (
+                t("أدخل 0 للبدء من الطلب #1", "Enter 0 to start from order #1")
+              )}
+            </p>
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button
               variant="outline"
               onClick={() => {
-                setShowAddDialog(false);
-                setNewOrderNumber("");
+                setShowShiftStart(false);
+                setShiftStartNumber("0");
+                handleResetCounter(0);
               }}
               className="border-white/10"
-              data-testid="button-cancel-add"
+              data-testid="button-start-from-one"
             >
-              {t("إلغاء", "Cancel")}
+              {t("ابدأ من #1", "Start from #1")}
             </Button>
             <Button
-              onClick={handleAddToWaitlist}
-              disabled={!newOrderNumber.trim() || addLoading}
+              onClick={handleShiftStart}
+              disabled={!shiftStartNumber.trim() || isNaN(parseInt(shiftStartNumber))}
               className="bg-primary hover:bg-primary/90 font-bold"
-              data-testid="button-confirm-add"
+              data-testid="button-confirm-shift-start"
             >
-              {addLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin me-2" />
-              ) : (
-                <UserPlus className="w-4 h-4 me-2" />
-              )}
-              {t("إضافة", "Add")}
+              {t("تعيين", "Set")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1009,6 +1242,10 @@ function OverviewView({
   onComplete,
   onRemove,
   onNavigate,
+  onQuickAdd,
+  quickAddLoading,
+  lastOrderNumber,
+  counterLoaded,
   notifyLoading,
   t,
   lang,
@@ -1023,6 +1260,10 @@ function OverviewView({
   onComplete: (pager: Pager & { docId: string }) => void;
   onRemove: (pager: Pager & { docId: string }) => void;
   onNavigate: (view: DashboardView) => void;
+  onQuickAdd: () => void;
+  quickAddLoading: boolean;
+  lastOrderNumber: number;
+  counterLoaded: boolean;
   notifyLoading: string | null;
   t: (ar: string, en: string) => string;
   lang: string;
@@ -1045,6 +1286,22 @@ function OverviewView({
           {storeOpen ? t("مفتوح الآن", "Open Now") : t("مغلق", "Closed")}
         </Badge>
       </div>
+
+      {counterLoaded && (
+        <Button
+          onClick={onQuickAdd}
+          disabled={quickAddLoading || isPending}
+          className="w-full h-16 bg-primary hover:bg-primary/90 font-bold text-lg rounded-xl shadow-lg shadow-primary/20 active:scale-[0.98] transition-all"
+          data-testid="button-quick-add-overview"
+        >
+          {quickAddLoading ? (
+            <Loader2 className="w-6 h-6 animate-spin me-3" />
+          ) : (
+            <Zap className="w-6 h-6 me-3" />
+          )}
+          {t("إضافة سريعة", "Quick Add")} #{lastOrderNumber + 1}
+        </Button>
+      )}
 
       <Card className="border-white/[0.06] bg-[#141414]" data-testid="card-active-waitlist">
         <CardContent className="p-5">
@@ -1243,6 +1500,10 @@ function WaitlistView({
   onComplete,
   onRemove,
   onAdd,
+  onQuickAdd,
+  quickAddLoading,
+  lastOrderNumber,
+  counterLoaded,
   notifyLoading,
   selectedPagerId,
   onSelectPager,
@@ -1256,6 +1517,10 @@ function WaitlistView({
   onComplete: (pager: Pager & { docId: string }) => void;
   onRemove: (pager: Pager & { docId: string }) => void;
   onAdd: () => void;
+  onQuickAdd: () => void;
+  quickAddLoading: boolean;
+  lastOrderNumber: number;
+  counterLoaded: boolean;
   notifyLoading: string | null;
   selectedPagerId: string | null;
   onSelectPager: (id: string | null) => void;
@@ -1317,16 +1582,35 @@ function WaitlistView({
             {t("إدارة العملاء في قائمة الانتظار", "Manage customers in the waitlist")}
           </p>
         </div>
-        <Button
-          onClick={onAdd}
-          disabled={isPending}
-          className="bg-primary hover:bg-primary/90 font-semibold h-12 px-5"
-          data-testid="button-add-waitlist-page"
-        >
-          <UserPlus className="w-5 h-5 me-2" />
-          {t("إضافة", "Add")}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={onAdd}
+            disabled={isPending}
+            className="h-12 border-white/10"
+            data-testid="button-add-waitlist-page"
+          >
+            <Plus className="w-5 h-5 me-1" />
+            {t("يدوي", "Manual")}
+          </Button>
+        </div>
       </div>
+
+      {counterLoaded && (
+        <Button
+          onClick={onQuickAdd}
+          disabled={quickAddLoading || isPending}
+          className="w-full h-16 bg-primary hover:bg-primary/90 font-bold text-lg rounded-xl shadow-lg shadow-primary/20 active:scale-[0.98] transition-all"
+          data-testid="button-quick-add-waitlist"
+        >
+          {quickAddLoading ? (
+            <Loader2 className="w-6 h-6 animate-spin me-3" />
+          ) : (
+            <Zap className="w-6 h-6 me-3" />
+          )}
+          {t("إضافة سريعة", "Quick Add")} #{lastOrderNumber + 1}
+        </Button>
+      )}
 
       <div className="flex gap-4">
         <div className={`space-y-4 ${selectedPager ? "hidden lg:block lg:w-[400px] lg:flex-shrink-0" : "w-full"}`}>
@@ -1881,15 +2165,22 @@ function SettingsView({
   merchant,
   onDownloadQR,
   qrLoading,
+  lastOrderNumber,
+  onResetCounter,
+  onOpenShiftStart,
   t,
   lang,
 }: {
   merchant: any;
   onDownloadQR: () => void;
   qrLoading: boolean;
+  lastOrderNumber: number;
+  onResetCounter: (n: number) => void;
+  onOpenShiftStart: () => void;
   t: (ar: string, en: string) => string;
   lang: string;
 }) {
+  const [resetValue, setResetValue] = useState("");
   return (
     <div className="space-y-6">
       <div>
@@ -1898,6 +2189,79 @@ function SettingsView({
           {t("إعدادات المتجر وأدوات إضافية", "Store settings and tools")}
         </p>
       </div>
+
+      <Card className="border-primary/10 bg-[#141414]">
+        <CardContent className="p-5">
+          <h3 className="font-semibold mb-4 flex items-center gap-2">
+            <Hash className="w-4 h-4 text-primary" />
+            {t("عداد الطلبات", "Order Counter")}
+          </h3>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between py-2 border-b border-white/[0.04]">
+              <span className="text-sm text-muted-foreground">{t("آخر رقم طلب", "Last Order Number")}</span>
+              <span className="text-lg font-mono font-bold text-primary" data-testid="text-last-order-number">#{lastOrderNumber}</span>
+            </div>
+            <div className="flex items-center justify-between py-2 border-b border-white/[0.04]">
+              <span className="text-sm text-muted-foreground">{t("الطلب التالي", "Next Order")}</span>
+              <span className="text-sm font-mono font-bold">#{lastOrderNumber + 1}</span>
+            </div>
+
+            <div className="flex gap-2">
+              <Input
+                type="text"
+                inputMode="numeric"
+                placeholder={t("رقم جديد", "New number")}
+                value={resetValue}
+                onChange={(e) => setResetValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && resetValue.trim() && !isNaN(parseInt(resetValue))) {
+                    onResetCounter(parseInt(resetValue));
+                    setResetValue("");
+                  }
+                }}
+                className="flex-1 h-12 text-center font-bold border-white/10 bg-white/[0.03]"
+                dir="ltr"
+                data-testid="input-reset-counter"
+              />
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (resetValue.trim() && !isNaN(parseInt(resetValue))) {
+                    onResetCounter(parseInt(resetValue));
+                    setResetValue("");
+                  }
+                }}
+                disabled={!resetValue.trim() || isNaN(parseInt(resetValue))}
+                className="h-12 border-white/10"
+                data-testid="button-set-counter"
+              >
+                {t("تعيين", "Set")}
+              </Button>
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => { onResetCounter(0); }}
+                className="flex-1 h-12 border-red-500/15 text-red-400 hover:bg-red-500/10"
+                data-testid="button-reset-to-one"
+              >
+                <RotateCcw className="w-4 h-4 me-2" />
+                {t("إعادة تعيين إلى #1", "Reset to #1")}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={onOpenShiftStart}
+                className="flex-1 h-12 border-white/10"
+                data-testid="button-shift-start"
+              >
+                <Zap className="w-4 h-4 me-2" />
+                {t("بداية وردية", "Shift Start")}
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card className="border-white/[0.06] bg-[#141414]">
         <CardContent className="p-5">
