@@ -5,7 +5,7 @@ import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { AlertTriangle, CheckCircle, Loader2, Star, Banknote, Phone, MessageCircle, Send, Share2, Copy } from "lucide-react";
+import { AlertTriangle, CheckCircle, Loader2, Star, Banknote, Phone, MessageCircle, Send, Share2, Copy, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { WhatsAppOrder } from "@shared/schema";
 
@@ -650,6 +650,24 @@ export default function OrderTrackingPage() {
               <span className="text-red-400 text-base font-bold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>الطلب صار جاهز ودك تفعل الجرس ؟</span>
             </button>
           )}
+        </div>
+      </div>
+    );
+  }
+
+  if (order.status === "rejected") {
+    return (
+      <div className="h-[100dvh] flex flex-col items-center justify-center px-5 text-center" style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #1a0000 100%)" }} data-testid="tracking-rejected-screen">
+        <div className="flex flex-col items-center gap-6 animate-in fade-in duration-700">
+          <div className="w-24 h-24 rounded-full border-2 border-red-500/30 bg-red-500/5 flex items-center justify-center" style={{ boxShadow: "0 0 40px rgba(239,68,68,0.12)" }}>
+            <XCircle className="w-12 h-12 text-red-500/80" />
+          </div>
+          <div>
+            <p className="text-red-400 text-xl font-bold" data-testid="text-rejected-message">Order Rejected</p>
+            <p className="text-red-400/80 text-xl font-bold mt-2" dir="rtl">تم رفض الطلب</p>
+            <p className="text-white/50 text-sm mt-4">Sorry, the store has rejected your order.</p>
+            <p className="text-white/40 text-sm mt-0.5" dir="rtl">عذراً، قام المتجر برفض طلبك</p>
+          </div>
         </div>
       </div>
     );

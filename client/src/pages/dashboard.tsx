@@ -787,6 +787,31 @@ export default function DashboardPage() {
     }
   }, [merchant?.uid, acceptingOrderId, t, toast]);
 
+  const [rejectingOrderId, setRejectingOrderId] = useState<string | null>(null);
+
+  const handleRejectWhatsAppOrder = useCallback(async (order: WhatsAppOrder) => {
+    if (!merchant?.uid || rejectingOrderId) return;
+    setRejectingOrderId(order.id);
+    try {
+      const orderRef = doc(db, "merchants", merchant.uid, "whatsappOrders", order.id);
+      await updateDoc(orderRef, { status: "rejected", rejectedAt: new Date().toISOString() });
+
+      const displayId = order.displayOrderId || `#${order.orderNumber}`;
+      toast({
+        title: t(`تم رفض الطلب ${displayId}`, `Order ${displayId} Rejected`),
+        description: t("تم رفض الطلب بنجاح", "Order has been rejected"),
+      });
+    } catch {
+      toast({
+        title: t("خطأ", "Error"),
+        description: t("فشل في رفض الطلب", "Failed to reject order"),
+        variant: "destructive",
+      });
+    } finally {
+      setRejectingOrderId(null);
+    }
+  }, [merchant?.uid, rejectingOrderId, t, toast]);
+
   const handleCompleteWhatsAppOrder = useCallback(async (order: WhatsAppOrder) => {
     if (!merchant?.uid) return;
     try {
@@ -1341,10 +1366,12 @@ export default function DashboardPage() {
                 whatsappOrders={whatsappOrders}
                 activeWhatsappOrders={activeWhatsappOrders}
                 onAcceptWhatsAppOrder={handleAcceptWhatsAppOrder}
+                onRejectWhatsAppOrder={handleRejectWhatsAppOrder}
                 onReadyWhatsAppOrder={handleReadyWhatsAppOrder}
                 onCompleteWhatsAppOrder={handleCompleteWhatsAppOrder}
                 onUncollectedWhatsAppOrder={handleUncollectedWhatsAppOrder}
                 acceptingOrderId={acceptingOrderId}
+                rejectingOrderId={rejectingOrderId}
                 completedToday={completedToday}
                 flyingOrderId={flyingOrderId}
                 printReceiptsEnabled={merchantFeatures.printReceiptsEnabled}
@@ -1623,10 +1650,12 @@ function OverviewView({
   whatsappOrders,
   activeWhatsappOrders,
   onAcceptWhatsAppOrder,
+  onRejectWhatsAppOrder,
   onReadyWhatsAppOrder,
   onCompleteWhatsAppOrder,
   onUncollectedWhatsAppOrder,
   acceptingOrderId,
+  rejectingOrderId,
   completedToday,
   flyingOrderId,
   printReceiptsEnabled,
@@ -1647,10 +1676,12 @@ function OverviewView({
   whatsappOrders: WhatsAppOrder[];
   activeWhatsappOrders: WhatsAppOrder[];
   onAcceptWhatsAppOrder: (order: WhatsAppOrder) => void;
+  onRejectWhatsAppOrder: (order: WhatsAppOrder) => void;
   onReadyWhatsAppOrder: (order: WhatsAppOrder) => void;
   onCompleteWhatsAppOrder: (order: WhatsAppOrder) => void;
   onUncollectedWhatsAppOrder: (order: WhatsAppOrder) => void;
   acceptingOrderId: string | null;
+  rejectingOrderId: string | null;
   completedToday: number;
   flyingOrderId: string | null;
   printReceiptsEnabled: boolean;
@@ -1900,8 +1931,18 @@ function OverviewView({
                           <MessageCircle className="w-3.5 h-3.5" />
                         </Button>
                         <Button
+                          onClick={() => onRejectWhatsAppOrder(order)}
+                          disabled={rejectingOrderId === order.id || acceptingOrderId === order.id}
+                          className="h-9 px-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold rounded-xl border border-red-500/20"
+                          data-testid={`button-reject-order-${item.id}`}
+                        >
+                          {rejectingOrderId === order.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : (
+                            <><X className="w-3.5 h-3.5 me-1" />{t("رفض", "Reject")}</>
+                          )}
+                        </Button>
+                        <Button
                           onClick={() => onAcceptWhatsAppOrder(order)}
-                          disabled={acceptingOrderId === order.id}
+                          disabled={acceptingOrderId === order.id || rejectingOrderId === order.id}
                           className="flex-1 h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl"
                           data-testid={`button-accept-order-${item.id}`}
                         >
