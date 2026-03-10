@@ -60,11 +60,12 @@ function useAlertSound() {
     try {
       const audio = new Audio("/alert.mp3");
       audio.loop = true;
-      audio.volume = 1.0;
+      audio.volume = 0;
       audio.load();
       audio.play().then(() => {
         audio.pause();
         audio.currentTime = 0;
+        audio.volume = 1.0;
       }).catch(() => {});
       audioRef.current = audio;
       audioUnlockedRef.current = true;
@@ -868,6 +869,7 @@ export default function StorePagerPage() {
   const [alertActive, setAlertActive] = useState(false);
   const [showReview, setShowReview] = useState(false);
   const hasPlayedNotification = useRef(false);
+  const prevPagerStatusRef = useRef<string | null>(null);
   const reviewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { unlock, play, stop: stopSound } = useAlertSound();
   const { start: startVibration, stop: stopVibration } = useVibrationLoop();
@@ -924,7 +926,13 @@ export default function StorePagerPage() {
     const snap = await getDocs(q);
     if (!snap.empty) {
       const pager = snap.docs[0].data() as Pager;
-      if (pager.status === "notified" && !hasPlayedNotification.current) {
+      const prevStatus = prevPagerStatusRef.current;
+      prevPagerStatusRef.current = pager.status;
+      if (
+        pager.status === "notified" &&
+        !hasPlayedNotification.current &&
+        prevStatus === "waiting"
+      ) {
         hasPlayedNotification.current = true;
         setPagerStatus("notified");
         setAlertActive(true);
@@ -933,6 +941,8 @@ export default function StorePagerPage() {
         reviewTimerRef.current = setTimeout(() => {
           setShowReview(true);
         }, 2 * 60 * 1000);
+      } else if (pager.status === "notified") {
+        setPagerStatus("notified");
       }
     }
   }, [storeId, orderNumber, submitted, play, startVibration]);
@@ -992,6 +1002,7 @@ export default function StorePagerPage() {
           setSubmitted(false);
           setOrderNumber("");
           setPagerStatus("waiting");
+          prevPagerStatusRef.current = null;
           if (sessionKey) localStorage.removeItem(sessionKey);
         }
         firstSnapshot = false;
@@ -1002,8 +1013,15 @@ export default function StorePagerPage() {
 
       const pagerDoc = snapshot.docs[0];
       const pager = pagerDoc.data() as Pager;
+      const prevStatus = prevPagerStatusRef.current;
+      prevPagerStatusRef.current = pager.status;
 
-      if (pager.status === "notified" && !hasPlayedNotification.current && !wasFirstSnapshot) {
+      if (
+        pager.status === "notified" &&
+        !hasPlayedNotification.current &&
+        !wasFirstSnapshot &&
+        prevStatus === "waiting"
+      ) {
         hasPlayedNotification.current = true;
         setPagerStatus("notified");
         setAlertActive(true);
@@ -1013,7 +1031,7 @@ export default function StorePagerPage() {
         reviewTimerRef.current = setTimeout(() => {
           setShowReview(true);
         }, 2 * 60 * 1000);
-      } else if (pager.status === "notified" && wasFirstSnapshot) {
+      } else if (pager.status === "notified") {
         setPagerStatus("notified");
       } else if (pager.status === "waiting") {
         setPagerStatus("waiting");
@@ -1036,6 +1054,7 @@ export default function StorePagerPage() {
     setSubmitted(true);
     setPagerStatus("waiting");
     hasPlayedNotification.current = false;
+    prevPagerStatusRef.current = "waiting";
     setShowReview(false);
     setAlertActive(false);
     unlock();

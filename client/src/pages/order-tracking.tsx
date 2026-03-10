@@ -16,9 +16,9 @@ function useAlertSound() {
     try {
       const audio = new Audio("/alert.mp3");
       audio.loop = true;
-      audio.volume = 1.0;
+      audio.volume = 0;
       audio.load();
-      audio.play().then(() => { audio.pause(); audio.currentTime = 0; }).catch(() => {});
+      audio.play().then(() => { audio.pause(); audio.currentTime = 0; audio.volume = 1.0; }).catch(() => {});
       audioRef.current = audio;
       audioUnlockedRef.current = true;
     } catch {}
