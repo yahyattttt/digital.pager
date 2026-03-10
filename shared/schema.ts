@@ -135,6 +135,9 @@ export const systemSettingsSchema = z.object({
   globalLogoUrl: z.string().optional(),
   supportWhatsapp: z.string().default("966500000000"),
   globalThemeColor: z.string().default("#ef0000"),
+  platformTermsEnabled: z.boolean().default(false),
+  platformTermsText: z.string().default(""),
+  platformPrivacyText: z.string().default(""),
 });
 
 export type SystemSettings = z.infer<typeof systemSettingsSchema>;

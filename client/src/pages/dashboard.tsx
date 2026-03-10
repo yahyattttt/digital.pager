@@ -84,6 +84,7 @@ import {
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 
 const businessTypeLabelsEn: Record<string, string> = {
   restaurant: "Restaurant",
@@ -2958,6 +2959,7 @@ function SettingsView({
   t: (ar: string, en: string) => string;
   lang: string;
 }) {
+  const { toast } = useToast();
   const [resetValue, setResetValue] = useState("");
   const [localOpenTime, setLocalOpenTime] = useState(businessOpenTime);
   const [localCloseTime, setLocalCloseTime] = useState(businessCloseTime);
@@ -2968,6 +2970,36 @@ function SettingsView({
   }, [businessOpenTime, businessCloseTime]);
 
   const hoursChanged = localOpenTime !== businessOpenTime || localCloseTime !== businessCloseTime;
+
+  const [storeTermsEnabled, setStoreTermsEnabled] = useState<boolean>(merchant?.storeTermsEnabled || false);
+  const [storeTermsText, setStoreTermsText] = useState<string>(merchant?.storeTermsText || "");
+  const [storePrivacyText, setStorePrivacyText] = useState<string>(merchant?.storePrivacyText || "");
+  const [storeLegalSaving, setStoreLegalSaving] = useState(false);
+
+  async function handleSaveStoreLegal() {
+    if (!merchant?.uid) return;
+    setStoreLegalSaving(true);
+    try {
+      const merchantRef = doc(db, "merchants", merchant.uid);
+      await updateDoc(merchantRef, {
+        storeTermsEnabled,
+        storeTermsText,
+        storePrivacyText,
+      });
+      toast({
+        title: t("تم الحفظ", "Saved"),
+        description: t("تم حفظ الشروط والأحكام بنجاح", "Store terms saved successfully"),
+      });
+    } catch {
+      toast({
+        title: t("خطأ", "Error"),
+        description: t("فشل في حفظ الشروط", "Failed to save terms"),
+        variant: "destructive",
+      });
+    } finally {
+      setStoreLegalSaving(false);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -3047,6 +3079,70 @@ function SettingsView({
                 {t("حفظ ساعات العمل", "Save Business Hours")}
               </Button>
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
+        <CardContent className="p-6">
+          <h3 className="font-semibold mb-4 flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-amber-400" />
+            {t("الشروط والأحكام للمتجر", "Store Terms & Privacy")}
+          </h3>
+
+          <div className="space-y-5">
+            <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]" data-testid="store-terms-toggle-row">
+              <div className="flex-1">
+                <p className="text-sm font-semibold" dir="rtl">{t("شروط وأحكام المتجر", "Store Terms & Conditions")}</p>
+                <p className="text-xs text-muted-foreground mt-0.5" dir="rtl">
+                  {t("عرض شروط المتجر للعملاء عند الطلب أونلاين", "Show store terms to customers during online ordering")}
+                </p>
+              </div>
+              <Switch
+                checked={storeTermsEnabled}
+                onCheckedChange={setStoreTermsEnabled}
+                className="data-[state=checked]:bg-emerald-600"
+                data-testid="switch-store-terms"
+              />
+            </div>
+
+            {storeTermsEnabled && (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-xs text-muted-foreground block" dir="rtl">{t("شروط وأحكام المتجر", "Store Terms & Conditions")}</label>
+                  <Textarea
+                    value={storeTermsText}
+                    onChange={(e) => setStoreTermsText(e.target.value)}
+                    placeholder={t("اكتب شروط وأحكام المتجر هنا...", "Write store terms here...")}
+                    rows={5}
+                    dir="rtl"
+                    className="resize-y bg-white/[0.03] border-white/10"
+                    data-testid="textarea-store-terms"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs text-muted-foreground block" dir="rtl">{t("سياسة الخصوصية للمتجر", "Store Privacy Policy")}</label>
+                  <Textarea
+                    value={storePrivacyText}
+                    onChange={(e) => setStorePrivacyText(e.target.value)}
+                    placeholder={t("اكتب سياسة الخصوصية هنا...", "Write privacy policy here...")}
+                    rows={5}
+                    dir="rtl"
+                    className="resize-y bg-white/[0.03] border-white/10"
+                    data-testid="textarea-store-privacy"
+                  />
+                </div>
+                <Button
+                  onClick={handleSaveStoreLegal}
+                  disabled={storeLegalSaving}
+                  className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl disabled:opacity-30"
+                  data-testid="button-save-store-terms"
+                >
+                  {storeLegalSaving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : null}
+                  {t("حفظ الشروط والأحكام", "Save Terms & Conditions")}
+                </Button>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

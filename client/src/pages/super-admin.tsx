@@ -12,6 +12,8 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -260,6 +262,9 @@ export default function SuperAdminPage() {
     globalLogoUrl: "",
     supportWhatsapp: "966500000000",
     globalThemeColor: "#ef0000",
+    platformTermsEnabled: false,
+    platformTermsText: "",
+    platformPrivacyText: "",
   });
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [settingsSaving, setSettingsSaving] = useState(false);
@@ -514,6 +519,9 @@ export default function SuperAdminPage() {
           globalLogoUrl: data.globalLogoUrl || "",
           supportWhatsapp: data.supportWhatsapp || "966500000000",
           globalThemeColor: data.globalThemeColor || "#ef0000",
+          platformTermsEnabled: data.platformTermsEnabled || false,
+          platformTermsText: data.platformTermsText || "",
+          platformPrivacyText: data.platformPrivacyText || "",
         });
       }
     } catch {
@@ -1532,6 +1540,59 @@ export default function SuperAdminPage() {
                           data-testid="input-theme-color-text"
                         />
                       </div>
+                    </div>
+
+                    <div className="space-y-4 pt-4 border-t border-border/30">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label data-testid="label-platform-terms-toggle">
+                            {t("شروط وأحكام المنصة وسياسة الخصوصية", "Platform Terms & Privacy Policy")}
+                          </Label>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {t("عرض الشروط والأحكام عند تسجيل المتاجر", "Show terms & conditions at store registration")}
+                          </p>
+                        </div>
+                        <Switch
+                          checked={settings.platformTermsEnabled}
+                          onCheckedChange={(checked) => setSettings(s => ({ ...s, platformTermsEnabled: checked }))}
+                          data-testid="switch-platform-terms"
+                        />
+                      </div>
+
+                      {settings.platformTermsEnabled && (
+                        <div className="space-y-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="platformTermsText" data-testid="label-platform-terms-text">
+                              {t("شروط وأحكام المنصة", "Platform Terms & Conditions")}
+                            </Label>
+                            <Textarea
+                              id="platformTermsText"
+                              value={settings.platformTermsText}
+                              onChange={(e) => setSettings(s => ({ ...s, platformTermsText: e.target.value }))}
+                              placeholder={t("اكتب شروط وأحكام المنصة هنا...", "Write platform terms & conditions here...")}
+                              rows={6}
+                              dir="rtl"
+                              className="resize-y"
+                              data-testid="textarea-platform-terms"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="platformPrivacyText" data-testid="label-platform-privacy-text">
+                              {t("سياسة الخصوصية للمنصة", "Platform Privacy Policy")}
+                            </Label>
+                            <Textarea
+                              id="platformPrivacyText"
+                              value={settings.platformPrivacyText}
+                              onChange={(e) => setSettings(s => ({ ...s, platformPrivacyText: e.target.value }))}
+                              placeholder={t("اكتب سياسة الخصوصية هنا...", "Write platform privacy policy here...")}
+                              rows={6}
+                              dir="rtl"
+                              className="resize-y"
+                              data-testid="textarea-platform-privacy"
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <Button

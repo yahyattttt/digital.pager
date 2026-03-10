@@ -1,7 +1,7 @@
 # Digital Pager
 
 ## Overview
-Digital Pager is a multi-tenant SaaS platform designed to provide digital pager services for various businesses like restaurants, cafes, and clinics. It aims to modernize the customer waiting experience by replacing traditional physical pagers with a digital system that notifies customers via their smartphones. The platform supports bilingual interactions (Arabic/English), features a kiosk-mode dashboard for merchants, and a public customer pager interface with real-time notifications, a Google Maps review prompt, and social sharing capabilities. The business vision is to capture a significant market share in the digital notification space for service-oriented businesses, enhancing customer satisfaction and operational efficiency for merchants.
+Digital Pager is a multi-tenant SaaS platform that modernizes customer waiting experiences for businesses like restaurants and clinics. It replaces traditional pagers with a smartphone-based digital notification system. Key features include bilingual support (Arabic/English), a kiosk-mode merchant dashboard, and a public customer pager interface with real-time notifications, Google Maps review prompts, and social sharing. The project aims to capture a significant market share in digital notifications, enhancing customer satisfaction and operational efficiency.
 
 ## User Preferences
 I prefer clear and concise communication.
@@ -12,48 +12,53 @@ Do not make changes to the `shared/schema.ts` file without explicit instruction.
 Ensure all UI components are responsive and adapt to both desktop and mobile views.
 
 ## System Architecture
-The platform is built as a multi-tenant SaaS application where each merchant's data is isolated within Firebase Firestore under a unique UID. The architecture comprises a React frontend with Vite, TailwindCSS, and shadcn/ui for a modern and responsive user experience. The backend is built with Node.js and Express, handling file uploads, QR code generation, and Firebase Cloud Messaging (FCM) push notification relay.
+The platform is a multi-tenant SaaS application with isolated merchant data in Firebase Firestore. It uses a React frontend with Vite, TailwindCSS, and shadcn/ui, and a Node.js/Express backend for file uploads, QR code generation, and FCM push notifications.
 
 ### UI/UX Decisions
-- **Theme**: Dark-first design with black (#000000) background. Dashboard uses a refined color hierarchy: emerald-600 for primary actions (Quick Add, Accept, Save Product), violet-600 for Notify/pager actions, red reserved exclusively for destructive actions (Delete, Remove, Cancel). CSS primary variable remains neon red for branding accents only.
-- **Typography**: Cairo (primary) / Tajawal fonts for Arabic text. Headers use font-bold, details use regular weight.
-- **Design System**: All cards use `rounded-2xl` (16px border radius), `bg-[#111]` background, consistent padding. Badges use `rounded-2xl`. Product prices styled in emerald-400 (not overshadowing product names).
-- **Bilingual Support**: The UI is fully bilingual (Arabic/English) with dynamic RTL/LTR adjustments. A globe icon toggle is present on every page, and language preference is persisted in `localStorage`.
-- **Merchant Dashboard**: Professional SaaS dashboard with sidebar navigation (Dashboard, Waiting List, Online Section, Customer Feedback, Analytics, Settings). Sidebar shows subscription progress bar at top with days remaining. Header has Store Status toggle (Open/Closed, persisted to Firestore) and compact toolbar (QR download, language, fullscreen, add to waitlist). **Overview is a Metric-Driven Operational Hub**: Row 1 is a Stats Header with 4 compact metric cards in a single row — [Daily Scans] [Active Orders] [Completed Today] [Avg. Wait Time] — bold numbers (text-2xl/3xl), small icons, numbers-only design readable from distance. Row 2 is the Order Entry bar (Custom # + Quick Add). Row 3 is the Active Orders Workspace — a clean grid (2/3/4 columns responsive) of mini-cards, each showing only: order number (text-3xl, prominent), time elapsed (live-updating small text), and a single action button (Notify/Done/Accept/Deliver). Completed Today stat has a real-time listener on archived pagers+orders from today. **Vanishing Effect**: When an order is completed, the card fades out with translate-y + scale animation, and the Completed Today stat pulses with a ring + scale effect. Waiting List page is the hero view with Quick Add button + manual add, clean cards with violet accent; on tablet/desktop (lg+), selecting an order shows a split-screen layout with order list on the left and detail panel on the right. **Analytics page** has compact stat cards in a 2x4 grid with small icons. **Feedback** uses a clean list view (not cards) for space efficiency. Settings shows store info + QR preview (black-on-white standard QR) + tools + Order Counter (reset, shift start). Mobile-responsive with overlay sidebar and rounded FAB button for adding to waitlist. Touch targets are h-12/h-14 for tablet use.
-- **Order Entry System**: Source of truth is `nextOrderNumber` field at `merchants/{uid}/settings/orderCounter` (defaults to 1). Three-part horizontal bar: Custom Number input + Add button + "Quick Add #N" button. Quick Add reads `nextOrderNumber`, creates order, and increments to `nextOrderNumber + 1` atomically via Firestore transaction. Manual Add uses the typed number, sets `nextOrderNumber` to `typedNumber + 1`. All counters synced in real-time via `onSnapshot`. Shift Start dialog on first session. Settings page: "Starting Order Number" input + Set button + Reset to #1 + Shift Start. Safety: all inputs validated with `parseInt()`, positive integer only. Toast: "Order #X added. Next auto-number will be #X+1".
-- **Customer Pager UI**: Premium "Digital Pager" device aesthetic with deep matte black gradient backgrounds. Features a circular PagerDevice component with 12 SVG LED dots (spinning animation while waiting via `led-spin`, rapid flashing when ready via `led-flash`), DSEG7 7-segment font for order numbers, "DIGITAL PAGER" branding, concentric circle rings with matte finish gradients. **Landing page (OrderSelectionScreen)**: Shows a real-time grid of active `waiting` orders (3-col on mobile, 4-col on larger screens) with DSEG7-styled number cards. Tapping a card opens a confirmation modal ("Confirm Order #X") with "Yes, this is my order" and "Cancel" buttons. Confirmed order is saved to `localStorage` (`dp-session-${storeId}`) with 4-hour TTL; on refresh, session is validated against Firestore before restoring. If the order no longer exists, session is cleared and user returns to selection. Empty state shows "Waiting for new orders to appear..." with a prompt to check the counter. Notified state shows "ORDER READY!" / "طلبك جاهز!", neon pulse glow on the entire screen, "Get Directions" button linking to merchant's Google Maps URL, and vibration/sound alerts. Review/share UI appears after 2-minute delay post-notification. When the order is completed/removed from Firestore, the pager listener auto-resets the customer back to the selection screen. All screens (selection, waiting, notified, loading) use `h-[100dvh]` for proper mobile viewport sizing, consistent premium dark gradient theme, and pull-to-refresh on the waiting screen.
+- **Theme**: Dark-first design with a black background. Color hierarchy: emerald-600 for primary actions, violet-600 for pager actions, red for destructive actions. CSS primary variable is neon red for branding accents.
+- **Typography**: Cairo / Tajawal fonts for Arabic text.
+- **Design System**: `rounded-2xl` for cards and badges, `bg-[#111]` for card backgrounds, consistent padding.
+- **Bilingual Support**: Full Arabic/English support with dynamic RTL/LTR, global toggle, and `localStorage` persistence.
+- **Merchant Dashboard**: Professional SaaS dashboard with sidebar navigation (Dashboard, Waiting List, Online Section, Customer Feedback, Analytics, Settings).
+  - **Overview**: Metric-driven hub with stats header (Daily Scans, Active Orders, Completed Today, Avg. Wait Time), order entry bar (Custom # + Quick Add), and active orders workspace (grid of mini-cards with order number, time elapsed, action button). Completed orders fade out with animation, and the "Completed Today" stat pulses.
+  - **Waiting List**: Quick Add, manual add, and split-screen detail panel on larger screens.
+  - **Order Entry System**: Manages `nextOrderNumber` via Firestore transactions, allowing custom or quick adds, with real-time sync and shift start functionality.
+- **Customer Pager UI**: Premium "Digital Pager" aesthetic with dark gradients.
+  - Features a circular PagerDevice component with SVG LED dots (spinning/flashing animations), DSEG7 font for order numbers.
+  - **OrderSelectionScreen**: Real-time grid of active waiting orders. Tapping confirms order, saves to `localStorage` (4-hour TTL). Notified state shows "ORDER READY!", neon pulse, "Get Directions" button, and vibration/sound alerts. Review/share UI appears post-notification.
+  - All screens use `h-[100dvh]` and pull-to-refresh.
+- **Product Management Form**: RTL-aligned form with dynamic Variant/Sizes and Add-ons/Extras management.
+- **Direct Ordering System (WhatsApp)**: Merchants manage products in a "Digital Menu." Public menu displays products.
+  - **Product Selection Modal**: Allows selection of variants, add-ons, and quantity with real-time price calculation.
+  - **Checkout**: Shows cart items with variant/add-on details, quantity controls.
+  - **WhatsApp message**: Formatted order sent via WhatsApp, order tracked in Firestore.
+  - **Tracking Page**: Shows real-time order status (awaiting, preparing, ready).
+- **Online Ordering Controls**: Merchants control order availability via a master toggle (`onlineOrdersEnabled`) and business hours (`businessOpenTime`/`businessCloseTime`). Client and server-side enforcement.
+- **Dual-Layer Legal Compliance**:
+  - **Platform Level**: Super Admin manages global terms/privacy, mandatory acceptance on registration.
+  - **Store Level**: Merchants manage store-specific terms/privacy, mandatory acceptance during public menu checkout.
 
 ### Technical Implementations
-- **Authentication**: Passwordless OTP authentication via email using Resend for sending OTPs. Session management is handled via `localStorage` on the client-side, bypassing Firebase Auth SDK for core login flows.
-- **Database**: Firebase Firestore (NoSQL) is used for all data storage, with a `merchants` collection and a `pagers` subcollection.
-- **Push Notifications**: Firebase Cloud Messaging (FCM V1) is implemented using `google-auth-library` for secure OAuth2 token generation. A unified service worker (`sw.js`) handles both app-shell caching and FCM background messages.
-- **File Uploads**: Multer is used for handling local logo uploads, stored in `client/public/uploads/`.
-- **PWA**: The application is a Progressive Web App (PWA) with a `manifest.json`, various icon sizes, and a unified service worker for offline capabilities and push notifications. An iOS-specific install prompt is included for Safari users.
-- **Real-time Updates**: Extensive use of `onSnapshot` listeners in Firestore ensures real-time updates across the dashboard and customer pager.
-- **Direct Ordering System (WhatsApp)**: A complete ordering flow from Google Maps. Merchants manage products in the dashboard "Digital Menu" tab (CRUD with image upload, visibility toggle). Public menu at `/menu/:merchantId` displays visible products in a grid. **Product Selection Modal**: Clicking a product opens a bottom-sheet modal (not direct add-to-cart) showing: product image/name/description, **Variants section** (radio-style selectors, first auto-selected, required if variants exist) with per-variant pricing, **Add-ons section** (checkbox-style toggles, optional) with per-addon pricing, **Quantity controls** (+/- buttons), and a sticky **"Add to Cart"** button showing real-time calculated price (variant price + addons × quantity). Cart items are keyed by product+variant+addons combination (same product with different configs = separate cart lines). **Checkout** shows variant/addon details per item, with quantity +/- controls and remove (X) button per line item. **WhatsApp message** includes full configuration: `• Product Name (Size) + Extra 1, Extra 2 × Qty = Total SAR`. Product cards show `price+` format when variants exist (showing minimum variant price). Checkout requires customer name, phone, and a mandatory pledge checkbox. On confirm, a WhatsApp order is created in Firestore (`merchants/{merchantId}/whatsappOrders`) and customer is redirected to WhatsApp with a formatted order message, then to the tracking page. Merchant dashboard Overview shows real-time pending WhatsApp orders with sound alert for new arrivals and "Accept & Start Preparing" button that assigns a pager number via the existing Smart Numbering system. Order tracking page (`/track/:orderId?m={merchantId}`) shows real-time status: awaiting_confirmation (loading), preparing (digital pager with pulse), ready (vibration + sound + "ORDER READY!" screen).
-- **Online Ordering Controls**: Merchants can control online order availability with two mechanisms stored in Firestore on the merchant document:
-  - **Master Toggle** (`onlineOrdersEnabled` boolean): Instantly enable/disable online orders. Prominent Switch in Settings + clickable badge on Overview. Green "Online - Accepting Orders" / orange "Offline" badge.
-  - **Business Hours** (`businessOpenTime`/`businessCloseTime` strings, "HH:MM" format): Set opening/closing times. Supports overnight ranges (e.g., 22:00 → 06:00). If either condition is false (toggle off OR outside hours), ordering is disabled.
-  - **Client enforcement**: Public menu shows orange banner "المعذرة، المتجر لا يستقبل طلبات أونلاين حالياً" with reopening time. Add-to-cart buttons are disabled. Cart bar hidden. `handleConfirmOrder` has a guard check.
-  - **Server enforcement**: `POST /api/whatsapp-orders/:merchantId` validates merchant status, `onlineOrdersEnabled`, and business hours before creating an order. Returns 403 when conditions not met.
-  - **Auto-refresh**: Public menu re-fetches merchant data every 60 seconds to catch toggle changes and time boundary transitions.
-- **Product Management Form**: RTL-aligned form with descriptive Arabic placeholders (e.g., "مثال: برجر لحم مشوي بالجبنة"). Supports dynamic **Variants/Sizes** (name + price per row, helper text: "أضف أحجاماً مختلفة لمنتجك") and **Add-ons/Extras** (name + price per row, helper text: "يمكنك إضافة خيارات مدفوعة أو مجانية"). Emerald-styled "Add Size"/"Add Extra" buttons. Variants stored as `variants` array, addons as `addons` array in Firestore product documents. Product listing shows count badges for sizes/extras. Schema types: `ProductVariant`, `ProductAddon` in `shared/schema.ts`.
-- **Product Firestore path**: `merchants/{merchantId}/products/{productId}` subcollection (fields: name, price, description, imageUrl, visible, variants[], addons[], createdAt)
-- **WhatsApp Order Firestore path**: `merchants/{merchantId}/whatsappOrders/{orderId}` subcollection
-- **Tracking & Marketing**: Features include sharing via Web Share API, QR scan tracking (atomic increments), and a Smart Feedback Filter: star rating widget on customer page routes 4-5 stars to Google Maps reviews and captures 1-3 star feedback privately to `private_feedbacks` Firestore collection. Merchant dashboard has a "Customer Feedback" tab with unread badge and mark-as-read. Super Admin has complaints column + dialog per merchant and Total Complaints stat card.
-- **Super Admin Panel**: A dedicated admin interface, accessible via email gating, provides comprehensive merchant management, global settings, impersonation capabilities, system health monitoring (error logs from `system_errors` Firestore collection with bell icon + badge in header), and merchant value reports (ROI generator with stats aggregation and conversion rate). Merchant table features: search (by name/owner/email with match highlighting), filter chips (All/Pending/Active/Suspended/Expired), sort dropdown (Newest/Most QR Scans/Most Shares/Soonest Expiry), pagination (10 per page), and Clear All Filters. On desktop (lg+), shows recharts bar charts: "New Signups" (last 6 months by createdAt) and "Subscription Expiries" (color-coded by time-to-expiry ranges).
-- **Subscription System**: A two-layer gating system (`status` and `subscriptionStatus`) with smart expiry. Admin sets subscriptions by days (preset 30/90/365) which auto-calculates expiry and stores `subscriptionStartAt`. Auto-expire: `use-auth.ts` onSnapshot detects past expiry and auto-sets status to `"expired"`. Expired merchants see a dedicated "Subscription Expired" page with WhatsApp renewal. Customer QR pages show "Service Temporarily Unavailable" for expired merchants. Merchant dashboard has a SubscriptionBanner with live countdown timer (updates every minute), green→orange→red progress bar based on actual subscription duration, and "Contact Admin to Renew" WhatsApp button when ≤7 days remain. Admin table highlights rows red when ≤5 days remain with "Expiring Soon" badges and a warning card.
+- **Authentication**: Passwordless OTP via email using Resend, `localStorage` for session management.
+- **Database**: Firebase Firestore for all data.
+- **Push Notifications**: Firebase Cloud Messaging (FCM V1) with `google-auth-library` and a unified service worker.
+- **File Uploads**: Multer for local logo/product image uploads.
+- **PWA**: Progressive Web App with manifest, icons, and service worker for offline capabilities and push notifications.
+- **Real-time Updates**: Extensive use of Firestore `onSnapshot` listeners.
+- **Tracking & Marketing**: Web Share API, QR scan tracking, Smart Feedback Filter (Google Maps reviews for 4-5 stars, private feedback for 1-3 stars).
+- **Super Admin Panel**: Merchant management, global settings, impersonation, system health monitoring, and ROI reports. Includes merchant table with search, filters, sort, pagination, and analytics charts.
+- **Subscription System**: Two-layer gating (`status`, `subscriptionStatus`) with smart expiry. Admin sets duration, auto-calculation of expiry. Expired merchants see a dedicated page, and their QR pages show "Service Temporarily Unavailable." Dashboard shows a subscription countdown.
 
 ## External Dependencies
-- **Firebase Firestore**: Main database for all application data.
-- **Firebase Authentication**: Used for UID generation and custom token creation for the passwordless OTP system.
-- **Firebase Cloud Messaging (FCM)**: For sending real-time push notifications to customer devices.
-- **Resend**: Used for sending OTP emails during the authentication process.
-- **Multer**: For handling local file uploads (merchant logos and product images).
+- **Firebase Firestore**: Main database.
+- **Firebase Authentication**: For UID generation and custom tokens.
+- **Firebase Cloud Messaging (FCM)**: Push notifications.
+- **Resend**: OTP email delivery.
+- **Multer**: File uploads.
 - **Vite**: Frontend build tool.
-- **React**: Frontend JavaScript library.
-- **TailwindCSS**: CSS framework for styling.
-- **shadcn/ui**: UI component library built on Tailwind CSS.
-- **Node.js/Express**: Backend server environment and framework.
-- **`google-auth-library`**: For OAuth2 authentication with FCM V1 API.
-- **recharts**: Data visualization library used for Super Admin analytics charts.
+- **React**: Frontend library.
+- **TailwindCSS**: CSS framework.
+- **shadcn/ui**: UI component library.
+- **Node.js/Express**: Backend server.
+- **`google-auth-library`**: OAuth2 for FCM V1 API.
+- **recharts**: Data visualization for Super Admin.

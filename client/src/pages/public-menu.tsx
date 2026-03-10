@@ -26,6 +26,9 @@ interface MerchantInfo {
   onlineOrdersEnabled: boolean;
   businessOpenTime: string;
   businessCloseTime: string;
+  storeTermsEnabled: boolean;
+  storeTermsText: string;
+  storePrivacyText: string;
 }
 
 export default function PublicMenuPage() {
@@ -44,6 +47,9 @@ export default function PublicMenuPage() {
   const [pledgeAccepted, setPledgeAccepted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [, setTimeTick] = useState(0);
+
+  const [storeTermsAccepted, setStoreTermsAccepted] = useState(false);
+  const [showStoreTermsModal, setShowStoreTermsModal] = useState<"terms" | "privacy" | null>(null);
 
   const [modalProduct, setModalProduct] = useState<Product | null>(null);
   const [modalVariant, setModalVariant] = useState<ProductVariant | null>(null);
@@ -222,6 +228,7 @@ export default function PublicMenuPage() {
 
   async function handleConfirmOrder() {
     if (!merchantId || !customerName.trim() || !customerPhone.trim() || !pledgeAccepted || cart.length === 0) return;
+    if (merchant?.storeTermsEnabled && !storeTermsAccepted) return;
     if (orderingDisabled) {
       toast({ title: "عذراً", description: closedInfo.messageAr || "Online ordering unavailable", variant: "destructive" });
       return;
@@ -405,7 +412,7 @@ export default function PublicMenuPage() {
             </div>
           </div>
 
-          <label className="flex items-start gap-3 p-4 rounded-xl bg-zinc-900/40 border border-zinc-800/30 cursor-pointer mb-6" data-testid="label-pledge">
+          <label className="flex items-start gap-3 p-4 rounded-xl bg-zinc-900/40 border border-zinc-800/30 cursor-pointer mb-4" data-testid="label-pledge">
             <input
               type="checkbox"
               checked={pledgeAccepted}
@@ -423,9 +430,47 @@ export default function PublicMenuPage() {
             </div>
           </label>
 
+          {merchant.storeTermsEnabled && (
+            <label className="flex items-start gap-3 p-4 rounded-xl bg-zinc-900/40 border border-zinc-800/30 cursor-pointer mb-6" data-testid="label-store-terms">
+              <input
+                type="checkbox"
+                checked={storeTermsAccepted}
+                onChange={(e) => setStoreTermsAccepted(e.target.checked)}
+                className="mt-1 w-5 h-5 rounded border-red-600/50 text-red-600 focus:ring-red-500 bg-transparent accent-red-600 flex-shrink-0"
+                data-testid="checkbox-store-terms"
+              />
+              <div className="text-sm leading-relaxed" dir="rtl">
+                <span className="text-white/80">أوافق على </span>
+                <button
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowStoreTermsModal("terms"); }}
+                  className="text-red-400 font-medium hover:underline"
+                  data-testid="link-store-terms"
+                >
+                  الشروط والأحكام
+                </button>
+                <span className="text-white/80"> و</span>
+                <button
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowStoreTermsModal("privacy"); }}
+                  className="text-red-400 font-medium hover:underline"
+                  data-testid="link-store-privacy"
+                >
+                  سياسة الخصوصية
+                </button>
+                <span className="text-white/80"> الخاصة بالمتجر</span>
+                <p className="text-white/30 text-[11px] mt-1">
+                  I agree to the store's Terms & Conditions and Privacy Policy
+                </p>
+              </div>
+            </label>
+          )}
+
+          {!merchant.storeTermsEnabled && <div className="mb-2" />}
+
           <Button
             onClick={handleConfirmOrder}
-            disabled={!customerName.trim() || !customerPhone.trim() || !pledgeAccepted || submitting}
+            disabled={!customerName.trim() || !customerPhone.trim() || !pledgeAccepted || (merchant.storeTermsEnabled && !storeTermsAccepted) || submitting}
             className="w-full h-14 text-base font-bold bg-green-600 hover:bg-green-700 text-white disabled:opacity-30 rounded-xl gap-2"
             style={{ boxShadow: "0 0 25px rgba(34,197,94,0.15)" }}
             data-testid="button-confirm-whatsapp"
@@ -438,6 +483,36 @@ export default function PublicMenuPage() {
             <span dir="rtl">{submitting ? "جاري الإرسال..." : "تأكيد وإرسال عبر واتساب"}</span>
           </Button>
         </div>
+
+        {showStoreTermsModal && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center" data-testid="modal-store-legal">
+            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowStoreTermsModal(null)} />
+            <div className="relative w-full max-w-lg max-h-[80dvh] bg-[#111] border border-zinc-800 rounded-2xl flex flex-col overflow-hidden mx-4">
+              <div className="flex items-center justify-between p-4 border-b border-zinc-800/50">
+                <h3 className="text-white font-bold text-base" dir="rtl" data-testid="modal-store-legal-title">
+                  {showStoreTermsModal === "terms" ? "شروط وأحكام المتجر" : "سياسة الخصوصية"}
+                </h3>
+                <button onClick={() => setShowStoreTermsModal(null)} className="p-1 text-white/40 hover:text-white" data-testid="button-close-store-legal">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-5">
+                <div className="text-sm text-white/60 leading-relaxed whitespace-pre-wrap" dir="rtl" data-testid="text-store-legal-content">
+                  {showStoreTermsModal === "terms" ? (merchant.storeTermsText || "") : (merchant.storePrivacyText || "")}
+                </div>
+              </div>
+              <div className="p-4 border-t border-zinc-800/50">
+                <button
+                  onClick={() => setShowStoreTermsModal(null)}
+                  className="w-full h-12 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white font-bold transition-colors"
+                  data-testid="button-close-store-legal-bottom"
+                >
+                  إغلاق / Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }

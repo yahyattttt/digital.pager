@@ -1823,6 +1823,9 @@ export async function registerRoutes(
             onlineOrdersEnabled: mf.onlineOrdersEnabled?.booleanValue !== false,
             businessOpenTime: mf.businessOpenTime?.stringValue || "",
             businessCloseTime: mf.businessCloseTime?.stringValue || "",
+            storeTermsEnabled: mf.storeTermsEnabled?.booleanValue === true,
+            storeTermsText: mf.storeTermsText?.stringValue || "",
+            storePrivacyText: mf.storePrivacyText?.stringValue || "",
           };
         }
       }

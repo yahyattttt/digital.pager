@@ -27,7 +27,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Upload, Store, User, Mail, MapPin, Loader2, CheckCircle, ArrowRight, ArrowLeft, Briefcase, Globe, ShieldCheck, KeyRound } from "lucide-react";
+import { Upload, Store, User, Mail, MapPin, Loader2, CheckCircle, ArrowRight, ArrowLeft, Briefcase, Globe, ShieldCheck, KeyRound, X, FileText } from "lucide-react";
+import { getDoc, doc as firestoreDoc } from "firebase/firestore";
+import type { SystemSettings } from "@shared/schema";
 
 const businessTypeLabelsEn: Record<string, string> = {
   restaurant: "Restaurant",
@@ -48,6 +50,30 @@ export default function RegisterPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [otpCode, setOtpCode] = useState("");
+  const [platformTermsEnabled, setPlatformTermsEnabled] = useState(false);
+  const [platformTermsText, setPlatformTermsText] = useState("");
+  const [platformPrivacyText, setPlatformPrivacyText] = useState("");
+  const [platformTermsAccepted, setPlatformTermsAccepted] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState<"terms" | "privacy" | null>(null);
+
+  useEffect(() => {
+    async function fetchPlatformTerms() {
+      try {
+        const docSnap = await getDoc(firestoreDoc(db, "systemSettings", "global"));
+        if (docSnap.exists()) {
+          const data = docSnap.data() as SystemSettings;
+          if (data.platformTermsEnabled) {
+            setPlatformTermsEnabled(true);
+            setPlatformTermsText(data.platformTermsText || "");
+            setPlatformPrivacyText(data.platformPrivacyText || "");
+          }
+        }
+      } catch {
+        // silent
+      }
+    }
+    fetchPlatformTerms();
+  }, []);
   const [otpVerified, setOtpVerified] = useState(false);
   const [otpSending, setOtpSending] = useState(false);
   const [otpVerifying, setOtpVerifying] = useState(false);
@@ -222,6 +248,14 @@ export default function RegisterPage() {
   }
 
   async function onSubmit(data: RegisterFormData) {
+    if (platformTermsEnabled && !platformTermsAccepted) {
+      toast({
+        title: t("مطلوب", "Required"),
+        description: t("يجب الموافقة على شروط وأحكام المنصة وسياسة الخصوصية", "You must accept the platform terms and privacy policy"),
+        variant: "destructive",
+      });
+      return;
+    }
     if (!logoFile) {
       toast({
         title: t("الشعار مطلوب", "Logo required"),
@@ -590,10 +624,42 @@ export default function RegisterPage() {
                   )}
                 />
 
+                {platformTermsEnabled && (
+                  <label className="flex items-start gap-3 p-4 rounded-xl bg-white/[0.02] border border-border/30 cursor-pointer" dir="rtl" data-testid="label-platform-terms">
+                    <input
+                      type="checkbox"
+                      checked={platformTermsAccepted}
+                      onChange={(e) => setPlatformTermsAccepted(e.target.checked)}
+                      className="mt-1 w-5 h-5 rounded border-primary/50 text-primary focus:ring-primary bg-transparent accent-primary flex-shrink-0"
+                      data-testid="checkbox-platform-terms"
+                    />
+                    <div className="text-sm text-muted-foreground leading-relaxed">
+                      <span>{t("أوافق على ", "I agree to the ")}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowTermsModal("terms"); }}
+                        className="text-primary font-medium hover:underline"
+                        data-testid="link-platform-terms"
+                      >
+                        {t("شروط وأحكام المنصة", "Platform Terms & Conditions")}
+                      </button>
+                      <span>{t(" و", " and ")}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowTermsModal("privacy"); }}
+                        className="text-primary font-medium hover:underline"
+                        data-testid="link-platform-privacy"
+                      >
+                        {t("سياسة الخصوصية", "Privacy Policy")}
+                      </button>
+                    </div>
+                  </label>
+                )}
+
                 <Button
                   type="submit"
                   className="w-full h-12 text-base font-bold"
-                  disabled={isSubmitting || !otpVerified}
+                  disabled={isSubmitting || !otpVerified || (platformTermsEnabled && !platformTermsAccepted)}
                   data-testid="button-register-submit"
                 >
                   {isSubmitting ? (
@@ -622,6 +688,35 @@ export default function RegisterPage() {
           </CardContent>
         </Card>
       </div>
+
+      {showTermsModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center" data-testid="modal-platform-legal">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowTermsModal(null)} />
+          <div className="relative w-full max-w-lg max-h-[80dvh] bg-background border border-border rounded-2xl flex flex-col overflow-hidden mx-4">
+            <div className="flex items-center justify-between p-4 border-b border-border/30">
+              <h3 className="font-bold text-base" dir="rtl" data-testid="modal-legal-title">
+                {showTermsModal === "terms"
+                  ? t("شروط وأحكام المنصة", "Platform Terms & Conditions")
+                  : t("سياسة الخصوصية للمنصة", "Platform Privacy Policy")
+                }
+              </h3>
+              <button onClick={() => setShowTermsModal(null)} className="p-1 text-muted-foreground hover:text-foreground" data-testid="button-close-legal-modal">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5">
+              <div className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap" dir="rtl" data-testid="text-legal-content">
+                {showTermsModal === "terms" ? platformTermsText : platformPrivacyText}
+              </div>
+            </div>
+            <div className="p-4 border-t border-border/30">
+              <Button onClick={() => setShowTermsModal(null)} className="w-full h-12" data-testid="button-close-legal">
+                {t("إغلاق", "Close")}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
