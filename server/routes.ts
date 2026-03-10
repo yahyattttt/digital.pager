@@ -2402,7 +2402,8 @@ export async function registerRoutes(
       for (const o of data.orders || []) {
         const statusLabel = o.status === "uncollected" ? "Uncollected" : "Completed";
         const date = o.archivedAt || o.createdAt || "";
-        csv += `"${o.orderNumber}","${o.customerName}","${o.customerPhone}",${o.total.toFixed(2)},${statusLabel},"${date}","${o.couponCode || ""}",${(o.discountAmount || 0).toFixed(2)}\n`;
+        const maskedPhone = o.customerPhone ? o.customerPhone.slice(0, -3) + "***" : "";
+        csv += `"${o.orderNumber}","${o.customerName}","${maskedPhone}",${o.total.toFixed(2)},${statusLabel},"${date}","${o.couponCode || ""}",${(o.discountAmount || 0).toFixed(2)}\n`;
       }
 
       csv += `\nTotal Sales,${data.totalSales.toFixed(2)}\n`;

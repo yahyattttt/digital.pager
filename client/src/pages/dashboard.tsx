@@ -3948,7 +3948,7 @@ function FinancialView({
                           <td className="py-3 text-white font-bold">#{order.orderNumber || "—"}</td>
                           <td className="py-3">
                             <div className="text-white/80 font-medium">{order.customerName}</div>
-                            <div className="text-white/30 text-xs font-mono" dir="ltr">{order.customerPhone}</div>
+                            <div className="text-white/30 text-xs font-mono" dir="ltr">{order.customerPhone ? order.customerPhone.slice(0, -3) + "***" : "—"}</div>
                           </td>
                           <td className="py-3 text-white font-bold">{order.total.toFixed(2)} <span className="text-white/40 text-xs">SAR</span></td>
                           <td className="py-3">
