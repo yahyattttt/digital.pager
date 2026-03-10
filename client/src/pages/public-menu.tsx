@@ -102,6 +102,16 @@ export default function PublicMenuPage() {
     return () => clearInterval(interval);
   }, [fetchMenu]);
 
+  function getItemTotal(item: CartItem): number {
+    return item.itemPrice * item.quantity;
+  }
+
+  const cartTotal = cart.reduce((sum, item) => sum + getItemTotal(item), 0);
+  const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+
+  const discountAmount = couponValid ? Math.round(cartTotal * couponDiscount / 100 * 100) / 100 : 0;
+  const finalTotal = Math.round((cartTotal - discountAmount) * 100) / 100;
+
   useEffect(() => {
     if (!merchant?.onlinePaymentEnabled || !merchant?.moyasarPublishableKey) return;
     if (moyasarLoaded) return;
@@ -130,7 +140,7 @@ export default function PublicMenuPage() {
 
   useEffect(() => {
     if (selectedPaymentMethod !== "online" || !moyasarLoaded || moyasarInitialized) return;
-    if (!merchant?.moyasarPublishableKey || finalTotal <= 0) return;
+    if (!merchant?.moyasarPublishableKey || !finalTotal || finalTotal <= 0) return;
 
     const container = document.getElementById("moyasar-payment-form");
     if (!container) return;
@@ -178,16 +188,6 @@ export default function PublicMenuPage() {
       setSelectedPaymentMethod("cod");
     }
   }, [merchant]);
-
-  function getItemTotal(item: CartItem): number {
-    return item.itemPrice * item.quantity;
-  }
-
-  const cartTotal = cart.reduce((sum, item) => sum + getItemTotal(item), 0);
-  const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-
-  const discountAmount = couponValid ? Math.round(cartTotal * couponDiscount / 100 * 100) / 100 : 0;
-  const finalTotal = Math.round((cartTotal - discountAmount) * 100) / 100;
 
   async function handleApplyCoupon() {
     if (!couponCode.trim() || !merchantId) return;
