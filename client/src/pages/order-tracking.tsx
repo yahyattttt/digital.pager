@@ -272,31 +272,117 @@ export default function OrderTrackingPage() {
   const [merchant, setMerchant] = useState<{ storeName: string; logoUrl: string; googleMapsReviewUrl?: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
-  const [bellPlayed, setBellPlayed] = useState(false);
+  const [bellPrimed, setBellPrimed] = useState(false);
+  const [bellAutoPlayed, setBellAutoPlayed] = useState(false);
 
   const { toast } = useToast();
   const alertSoundRef = useRef<HTMLAudioElement | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const bellPrimedRef = useRef(false);
+  const hasAutoPlayedRef = useRef(false);
 
   const merchantId = new URLSearchParams(window.location.search).get("m") || "";
 
-  function handlePlayBell() {
-    if (bellPlayed) return;
-    const audio = alertSoundRef.current || new Audio("/alert.mp3");
-    alertSoundRef.current = audio;
+  function ensureAudioElement() {
+    if (!alertSoundRef.current) {
+      alertSoundRef.current = new Audio("/alert.mp3");
+      alertSoundRef.current.volume = 1.0;
+      alertSoundRef.current.preload = "auto";
+    }
+    return alertSoundRef.current;
+  }
+
+  function handlePrimeBell() {
+    if (bellPrimedRef.current) return;
+    const audio = ensureAudioElement();
     audio.loop = false;
-    audio.volume = 1.0;
     audio.currentTime = 0;
+    audio.volume = 1.0;
+
+    try {
+      if (!audioContextRef.current) {
+        const AC = window.AudioContext || (window as any).webkitAudioContext;
+        audioContextRef.current = new AC();
+      }
+      if (audioContextRef.current.state === "suspended") {
+        audioContextRef.current.resume().catch(() => {});
+      }
+    } catch {}
+
     audio.play().then(() => {
-      setBellPlayed(true);
-      if ("vibrate" in navigator) navigator.vibrate([500, 200, 500, 200, 800]);
+      console.log("[OrderTracking] Bell primed — playing 1s preview");
+      setTimeout(() => {
+        audio.pause();
+        audio.currentTime = 0;
+        console.log("[OrderTracking] Bell preview stopped after 1s");
+      }, 1000);
+      bellPrimedRef.current = true;
+      setBellPrimed(true);
+      sessionStorage.setItem("pager_bell_primed", "true");
     }).catch(() => {
       toast({ title: "خطأ", description: "تعذر تشغيل الصوت", variant: "destructive" });
     });
   }
 
+  function playFullAlert() {
+    if (hasAutoPlayedRef.current) return;
+    hasAutoPlayedRef.current = true;
+    const audio = ensureAudioElement();
+    audio.loop = true;
+    audio.currentTime = 0;
+    audio.volume = 1.0;
+    audio.play().then(() => {
+      console.log("[OrderTracking] Full alert playing automatically");
+      setBellAutoPlayed(true);
+      if ("vibrate" in navigator) {
+        navigator.vibrate([500, 200, 500, 200, 800]);
+      }
+    }).catch((err) => {
+      console.warn("[OrderTracking] Auto-play failed:", err.message);
+      hasAutoPlayedRef.current = false;
+    });
+  }
+
+  function handlePlayAlertNow() {
+    hasAutoPlayedRef.current = false;
+    try {
+      if (!audioContextRef.current) {
+        const AC = window.AudioContext || (window as any).webkitAudioContext;
+        audioContextRef.current = new AC();
+      }
+      if (audioContextRef.current.state === "suspended") {
+        audioContextRef.current.resume().catch(() => {});
+      }
+    } catch {}
+    bellPrimedRef.current = true;
+    setBellPrimed(true);
+    sessionStorage.setItem("pager_bell_primed", "true");
+    playFullAlert();
+  }
+
+  function stopAlert() {
+    if (alertSoundRef.current) {
+      alertSoundRef.current.pause();
+      alertSoundRef.current.currentTime = 0;
+    }
+    if ("vibrate" in navigator) navigator.vibrate(0);
+    setBellAutoPlayed(false);
+  }
+
+  useEffect(() => {
+    ensureAudioElement();
+    if (sessionStorage.getItem("pager_bell_primed") === "true") {
+      bellPrimedRef.current = true;
+      setBellPrimed(true);
+    }
+  }, []);
+
   useEffect(() => {
     return () => {
       if (alertSoundRef.current) { alertSoundRef.current.pause(); alertSoundRef.current.currentTime = 0; }
+      if (audioContextRef.current && audioContextRef.current.state !== "closed") {
+        audioContextRef.current.close().catch(() => {});
+      }
       if ("vibrate" in navigator) navigator.vibrate(0);
     };
   }, []);
@@ -363,15 +449,21 @@ export default function OrderTrackingPage() {
       if (isFirstSnapshot) {
         prevStatus = currentStatus;
         isFirstSnapshot = false;
+        if (currentStatus === "ready" && bellPrimedRef.current) {
+          console.log("[OrderTracking] Page loaded with ready status + bell primed — auto-playing");
+          playFullAlert();
+        }
         return;
       }
 
-      if (currentStatus !== "ready") {
-        setBellPlayed(false);
-        if (alertSoundRef.current) {
-          alertSoundRef.current.pause();
-          alertSoundRef.current.currentTime = 0;
+      if (currentStatus === "ready" && prevStatus !== "ready") {
+        console.log("[OrderTracking] Status changed to ready — bellPrimed:", bellPrimedRef.current);
+        if (bellPrimedRef.current) {
+          playFullAlert();
         }
+      } else if (currentStatus !== "ready") {
+        stopAlert();
+        hasAutoPlayedRef.current = false;
       }
 
       prevStatus = currentStatus;
@@ -516,8 +608,8 @@ export default function OrderTrackingPage() {
 
   if (order.status === "ready") {
     return (
-      <div className="h-[100dvh] flex flex-col items-center justify-between py-8 px-5 text-center overflow-hidden"
-        style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }}
+      <div className={`h-[100dvh] flex flex-col items-center justify-between py-8 px-5 text-center overflow-hidden ${bellAutoPlayed ? "pager-neon-pulse" : ""}`}
+        style={{ background: bellAutoPlayed ? "linear-gradient(180deg, #0a0000 0%, #1a0000 30%, #0d0000 70%, #000 100%)" : "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }}
         data-testid="tracking-ready-screen"
       >
         <div className="w-full">
@@ -535,23 +627,30 @@ export default function OrderTrackingPage() {
           </div>
         </div>
 
-        {!bellPlayed && (
-          <button
-            onClick={handlePlayBell}
-            className="w-full max-w-xs flex items-center justify-center gap-3 py-4 px-6 rounded-2xl border-2 border-red-500/40 bg-gradient-to-r from-red-950/60 via-red-900/30 to-red-950/60 active:scale-[0.95] transition-all duration-200 animate-pulse"
-            style={{ boxShadow: "0 0 30px rgba(255,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.05)" }}
-            data-testid="button-bell-prompt"
-          >
-            <span className="text-2xl">🔔</span>
-            <span className="text-red-400 text-base font-bold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>الطلب صار جاهز ودك تفعل الجرس ؟</span>
-          </button>
-        )}
-        {bellPlayed && (
-          <div className="w-full max-w-xs flex items-center justify-center gap-2 py-3 px-4 rounded-2xl border border-emerald-500/15 bg-emerald-500/5 animate-in fade-in duration-500">
-            <span className="text-sm">✅</span>
-            <span className="text-emerald-400/80 text-sm font-medium" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>تم تشغيل الجرس</span>
-          </div>
-        )}
+        <div className="w-full max-w-xs space-y-3">
+          {bellAutoPlayed && (
+            <button
+              onClick={stopAlert}
+              className="w-full flex items-center justify-center gap-2.5 py-3.5 px-4 rounded-2xl border-2 border-red-600/40 bg-transparent active:scale-[0.95] transition-all duration-200"
+              style={{ boxShadow: "0 0 20px rgba(255,0,0,0.2)" }}
+              data-testid="button-stop-alert"
+            >
+              <span className="text-lg">🔇</span>
+              <span className="text-white text-sm font-bold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>إيقاف التنبيه</span>
+            </button>
+          )}
+          {!bellAutoPlayed && (
+            <button
+              onClick={handlePlayAlertNow}
+              className="w-full flex items-center justify-center gap-3 py-4 px-6 rounded-2xl border-2 border-red-500/40 bg-gradient-to-r from-red-950/60 via-red-900/30 to-red-950/60 active:scale-[0.95] transition-all duration-200 animate-pulse"
+              style={{ boxShadow: "0 0 30px rgba(255,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.05)" }}
+              data-testid="button-bell-prompt"
+            >
+              <span className="text-2xl">🔔</span>
+              <span className="text-red-400 text-base font-bold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>الطلب صار جاهز ودك تفعل الجرس ؟</span>
+            </button>
+          )}
+        </div>
       </div>
     );
   }
@@ -622,6 +721,25 @@ export default function OrderTrackingPage() {
             )}
             <span className="text-red-400/90 text-[13px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>شارك حالة الطلب مع أحبابك</span>
           </button>
+        )}
+
+        {!bellPrimed && (
+          <button
+            onClick={handlePrimeBell}
+            className="w-full flex items-center justify-center gap-2.5 py-3.5 px-4 rounded-2xl border border-red-500/20 bg-gradient-to-r from-red-950/40 via-red-900/20 to-red-950/40 active:scale-[0.97] transition-all duration-200 animate-pulse"
+            style={{ boxShadow: "0 0 20px rgba(255,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.03)" }}
+            data-testid="button-prime-bell"
+          >
+            <span className="text-lg">🔔</span>
+            <span className="text-red-400/90 text-[13px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>ودك ننبهك بالجرس إذا جهز طلبك؟</span>
+          </button>
+        )}
+
+        {bellPrimed && (
+          <div className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl border border-emerald-500/15 bg-emerald-500/5 animate-in fade-in duration-500">
+            <span className="text-sm">✅</span>
+            <span className="text-emerald-400/80 text-xs font-medium" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>تم تفعيل الجرس، سنقوم بتنبيهك فوراً</span>
+          </div>
         )}
 
         <div className="p-3 rounded-xl bg-zinc-900/30 border border-zinc-800/20">
