@@ -2040,6 +2040,12 @@ export async function registerRoutes(
         fieldPaths.push("orderNumber");
       }
 
+      const { archivedAt } = req.body;
+      if (archivedAt) {
+        updateFields.archivedAt = { stringValue: archivedAt };
+        fieldPaths.push("archivedAt");
+      }
+
       if (fieldPaths.length === 0) return res.status(400).json({ message: "No fields to update" });
 
       const maskParams = fieldPaths.map(fp => `updateMask.fieldPaths=${fp}`).join("&");
@@ -2050,6 +2056,36 @@ export async function registerRoutes(
       });
 
       if (!patchRes.ok) return res.status(500).json({ message: "Failed to update order" });
+
+      if (status === "uncollected") {
+        try {
+          const orderDoc = await fetch(`${baseUrl}/merchants/${merchantId}/whatsappOrders/${orderId}`, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
+          if (orderDoc.ok) {
+            const od = await orderDoc.json();
+            const phone = od.fields?.customerPhone?.stringValue || "";
+            const custId = phone.replace(/[^0-9]/g, "");
+            if (custId) {
+              const custUrl = `${baseUrl}/merchants/${merchantId}/customers/${custId}`;
+              const custRes = await fetch(custUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
+              let noShowCount = 1;
+              if (custRes.ok) {
+                const cd = await custRes.json();
+                noShowCount = parseInt(cd.fields?.noShowCount?.integerValue || "0") + 1;
+              }
+              await fetch(`${custUrl}?updateMask.fieldPaths=noShowCount`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+                body: JSON.stringify({ fields: { noShowCount: { integerValue: String(noShowCount) } } }),
+              }).catch(() => {});
+            }
+          }
+        } catch (e) {
+          console.error("Failed to update noShowCount:", e);
+        }
+      }
+
       return res.json({ success: true });
     } catch (error) {
       console.error("Update WhatsApp order error:", error);
@@ -2260,6 +2296,129 @@ export async function registerRoutes(
     }
   });
 
+  // ── Financial ──
+  app.get("/api/financial/:merchantId", async (req, res) => {
+    try {
+      const { merchantId } = req.params;
+      const { period, from, to } = req.query;
+      const accessToken = await getFirestoreAccessToken();
+      const baseUrl = getFirestoreBaseUrl();
+      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+
+      const now = new Date();
+      let startDate: Date;
+      let endDate = now;
+
+      if (period === "custom" && from && to) {
+        startDate = new Date(from as string);
+        endDate = new Date(to as string);
+        endDate.setHours(23, 59, 59, 999);
+      } else if (period === "7d") {
+        startDate = new Date(now);
+        startDate.setDate(startDate.getDate() - 7);
+        startDate.setHours(0, 0, 0, 0);
+      } else if (period === "30d") {
+        startDate = new Date(now);
+        startDate.setDate(startDate.getDate() - 30);
+        startDate.setHours(0, 0, 0, 0);
+      } else {
+        startDate = new Date(now);
+        startDate.setHours(0, 0, 0, 0);
+      }
+
+      const url = `${baseUrl}/merchants/${merchantId}/whatsappOrders?pageSize=500`;
+      const r = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+      if (!r.ok) return res.json({ totalSales: 0, collectedSales: 0, lostSales: 0, completionRate: 0, orders: [] });
+      const data = await r.json();
+      const allDocs = data.documents || [];
+
+      const orders: any[] = [];
+      let totalSales = 0;
+      let collectedSales = 0;
+      let lostSales = 0;
+
+      for (const d of allDocs) {
+        const f = d.fields || {};
+        const status = f.status?.stringValue || "";
+        if (status !== "archived" && status !== "completed" && status !== "uncollected") continue;
+
+        const createdAt = f.createdAt?.stringValue || "";
+        const archivedAt = f.archivedAt?.stringValue || "";
+        const orderDate = new Date(archivedAt || createdAt);
+        if (isNaN(orderDate.getTime())) continue;
+        if (orderDate < startDate || orderDate > endDate) continue;
+
+        const total = f.total?.doubleValue ?? parseFloat(f.total?.integerValue || "0");
+        const parts = d.name.split("/");
+
+        const order = {
+          id: parts[parts.length - 1],
+          customerName: f.customerName?.stringValue || "",
+          customerPhone: f.customerPhone?.stringValue || "",
+          orderNumber: f.orderNumber?.stringValue || "",
+          total,
+          status,
+          createdAt,
+          archivedAt,
+          couponCode: f.couponCode?.stringValue || "",
+          discountAmount: f.discountAmount?.doubleValue ?? 0,
+          originalTotal: f.originalTotal?.doubleValue ?? 0,
+        };
+
+        orders.push(order);
+        totalSales += total;
+
+        if (status === "archived" || status === "completed") {
+          collectedSales += total;
+        } else if (status === "uncollected") {
+          lostSales += total;
+        }
+      }
+
+      const totalFinished = orders.length;
+      const completedCount = orders.filter(o => o.status === "archived" || o.status === "completed").length;
+      const completionRate = totalFinished > 0 ? Math.round((completedCount / totalFinished) * 100) : 0;
+
+      orders.sort((a: any, b: any) => (b.archivedAt || b.createdAt || "").localeCompare(a.archivedAt || a.createdAt || ""));
+
+      return res.json({ totalSales, collectedSales, lostSales, completionRate, orders });
+    } catch (error) {
+      console.error("Financial data error:", error);
+      return res.status(500).json({ message: "Failed to load financial data" });
+    }
+  });
+
+  app.get("/api/financial/:merchantId/export", async (req, res) => {
+    try {
+      const { merchantId } = req.params;
+      const { period, from, to } = req.query;
+
+      const url = `${req.protocol}://${req.get("host")}/api/financial/${merchantId}?period=${period || "today"}&from=${from || ""}&to=${to || ""}`;
+      const r = await fetch(url);
+      if (!r.ok) return res.status(500).json({ message: "Failed to fetch data" });
+      const data = await r.json();
+
+      let csv = "Order #,Customer,Phone,Total (SAR),Status,Date,Coupon,Discount\n";
+      for (const o of data.orders || []) {
+        const statusLabel = o.status === "uncollected" ? "Uncollected" : "Completed";
+        const date = o.archivedAt || o.createdAt || "";
+        csv += `"${o.orderNumber}","${o.customerName}","${o.customerPhone}",${o.total.toFixed(2)},${statusLabel},"${date}","${o.couponCode || ""}",${(o.discountAmount || 0).toFixed(2)}\n`;
+      }
+
+      csv += `\nTotal Sales,${data.totalSales.toFixed(2)}\n`;
+      csv += `Collected,${data.collectedSales.toFixed(2)}\n`;
+      csv += `Lost (Uncollected),${data.lostSales.toFixed(2)}\n`;
+      csv += `Completion Rate,${data.completionRate}%\n`;
+
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader("Content-Disposition", `attachment; filename="financial-report-${period || "today"}.csv"`);
+      return res.send("\uFEFF" + csv);
+    } catch (error) {
+      console.error("Financial export error:", error);
+      return res.status(500).json({ message: "Failed to export" });
+    }
+  });
+
   // ── Customers ──
   app.get("/api/customers/:merchantId", async (req, res) => {
     try {
@@ -2281,6 +2440,7 @@ export async function registerRoutes(
           phone: f.phone?.stringValue || "",
           totalOrders: parseInt(f.totalOrders?.integerValue || "0"),
           lastOrderDate: f.lastOrderDate?.stringValue || "",
+          noShowCount: parseInt(f.noShowCount?.integerValue || "0"),
         };
       });
       return res.json({ customers });

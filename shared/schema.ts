@@ -29,7 +29,7 @@ export const businessTypeLabels: Record<string, string> = {
 export const pagerStatusEnum = z.enum(["waiting", "notified", "completed"]);
 export type PagerStatus = z.infer<typeof pagerStatusEnum>;
 
-export const whatsappOrderStatusEnum = z.enum(["pending_verification", "awaiting_confirmation", "preparing", "ready", "completed", "archived"]);
+export const whatsappOrderStatusEnum = z.enum(["pending_verification", "awaiting_confirmation", "preparing", "ready", "completed", "archived", "uncollected"]);
 export type WhatsAppOrderStatus = z.infer<typeof whatsappOrderStatusEnum>;
 
 export const productVariantSchema = z.object({

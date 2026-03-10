@@ -87,6 +87,13 @@ import {
   Utensils,
   Users2,
   Ticket,
+  DollarSign,
+  UserX,
+  FileDown,
+  Calendar,
+  TrendingUp,
+  ShieldAlert,
+  AlertCircle,
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
@@ -101,7 +108,7 @@ const businessTypeLabelsEn: Record<string, string> = {
 
 const ADMIN_WHATSAPP = "https://wa.me/966500000000";
 
-type DashboardView = "overview" | "waitlist" | "menu" | "feedback" | "analytics" | "customers" | "coupons" | "settings";
+type DashboardView = "overview" | "waitlist" | "menu" | "feedback" | "analytics" | "customers" | "coupons" | "financial" | "settings";
 
 function SubscriptionRequiredScreen({
   storeName,
@@ -806,6 +813,42 @@ export default function DashboardPage() {
     }
   }, [merchant?.uid, t, toast]);
 
+  const handleUncollectedWhatsAppOrder = useCallback(async (order: WhatsAppOrder) => {
+    if (!merchant?.uid) return;
+    try {
+      setFlyingOrderId(`wa-${order.id}`);
+      await new Promise(r => setTimeout(r, 600));
+
+      const now = new Date().toISOString();
+      const orderRef = doc(db, "merchants", merchant.uid, "whatsappOrders", order.id);
+      await updateDoc(orderRef, { status: "uncollected", archivedAt: now });
+
+      try {
+        await fetch(`/api/whatsapp-orders/${merchant.uid}/${order.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "uncollected" }),
+        });
+      } catch (e) {
+        console.error("Failed to update noShowCount via server:", e);
+      }
+
+      setFlyingOrderId(null);
+      toast({
+        title: t("لم يحضر العميل", "Customer No-Show"),
+        description: t(`تم تسجيل عدم حضور العميل للطلب #${order.orderNumber}`, `Customer no-show recorded for order #${order.orderNumber}`),
+        variant: "destructive",
+      });
+    } catch {
+      setFlyingOrderId(null);
+      toast({
+        title: t("خطأ", "Error"),
+        description: t("فشل في تحديث حالة الطلب", "Failed to update order status"),
+        variant: "destructive",
+      });
+    }
+  }, [merchant?.uid, t, toast]);
+
   const handleReadyWhatsAppOrder = useCallback(async (order: WhatsAppOrder) => {
     if (!merchant?.uid) return;
     try {
@@ -1059,6 +1102,7 @@ export default function DashboardPage() {
     { id: "analytics", icon: BarChart3, label: t("التحليلات", "Analytics") },
     { id: "customers", icon: Users2, label: t("عملائي", "My Customers") },
     { id: "coupons", icon: Ticket, label: t("الكوبونات", "Coupons") },
+    { id: "financial", icon: DollarSign, label: t("الإدارة المالية", "Financial") },
     { id: "settings", icon: Settings, label: t("الإعدادات", "Settings") },
   ];
 
@@ -1306,6 +1350,7 @@ export default function DashboardPage() {
                 onAcceptWhatsAppOrder={handleAcceptWhatsAppOrder}
                 onReadyWhatsAppOrder={handleReadyWhatsAppOrder}
                 onCompleteWhatsAppOrder={handleCompleteWhatsAppOrder}
+                onUncollectedWhatsAppOrder={handleUncollectedWhatsAppOrder}
                 acceptingOrderId={acceptingOrderId}
                 completedToday={completedToday}
                 flyingOrderId={flyingOrderId}
@@ -1371,6 +1416,10 @@ export default function DashboardPage() {
 
             {currentView === "coupons" && (
               <CouponsView merchant={merchant} t={t} lang={lang} />
+            )}
+
+            {currentView === "financial" && (
+              <FinancialView merchant={merchant} t={t} lang={lang} />
             )}
 
             {currentView === "settings" && (
@@ -1574,6 +1623,7 @@ function OverviewView({
   onAcceptWhatsAppOrder,
   onReadyWhatsAppOrder,
   onCompleteWhatsAppOrder,
+  onUncollectedWhatsAppOrder,
   acceptingOrderId,
   completedToday,
   flyingOrderId,
@@ -1601,6 +1651,7 @@ function OverviewView({
   onAcceptWhatsAppOrder: (order: WhatsAppOrder) => void;
   onReadyWhatsAppOrder: (order: WhatsAppOrder) => void;
   onCompleteWhatsAppOrder: (order: WhatsAppOrder) => void;
+  onUncollectedWhatsAppOrder: (order: WhatsAppOrder) => void;
   acceptingOrderId: string | null;
   completedToday: number;
   flyingOrderId: string | null;
@@ -1610,6 +1661,22 @@ function OverviewView({
   const [overviewInput, setOverviewInput] = useState("");
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [printOrder, setPrintOrder] = useState<WhatsAppOrder | null>(null);
+  const [uncollectedConfirmOrder, setUncollectedConfirmOrder] = useState<WhatsAppOrder | null>(null);
+  const [customerNoShowMap, setCustomerNoShowMap] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    if (!merchant?.uid) return;
+    fetch(`/api/customers/${merchant.uid}`)
+      .then(r => r.json())
+      .then(data => {
+        const map: Record<string, number> = {};
+        for (const c of data.customers || []) {
+          if (c.noShowCount >= 2) map[c.phone] = c.noShowCount;
+        }
+        setCustomerNoShowMap(map);
+      })
+      .catch(() => {});
+  }, [merchant?.uid]);
 
   const handleManual = async () => {
     if (quickAddLoading || isPending || !overviewInput.trim()) return;
@@ -1900,6 +1967,12 @@ function OverviewView({
                       <span className="text-lg font-extrabold text-white" data-testid={`text-order-num-${item.id}`}>
                         #{item.orderNumber}
                       </span>
+                      {customerNoShowMap[waOrder.customerPhone] && (
+                        <Badge className="rounded-full text-[9px] px-1.5 py-0.5 bg-red-500/20 text-red-400 border border-red-500/30 flex items-center gap-0.5" data-testid={`badge-noshow-${item.id}`}>
+                          <ShieldAlert className="w-3 h-3" />
+                          {t("عميل غير ملتزم", "Unreliable")}
+                        </Badge>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge className={`rounded-full text-[10px] px-2 py-0.5 ${sc.bg} ${sc.text} border ${sc.border}`}>
@@ -1969,13 +2042,22 @@ function OverviewView({
                         </Button>
                       )}
                       {isReady && (
-                        <Button
-                          onClick={() => onCompleteWhatsAppOrder(waOrder)}
-                          className="flex-1 h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl"
-                          data-testid={`button-complete-wa-order-${item.id}`}
-                        >
-                          <CheckCircle className="w-3.5 h-3.5 me-1" />{t("تسليم", "Deliver")}
-                        </Button>
+                        <>
+                          <Button
+                            onClick={() => onCompleteWhatsAppOrder(waOrder)}
+                            className="flex-1 h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl"
+                            data-testid={`button-complete-wa-order-${item.id}`}
+                          >
+                            <CheckCircle className="w-3.5 h-3.5 me-1" />{t("تم الاستلام", "Collected")}
+                          </Button>
+                          <Button
+                            onClick={() => setUncollectedConfirmOrder(waOrder)}
+                            className="h-9 px-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold text-xs rounded-xl border border-red-500/20"
+                            data-testid={`button-uncollected-wa-order-${item.id}`}
+                          >
+                            <UserX className="w-3.5 h-3.5 me-1" />{t("لم يحضر", "No-Show")}
+                          </Button>
+                        </>
                       )}
                     </div>
                   </CardContent>
@@ -2076,6 +2158,50 @@ function OverviewView({
           <div className="receipt-footer">{t("شكراً لطلبكم", "Thank you for your order")}</div>
         </div>
       )}
+
+      <Dialog open={!!uncollectedConfirmOrder} onOpenChange={(open) => !open && setUncollectedConfirmOrder(null)}>
+        <DialogContent className="bg-[#111] border-white/10 text-white max-w-sm" data-testid="dialog-uncollected-confirm">
+          <DialogHeader>
+            <DialogTitle className="text-red-400 flex items-center gap-2">
+              <AlertCircle className="w-5 h-5" />
+              {t("تأكيد عدم الحضور", "Confirm No-Show")}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-sm text-white/70">
+              {t(
+                `هل أنت متأكد أن العميل "${uncollectedConfirmOrder?.customerName}" لم يحضر لاستلام الطلب #${uncollectedConfirmOrder?.orderNumber}؟`,
+                `Are you sure customer "${uncollectedConfirmOrder?.customerName}" did not show up for order #${uncollectedConfirmOrder?.orderNumber}?`
+              )}
+            </p>
+            <p className="text-xs text-red-400/70">
+              {t("سيتم تسجيل هذا كعدم حضور في سجل العميل", "This will be recorded as a no-show on the customer's record")}
+            </p>
+          </div>
+          <div className="flex gap-2 pt-2">
+            <Button
+              onClick={() => setUncollectedConfirmOrder(null)}
+              className="flex-1 h-10 bg-white/[0.06] hover:bg-white/[0.1] text-white rounded-xl border border-white/10"
+              data-testid="button-cancel-uncollected"
+            >
+              {t("إلغاء", "Cancel")}
+            </Button>
+            <Button
+              onClick={() => {
+                if (uncollectedConfirmOrder) {
+                  onUncollectedWhatsAppOrder(uncollectedConfirmOrder);
+                  setUncollectedConfirmOrder(null);
+                }
+              }}
+              className="flex-1 h-10 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl"
+              data-testid="button-confirm-uncollected"
+            >
+              <UserX className="w-4 h-4 me-1" />
+              {t("تأكيد عدم الحضور", "Confirm No-Show")}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -3242,6 +3368,7 @@ interface CustomerData {
   phone: string;
   totalOrders: number;
   lastOrderDate: string;
+  noShowCount?: number;
 }
 
 function CustomersView({
@@ -3327,6 +3454,9 @@ function CustomersView({
                       {t("آخر طلب", "Last Order")}
                     </th>
                     <th className="text-start text-xs font-medium text-muted-foreground px-4 py-3">
+                      {t("عدم حضور", "No-Shows")}
+                    </th>
+                    <th className="text-start text-xs font-medium text-muted-foreground px-4 py-3">
                       {t("واتساب", "WhatsApp")}
                     </th>
                   </tr>
@@ -3339,7 +3469,15 @@ function CustomersView({
                       data-testid={`row-customer-${index}`}
                     >
                       <td className="px-4 py-3 text-sm text-white" data-testid={`text-customer-name-${index}`}>
-                        {customer.name}
+                        <div className="flex items-center gap-2">
+                          {customer.name}
+                          {(customer.noShowCount || 0) >= 2 && (
+                            <Badge className="bg-red-500/20 text-red-400 border border-red-500/30 text-[9px] rounded-full px-1.5">
+                              <ShieldAlert className="w-3 h-3 me-0.5" />
+                              {t("غير ملتزم", "Unreliable")}
+                            </Badge>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-sm text-muted-foreground" dir="ltr" data-testid={`text-customer-phone-${index}`}>
                         {customer.phone}
@@ -3357,6 +3495,15 @@ function CustomersView({
                               day: "numeric",
                             })
                           : "-"}
+                      </td>
+                      <td className="px-4 py-3" data-testid={`text-customer-noshow-${index}`}>
+                        {(customer.noShowCount || 0) > 0 ? (
+                          <Badge className="bg-red-500/20 text-red-400 border border-red-500/30 text-xs">
+                            {customer.noShowCount}
+                          </Badge>
+                        ) : (
+                          <span className="text-white/20 text-xs">0</span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <Button
@@ -3605,6 +3752,233 @@ function CouponsView({
             </Card>
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+function FinancialView({
+  merchant,
+  t,
+  lang,
+}: {
+  merchant: any;
+  t: (ar: string, en: string) => string;
+  lang: string;
+}) {
+  const [period, setPeriod] = useState("today");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<any>({ totalSales: 0, collectedSales: 0, lostSales: 0, completionRate: 0, orders: [] });
+
+  const fetchData = useCallback(async () => {
+    if (!merchant?.uid) return;
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ period });
+      if (period === "custom" && fromDate && toDate) {
+        params.set("from", fromDate);
+        params.set("to", toDate);
+      }
+      const res = await fetch(`/api/financial/${merchant.uid}?${params}`);
+      if (res.ok) {
+        const d = await res.json();
+        setData(d);
+      }
+    } catch (e) {
+      console.error("Failed to load financial data:", e);
+    }
+    setLoading(false);
+  }, [merchant?.uid, period, fromDate, toDate]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const handleExport = () => {
+    if (!merchant?.uid) return;
+    const params = new URLSearchParams({ period });
+    if (period === "custom" && fromDate && toDate) {
+      params.set("from", fromDate);
+      params.set("to", toDate);
+    }
+    window.open(`/api/financial/${merchant.uid}/export?${params}`, "_blank");
+  };
+
+  const statCards = [
+    {
+      label: t("إجمالي المبيعات", "Total Sales"),
+      value: `${data.totalSales.toFixed(2)} SAR`,
+      icon: DollarSign,
+      color: "text-white",
+      bgColor: "bg-white/[0.06]",
+      borderColor: "border-white/10",
+    },
+    {
+      label: t("المحصّلة", "Collected"),
+      value: `${data.collectedSales.toFixed(2)} SAR`,
+      icon: CheckCircle,
+      color: "text-emerald-400",
+      bgColor: "bg-emerald-500/10",
+      borderColor: "border-emerald-500/20",
+    },
+    {
+      label: t("خسائر (لم يحضر)", "Lost (No-Show)"),
+      value: `${data.lostSales.toFixed(2)} SAR`,
+      icon: UserX,
+      color: "text-red-400",
+      bgColor: "bg-red-500/10",
+      borderColor: "border-red-500/20",
+    },
+    {
+      label: t("نسبة التحصيل", "Collection Rate"),
+      value: `${data.completionRate}%`,
+      icon: TrendingUp,
+      color: data.completionRate >= 80 ? "text-emerald-400" : data.completionRate >= 50 ? "text-amber-400" : "text-red-400",
+      bgColor: data.completionRate >= 80 ? "bg-emerald-500/10" : data.completionRate >= 50 ? "bg-amber-500/10" : "bg-red-500/10",
+      borderColor: data.completionRate >= 80 ? "border-emerald-500/20" : data.completionRate >= 50 ? "border-amber-500/20" : "border-red-500/20",
+    },
+  ];
+
+  const periodOptions = [
+    { value: "today", label: t("اليوم", "Today") },
+    { value: "7d", label: t("7 أيام", "7 Days") },
+    { value: "30d", label: t("30 يوم", "30 Days") },
+    { value: "custom", label: t("مخصص", "Custom") },
+  ];
+
+  return (
+    <div className="p-4 max-w-6xl mx-auto space-y-6">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <h2 className="text-xl font-bold text-white flex items-center gap-2" data-testid="heading-financial">
+          <DollarSign className="w-6 h-6 text-emerald-400" />
+          {t("الإدارة المالية", "Financial Management")}
+        </h2>
+        <Button
+          onClick={handleExport}
+          className="h-9 px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl"
+          data-testid="button-export-csv"
+        >
+          <FileDown className="w-4 h-4 me-1" />
+          {t("تصدير CSV", "Export CSV")}
+        </Button>
+      </div>
+
+      <div className="flex flex-wrap gap-2 items-end">
+        {periodOptions.map((opt) => (
+          <Button
+            key={opt.value}
+            onClick={() => setPeriod(opt.value)}
+            className={`h-9 px-4 rounded-xl text-xs font-bold transition-all ${
+              period === opt.value
+                ? "bg-emerald-600 text-white"
+                : "bg-white/[0.06] text-white/60 hover:bg-white/[0.1] border border-white/10"
+            }`}
+            data-testid={`button-period-${opt.value}`}
+          >
+            <Calendar className="w-3.5 h-3.5 me-1" />
+            {opt.label}
+          </Button>
+        ))}
+        {period === "custom" && (
+          <div className="flex gap-2 items-center">
+            <Input
+              type="date"
+              value={fromDate}
+              onChange={(e) => setFromDate(e.target.value)}
+              className="h-9 w-36 bg-white/[0.03] border-white/10 text-white text-xs rounded-xl"
+              data-testid="input-date-from"
+            />
+            <span className="text-white/40 text-xs">{t("إلى", "to")}</span>
+            <Input
+              type="date"
+              value={toDate}
+              onChange={(e) => setToDate(e.target.value)}
+              className="h-9 w-36 bg-white/[0.03] border-white/10 text-white text-xs rounded-xl"
+              data-testid="input-date-to"
+            />
+          </div>
+        )}
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="w-8 h-8 text-emerald-400 animate-spin" />
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {statCards.map((card, idx) => (
+              <Card key={idx} className={`${card.bgColor} rounded-2xl border ${card.borderColor}`} data-testid={`card-stat-${idx}`}>
+                <CardContent className="p-4 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <card.icon className={`w-5 h-5 ${card.color}`} />
+                    <span className="text-xs text-white/50 font-medium">{card.label}</span>
+                  </div>
+                  <p className={`text-xl font-extrabold ${card.color}`}>{card.value}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          <Card className="bg-[#111] rounded-2xl border border-white/[0.06]" data-testid="card-orders-table">
+            <CardContent className="p-4">
+              <h3 className="text-sm font-bold text-white/80 mb-4">{t("سجل الطلبات", "Orders Log")} ({data.orders.length})</h3>
+              {data.orders.length === 0 ? (
+                <div className="text-center py-10 text-white/30 text-sm">
+                  {t("لا توجد طلبات في هذه الفترة", "No orders in this period")}
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm" data-testid="table-financial-orders">
+                    <thead>
+                      <tr className="border-b border-white/[0.06] text-white/40 text-xs">
+                        <th className="pb-3 text-start font-medium">#</th>
+                        <th className="pb-3 text-start font-medium">{t("العميل", "Customer")}</th>
+                        <th className="pb-3 text-start font-medium">{t("المبلغ", "Amount")}</th>
+                        <th className="pb-3 text-start font-medium">{t("الحالة", "Status")}</th>
+                        <th className="pb-3 text-start font-medium">{t("التاريخ", "Date")}</th>
+                        <th className="pb-3 text-start font-medium">{t("خصم", "Discount")}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.orders.map((order: any, idx: number) => (
+                        <tr key={order.id || idx} className="border-b border-white/[0.03] hover:bg-white/[0.02]" data-testid={`row-order-${idx}`}>
+                          <td className="py-3 text-white font-bold">#{order.orderNumber || "—"}</td>
+                          <td className="py-3">
+                            <div className="text-white/80 font-medium">{order.customerName}</div>
+                            <div className="text-white/30 text-xs font-mono" dir="ltr">{order.customerPhone}</div>
+                          </td>
+                          <td className="py-3 text-white font-bold">{order.total.toFixed(2)} <span className="text-white/40 text-xs">SAR</span></td>
+                          <td className="py-3">
+                            {order.status === "uncollected" ? (
+                              <Badge className="bg-red-500/20 text-red-400 border border-red-500/30 text-[10px] rounded-full" data-testid={`badge-status-${idx}`}>
+                                <UserX className="w-3 h-3 me-0.5" />
+                                {t("لم يحضر", "No-Show")}
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] rounded-full" data-testid={`badge-status-${idx}`}>
+                                <CheckCircle className="w-3 h-3 me-0.5" />
+                                {t("تم التحصيل", "Collected")}
+                              </Badge>
+                            )}
+                          </td>
+                          <td className="py-3 text-white/40 text-xs">
+                            {new Date(order.archivedAt || order.createdAt).toLocaleDateString(lang === "ar" ? "ar-SA" : "en-US")}
+                          </td>
+                          <td className="py-3 text-amber-400/70 text-xs">
+                            {order.couponCode ? `${order.couponCode} (-${(order.discountAmount || 0).toFixed(0)})` : "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </>
       )}
     </div>
   );
