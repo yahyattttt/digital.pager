@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
 import {
   collection,
+  addDoc,
   updateDoc,
   deleteDoc,
   doc,
@@ -11,6 +12,7 @@ import {
   onSnapshot,
   query,
   where,
+  runTransaction,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/hooks/use-auth";
@@ -391,6 +393,11 @@ export default function DashboardPage() {
   const [completedToday, setCompletedToday] = useState(0);
   const [flyingOrderId, setFlyingOrderId] = useState<string | null>(null);
   const [merchantFeatures, setMerchantFeatures] = useState({ analyticsEnabled: true, crmEnabled: true, smartRatingEnabled: true, printReceiptsEnabled: true });
+  const [manualDigitInput, setManualDigitInput] = useState("");
+  const [manualAddLoading, setManualAddLoading] = useState(false);
+  const [lastShiftNumber, setLastShiftNumber] = useState<number>(0);
+  const [showShiftConfig, setShowShiftConfig] = useState(false);
+  const [shiftConfigInput, setShiftConfigInput] = useState("");
 
   useEffect(() => {
     if (!merchant?.uid) return;
@@ -492,6 +499,19 @@ export default function DashboardPage() {
         setNextOrderNumber(isNaN(val) || val < 1 ? 1 : val);
       } else {
         setShowShiftStart(true);
+      }
+    });
+    return () => unsub();
+  }, [merchant?.uid]);
+
+  useEffect(() => {
+    if (!merchant?.uid) return;
+    const metaRef = doc(db, "merchants", merchant.uid, "settings", "manualShift");
+    const unsub = onSnapshot(metaRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        const val = parseInt(String(data.last_shift_number || 0), 10);
+        setLastShiftNumber(isNaN(val) ? 0 : val);
       }
     });
     return () => unsub();
@@ -653,6 +673,94 @@ export default function DashboardPage() {
   }
 
   const isApproved = merchant?.status === "approved";
+
+  const handleManualDigitAdd = useCallback(async () => {
+    if (!merchant?.uid || !isApproved || manualAddLoading) return;
+    const trimmed = manualDigitInput.trim();
+    if (!trimmed || !/^\d{1,3}$/.test(trimmed)) {
+      toast({
+        title: t("رقم غير صالح", "Invalid Number"),
+        description: t("أدخل رقم من 1 إلى 3 أرقام", "Enter a 1-3 digit number"),
+        variant: "destructive",
+      });
+      return;
+    }
+    setManualAddLoading(true);
+    try {
+      const pagersRef = collection(db, "merchants", merchant.uid, "pagers");
+      await addDoc(pagersRef, {
+        storeId: merchant.uid,
+        orderNumber: trimmed,
+        displayOrderId: trimmed,
+        orderType: "manual",
+        orderSource: "Manual",
+        status: "waiting",
+        createdAt: new Date().toISOString(),
+        notifiedAt: null,
+      });
+      toast({ title: t(`تم إضافة الطلب #${trimmed}`, `Order #${trimmed} added`) });
+      setManualDigitInput("");
+    } catch {
+      toast({ title: t("خطأ", "Error"), description: t("فشل في إضافة الطلب", "Failed to add order"), variant: "destructive" });
+    } finally {
+      setManualAddLoading(false);
+    }
+  }, [merchant?.uid, isApproved, manualAddLoading, manualDigitInput, t, toast]);
+
+  const handleShiftConfigSave = useCallback(async () => {
+    if (!merchant?.uid) return;
+    const num = parseInt(shiftConfigInput.trim(), 10);
+    if (isNaN(num) || num < 0) {
+      toast({ title: t("رقم غير صالح", "Invalid Number"), variant: "destructive" });
+      return;
+    }
+    try {
+      const metaRef = doc(db, "merchants", merchant.uid, "settings", "manualShift");
+      await setDoc(metaRef, { last_shift_number: num }, { merge: true });
+      setShowShiftConfig(false);
+      setShiftConfigInput("");
+      toast({ title: t(`تم تعيين بداية الوردية: ${num}`, `Shift start set to: ${num}`) });
+    } catch {
+      toast({ title: t("خطأ", "Error"), variant: "destructive" });
+    }
+  }, [merchant?.uid, shiftConfigInput, t, toast]);
+
+  const handleShiftAdd = useCallback(async () => {
+    if (!merchant?.uid || !isApproved || manualAddLoading) return;
+    if (lastShiftNumber === 0) {
+      setShowShiftConfig(true);
+      return;
+    }
+    setManualAddLoading(true);
+    try {
+      const metaRef = doc(db, "merchants", merchant.uid, "settings", "manualShift");
+      let newNum = 0;
+      await runTransaction(db, async (txn) => {
+        const snap = await txn.get(metaRef);
+        const current = snap.exists() ? parseInt(String(snap.data().last_shift_number || 0), 10) : 0;
+        newNum = (isNaN(current) ? 0 : current) + 1;
+        txn.set(metaRef, { last_shift_number: newNum }, { merge: true } as any);
+      });
+      const displayId = String(newNum).padStart(3, "0").slice(-3);
+
+      const pagersRef = collection(db, "merchants", merchant.uid, "pagers");
+      await addDoc(pagersRef, {
+        storeId: merchant.uid,
+        orderNumber: String(newNum),
+        displayOrderId: displayId,
+        orderType: "manual",
+        orderSource: "Manual",
+        status: "waiting",
+        createdAt: new Date().toISOString(),
+        notifiedAt: null,
+      });
+      toast({ title: t(`تم إضافة الطلب #${displayId}`, `Order #${displayId} added`) });
+    } catch {
+      toast({ title: t("خطأ", "Error"), description: t("فشل في إضافة الطلب", "Failed to add order"), variant: "destructive" });
+    } finally {
+      setManualAddLoading(false);
+    }
+  }, [merchant?.uid, isApproved, manualAddLoading, lastShiftNumber, t, toast]);
 
   const [acceptingOrderId, setAcceptingOrderId] = useState<string | null>(null);
 
@@ -843,11 +951,13 @@ export default function DashboardPage() {
         } catch {}
       }
 
-      const waOrdersRef = collection(db, "merchants", merchant.uid, "whatsappOrders");
-      const waQuery = query(waOrdersRef, where("orderNumber", "==", pager.orderNumber), where("status", "==", "preparing"));
-      const waSnap = await getDocs(waQuery);
-      if (!waSnap.empty) {
-        await updateDoc(waSnap.docs[0].ref, { status: "ready" });
+      if ((pager as any).orderSource !== "Manual") {
+        const waOrdersRef = collection(db, "merchants", merchant.uid, "whatsappOrders");
+        const waQuery = query(waOrdersRef, where("orderNumber", "==", pager.orderNumber), where("status", "==", "preparing"));
+        const waSnap = await getDocs(waQuery);
+        if (!waSnap.empty) {
+          await updateDoc(waSnap.docs[0].ref, { status: "ready" });
+        }
       }
 
       toast({
@@ -877,11 +987,13 @@ export default function DashboardPage() {
       const pagerRef = doc(db, "merchants", merchant.uid, "pagers", pager.docId);
       await updateDoc(pagerRef, { status: "archived", archivedAt: new Date().toISOString() });
 
-      const waOrdersRef = collection(db, "merchants", merchant.uid, "whatsappOrders");
-      const waQuery = query(waOrdersRef, where("orderNumber", "==", pager.orderNumber), where("status", "in", ["preparing", "ready"]));
-      const waSnap = await getDocs(waQuery);
-      if (!waSnap.empty) {
-        await updateDoc(waSnap.docs[0].ref, { status: "archived", archivedAt: new Date().toISOString() });
+      if ((pager as any).orderSource !== "Manual") {
+        const waOrdersRef = collection(db, "merchants", merchant.uid, "whatsappOrders");
+        const waQuery = query(waOrdersRef, where("orderNumber", "==", pager.orderNumber), where("status", "in", ["preparing", "ready"]));
+        const waSnap = await getDocs(waQuery);
+        if (!waSnap.empty) {
+          await updateDoc(waSnap.docs[0].ref, { status: "archived", archivedAt: new Date().toISOString() });
+        }
       }
 
       setFlyingOrderId(null);
@@ -1319,6 +1431,94 @@ export default function DashboardPage() {
         </main>
       </div>
 
+      {(currentView === "overview" || currentView === "waitlist") && isApproved && (
+        <div className="fixed bottom-4 end-4 z-50 flex flex-col gap-2 items-end" data-testid="manual-order-panel">
+          <div className="bg-[#1a1a1a] border border-white/10 rounded-2xl p-3 shadow-2xl shadow-black/60 space-y-2.5 w-[220px]">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-white/40 px-1">{t("طلب يدوي", "Manual Order")}</p>
+
+            <div className="flex gap-1.5 items-center">
+              <Input
+                type="text"
+                inputMode="numeric"
+                maxLength={3}
+                placeholder="123"
+                value={manualDigitInput}
+                onChange={(e) => { const v = e.target.value.replace(/\D/g, "").slice(0, 3); setManualDigitInput(v); }}
+                onKeyDown={(e) => { if (e.key === "Enter" && manualDigitInput.trim()) handleManualDigitAdd(); }}
+                className="h-9 w-[72px] text-center text-sm font-bold border-white/10 bg-white/[0.04] rounded-xl"
+                dir="ltr"
+                data-testid="input-manual-3digit"
+              />
+              <Button
+                onClick={handleManualDigitAdd}
+                disabled={manualAddLoading || !manualDigitInput.trim()}
+                size="sm"
+                className="h-9 px-3 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 rounded-xl text-xs font-bold"
+                data-testid="button-manual-3digit-add"
+              >
+                {manualAddLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+              </Button>
+            </div>
+
+            <div className="border-t border-white/[0.06]" />
+
+            {showShiftConfig ? (
+              <div className="space-y-1.5 animate-in slide-in-from-bottom-1 duration-150">
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder={t("رقم البداية", "Start #")}
+                  value={shiftConfigInput}
+                  onChange={(e) => setShiftConfigInput(e.target.value.replace(/\D/g, ""))}
+                  onKeyDown={(e) => { if (e.key === "Enter" && shiftConfigInput.trim()) handleShiftConfigSave(); }}
+                  className="h-8 text-center text-xs font-bold border-white/10 bg-white/[0.04] rounded-lg"
+                  dir="ltr"
+                  autoFocus
+                  data-testid="input-shift-config"
+                />
+                <div className="flex gap-1.5">
+                  <Button onClick={handleShiftConfigSave} disabled={!shiftConfigInput.trim()} size="sm" className="flex-1 h-8 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg" data-testid="button-shift-config-save">
+                    {t("حفظ", "Save")}
+                  </Button>
+                  <Button onClick={() => setShowShiftConfig(false)} size="sm" variant="ghost" className="h-8 px-2 text-white/40 hover:text-white/80 rounded-lg" data-testid="button-shift-config-cancel">
+                    <X className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex gap-1.5 items-center">
+                <Button
+                  onClick={handleShiftAdd}
+                  disabled={manualAddLoading}
+                  size="sm"
+                  className="flex-1 h-9 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl active:scale-[0.97] transition-all"
+                  data-testid="button-shift-add"
+                >
+                  {manualAddLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin me-1" /> : <Plus className="w-3.5 h-3.5 me-1" />}
+                  {t("+ طلب جديد", "+ New Order")}
+                </Button>
+                <Button
+                  onClick={() => { setShiftConfigInput(String(lastShiftNumber)); setShowShiftConfig(true); }}
+                  size="sm"
+                  variant="ghost"
+                  className="h-9 w-9 p-0 text-white/30 hover:text-white/70 rounded-xl"
+                  title={t("إعداد الوردية", "Shift Setup")}
+                  data-testid="button-shift-config-open"
+                >
+                  <Settings className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            )}
+
+            {lastShiftNumber > 0 && !showShiftConfig && (
+              <p className="text-[10px] text-white/25 text-center font-mono" data-testid="text-shift-counter">
+                {t("الوردية:", "Shift:")} #{lastShiftNumber} → #{lastShiftNumber + 1}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
       <Dialog open={showShiftStart} onOpenChange={setShowShiftStart}>
         <DialogContent className="border-white/[0.08] bg-[#111] sm:max-w-sm">
           <DialogHeader>
@@ -1744,7 +1944,7 @@ function OverviewView({
 
                     <CardContent className="px-4 pb-4 pt-0 space-y-3">
                       <div className="flex items-center gap-2 text-xs text-white/40">
-                        <Badge className="rounded-full text-[10px] bg-white/5 text-white/50 border-white/10">{t("طلب يدوي", "QR / Manual")}</Badge>
+                        <Badge className="rounded-full text-[10px] bg-orange-500/10 text-orange-400 border-orange-500/20">{(pager as any).orderSource === "Manual" ? t("يدوي", "Manual") : t("طلب يدوي", "QR / Manual")}</Badge>
                       </div>
 
                       <div className="flex gap-2">
@@ -2049,9 +2249,14 @@ function WaitlistView({
           </div>
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-sm">{t("طلب", "Order")} {pager.displayOrderId || `#${pager.orderNumber}`}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {pager.createdAt && new Date(pager.createdAt).toLocaleTimeString(lang === "ar" ? "ar-SA" : "en-US", { hour: "2-digit", minute: "2-digit" })}
-            </p>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <p className="text-xs text-muted-foreground">
+                {pager.createdAt && new Date(pager.createdAt).toLocaleTimeString(lang === "ar" ? "ar-SA" : "en-US", { hour: "2-digit", minute: "2-digit" })}
+              </p>
+              {(pager as any).orderSource === "Manual" && (
+                <Badge className="rounded-full text-[8px] px-1.5 py-0 bg-orange-500/10 text-orange-400 border-orange-500/20">{t("يدوي", "Manual")}</Badge>
+              )}
+            </div>
           </div>
           <Badge className={`text-[10px] flex-shrink-0 rounded-2xl ${
             isNotified
