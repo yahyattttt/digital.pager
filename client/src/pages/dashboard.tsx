@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
 import {
   collection,
-  addDoc,
   updateDoc,
   deleteDoc,
   doc,
@@ -12,7 +11,6 @@ import {
   onSnapshot,
   query,
   where,
-  runTransaction,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/hooks/use-auth";
@@ -370,8 +368,6 @@ export default function DashboardPage() {
   const { toast } = useToast();
 
   const [pagers, setPagers] = useState<(Pager & { docId: string })[]>([]);
-  const [showAddDialog, setShowAddDialog] = useState(false);
-  const [newOrderNumber, setNewOrderNumber] = useState("");
   
   const [notifyLoading, setNotifyLoading] = useState<string | null>(null);
   const [qrLoading, setQrLoading] = useState(false);
@@ -385,8 +381,6 @@ export default function DashboardPage() {
   const [nextOrderNumber, setNextOrderNumber] = useState<number>(1);
   const [showShiftStart, setShowShiftStart] = useState(false);
   const [shiftStartNumber, setShiftStartNumber] = useState("");
-  const [quickAddLoading, setQuickAddLoading] = useState(false);
-  const [counterLoaded, setCounterLoaded] = useState(false);
   const [whatsappOrders, setWhatsappOrders] = useState<WhatsAppOrder[]>([]);
   const [activeWhatsappOrders, setActiveWhatsappOrders] = useState<WhatsAppOrder[]>([]);
   const prevWhatsappCountRef = useState({ current: -1 })[0];
@@ -491,24 +485,13 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!merchant?.uid) return;
     const counterRef = doc(db, "merchants", merchant.uid, "settings", "orderCounter");
-    const unsub = onSnapshot(counterRef, async (snap) => {
+    const unsub = onSnapshot(counterRef, (snap) => {
       if (snap.exists()) {
         const data = snap.data();
-        if (data.nextOrderNumber !== undefined) {
-          const val = parseInt(String(data.nextOrderNumber), 10);
-          setNextOrderNumber(isNaN(val) || val < 1 ? 1 : val);
-          setCounterLoaded(true);
-        } else if (data.lastOrderNumber !== undefined) {
-          const legacy = parseInt(String(data.lastOrderNumber), 10);
-          const migrated = (isNaN(legacy) || legacy < 0 ? 0 : legacy) + 1;
-          await setDoc(counterRef, { nextOrderNumber: migrated }, { merge: true });
-        } else {
-          setShowShiftStart(true);
-          setCounterLoaded(true);
-        }
+        const val = parseInt(String(data.onlineCounter || 1), 10);
+        setNextOrderNumber(isNaN(val) || val < 1 ? 1 : val);
       } else {
         setShowShiftStart(true);
-        setCounterLoaded(true);
       }
     });
     return () => unsub();
@@ -671,170 +654,19 @@ export default function DashboardPage() {
 
   const isApproved = merchant?.status === "approved";
 
-  const handleQuickAdd = useCallback(async (sourceType?: string) => {
-    if (sourceType === "online") {
-      console.error("[ManualCounter] BLOCKED: Online order attempted to access manual counter via handleQuickAdd. This is forbidden.");
-      return false;
-    }
-    if (!merchant?.uid || !isApproved || quickAddLoading) return;
-    setQuickAddLoading(true);
-    try {
-      const counterRef = doc(db, "merchants", merchant.uid, "settings", "orderCounter");
-      let orderNum = 1;
-      await runTransaction(db, async (txn) => {
-        const snap = await txn.get(counterRef);
-        const data = snap.exists() ? snap.data() : {};
-        const current = parseInt(String(data.manualCounter || data.nextOrderNumber || 1), 10);
-        orderNum = isNaN(current) || current < 1 ? 1 : current;
-        txn.set(counterRef, { ...data, manualCounter: orderNum + 1 }, { merge: true } as any);
-      });
-
-      const displayOrderId = `MA-${orderNum}`;
-      const pagersRef = collection(db, "merchants", merchant.uid, "pagers");
-      await addDoc(pagersRef, {
-        storeId: merchant.uid,
-        orderNumber: String(orderNum),
-        displayOrderId,
-        orderType: "manual",
-        status: "waiting",
-        createdAt: new Date().toISOString(),
-        notifiedAt: null,
-      });
-
-      toast({
-        title: t(`تم إضافة الطلب ${displayOrderId}`, `Order ${displayOrderId} added`),
-        description: t(
-          `الرقم التالي تلقائياً سيكون MA-${orderNum + 1}`,
-          `Next auto-number will be MA-${orderNum + 1}`
-        ),
-      });
-      setNewOrderNumber("");
-      setShowAddDialog(false);
-      return true;
-    } catch {
-      toast({
-        title: t("خطأ", "Error"),
-        description: t("فشل في إضافة الطلب", "Failed to add order"),
-        variant: "destructive",
-      });
-      return false;
-    } finally {
-      setQuickAddLoading(false);
-    }
-  }, [merchant?.uid, isApproved, quickAddLoading, t, toast]);
-
-  const handleManualAdd = useCallback(async (manualNumber: string, sourceType?: string) => {
-    if (sourceType === "online") {
-      console.error("[ManualCounter] BLOCKED: Online order attempted to access manual counter via handleManualAdd. This is forbidden.");
-      return;
-    }
-    if (!merchant?.uid || !isApproved || quickAddLoading) return;
-    const trimmed = manualNumber.trim();
-    const parsed = parseInt(trimmed, 10);
-    if (!trimmed || isNaN(parsed) || parsed <= 0 || String(parsed) !== trimmed) {
-      toast({
-        title: t("رقم غير صالح", "Invalid Number"),
-        description: t("أدخل رقم صحيح موجب", "Enter a positive whole number"),
-        variant: "destructive",
-      });
-      return;
-    }
-    setQuickAddLoading(true);
-    try {
-      const counterRef = doc(db, "merchants", merchant.uid, "settings", "orderCounter");
-      await runTransaction(db, async (txn) => {
-        const snap = await txn.get(counterRef);
-        const data = snap.exists() ? snap.data() : {};
-        txn.set(counterRef, { ...data, manualCounter: parsed + 1 }, { merge: true } as any);
-      });
-
-      const displayOrderId = `MA-${parsed}`;
-      const pagersRef = collection(db, "merchants", merchant.uid, "pagers");
-      await addDoc(pagersRef, {
-        storeId: merchant.uid,
-        orderNumber: String(parsed),
-        displayOrderId,
-        orderType: "manual",
-        status: "waiting",
-        createdAt: new Date().toISOString(),
-        notifiedAt: null,
-      });
-
-      toast({
-        title: t(`تم إضافة الطلب ${displayOrderId}`, `Order ${displayOrderId} added`),
-        description: t(
-          `الرقم التالي تلقائياً سيكون MA-${parsed + 1}`,
-          `Next auto-number will be MA-${parsed + 1}`
-        ),
-      });
-      setNewOrderNumber("");
-      setShowAddDialog(false);
-      return true;
-    } catch {
-      toast({
-        title: t("خطأ", "Error"),
-        description: t("فشل في إضافة الطلب", "Failed to add order"),
-        variant: "destructive",
-      });
-      return false;
-    } finally {
-      setQuickAddLoading(false);
-    }
-  }, [merchant?.uid, isApproved, quickAddLoading, t, toast]);
-
   const [acceptingOrderId, setAcceptingOrderId] = useState<string | null>(null);
 
   const handleAcceptWhatsAppOrder = useCallback(async (order: WhatsAppOrder) => {
     if (!merchant?.uid || acceptingOrderId) return;
     setAcceptingOrderId(order.id);
     try {
-      const isOnline = order.orderType === "online" || (order.displayOrderId && !order.displayOrderId.startsWith("MA-"));
-      const existingDisplayId = order.displayOrderId || "";
-      const existingOrderNumber = order.orderNumber || "";
-
-      if (isOnline && (!existingDisplayId || !existingOrderNumber || existingDisplayId.startsWith("MA-") || !/^\d{4,}$/.test(existingDisplayId))) {
-        console.error("[AcceptOrder] BLOCKED: Online order", order.id, "has invalid/missing Cloud ID. displayOrderId:", existingDisplayId, "orderNumber:", existingOrderNumber);
-        toast({
-          title: t("خطأ في بيانات الطلب", "Order Data Error"),
-          description: t("هذا الطلب لا يحتوي على رقم تعريف سحابي صالح. يرجى إعادة المحاولة.", "This order has no valid Cloud ID. Please try again."),
-          variant: "destructive",
-        });
-        setAcceptingOrderId(null);
-        return;
-      }
-
-      if (!existingDisplayId || !existingOrderNumber) {
-        console.error("[AcceptOrder] BLOCKED: Order", order.id, "missing ID fields. Cannot accept.");
-        toast({
-          title: t("خطأ في بيانات الطلب", "Order Data Error"),
-          description: t("هذا الطلب لا يحتوي على رقم تعريف.", "This order has no ID assigned."),
-          variant: "destructive",
-        });
-        setAcceptingOrderId(null);
-        return;
-      }
-
-      if (isOnline) {
-        console.log("[AcceptOrder] Online order — using existing Cloud ID:", existingDisplayId, "— NO counter increment");
-      }
-
-      const pagersRef = collection(db, "merchants", merchant.uid, "pagers");
-      await addDoc(pagersRef, {
-        storeId: merchant.uid,
-        orderNumber: existingOrderNumber,
-        displayOrderId: existingDisplayId,
-        orderType: "online",
-        status: "waiting",
-        createdAt: new Date().toISOString(),
-        notifiedAt: null,
-      });
-
       const orderRef = doc(db, "merchants", merchant.uid, "whatsappOrders", order.id);
       await updateDoc(orderRef, { status: "preparing", preparingAt: new Date().toISOString() });
 
+      const displayId = order.displayOrderId || `#${order.orderNumber}`;
       toast({
-        title: t(`تم قبول الطلب ${existingDisplayId}`, `Order ${existingDisplayId} Accepted`),
-        description: t("تم إنشاء جهاز بيجر وتحديث حالة الطلب", "Pager created and order status updated"),
+        title: t(`تم قبول الطلب ${displayId}`, `Order ${displayId} Accepted`),
+        description: t("تم تحديث حالة الطلب إلى جاري التحضير", "Order status updated to preparing"),
       });
     } catch {
       toast({
@@ -938,14 +770,14 @@ export default function DashboardPage() {
     try {
       const counterRef = doc(db, "merchants", merchant.uid, "settings", "orderCounter");
       const currentYY = new Date().getFullYear().toString().slice(-2);
-      await setDoc(counterRef, { onlineCounter: num, manualCounter: num, onlineCounterYear: currentYY }, { merge: true });
+      await setDoc(counterRef, { onlineCounter: num, onlineCounterYear: currentYY }, { merge: true });
       setShowShiftStart(false);
       setShiftStartNumber("");
       toast({
         title: t("تم تعيين الرقم", "Counter Set"),
         description: t(
-          `الطلب التالي أونلاين: ${num} / يدوي: MA-${num}`,
-          `Next: Online ${num} / Manual MA-${num}`
+          `الطلب التالي أونلاين: ${num}`,
+          `Next online order: ${num}`
         ),
       });
     } catch {
@@ -962,12 +794,12 @@ export default function DashboardPage() {
     try {
       const counterRef = doc(db, "merchants", merchant.uid, "settings", "orderCounter");
       const currentYY = new Date().getFullYear().toString().slice(-2);
-      await setDoc(counterRef, { onlineCounter: resetTo, manualCounter: resetTo, onlineCounterYear: currentYY }, { merge: true });
+      await setDoc(counterRef, { onlineCounter: resetTo, onlineCounterYear: currentYY }, { merge: true });
       toast({
         title: t("تم إعادة التعيين", "Counter Reset"),
         description: t(
-          `الطلب التالي أونلاين: ${resetTo} / يدوي: MA-${resetTo}`,
-          `Next: Online ${resetTo} / Manual MA-${resetTo}`
+          `الطلب التالي أونلاين: ${resetTo}`,
+          `Next online order: ${resetTo}`
         ),
       });
     } catch {
@@ -1284,17 +1116,6 @@ export default function DashboardPage() {
             </Button>
           )}
 
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setShowAddDialog(true)}
-            disabled={isPending}
-            className="h-8 w-8 bg-emerald-600 text-white hover:bg-emerald-700 rounded-xl"
-            data-testid="button-add-to-waitlist"
-            title={t("إضافة للانتظار", "Add to Waitlist")}
-          >
-            <Plus className="w-4 h-4" />
-          </Button>
         </div>
       </header>
 
@@ -1404,11 +1225,6 @@ export default function DashboardPage() {
                 onNotify={handleNotify}
                 onComplete={handleComplete}
                 onRemove={handleRemove}
-                onQuickAdd={handleQuickAdd}
-                onManualAdd={handleManualAdd}
-                quickAddLoading={quickAddLoading}
-                nextOrderNumber={nextOrderNumber}
-                counterLoaded={counterLoaded}
                 notifyLoading={notifyLoading}
                 whatsappOrders={whatsappOrders}
                 activeWhatsappOrders={activeWhatsappOrders}
@@ -1433,12 +1249,6 @@ export default function DashboardPage() {
                 onNotify={handleNotify}
                 onComplete={handleComplete}
                 onRemove={handleRemove}
-                onAdd={() => setShowAddDialog(true)}
-                onQuickAdd={handleQuickAdd}
-                onManualAdd={handleManualAdd}
-                quickAddLoading={quickAddLoading}
-                nextOrderNumber={nextOrderNumber}
-                counterLoaded={counterLoaded}
                 notifyLoading={notifyLoading}
                 selectedPagerId={selectedPagerId}
                 onSelectPager={setSelectedPagerId}
@@ -1508,75 +1318,6 @@ export default function DashboardPage() {
           </div>
         </main>
       </div>
-
-      {currentView !== "waitlist" && (
-        <button
-          onClick={() => setShowAddDialog(true)}
-          disabled={isPending}
-          aria-label={t("إضافة للانتظار", "Add to Waitlist")}
-          className="fixed bottom-6 end-6 z-50 w-14 h-14 rounded-2xl bg-emerald-600 text-white shadow-lg shadow-emerald-900/25 flex items-center justify-center hover:bg-emerald-700 transition-all active:scale-95 disabled:opacity-50 md:hidden"
-          data-testid="fab-add-to-waitlist"
-        >
-          <UserPlus className="w-6 h-6" />
-        </button>
-      )}
-
-      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="border-white/[0.08] bg-[#111] sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <UserPlus className="w-5 h-5 text-primary" />
-              {t("إضافة طلب جديد", "Add New Order")}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="py-2 space-y-4">
-            <div className="flex gap-2">
-              <Input
-                type="text"
-                inputMode="numeric"
-                placeholder={t("رقم مخصص", "Custom Number")}
-                value={newOrderNumber}
-                onChange={(e) => setNewOrderNumber(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && newOrderNumber.trim()) {
-                    handleManualAdd(newOrderNumber);
-                  }
-                }}
-                className="flex-1 h-16 text-center text-xl font-bold border-white/10 focus:border-primary focus:ring-primary/20 bg-white/[0.03]"
-                dir="ltr"
-                autoFocus
-                data-testid="input-new-order-number"
-              />
-              <Button
-                onClick={() => handleManualAdd(newOrderNumber)}
-                disabled={quickAddLoading || !newOrderNumber.trim()}
-                className="h-16 px-5 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 font-bold"
-                data-testid="button-manual-add"
-              >
-                {quickAddLoading ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <Plus className="w-5 h-5" />
-                )}
-              </Button>
-            </div>
-
-            <Button
-              onClick={handleQuickAdd}
-              disabled={quickAddLoading || !counterLoaded}
-              className="w-full h-14 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-lg rounded-2xl shadow-lg shadow-emerald-900/20 active:scale-[0.98] transition-all"
-              data-testid="button-quick-add"
-            >
-              {quickAddLoading ? (
-                <Loader2 className="w-5 h-5 animate-spin me-2" />
-              ) : (
-                <Zap className="w-5 h-5 me-2" />
-              )}
-              {t("إضافة سريعة", "Quick Add")} #{nextOrderNumber}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={showShiftStart} onOpenChange={setShowShiftStart}>
         <DialogContent className="border-white/[0.08] bg-[#111] sm:max-w-sm">
@@ -1678,11 +1419,6 @@ function OverviewView({
   onNotify,
   onComplete,
   onRemove,
-  onQuickAdd,
-  onManualAdd,
-  quickAddLoading,
-  nextOrderNumber,
-  counterLoaded,
   notifyLoading,
   whatsappOrders,
   activeWhatsappOrders,
@@ -1707,11 +1443,6 @@ function OverviewView({
   onNotify: (pager: Pager & { docId: string }) => void;
   onComplete: (pager: Pager & { docId: string }) => void;
   onRemove: (pager: Pager & { docId: string }) => void;
-  onQuickAdd: () => Promise<boolean | undefined>;
-  onManualAdd: (num: string) => Promise<boolean | undefined>;
-  quickAddLoading: boolean;
-  nextOrderNumber: number;
-  counterLoaded: boolean;
   notifyLoading: string | null;
   whatsappOrders: WhatsAppOrder[];
   activeWhatsappOrders: WhatsAppOrder[];
@@ -1726,8 +1457,6 @@ function OverviewView({
   t: (ar: string, en: string) => string;
   lang: string;
 }) {
-  const [overviewInput, setOverviewInput] = useState("");
-  const [showManualEntry, setShowManualEntry] = useState(false);
   const [printOrder, setPrintOrder] = useState<WhatsAppOrder | null>(null);
   const [uncollectedConfirmOrder, setUncollectedConfirmOrder] = useState<WhatsAppOrder | null>(null);
   const [customerNoShowMap, setCustomerNoShowMap] = useState<Record<string, number>>({});
@@ -1749,12 +1478,6 @@ function OverviewView({
       })
       .catch(() => {});
   }, [merchant?.uid]);
-
-  const handleManual = async () => {
-    if (quickAddLoading || isPending || !overviewInput.trim()) return;
-    const ok = await onManualAdd(overviewInput);
-    if (ok) setOverviewInput("");
-  };
 
   const handlePrint = (order: WhatsAppOrder) => {
     setPrintOrder(order);
@@ -1850,7 +1573,7 @@ function OverviewView({
               <Input
                 value={orderSearchQuery}
                 onChange={(e) => setOrderSearchQuery(e.target.value)}
-                placeholder={t("بحث 0126001, MA-5...", "Search 0126001, MA-5...")}
+                placeholder={t("بحث برقم الطلب...", "Search by order number...")}
                 className="h-8 w-40 sm:w-48 ps-8 text-xs bg-white/[0.04] border-white/10 rounded-lg placeholder:text-white/20"
                 dir="ltr"
                 data-testid="input-order-search"
@@ -2189,63 +1912,6 @@ function OverviewView({
           </div>
         )}
 
-        {counterLoaded && (
-          <div className={`absolute bottom-4 ${lang === "ar" ? "left-4" : "right-4"} z-10`}>
-            {showManualEntry ? (
-              <div className="flex items-center gap-2 bg-[#1a1a1a] border border-white/10 rounded-xl p-2 shadow-xl shadow-black/50 animate-in slide-in-from-bottom-2 duration-200" data-testid="manual-entry-popover">
-                <Input
-                  type="text"
-                  inputMode="numeric"
-                  placeholder={t("رقم مخصص", "Custom #")}
-                  value={overviewInput}
-                  onChange={(e) => setOverviewInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter" && overviewInput.trim()) handleManual(); }}
-                  className="w-24 h-10 text-center text-sm font-bold border-white/10 focus:border-emerald-500 focus:ring-emerald-500/20 bg-white/[0.03] rounded-lg"
-                  dir="ltr"
-                  autoFocus
-                  data-testid="input-order-overview"
-                />
-                <Button
-                  onClick={handleManual}
-                  disabled={quickAddLoading || isPending || !overviewInput.trim()}
-                  size="sm"
-                  className="h-10 px-3 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 rounded-lg"
-                  data-testid="button-manual-add-overview"
-                >
-                  {quickAddLoading && overviewInput.trim() ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                </Button>
-                <Button
-                  onClick={async () => { await onQuickAdd(); }}
-                  disabled={quickAddLoading || isPending}
-                  size="sm"
-                  className="h-10 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg active:scale-[0.98] transition-all"
-                  data-testid="button-quick-add-overview"
-                >
-                  {quickAddLoading && !overviewInput.trim() ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4 me-1" />}
-                  #{nextOrderNumber}
-                </Button>
-                <Button
-                  onClick={() => setShowManualEntry(false)}
-                  size="sm"
-                  variant="ghost"
-                  className="h-10 w-10 p-0 text-white/40 hover:text-white/80"
-                  data-testid="button-close-manual-entry"
-                >
-                  <X className="w-4 h-4" />
-                </Button>
-              </div>
-            ) : (
-              <Button
-                onClick={() => setShowManualEntry(true)}
-                className="h-14 px-6 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-base rounded-2xl shadow-xl shadow-emerald-900/40 active:scale-[0.96] transition-all ring-2 ring-emerald-500/30 ring-offset-2 ring-offset-[#0d0d0d]"
-                data-testid="button-add-manual-order"
-              >
-                <Plus className="w-6 h-6 me-2" />
-                {t("إضافة طلب يدوي", "Add Manual Order")}
-              </Button>
-            )}
-          </div>
-        )}
       </div>
 
       {printOrder && (
@@ -2335,12 +2001,6 @@ function WaitlistView({
   onNotify,
   onComplete,
   onRemove,
-  onAdd,
-  onQuickAdd,
-  onManualAdd,
-  quickAddLoading,
-  nextOrderNumber,
-  counterLoaded,
   notifyLoading,
   selectedPagerId,
   onSelectPager,
@@ -2353,24 +2013,12 @@ function WaitlistView({
   onNotify: (pager: Pager & { docId: string }) => void;
   onComplete: (pager: Pager & { docId: string }) => void;
   onRemove: (pager: Pager & { docId: string }) => void;
-  onAdd: () => void;
-  onQuickAdd: () => Promise<boolean | undefined>;
-  onManualAdd: (num: string) => Promise<boolean | undefined>;
-  quickAddLoading: boolean;
-  nextOrderNumber: number;
-  counterLoaded: boolean;
   notifyLoading: string | null;
   selectedPagerId: string | null;
   onSelectPager: (id: string | null) => void;
   t: (ar: string, en: string) => string;
   lang: string;
 }) {
-  const [waitlistInput, setWaitlistInput] = useState("");
-  const handleManual = async () => {
-    if (quickAddLoading || isPending || !waitlistInput.trim()) return;
-    const ok = await onManualAdd(waitlistInput);
-    if (ok) setWaitlistInput("");
-  };
   const allPagers = [...waitingPagers, ...notifiedPagers];
   const selectedPager = allPagers.find(p => p.docId === selectedPagerId) || null;
 
@@ -2428,47 +2076,6 @@ function WaitlistView({
         </div>
       </div>
 
-      {counterLoaded && (
-        <div className="flex gap-3 items-center" data-testid="waitlist-order-entry">
-          <Input
-            type="text"
-            inputMode="numeric"
-            placeholder={t("رقم مخصص", "Custom #")}
-            value={waitlistInput}
-            onChange={(e) => setWaitlistInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && waitlistInput.trim()) handleManual(); }}
-            className="w-28 sm:w-36 h-14 text-center text-lg font-bold border-white/10 focus:border-emerald-500 focus:ring-emerald-500/20 bg-white/[0.03] rounded-2xl"
-            dir="ltr"
-            data-testid="input-order-waitlist"
-          />
-          <Button
-            onClick={handleManual}
-            disabled={quickAddLoading || isPending || !waitlistInput.trim()}
-            className="h-14 px-4 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 font-bold rounded-2xl"
-            data-testid="button-manual-add-waitlist"
-          >
-            {quickAddLoading && waitlistInput.trim() ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <Plus className="w-5 h-5" />
-            )}
-          </Button>
-          <Button
-            onClick={async () => { await onQuickAdd(); }}
-            disabled={quickAddLoading || isPending}
-            className="flex-1 h-14 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-lg rounded-2xl shadow-lg shadow-emerald-900/20 active:scale-[0.98] transition-all"
-            data-testid="button-quick-add-waitlist"
-          >
-            {quickAddLoading && !waitlistInput.trim() ? (
-              <Loader2 className="w-6 h-6 animate-spin me-3" />
-            ) : (
-              <Zap className="w-6 h-6 me-3" />
-            )}
-            {t("إضافة سريعة", "Quick Add")} #{nextOrderNumber}
-          </Button>
-        </div>
-      )}
-
       <div className="flex gap-4">
         <div className={`space-y-4 ${selectedPager ? "hidden lg:block lg:w-[400px] lg:flex-shrink-0" : "w-full"}`}>
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
@@ -2486,15 +2093,6 @@ function WaitlistView({
                 <p className="text-muted-foreground/50 text-sm mt-1">
                   {t("أضف عملاء لقائمة الانتظار", "Add customers to the waitlist")}
                 </p>
-                <Button
-                  onClick={onAdd}
-                  disabled={isPending}
-                  className="mt-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl"
-                  data-testid="button-add-empty-state"
-                >
-                  <UserPlus className="w-4 h-4 me-2" />
-                  {t("إضافة أول عميل", "Add First Customer")}
-                </Button>
               </CardContent>
             </Card>
           ) : (
