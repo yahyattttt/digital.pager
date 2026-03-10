@@ -3235,5 +3235,67 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/cleanup-online-order-ids/:merchantId", async (req, res) => {
+    try {
+      const { merchantId } = req.params;
+      const adminEmail = req.headers["x-admin-email"] as string;
+      if (adminEmail !== "yahiatohamy@hotmail.com" && adminEmail !== "yahiatohary@hotmail.com") {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const accessToken = await getFirestoreAccessToken();
+      const baseUrl = getFirestoreBaseUrl();
+      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+
+      let cleaned = 0;
+      const details: { orderId: string; displayOrderId: string; removedOrderNumber: string }[] = [];
+      let pageToken: string | null = null;
+
+      do {
+        let listUrl = `${baseUrl}/merchants/${merchantId}/whatsappOrders?pageSize=300`;
+        if (pageToken) listUrl += `&pageToken=${encodeURIComponent(pageToken)}`;
+
+        const listRes = await fetch(listUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
+        if (!listRes.ok) break;
+        const listData = await listRes.json();
+        const docs = listData.documents || [];
+        pageToken = listData.nextPageToken || null;
+
+        for (const d of docs) {
+          const f = d.fields || {};
+          const orderType = f.orderType?.stringValue || "";
+          const displayOrderId = f.displayOrderId?.stringValue || "";
+          const orderNumber = f.orderNumber?.stringValue || "";
+
+          const isOnlineOrder = orderType === "online" || (displayOrderId && !displayOrderId.startsWith("MA-") && /^\d{4,}$/.test(displayOrderId));
+          if (!isOnlineOrder) continue;
+
+          const cloudOrderNum = displayOrderId.replace(/^0+/, "") || displayOrderId;
+          if (orderNumber === cloudOrderNum) continue;
+
+          const docName = d.name as string;
+          const docId = docName.split("/").pop() || "";
+          const patchUrl = `${baseUrl}/merchants/${merchantId}/whatsappOrders/${docId}?updateMask.fieldPaths=orderNumber`;
+          const patchRes = await fetch(patchUrl, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+            body: JSON.stringify({ fields: { orderNumber: { stringValue: cloudOrderNum } } }),
+          });
+          if (patchRes.ok) {
+            cleaned++;
+            details.push({ orderId: docId, displayOrderId, removedOrderNumber: orderNumber });
+            console.log(`[Cleanup] Fixed online order: displayOrderId=${displayOrderId}, old orderNumber=${orderNumber} → ${cloudOrderNum}`);
+          }
+        }
+      } while (pageToken);
+
+      console.log(`[Cleanup] Completed for merchant ${merchantId}: ${cleaned} orders cleaned`);
+      return res.json({ success: true, cleaned, details });
+    } catch (error) {
+      console.error("Cleanup error:", error);
+      return res.status(500).json({ message: "Cleanup failed" });
+    }
+  });
+
   return httpServer;
 }

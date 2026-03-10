@@ -671,7 +671,11 @@ export default function DashboardPage() {
 
   const isApproved = merchant?.status === "approved";
 
-  const handleQuickAdd = useCallback(async () => {
+  const handleQuickAdd = useCallback(async (sourceType?: string) => {
+    if (sourceType === "online") {
+      console.error("[ManualCounter] BLOCKED: Online order attempted to access manual counter via handleQuickAdd. This is forbidden.");
+      return false;
+    }
     if (!merchant?.uid || !isApproved || quickAddLoading) return;
     setQuickAddLoading(true);
     try {
@@ -719,7 +723,11 @@ export default function DashboardPage() {
     }
   }, [merchant?.uid, isApproved, quickAddLoading, t, toast]);
 
-  const handleManualAdd = useCallback(async (manualNumber: string) => {
+  const handleManualAdd = useCallback(async (manualNumber: string, sourceType?: string) => {
+    if (sourceType === "online") {
+      console.error("[ManualCounter] BLOCKED: Online order attempted to access manual counter via handleManualAdd. This is forbidden.");
+      return;
+    }
     if (!merchant?.uid || !isApproved || quickAddLoading) return;
     const trimmed = manualNumber.trim();
     const parsed = parseInt(trimmed, 10);
@@ -780,17 +788,34 @@ export default function DashboardPage() {
     if (!merchant?.uid || acceptingOrderId) return;
     setAcceptingOrderId(order.id);
     try {
+      const isOnline = order.orderType === "online" || (order.displayOrderId && !order.displayOrderId.startsWith("MA-"));
       const existingDisplayId = order.displayOrderId || "";
       const existingOrderNumber = order.orderNumber || "";
 
-      if (!existingDisplayId || !existingOrderNumber) {
+      if (isOnline && (!existingDisplayId || !existingOrderNumber || existingDisplayId.startsWith("MA-") || !/^\d{4,}$/.test(existingDisplayId))) {
+        console.error("[AcceptOrder] BLOCKED: Online order", order.id, "has invalid/missing Cloud ID. displayOrderId:", existingDisplayId, "orderNumber:", existingOrderNumber);
         toast({
           title: t("خطأ في بيانات الطلب", "Order Data Error"),
-          description: t("هذا الطلب لا يحتوي على رقم تعريف. يرجى إعادة المحاولة.", "This order has no ID assigned. Please try again."),
+          description: t("هذا الطلب لا يحتوي على رقم تعريف سحابي صالح. يرجى إعادة المحاولة.", "This order has no valid Cloud ID. Please try again."),
           variant: "destructive",
         });
         setAcceptingOrderId(null);
         return;
+      }
+
+      if (!existingDisplayId || !existingOrderNumber) {
+        console.error("[AcceptOrder] BLOCKED: Order", order.id, "missing ID fields. Cannot accept.");
+        toast({
+          title: t("خطأ في بيانات الطلب", "Order Data Error"),
+          description: t("هذا الطلب لا يحتوي على رقم تعريف.", "This order has no ID assigned."),
+          variant: "destructive",
+        });
+        setAcceptingOrderId(null);
+        return;
+      }
+
+      if (isOnline) {
+        console.log("[AcceptOrder] Online order — using existing Cloud ID:", existingDisplayId, "— NO counter increment");
       }
 
       const pagersRef = collection(db, "merchants", merchant.uid, "pagers");
