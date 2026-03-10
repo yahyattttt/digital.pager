@@ -1124,10 +1124,7 @@ export default function DashboardPage() {
   const notifiedPagers = pagers.filter((p) => p.status === "notified");
   const unreadFeedbackCount = feedbacks.filter(f => !f.read).length;
 
-  const businessLabel =
-    lang === "ar"
-      ? businessTypeLabels[merchant.businessType] || merchant.businessType
-      : businessTypeLabelsEn[merchant.businessType] || merchant.businessType;
+
 
   const allNavItems: { id: DashboardView; icon: typeof LayoutDashboard; label: string; badge?: number }[] = [
     { id: "overview", icon: LayoutDashboard, label: t("لوحة التحكم", "Dashboard"), badge: whatsappOrders.length || undefined },
@@ -1189,12 +1186,10 @@ export default function DashboardPage() {
               </div>
             )}
             <div className="hidden sm:block">
-              <h1 className="font-semibold text-sm leading-tight" data-testid="text-dashboard-store">
+              <p className="text-[9px] text-muted-foreground/60 tracking-[0.2em] uppercase leading-tight">DIGITAL PAGER</p>
+              <h1 className="font-bold text-base leading-tight" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }} data-testid="text-dashboard-store">
                 {merchant.storeName}
               </h1>
-              <p className="text-[10px] text-muted-foreground leading-tight">
-                {businessLabel}
-              </p>
             </div>
           </div>
         </div>
@@ -1290,7 +1285,10 @@ export default function DashboardPage() {
           data-testid="sidebar-nav"
         >
           <div className="md:hidden h-14 flex items-center justify-between px-4 border-b border-white/[0.06]">
-            <span className="font-semibold text-sm">{merchant.storeName}</span>
+            <div>
+              <p className="text-[9px] text-muted-foreground/60 tracking-[0.2em] uppercase leading-tight">DIGITAL PAGER</p>
+              <span className="font-bold text-sm" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>{merchant.storeName}</span>
+            </div>
             <button
               onClick={() => setSidebarOpen(false)}
               aria-label={t("إغلاق القائمة", "Close menu")}

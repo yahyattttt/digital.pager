@@ -563,7 +563,8 @@ export default function OrderTrackingPage() {
         data-testid="manual-id-input-screen"
       >
         <div className="flex flex-col items-center gap-6 w-full max-w-xs animate-in fade-in duration-500">
-          <h2 className="text-white/90 text-sm font-bold tracking-[0.3em] uppercase mb-1" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>DIGITAL PAGER</h2>
+          <p className="text-white/40 text-[13px] font-medium tracking-[0.3em] uppercase mb-0.5">DIGITAL PAGER</p>
+          {merchant && <h2 className="text-white/90 text-[24px] font-bold" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>{merchant.storeName}</h2>}
 
           <PagerDevice orderNumber={manualInput || "---"} isReady={false} />
 
@@ -656,8 +657,8 @@ export default function OrderTrackingPage() {
     return (
       <div className="h-[100dvh] flex flex-col items-center justify-center px-5 text-center" style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }} data-testid="tracking-awaiting-screen">
         <div className="w-full flex-shrink-0 mb-6">
-          <h2 className="text-white/90 text-sm font-bold tracking-[0.3em] uppercase mb-1" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>DIGITAL PAGER</h2>
-          {merchant && <p className="text-red-500/60 text-xs tracking-widest uppercase">{merchant.storeName}</p>}
+          <p className="text-white/40 text-[13px] font-medium tracking-[0.3em] uppercase mb-0.5">DIGITAL PAGER</p>
+          {merchant && <h2 className="text-white/90 text-[24px] font-bold" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>{merchant.storeName}</h2>}
         </div>
 
         <div className="flex flex-col items-center gap-5 w-full max-w-sm">
@@ -741,8 +742,8 @@ export default function OrderTrackingPage() {
         data-testid="tracking-ready-screen"
       >
         <div className="w-full">
-          <h2 className="text-white/90 text-sm font-bold tracking-[0.3em] uppercase mb-1" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>DIGITAL PAGER</h2>
-          {merchant && <p className="text-red-500/60 text-xs tracking-widest uppercase">{merchant.storeName}</p>}
+          <p className="text-white/40 text-[13px] font-medium tracking-[0.3em] uppercase mb-0.5">DIGITAL PAGER</p>
+          {merchant && <h2 className="text-white/90 text-[24px] font-bold" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>{merchant.storeName}</h2>}
         </div>
 
         <div className="flex-1 flex flex-col items-center justify-center -mt-4">
@@ -837,8 +838,8 @@ export default function OrderTrackingPage() {
         data-testid="tracking-preparing-screen"
       >
         <div className="w-full flex-shrink-0">
-          <h2 className="text-white/90 text-sm font-bold tracking-[0.3em] uppercase mb-1" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>DIGITAL PAGER</h2>
-          {merchant && <p className="text-red-500/60 text-xs tracking-widest uppercase">{merchant.storeName}</p>}
+          <p className="text-white/40 text-[13px] font-medium tracking-[0.3em] uppercase mb-0.5">DIGITAL PAGER</p>
+          {merchant && <h2 className="text-white/90 text-[24px] font-bold" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>{merchant.storeName}</h2>}
         </div>
 
         <div className="flex-1 flex flex-col items-center justify-center min-h-0">
@@ -884,8 +885,8 @@ export default function OrderTrackingPage() {
       data-testid="tracking-preparing-screen"
     >
       <div className="w-full flex-shrink-0">
-        <h2 className="text-white/90 text-sm font-bold tracking-[0.3em] uppercase mb-1" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>DIGITAL PAGER</h2>
-        {merchant && <p className="text-red-500/60 text-xs tracking-widest uppercase">{merchant.storeName}</p>}
+        <p className="text-white/40 text-[13px] font-medium tracking-[0.3em] uppercase mb-0.5">DIGITAL PAGER</p>
+        {merchant && <h2 className="text-white/90 text-[24px] font-bold" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>{merchant.storeName}</h2>}
       </div>
 
       <div className="flex-1 flex flex-col items-center justify-center min-h-0">

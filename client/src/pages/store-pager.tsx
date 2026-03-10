@@ -424,16 +424,16 @@ function WaitingScreen({ orderNumber, storeName, storeId, googleMapsReviewUrl, o
       )}
 
       <div className="w-full flex-shrink-0">
-        <h2
-          className="text-white/90 text-sm font-bold tracking-[0.3em] uppercase mb-1"
-          style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}
-          data-testid="text-pager-branding"
-        >
+        <p className="text-white/40 text-[13px] font-medium tracking-[0.3em] uppercase mb-0.5" data-testid="text-pager-branding">
           DIGITAL PAGER
-        </h2>
-        <p className="text-red-500/60 text-xs tracking-widest uppercase" data-testid="text-store-name-pager">
-          {storeName}
         </p>
+        <h2
+          className="text-white/90 text-[24px] font-bold"
+          style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}
+          data-testid="text-store-name-pager"
+        >
+          {storeName}
+        </h2>
       </div>
 
       <div className="flex-1 flex flex-col items-center justify-center min-h-0">
@@ -497,16 +497,16 @@ function NotifiedScreen({
       data-testid="pager-notified-screen"
     >
       <div className="w-full">
-        <h2
-          className="text-white/90 text-sm font-bold tracking-[0.3em] uppercase mb-1"
-          style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}
-          data-testid="text-pager-branding-notified"
-        >
+        <p className="text-white/40 text-[13px] font-medium tracking-[0.3em] uppercase mb-0.5" data-testid="text-pager-branding-notified">
           DIGITAL PAGER
-        </h2>
-        <p className="text-red-500/60 text-xs tracking-widest uppercase" data-testid="text-notified-store">
-          {storeName}
         </p>
+        <h2
+          className="text-white/90 text-[24px] font-bold"
+          style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}
+          data-testid="text-notified-store"
+        >
+          {storeName}
+        </h2>
       </div>
 
       <div className="flex-1 flex flex-col items-center justify-center -mt-4">
@@ -647,8 +647,8 @@ function OrderSelectionScreen({
             <Store className="w-8 h-8 text-red-500" />
           </div>
         )}
-        <h2 className="text-white/80 text-xs font-bold tracking-[0.3em] uppercase mb-2">DIGITAL PAGER</h2>
-        <h1 className="text-white text-xl font-bold" data-testid="text-store-name-entry">
+        <p className="text-white/40 text-[13px] font-medium tracking-[0.3em] uppercase mb-1">DIGITAL PAGER</p>
+        <h1 className="text-white text-[26px] font-bold" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }} data-testid="text-store-name-entry">
           {merchant.storeName}
         </h1>
         <p className="text-white/40 text-sm mt-2" dir="rtl">اختر رقم طلبك</p>
@@ -804,7 +804,12 @@ function CompletedScreen({ storeId, storeName, googleMapsReviewUrl, navigate, sm
           <p className="text-white/50 text-sm mt-4">We hope to see you again soon!</p>
           <p className="text-white/40 text-sm mt-0.5" dir="rtl">نراك قريباً!</p>
         </div>
-        {storeName && <p className="text-white/20 text-xs mt-2">{storeName}</p>}
+        {storeName && (
+          <div className="mt-3">
+            <p className="text-white/40 text-[11px] font-medium tracking-[0.3em] uppercase mb-0.5">DIGITAL PAGER</p>
+            <p className="text-white/60 text-lg font-bold" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>{storeName}</p>
+          </div>
+        )}
         {smartRatingEnabled && googleMapsReviewUrl && (
           <a
             href={googleMapsReviewUrl}
