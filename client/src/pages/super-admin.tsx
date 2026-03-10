@@ -82,7 +82,6 @@ import {
   Minus,
   Maximize,
   Minimize,
-  Volume2,
 } from "lucide-react";
 
 const SUPER_ADMIN_EMAIL = "yahiatohary@hotmail.com";
@@ -2149,35 +2148,6 @@ export default function SuperAdminPage() {
                           </div>
                         </div>
                       )}
-                    </div>
-
-                    <div className="pt-4 border-t border-border/30 space-y-3">
-                      <div>
-                        <Label data-testid="label-check-sound">
-                          {t("اختبار صوت الجرس", "Bell Sound Check")}
-                        </Label>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {t("تأكد من تحميل ملف الصوت وأن مستوى الصوت مناسب", "Verify bell.mp3 is loaded and your volume is up")}
-                        </p>
-                      </div>
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          const audio = new Audio("/alert.mp3");
-                          audio.volume = 1.0;
-                          audio.loop = false;
-                          audio.play().then(() => {
-                            toast({ title: t("الصوت يعمل", "Sound Working"), description: t("ملف الجرس تم تحميله وتشغيله بنجاح", "bell.mp3 loaded and playing successfully") });
-                            setTimeout(() => { audio.pause(); audio.currentTime = 0; }, 3000);
-                          }).catch(() => {
-                            toast({ title: t("خطأ في الصوت", "Sound Error"), description: t("فشل في تشغيل ملف الجرس — تحقق من الملف", "Failed to play bell.mp3 — check the file"), variant: "destructive" });
-                          });
-                        }}
-                        data-testid="button-check-sound"
-                      >
-                        <Volume2 className="w-4 h-4 me-1.5" />
-                        {t("تشغيل صوت الجرس", "Play Bell Sound")}
-                      </Button>
                     </div>
 
                     <Button

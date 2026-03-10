@@ -5,7 +5,7 @@ import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { Store, AlertTriangle, BellOff, Bell, Clock, CheckCircle, Loader2, Star, Banknote, Phone, MessageCircle, Send, Share2, Copy } from "lucide-react";
+import { AlertTriangle, CheckCircle, Loader2, Star, Banknote, Phone, MessageCircle, Send, Share2, Copy } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { WhatsAppOrder } from "@shared/schema";
 
@@ -272,195 +272,32 @@ export default function OrderTrackingPage() {
   const [merchant, setMerchant] = useState<{ storeName: string; logoUrl: string; googleMapsReviewUrl?: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
-  const [alertActive, setAlertActive] = useState(false);
-  const [soundEnabled, setSoundEnabled] = useState(false);
-  const [pendingAlert, setPendingAlert] = useState(false);
-  const hasPlayedAlert = useRef(false);
+  const [bellPlayed, setBellPlayed] = useState(false);
 
   const { toast } = useToast();
   const alertSoundRef = useRef<HTMLAudioElement | null>(null);
-  const vibrationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const keepAliveIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const merchantId = new URLSearchParams(window.location.search).get("m") || "";
-  const audioUnlockedRef = useRef(false);
 
-  function ensureAudioElement() {
-    if (!alertSoundRef.current) {
-      alertSoundRef.current = new Audio("/alert.mp3");
-      alertSoundRef.current.loop = true;
-      alertSoundRef.current.volume = 1.0;
-      alertSoundRef.current.preload = "auto";
-      alertSoundRef.current.addEventListener("error", () => {
-        console.warn("[OrderTracking] Alert sound file failed to load — check /alert.mp3");
-      });
-    }
-    return alertSoundRef.current;
-  }
-
-  const pendingAlertRef = useRef(false);
-
-  const [bellFading, setBellFading] = useState(false);
-
-  function startKeepAlive() {
-    if (keepAliveIntervalRef.current) return;
-    keepAliveIntervalRef.current = setInterval(() => {
-      const ctx = audioContextRef.current;
-      if (ctx && ctx.state === "suspended") {
-        ctx.resume().catch(() => {});
-      }
-      if (ctx && ctx.state === "running") {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        gain.gain.value = 0;
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start();
-        osc.stop(ctx.currentTime + 0.001);
-      }
-    }, 25000);
-    console.log("[OrderTracking] AudioContext keep-alive started (25s interval)");
-  }
-
-  function unlockAudio(): Promise<boolean> {
-    if (audioUnlockedRef.current) return Promise.resolve(true);
-
-    try {
-      if (!audioContextRef.current) {
-        const AC = window.AudioContext || (window as any).webkitAudioContext;
-        audioContextRef.current = new AC();
-      }
-      const ctx = audioContextRef.current;
-
-      return (ctx.state === "suspended" ? ctx.resume() : Promise.resolve()).then(() => {
-        const audio = ensureAudioElement();
-        audio.volume = 1.0;
-        audio.currentTime = 0;
-        return audio.play().then(() => {
-          audio.pause();
-          audio.currentTime = 0;
-          console.log("[OrderTracking] Audio engine primed via play→pause→reset (silent to user)");
-        }).catch(() => {
-          console.log("[OrderTracking] Prime play failed, continuing with AudioContext only");
-        });
-      }).then(() => {
-        audioUnlockedRef.current = true;
-        setSoundEnabled(true);
-        sessionStorage.setItem("pager_audio_unlocked", "true");
-        startKeepAlive();
-        console.log("[OrderTracking] AudioContext unlocked (state:", audioContextRef.current?.state, ")");
-
-        if (pendingAlertRef.current) {
-          console.log("[OrderTracking] Deferred alert detected — playing now");
-          setPendingAlert(false);
-          pendingAlertRef.current = false;
-          playAlert();
-        }
-        return true;
-      });
-    } catch (e) {
-      console.warn("[OrderTracking] AudioContext unlock failed:", e);
-      const audio = ensureAudioElement();
-      audio.muted = true;
-      return audio.play().then(() => {
-        audio.pause();
-        audio.muted = false;
-        audio.currentTime = 0;
-        audioUnlockedRef.current = true;
-        setSoundEnabled(true);
-        sessionStorage.setItem("pager_audio_unlocked", "true");
-        startKeepAlive();
-        console.log("[OrderTracking] Audio unlocked via muted-play fallback");
-        if (pendingAlertRef.current) {
-          setPendingAlert(false);
-          pendingAlertRef.current = false;
-          playAlert();
-        }
-        return true;
-      }).catch(() => false);
-    }
-  }
-
-  function handleActivateBell() {
-    setBellFading(true);
-    unlockAudio().then((success) => {
-      if (!success) {
-        setBellFading(false);
-      } else {
-        setTimeout(() => setBellFading(false), 400);
-      }
-    });
-  }
-
-  useEffect(() => {
-    ensureAudioElement();
-    if (sessionStorage.getItem("pager_audio_unlocked") === "true") {
-      unlockAudio();
-    }
-  }, []);
-
-  function playAlert() {
-    if (hasPlayedAlert.current) return;
-    hasPlayedAlert.current = true;
-    setAlertActive(true);
-    console.log("[OrderTracking] Attempting to play sound... audioUnlocked:", audioUnlockedRef.current);
-
-    const audio = ensureAudioElement();
+  function handlePlayBell() {
+    if (bellPlayed) return;
+    const audio = alertSoundRef.current || new Audio("/alert.mp3");
+    alertSoundRef.current = audio;
+    audio.loop = false;
+    audio.volume = 1.0;
     audio.currentTime = 0;
     audio.play().then(() => {
-      console.log("[OrderTracking] Sound playing successfully");
-      setSoundEnabled(true);
-    }).catch((err) => {
-      console.warn("[OrderTracking] Play failed:", err.message, "— showing tap-to-play fallback");
-      hasPlayedAlert.current = false;
-      setAlertActive(false);
-      setPendingAlert(true);
-      pendingAlertRef.current = true;
-      if (vibrationIntervalRef.current) {
-        clearInterval(vibrationIntervalRef.current);
-        vibrationIntervalRef.current = null;
-      }
-      if ("vibrate" in navigator) navigator.vibrate(0);
+      setBellPlayed(true);
+      if ("vibrate" in navigator) navigator.vibrate([500, 200, 500, 200, 800]);
+    }).catch(() => {
+      toast({ title: "خطأ", description: "تعذر تشغيل الصوت", variant: "destructive" });
     });
-
-    if ("vibrate" in navigator) {
-      navigator.vibrate([500, 200, 500, 200, 800]);
-      vibrationIntervalRef.current = setInterval(() => {
-        navigator.vibrate([500, 200, 500, 200, 800]);
-      }, 2200);
-    }
-  }
-
-  function replayAlert() {
-    hasPlayedAlert.current = false;
-    playAlert();
-  }
-
-  function stopAlert() {
-    if (alertSoundRef.current) {
-      alertSoundRef.current.pause();
-      alertSoundRef.current.currentTime = 0;
-    }
-    if (vibrationIntervalRef.current) {
-      clearInterval(vibrationIntervalRef.current);
-      vibrationIntervalRef.current = null;
-    }
-    if ("vibrate" in navigator) navigator.vibrate(0);
-    setAlertActive(false);
-    setPendingAlert(false);
-    pendingAlertRef.current = false;
   }
 
   useEffect(() => {
     return () => {
       if (alertSoundRef.current) { alertSoundRef.current.pause(); alertSoundRef.current.currentTime = 0; }
-      if (vibrationIntervalRef.current) clearInterval(vibrationIntervalRef.current);
-      if (keepAliveIntervalRef.current) clearInterval(keepAliveIntervalRef.current);
       if ("vibrate" in navigator) navigator.vibrate(0);
-      if (audioContextRef.current && audioContextRef.current.state !== "closed") {
-        audioContextRef.current.close().catch(() => {});
-      }
     };
   }, []);
 
@@ -494,7 +331,6 @@ export default function OrderTrackingPage() {
     const unsub = onSnapshot(docRef, (snap) => {
       if (!snap.exists()) {
         console.log("[OrderTracking] Document does not exist in snapshot");
-        stopAlert();
         setOrder(null);
         setNotFound(true);
         return;
@@ -527,21 +363,15 @@ export default function OrderTrackingPage() {
       if (isFirstSnapshot) {
         prevStatus = currentStatus;
         isFirstSnapshot = false;
-        if (currentStatus === "ready") {
-          console.log("[OrderTracking] Page loaded with ready status — playing alert");
-          playAlert();
-        }
         return;
       }
 
-      if (currentStatus === "ready" && prevStatus !== "ready") {
-        console.log("[OrderTracking] Transition detected:", prevStatus, "→ ready — triggering alert");
-        replayAlert();
-      } else if (currentStatus === "ready" && prevStatus === "ready") {
-        console.log("[OrderTracking] Firestore update on ready status — no duplicate bell (already playing or played)");
-      } else if (currentStatus !== "ready") {
-        stopAlert();
-        hasPlayedAlert.current = false;
+      if (currentStatus !== "ready") {
+        setBellPlayed(false);
+        if (alertSoundRef.current) {
+          alertSoundRef.current.pause();
+          alertSoundRef.current.currentTime = 0;
+        }
       }
 
       prevStatus = currentStatus;
@@ -551,10 +381,6 @@ export default function OrderTrackingPage() {
 
     return () => unsub();
   }, [orderId, merchantId]);
-
-  function handleStopAlert() {
-    stopAlert();
-  }
 
   const isOnlineOrder = order?.orderType === "online" || (!order?.orderType && !!(order?.displayOrderId && !order.displayOrderId.startsWith("MA-")));
 
@@ -690,8 +516,8 @@ export default function OrderTrackingPage() {
 
   if (order.status === "ready") {
     return (
-      <div className={`h-[100dvh] flex flex-col items-center justify-between py-8 px-5 text-center overflow-hidden ${alertActive ? "pager-neon-pulse" : ""}`}
-        style={{ background: alertActive ? "linear-gradient(180deg, #0a0000 0%, #1a0000 30%, #0d0000 70%, #000 100%)" : "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }}
+      <div className="h-[100dvh] flex flex-col items-center justify-between py-8 px-5 text-center overflow-hidden"
+        style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }}
         data-testid="tracking-ready-screen"
       >
         <div className="w-full">
@@ -709,23 +535,22 @@ export default function OrderTrackingPage() {
           </div>
         </div>
 
-        {pendingAlert && !alertActive && (
+        {!bellPlayed && (
           <button
-            onClick={handleActivateBell}
-            className="flex items-center justify-center gap-2.5 px-5 py-3 rounded-2xl border border-white/10 bg-white/5 active:scale-[0.97] transition-all duration-200 animate-pulse"
-            data-testid="chip-tap-for-sound"
+            onClick={handlePlayBell}
+            className="w-full max-w-xs flex items-center justify-center gap-3 py-4 px-6 rounded-2xl border-2 border-red-500/40 bg-gradient-to-r from-red-950/60 via-red-900/30 to-red-950/60 active:scale-[0.95] transition-all duration-200 animate-pulse"
+            style={{ boxShadow: "0 0 30px rgba(255,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.05)" }}
+            data-testid="button-bell-prompt"
           >
-            <span className="text-base">🔊</span>
-            <span className="text-white/70 text-sm font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>اضغط لتشغيل الصوت</span>
+            <span className="text-2xl">🔔</span>
+            <span className="text-red-400 text-base font-bold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>الطلب صار جاهز ودك تفعل الجرس ؟</span>
           </button>
         )}
-        {alertActive && (
-          <Button size="lg" onClick={handleStopAlert} className="w-full max-w-xs h-14 font-bold text-base bg-transparent border-2 border-red-600 text-white hover:bg-red-600/20 rounded-xl" style={{ boxShadow: "0 0 20px rgba(255,0,0,0.2)" }} data-testid="button-stop-tracking-alert">
-            <BellOff className="w-5 h-5 me-2" />
-            <span dir="rtl">إيقاف التنبيه</span>
-            <span className="mx-1">-</span>
-            <span>Stop Alert</span>
-          </Button>
+        {bellPlayed && (
+          <div className="w-full max-w-xs flex items-center justify-center gap-2 py-3 px-4 rounded-2xl border border-emerald-500/15 bg-emerald-500/5 animate-in fade-in duration-500">
+            <span className="text-sm">✅</span>
+            <span className="text-emerald-400/80 text-sm font-medium" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>تم تشغيل الجرس</span>
+          </div>
         )}
       </div>
     );
@@ -802,32 +627,6 @@ export default function OrderTrackingPage() {
         <div className="p-3 rounded-xl bg-zinc-900/30 border border-zinc-800/20">
           <p className="text-white/30 text-xs text-center" dir="rtl">{order.customerName} • {order.items.length} items • {order.total.toFixed(2)} SAR</p>
         </div>
-
-        {!soundEnabled && !bellFading && (
-          <button
-            onClick={handleActivateBell}
-            className="w-full flex items-center justify-center gap-2.5 py-3.5 px-4 rounded-2xl border border-red-500/20 bg-gradient-to-r from-red-950/40 via-red-900/20 to-red-950/40 active:scale-[0.97] transition-all duration-200"
-            style={{ boxShadow: "0 0 20px rgba(255,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.03)" }}
-            data-testid="button-activate-bell"
-          >
-            <span className="text-lg">🔔</span>
-            <span className="text-red-400/90 text-[13px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>ودك نذكرك بالجرس؟</span>
-          </button>
-        )}
-
-        {bellFading && (
-          <div className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl animate-pulse">
-            <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
-            <span className="text-white/40 text-xs" dir="rtl">جارٍ التفعيل...</span>
-          </div>
-        )}
-
-        {soundEnabled && !bellFading && (
-          <div className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl border border-emerald-500/15 bg-emerald-500/5 animate-in fade-in duration-500">
-            <span className="text-sm">✅</span>
-            <span className="text-emerald-400/80 text-xs font-medium" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>سيتم تنبيهك فور الجاهزية</span>
-          </div>
-        )}
 
         <div className="flex items-center justify-center gap-2">
           <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
