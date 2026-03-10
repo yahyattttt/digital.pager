@@ -373,7 +373,7 @@ export default function RegisterPage() {
 
           <div className="flex items-center justify-center gap-2 mb-4">
             <div className="w-[80px] h-[80px] flex items-center justify-center">
-              <img src={neonBellLogo} alt="Digital Pager" className="w-full h-full object-contain" style={{ mixBlendMode: "screen", filter: "drop-shadow(0 0 15px rgba(255, 0, 0, 0.9))" }} />
+              <img src={neonBellLogo} alt="Digital Pager" className="w-full h-full object-contain" style={{ mixBlendMode: "screen" }} />
             </div>
           </div>
 

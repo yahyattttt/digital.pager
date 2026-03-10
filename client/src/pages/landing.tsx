@@ -58,7 +58,7 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <div className="w-[50px] h-[50px] flex items-center justify-center flex-shrink-0">
-              <img src={neonBellLogo} alt="Digital Pager" className="w-full h-full object-contain" style={{ mixBlendMode: "screen", filter: "drop-shadow(0 0 15px rgba(255, 0, 0, 0.9))" }} />
+              <img src={neonBellLogo} alt="Digital Pager" className="w-full h-full object-contain" style={{ mixBlendMode: "screen" }} />
             </div>
             <span className="font-bold text-lg tracking-tight" data-testid="text-brand-name">
               Digital Pager
@@ -193,7 +193,7 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-6 py-6 flex items-center justify-between gap-4 flex-wrap text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
             <div className="w-[36px] h-[36px] flex items-center justify-center flex-shrink-0">
-              <img src={neonBellLogo} alt="Digital Pager" className="w-full h-full object-contain" style={{ mixBlendMode: "screen", filter: "drop-shadow(0 0 10px rgba(255, 0, 0, 0.9))" }} />
+              <img src={neonBellLogo} alt="Digital Pager" className="w-full h-full object-contain" style={{ mixBlendMode: "screen" }} />
             </div>
             <span className="font-medium">Digital Pager</span>
           </div>
