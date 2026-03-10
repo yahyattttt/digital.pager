@@ -3723,6 +3723,11 @@ function SettingsView({
   const [storeTermsToggling, setStoreTermsToggling] = useState(false);
   const [cityCode, setCityCode] = useState<string>(merchant?.cityCode || "");
   const [cityCodeSaving, setCityCodeSaving] = useState(false);
+  const [moyasarPublishableKey, setMoyasarPublishableKey] = useState<string>(merchant?.moyasarPublishableKey || "");
+  const [moyasarSecretKey, setMoyasarSecretKey] = useState<string>(merchant?.moyasarSecretKey || "");
+  const [onlinePaymentEnabled, setOnlinePaymentEnabled] = useState<boolean>(merchant?.onlinePaymentEnabled || false);
+  const [codEnabled, setCodEnabled] = useState<boolean>(merchant?.codEnabled !== false);
+  const [paymentSaving, setPaymentSaving] = useState(false);
 
   const cityCodeOptions = [
     { code: "01", labelAr: "الرياض", labelEn: "Riyadh" },
@@ -3741,6 +3746,32 @@ function SettingsView({
     { code: "14", labelAr: "الجوف", labelEn: "Al Jouf" },
     { code: "15", labelAr: "عرعر", labelEn: "Arar" },
   ];
+
+  async function handleSavePaymentConfig() {
+    if (!merchant?.uid) return;
+    setPaymentSaving(true);
+    try {
+      const merchantRef = doc(db, "merchants", merchant.uid);
+      await updateDoc(merchantRef, {
+        moyasarPublishableKey,
+        moyasarSecretKey,
+        onlinePaymentEnabled,
+        codEnabled,
+      });
+      toast({
+        title: t("تم الحفظ", "Saved"),
+        description: t("تم حفظ إعدادات بوابة الدفع بنجاح", "Payment gateway settings saved successfully"),
+      });
+    } catch {
+      toast({
+        title: t("خطأ", "Error"),
+        description: t("فشل في حفظ إعدادات الدفع", "Failed to save payment settings"),
+        variant: "destructive",
+      });
+    } finally {
+      setPaymentSaving(false);
+    }
+  }
 
   async function handleSaveCityCode() {
     if (!merchant?.uid) return;
@@ -3819,6 +3850,83 @@ function SettingsView({
           {t("إعدادات المتجر وأدوات إضافية", "Store settings and tools")}
         </p>
       </div>
+
+      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
+        <CardContent className="p-6">
+          <h3 className="font-semibold mb-4 flex items-center gap-2">
+            <CreditCard className="w-4 h-4 text-blue-400" />
+            {t("ربط بوابة الدفع", "Payment Gateway Connection")}
+          </h3>
+
+          <div className="space-y-5">
+            <div className="space-y-2">
+              <label className="text-xs text-muted-foreground block">Moyasar Publishable Key</label>
+              <Input
+                type="text"
+                value={moyasarPublishableKey}
+                onChange={(e) => setMoyasarPublishableKey(e.target.value)}
+                placeholder="pk_live_..."
+                className="h-12 bg-white/[0.03] border-white/10 font-mono"
+                dir="ltr"
+                data-testid="input-moyasar-pub-key"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs text-muted-foreground block">Moyasar Secret Key</label>
+              <Input
+                type="password"
+                value={moyasarSecretKey}
+                onChange={(e) => setMoyasarSecretKey(e.target.value)}
+                placeholder="sk_live_..."
+                className="h-12 bg-white/[0.03] border-white/10 font-mono"
+                dir="ltr"
+                data-testid="input-moyasar-secret-key"
+              />
+            </div>
+
+            <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]">
+              <div className="flex-1">
+                <p className="text-sm font-semibold" dir="rtl">{t("تفعيل الدفع الإلكتروني", "Enable Online Payment")}</p>
+                <p className="text-xs text-muted-foreground mt-0.5" dir="rtl">
+                  {t("السماح للعملاء بالدفع إلكترونياً عبر بوابة Moyasar", "Allow customers to pay online via Moyasar gateway")}
+                </p>
+              </div>
+              <Switch
+                checked={onlinePaymentEnabled}
+                onCheckedChange={setOnlinePaymentEnabled}
+                className="data-[state=checked]:bg-blue-600"
+                data-testid="switch-online-payment"
+              />
+            </div>
+
+            <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]">
+              <div className="flex-1">
+                <p className="text-sm font-semibold" dir="rtl">{t("تفعيل الدفع عند الاستلام", "Enable Cash on Delivery")}</p>
+                <p className="text-xs text-muted-foreground mt-0.5" dir="rtl">
+                  {t("السماح للعملاء بالدفع نقداً عند استلام الطلب", "Allow customers to pay cash on delivery")}
+                </p>
+              </div>
+              <Switch
+                checked={codEnabled}
+                onCheckedChange={setCodEnabled}
+                className="data-[state=checked]:bg-emerald-600"
+                data-testid="switch-cod-payment"
+              />
+            </div>
+
+            <Button
+              onClick={handleSavePaymentConfig}
+              disabled={paymentSaving}
+              className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl disabled:opacity-30"
+              data-testid="button-save-payment-config"
+            >
+              {paymentSaving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : null}
+              {t("حفظ إعدادات الدفع", "Save Payment Settings")}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
         <CardContent className="p-6">

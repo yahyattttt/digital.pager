@@ -2582,6 +2582,9 @@ export async function registerRoutes(
             storeTermsEnabled: mf.storeTermsEnabled?.booleanValue === true,
             storeTermsText: mf.storeTermsText?.stringValue || "",
             storePrivacyText: mf.storePrivacyText?.stringValue || "",
+            moyasarPublishableKey: mf.moyasarPublishableKey?.stringValue || "",
+            onlinePaymentEnabled: mf.onlinePaymentEnabled?.booleanValue === true,
+            codEnabled: mf.codEnabled?.booleanValue !== false,
           };
         }
       }
@@ -2597,7 +2600,7 @@ export async function registerRoutes(
   app.post("/api/whatsapp-orders/:merchantId", async (req, res) => {
     try {
       const { merchantId } = req.params;
-      const { customerName, customerPhone, items, total } = req.body;
+      const { customerName, customerPhone, items, total, paymentMethod, transactionId } = req.body;
 
       if (!customerName || !customerPhone || !items || !Array.isArray(items) || items.length === 0) {
         return res.status(400).json({ message: "customerName, customerPhone, and items are required" });
@@ -2688,7 +2691,7 @@ export async function registerRoutes(
         items: { arrayValue: { values: itemsArray } },
         total: { doubleValue: finalTotal },
         status: { stringValue: "pending_verification" },
-        paymentMethod: { stringValue: "cod" },
+        paymentMethod: { stringValue: (paymentMethod && typeof paymentMethod === "string" && ["cod", "credit_card", "mada", "apple_pay", "google_pay", "stc_pay"].includes(paymentMethod)) ? paymentMethod : "cod" },
         orderNumber: { stringValue: onlineId.orderNumber },
         displayOrderId: { stringValue: displayOrderId },
         orderType: { stringValue: "online" },
@@ -2699,6 +2702,10 @@ export async function registerRoutes(
         fields.couponCode = { stringValue: appliedCoupon };
         fields.discountAmount = { doubleValue: discountAmount };
         fields.originalTotal = { doubleValue: total || 0 };
+      }
+
+      if (transactionId && typeof transactionId === "string") {
+        fields.transactionId = { stringValue: transactionId };
       }
 
       const { source } = req.body;

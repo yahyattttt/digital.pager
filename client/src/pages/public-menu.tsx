@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Store, ShoppingCart, Plus, Minus, X, AlertTriangle, Loader2, Check, ArrowLeft, Clock, Banknote, Tag } from "lucide-react";
+import { Store, ShoppingCart, Plus, Minus, X, AlertTriangle, Loader2, Check, ArrowLeft, Clock, Banknote, Tag, CreditCard, Wallet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Product, ProductVariant, ProductAddon } from "@shared/schema";
 
@@ -28,6 +28,9 @@ interface MerchantInfo {
   storeTermsEnabled: boolean;
   storeTermsText: string;
   storePrivacyText: string;
+  moyasarPublishableKey: string;
+  onlinePaymentEnabled: boolean;
+  codEnabled: boolean;
 }
 
 export default function PublicMenuPage() {
@@ -54,6 +57,14 @@ export default function PublicMenuPage() {
   const [couponDiscount, setCouponDiscount] = useState(0);
   const [couponLoading, setCouponLoading] = useState(false);
   const [couponError, setCouponError] = useState("");
+
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"online" | "cod" | null>(null);
+  const [moyasarPaymentCompleted, setMoyasarPaymentCompleted] = useState(false);
+  const [transactionId, setTransactionId] = useState("");
+  const [paymentSourceType, setPaymentSourceType] = useState("");
+  const [moyasarLoaded, setMoyasarLoaded] = useState(false);
+  const [moyasarInitialized, setMoyasarInitialized] = useState(false);
+  const prevFinalTotalRef = useRef(0);
 
   const [modalProduct, setModalProduct] = useState<Product | null>(null);
   const [modalVariant, setModalVariant] = useState<ProductVariant | null>(null);
@@ -90,6 +101,83 @@ export default function PublicMenuPage() {
     }, 60000);
     return () => clearInterval(interval);
   }, [fetchMenu]);
+
+  useEffect(() => {
+    if (!merchant?.onlinePaymentEnabled || !merchant?.moyasarPublishableKey) return;
+    if (moyasarLoaded) return;
+
+    const existingScript = document.querySelector('script[src*="moyasar"]');
+    if (existingScript) { setMoyasarLoaded(true); return; }
+
+    const css = document.createElement("link");
+    css.rel = "stylesheet";
+    css.href = "https://cdn.moyasar.com/mpf/1.14.0/moyasar.css";
+    document.head.appendChild(css);
+
+    const script = document.createElement("script");
+    script.src = "https://cdn.moyasar.com/mpf/1.14.0/moyasar.js";
+    script.async = true;
+    script.onload = () => setMoyasarLoaded(true);
+    document.head.appendChild(script);
+  }, [merchant?.onlinePaymentEnabled, merchant?.moyasarPublishableKey, moyasarLoaded]);
+
+  useEffect(() => {
+    if (prevFinalTotalRef.current !== 0 && prevFinalTotalRef.current !== finalTotal && moyasarInitialized) {
+      setMoyasarInitialized(false);
+    }
+    prevFinalTotalRef.current = finalTotal;
+  }, [finalTotal, moyasarInitialized]);
+
+  useEffect(() => {
+    if (selectedPaymentMethod !== "online" || !moyasarLoaded || moyasarInitialized) return;
+    if (!merchant?.moyasarPublishableKey || finalTotal <= 0) return;
+
+    const container = document.getElementById("moyasar-payment-form");
+    if (!container) return;
+
+    const timer = setTimeout(() => {
+      try {
+        const w = window as any;
+        if (!w.Moyasar) return;
+        container.innerHTML = "";
+        w.Moyasar.init({
+          element: "#moyasar-payment-form",
+          amount: Math.round(finalTotal * 100),
+          currency: "SAR",
+          description: `Order from ${merchant.storeName}`,
+          publishable_api_key: merchant.moyasarPublishableKey,
+          callback_url: window.location.href,
+          methods: ["creditcard", "applepay", "stcpay"],
+          on_completed: function (payment: any) {
+            const sourceType = payment?.source?.type || "credit_card";
+            const methodMap: Record<string, string> = {
+              creditcard: "credit_card",
+              applepay: "apple_pay",
+              stcpay: "stc_pay",
+              mada: "mada",
+            };
+            setTransactionId(payment?.id || "");
+            setPaymentSourceType(methodMap[sourceType] || sourceType);
+            setMoyasarPaymentCompleted(true);
+          },
+        });
+        setMoyasarInitialized(true);
+      } catch (err) {
+        console.error("[Moyasar] Init error:", err);
+      }
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [selectedPaymentMethod, moyasarLoaded, moyasarInitialized, merchant, finalTotal]);
+
+  useEffect(() => {
+    if (!merchant) return;
+    if (merchant.onlinePaymentEnabled && !merchant.codEnabled) {
+      setSelectedPaymentMethod("online");
+    } else if (!merchant.onlinePaymentEnabled && merchant.codEnabled) {
+      setSelectedPaymentMethod("cod");
+    }
+  }, [merchant]);
 
   function getItemTotal(item: CartItem): number {
     return item.itemPrice * item.quantity;
@@ -282,7 +370,7 @@ export default function PublicMenuPage() {
     return label;
   }
 
-  async function handleConfirmOrder() {
+  async function handleConfirmOrder(overridePaymentMethod?: string, overrideTransactionId?: string) {
     if (!merchantId || cart.length === 0) return;
     if (!customerName.trim()) {
       toast({ title: "مطلوب", description: "يرجى إدخال الاسم الكامل", variant: "destructive" });
@@ -313,12 +401,19 @@ export default function PublicMenuPage() {
       const urlParams = new URLSearchParams(window.location.search);
       const orderSource = urlParams.get("source") || "";
 
+      const finalPaymentMethod = overridePaymentMethod || paymentSourceType || (selectedPaymentMethod === "cod" ? "cod" : "credit_card");
+      const finalTransactionId = overrideTransactionId || transactionId;
+
       const orderBody: any = {
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim(),
         items: orderItems,
         total: cartTotal,
+        paymentMethod: finalPaymentMethod,
       };
+      if (finalTransactionId) {
+        orderBody.transactionId = finalTransactionId;
+      }
       if (orderSource) {
         orderBody.source = orderSource;
       }
@@ -354,6 +449,12 @@ export default function PublicMenuPage() {
       setSubmitting(false);
     }
   }
+
+  useEffect(() => {
+    if (moyasarPaymentCompleted && transactionId) {
+      handleConfirmOrder(paymentSourceType, transactionId);
+    }
+  }, [moyasarPaymentCompleted, transactionId]);
 
   if (loading) {
     return (
@@ -541,17 +642,80 @@ export default function PublicMenuPage() {
             </div>
           </div>
 
-          <div className="p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/15 mb-4" data-testid="payment-method-display">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center flex-shrink-0">
-                <Banknote className="w-5 h-5 text-emerald-400" />
-              </div>
-              <div>
-                <p className="text-white/80 text-base font-bold" dir="rtl" data-testid="text-payment-method">طريقة الدفع: الدفع عند الاستلام (كاش)</p>
-                <p className="text-white/30 text-[11px] mt-0.5">Payment Method: Cash on Delivery</p>
+          {!merchant.onlinePaymentEnabled && !merchant.codEnabled && (
+            <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 mb-4" data-testid="text-no-payment-methods">
+              <p className="text-red-400 text-sm font-bold text-center" dir="rtl">لا توجد طرق دفع متاحة</p>
+              <p className="text-white/30 text-[11px] text-center mt-1">No payment methods available</p>
+            </div>
+          )}
+
+          {merchant.onlinePaymentEnabled && merchant.codEnabled && (
+            <div className="mb-4 space-y-2" data-testid="payment-method-selection">
+              <p className="text-white/50 text-xs font-medium mb-2" dir="rtl">اختر طريقة الدفع</p>
+              <button
+                type="button"
+                onClick={() => { setSelectedPaymentMethod("online"); setMoyasarInitialized(false); setMoyasarPaymentCompleted(false); setTransactionId(""); setPaymentSourceType(""); }}
+                className={`w-full p-4 rounded-xl border transition-all flex items-center gap-3 ${selectedPaymentMethod === "online" ? "bg-red-500/10 border-red-500/40" : "bg-zinc-900/40 border-zinc-800/30 hover:border-zinc-700/50"}`}
+                data-testid="button-payment-online"
+              >
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${selectedPaymentMethod === "online" ? "bg-red-500/20" : "bg-zinc-800/50"}`}>
+                  <CreditCard className={`w-5 h-5 ${selectedPaymentMethod === "online" ? "text-red-400" : "text-white/40"}`} />
+                </div>
+                <div className="text-right flex-1">
+                  <p className={`text-sm font-bold ${selectedPaymentMethod === "online" ? "text-white" : "text-white/70"}`} dir="rtl">الدفع إلكترونياً</p>
+                  <p className="text-white/30 text-[11px] mt-0.5">Online Payment (Card / Apple Pay / STC Pay)</p>
+                </div>
+                {selectedPaymentMethod === "online" && <Check className="w-5 h-5 text-red-400 flex-shrink-0" />}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setSelectedPaymentMethod("cod"); setMoyasarPaymentCompleted(false); setTransactionId(""); setPaymentSourceType(""); setMoyasarInitialized(false); }}
+                className={`w-full p-4 rounded-xl border transition-all flex items-center gap-3 ${selectedPaymentMethod === "cod" ? "bg-emerald-500/10 border-emerald-500/40" : "bg-zinc-900/40 border-zinc-800/30 hover:border-zinc-700/50"}`}
+                data-testid="button-payment-cod"
+              >
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${selectedPaymentMethod === "cod" ? "bg-emerald-500/20" : "bg-zinc-800/50"}`}>
+                  <Banknote className={`w-5 h-5 ${selectedPaymentMethod === "cod" ? "text-emerald-400" : "text-white/40"}`} />
+                </div>
+                <div className="text-right flex-1">
+                  <p className={`text-sm font-bold ${selectedPaymentMethod === "cod" ? "text-white" : "text-white/70"}`} dir="rtl">الدفع عند الاستلام (كاش)</p>
+                  <p className="text-white/30 text-[11px] mt-0.5">Cash on Delivery</p>
+                </div>
+                {selectedPaymentMethod === "cod" && <Check className="w-5 h-5 text-emerald-400 flex-shrink-0" />}
+              </button>
+            </div>
+          )}
+
+          {!merchant.onlinePaymentEnabled && merchant.codEnabled && (
+            <div className="p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/15 mb-4" data-testid="payment-method-display">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center flex-shrink-0">
+                  <Banknote className="w-5 h-5 text-emerald-400" />
+                </div>
+                <div>
+                  <p className="text-white/80 text-base font-bold" dir="rtl" data-testid="text-payment-method">طريقة الدفع: الدفع عند الاستلام (كاش)</p>
+                  <p className="text-white/30 text-[11px] mt-0.5">Payment Method: Cash on Delivery</p>
+                </div>
               </div>
             </div>
-          </div>
+          )}
+
+          {selectedPaymentMethod === "online" && merchant.onlinePaymentEnabled && (
+            <div className="mb-4 p-4 rounded-xl bg-zinc-900/60 border border-zinc-800/40" data-testid="moyasar-form-container">
+              {!moyasarLoaded ? (
+                <div className="flex items-center justify-center gap-2 py-6">
+                  <Loader2 className="w-5 h-5 animate-spin text-red-400" />
+                  <span className="text-white/50 text-sm">جاري تحميل بوابة الدفع...</span>
+                </div>
+              ) : moyasarPaymentCompleted ? (
+                <div className="flex items-center justify-center gap-2 py-6">
+                  <Check className="w-5 h-5 text-emerald-400" />
+                  <span className="text-emerald-400 text-sm font-bold" dir="rtl">تم الدفع بنجاح</span>
+                </div>
+              ) : (
+                <div id="moyasar-payment-form" />
+              )}
+            </div>
+          )}
 
           {merchant.storeTermsEnabled && (
             <label className="flex items-center gap-3 p-4 rounded-xl bg-zinc-900/40 border border-zinc-800/30 cursor-pointer mb-6" dir="rtl" data-testid="label-store-terms">
@@ -591,20 +755,33 @@ export default function PublicMenuPage() {
 
           {!merchant.storeTermsEnabled && <div className="mb-2" />}
 
-          <Button
-            onClick={handleConfirmOrder}
-            disabled={!customerName.trim() || customerPhone.length !== 10 || (merchant.storeTermsEnabled && !storeTermsAccepted) || submitting}
-            className="w-full h-14 text-base font-bold bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-30 rounded-xl gap-2"
-            style={{ boxShadow: "0 0 25px rgba(16,185,129,0.15)" }}
-            data-testid="button-confirm-order"
-          >
-            {submitting ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <Check className="w-5 h-5" />
-            )}
-            <span dir="rtl">{submitting ? "جاري إرسال الطلب..." : "إرسال الطلب وبدء التتبع"}</span>
-          </Button>
+          {(selectedPaymentMethod === "cod" || (!merchant.onlinePaymentEnabled && merchant.codEnabled)) && (
+            <Button
+              onClick={() => handleConfirmOrder()}
+              disabled={!customerName.trim() || customerPhone.length !== 10 || (merchant.storeTermsEnabled && !storeTermsAccepted) || submitting || (!merchant.onlinePaymentEnabled && !merchant.codEnabled) || (merchant.onlinePaymentEnabled && merchant.codEnabled && !selectedPaymentMethod)}
+              className="w-full h-14 text-base font-bold bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-30 rounded-xl gap-2"
+              style={{ boxShadow: "0 0 25px rgba(16,185,129,0.15)" }}
+              data-testid="button-confirm-order"
+            >
+              {submitting ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Check className="w-5 h-5" />
+              )}
+              <span dir="rtl">{submitting ? "جاري إرسال الطلب..." : "إرسال الطلب وبدء التتبع"}</span>
+            </Button>
+          )}
+
+          {selectedPaymentMethod === "online" && !moyasarPaymentCompleted && (
+            <p className="text-white/30 text-[11px] text-center mt-2" dir="rtl">أكمل الدفع أعلاه لإرسال الطلب تلقائياً</p>
+          )}
+
+          {submitting && selectedPaymentMethod === "online" && (
+            <div className="flex items-center justify-center gap-2 mt-4">
+              <Loader2 className="w-5 h-5 animate-spin text-emerald-400" />
+              <span className="text-emerald-400 text-sm" dir="rtl">جاري إرسال الطلب...</span>
+            </div>
+          )}
         </div>
 
         {showStoreTermsModal && (
