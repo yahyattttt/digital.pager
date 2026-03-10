@@ -87,16 +87,19 @@ export default function OrderTrackingPage() {
     }
   }
 
-  function unlockAudio() {
-    if (audioUnlockedRef.current) return;
+  const [bellFading, setBellFading] = useState(false);
+
+  function unlockAudio(): Promise<boolean> {
+    if (audioUnlockedRef.current) return Promise.resolve(true);
     const audio = ensureAudioElement();
     audio.muted = true;
-    audio.play().then(() => {
+    return audio.play().then(() => {
       audio.pause();
       audio.muted = false;
       audio.currentTime = 0;
       audioUnlockedRef.current = true;
       setSoundEnabled(true);
+      sessionStorage.setItem("pager_audio_unlocked", "true");
       removeUnlockListeners();
       console.log("[OrderTracking] Audio unlocked successfully");
       if (pendingAlertRef.current) {
@@ -105,13 +108,29 @@ export default function OrderTrackingPage() {
         pendingAlertRef.current = false;
         playAlert();
       }
+      return true;
     }).catch((e) => {
       audio.muted = false;
+      return false;
+    });
+  }
+
+  function handleActivateBell() {
+    setBellFading(true);
+    unlockAudio().then((success) => {
+      if (!success) {
+        setBellFading(false);
+      } else {
+        setTimeout(() => setBellFading(false), 400);
+      }
     });
   }
 
   useEffect(() => {
     ensureAudioElement();
+    if (sessionStorage.getItem("pager_audio_unlocked") === "true") {
+      unlockAudio();
+    }
     const events = ["click", "touchstart", "touchmove", "scroll", "keydown", "pointerdown"];
     function handleInteraction() {
       unlockAudio();
@@ -353,19 +372,32 @@ export default function OrderTrackingPage() {
             </div>
           </div>
 
-          <div className="flex items-center justify-center gap-3">
-            <div className="flex items-center gap-1.5">
-              {soundEnabled ? (
-                <span className="text-white/25 text-[10px]">🔔 التنبيهات الصوتية مفعلة</span>
-              ) : (
-                <span className="text-white/20 text-[10px]" dir="rtl">المس الشاشة لتفعيل الصوت</span>
-              )}
+          {!soundEnabled && !bellFading && (
+            <button
+              onClick={handleActivateBell}
+              className="w-full flex items-center justify-center gap-2.5 py-3 px-4 rounded-2xl border border-red-500/20 bg-gradient-to-r from-red-950/40 via-red-900/20 to-red-950/40 active:scale-[0.97] transition-all duration-200"
+              style={{ boxShadow: "0 0 20px rgba(255,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.03)" }}
+              data-testid="button-activate-bell-pending"
+            >
+              <span className="text-lg">🔔</span>
+              <span className="text-red-400/90 text-[13px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>تفعيل تنبيهات الجرس عند جاهزية الطلب</span>
+            </button>
+          )}
+          {bellFading && (
+            <div className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl animate-pulse">
+              <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+              <span className="text-white/40 text-xs">جارٍ التفعيل...</span>
             </div>
-            <div className="w-px h-3 bg-white/10" />
-            <div className="flex items-center gap-1.5">
-              <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-              <span className="text-white/25 text-[10px]" data-testid="text-live-status">Live</span>
+          )}
+          {soundEnabled && !bellFading && (
+            <div className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl border border-emerald-500/15 bg-emerald-500/5">
+              <span className="text-sm">✅</span>
+              <span className="text-emerald-400/80 text-xs font-medium" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>التنبيهات الصوتية مفعلة</span>
             </div>
+          )}
+          <div className="flex items-center justify-center gap-2 mt-1">
+            <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+            <span className="text-white/20 text-[10px]" data-testid="text-live-status">Live</span>
           </div>
         </div>
       </div>
@@ -394,10 +426,15 @@ export default function OrderTrackingPage() {
         </div>
 
         {pendingAlert && !alertActive && (
-          <div className="flex items-center justify-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 animate-pulse cursor-pointer" onClick={unlockAudio} data-testid="chip-tap-for-sound">
-            <Bell className="w-3.5 h-3.5 text-white/40" />
-            <span className="text-white/40 text-xs" dir="rtl">المس الشاشة لتشغيل التنبيه</span>
-          </div>
+          <button
+            onClick={handleActivateBell}
+            className="flex items-center justify-center gap-2.5 px-5 py-3 rounded-2xl border border-red-500/20 bg-gradient-to-r from-red-950/40 via-red-900/20 to-red-950/40 active:scale-[0.97] transition-all duration-200 animate-pulse"
+            style={{ boxShadow: "0 0 20px rgba(255,0,0,0.08)" }}
+            data-testid="chip-tap-for-sound"
+          >
+            <span className="text-base">🔔</span>
+            <span className="text-red-400/90 text-sm font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>المس لسماع التنبيه</span>
+          </button>
         )}
         {alertActive && (
           <Button size="lg" onClick={handleStopAlert} className="w-full max-w-xs h-14 font-bold text-base bg-transparent border-2 border-red-600 text-white hover:bg-red-600/20 rounded-xl" style={{ boxShadow: "0 0 20px rgba(255,0,0,0.2)" }} data-testid="button-stop-tracking-alert">
@@ -470,19 +507,36 @@ export default function OrderTrackingPage() {
         <div className="p-3 rounded-xl bg-zinc-900/30 border border-zinc-800/20">
           <p className="text-white/30 text-xs text-center" dir="rtl">{order.customerName} • {order.items.length} items • {order.total.toFixed(2)} SAR</p>
         </div>
-        <div className="flex items-center justify-center gap-3">
-          <div className="flex items-center gap-1.5">
-            {soundEnabled ? (
-              <span className="text-white/20 text-[10px]">🔔 التنبيهات الصوتية مفعلة</span>
-            ) : (
-              <span className="text-white/15 text-[10px]" dir="rtl">المس الشاشة لتفعيل الصوت</span>
-            )}
+
+        {!soundEnabled && !bellFading && (
+          <button
+            onClick={handleActivateBell}
+            className="w-full flex items-center justify-center gap-2.5 py-3.5 px-4 rounded-2xl border border-red-500/20 bg-gradient-to-r from-red-950/40 via-red-900/20 to-red-950/40 active:scale-[0.97] transition-all duration-200"
+            style={{ boxShadow: "0 0 20px rgba(255,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.03)" }}
+            data-testid="button-activate-bell"
+          >
+            <span className="text-lg">🔔</span>
+            <span className="text-red-400/90 text-[13px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>تفعيل تنبيهات الجرس عند جاهزية الطلب</span>
+          </button>
+        )}
+
+        {bellFading && (
+          <div className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl animate-pulse">
+            <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+            <span className="text-white/40 text-xs">جارٍ التفعيل...</span>
           </div>
-          <div className="w-px h-3 bg-white/10" />
-          <div className="flex items-center gap-1.5">
-            <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-            <span className="text-white/20 text-[10px]">Live</span>
+        )}
+
+        {soundEnabled && !bellFading && (
+          <div className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl border border-emerald-500/15 bg-emerald-500/5 transition-all duration-500">
+            <span className="text-sm">✅</span>
+            <span className="text-emerald-400/80 text-xs font-medium" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>التنبيهات الصوتية مفعلة</span>
           </div>
+        )}
+
+        <div className="flex items-center justify-center gap-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+          <span className="text-white/20 text-[10px]">Live</span>
         </div>
       </div>
     </div>
