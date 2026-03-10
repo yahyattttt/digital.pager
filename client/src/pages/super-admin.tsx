@@ -1554,7 +1554,15 @@ export default function SuperAdminPage() {
                         </div>
                         <Switch
                           checked={settings.platformTermsEnabled}
-                          onCheckedChange={(checked) => setSettings(s => ({ ...s, platformTermsEnabled: checked }))}
+                          onCheckedChange={async (checked) => {
+                            setSettings(s => ({ ...s, platformTermsEnabled: checked }));
+                            try {
+                              const ref = doc(db, "systemSettings", "global");
+                              await updateDoc(ref, { platformTermsEnabled: checked });
+                            } catch {
+                              setSettings(s => ({ ...s, platformTermsEnabled: !checked }));
+                            }
+                          }}
                           data-testid="switch-platform-terms"
                         />
                       </div>

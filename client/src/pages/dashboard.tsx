@@ -3004,6 +3004,37 @@ function SettingsView({
   const [storeTermsText, setStoreTermsText] = useState<string>(merchant?.storeTermsText || "");
   const [storePrivacyText, setStorePrivacyText] = useState<string>(merchant?.storePrivacyText || "");
   const [storeLegalSaving, setStoreLegalSaving] = useState(false);
+  const [storeTermsToggling, setStoreTermsToggling] = useState(false);
+
+  useEffect(() => {
+    if (!storeTermsToggling) {
+      setStoreTermsEnabled(merchant?.storeTermsEnabled || false);
+    }
+  }, [merchant?.storeTermsEnabled, storeTermsToggling]);
+
+  useEffect(() => {
+    setStoreTermsText(merchant?.storeTermsText || "");
+    setStorePrivacyText(merchant?.storePrivacyText || "");
+  }, [merchant?.storeTermsText, merchant?.storePrivacyText]);
+
+  async function handleToggleStoreTerms(checked: boolean) {
+    if (!merchant?.uid) return;
+    setStoreTermsToggling(true);
+    setStoreTermsEnabled(checked);
+    try {
+      const merchantRef = doc(db, "merchants", merchant.uid);
+      await updateDoc(merchantRef, { storeTermsEnabled: checked });
+    } catch {
+      setStoreTermsEnabled(!checked);
+      toast({
+        title: t("خطأ", "Error"),
+        description: t("فشل في تحديث الحالة", "Failed to update toggle"),
+        variant: "destructive",
+      });
+    } finally {
+      setStoreTermsToggling(false);
+    }
+  }
 
   async function handleSaveStoreLegal() {
     if (!merchant?.uid) return;
@@ -3129,7 +3160,8 @@ function SettingsView({
               </div>
               <Switch
                 checked={storeTermsEnabled}
-                onCheckedChange={setStoreTermsEnabled}
+                onCheckedChange={handleToggleStoreTerms}
+                disabled={storeTermsToggling}
                 className="data-[state=checked]:bg-emerald-600"
                 data-testid="switch-store-terms"
               />

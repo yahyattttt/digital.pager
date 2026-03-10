@@ -225,8 +225,19 @@ export default function PublicMenuPage() {
   }
 
   async function handleConfirmOrder() {
-    if (!merchantId || !customerName.trim() || customerPhone.length !== 10 || cart.length === 0) return;
-    if (merchant?.storeTermsEnabled && !storeTermsAccepted) return;
+    if (!merchantId || cart.length === 0) return;
+    if (!customerName.trim()) {
+      toast({ title: "مطلوب", description: "يرجى إدخال الاسم الكامل", variant: "destructive" });
+      return;
+    }
+    if (customerPhone.length !== 10) {
+      toast({ title: "مطلوب", description: "يرجى إدخال رقم جوال صحيح من 10 أرقام", variant: "destructive" });
+      return;
+    }
+    if (merchant?.storeTermsEnabled && !storeTermsAccepted) {
+      toast({ title: "مطلوب", description: "يرجى الموافقة على الشروط والأحكام", variant: "destructive" });
+      return;
+    }
     if (orderingDisabled) {
       toast({ title: "عذراً", description: closedInfo.messageAr || "Online ordering unavailable", variant: "destructive" });
       return;
@@ -252,13 +263,25 @@ export default function PublicMenuPage() {
         }),
       });
 
-      if (!res.ok) throw new Error("Failed to create order");
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || "Failed to create order");
+      }
       const data = await res.json();
       const orderId = data.orderId;
 
       window.location.href = `/track/${orderId}?m=${merchantId}`;
-    } catch {
-      toast({ title: "خطأ", description: "Failed to create order", variant: "destructive" });
+    } catch (err: any) {
+      const msg = (err?.message || "").toLowerCase();
+      let description = "فشل في إرسال الطلب. يرجى المحاولة مرة أخرى";
+      if (msg.includes("business hours")) {
+        description = "المتجر مغلق حالياً. يرجى المحاولة خلال ساعات العمل";
+      } else if (msg.includes("not available") || msg.includes("not found")) {
+        description = "المتجر غير متاح حالياً";
+      } else if (msg.includes("online order")) {
+        description = "الطلب أونلاين غير مفعّل حالياً";
+      }
+      toast({ title: "عذراً", description, variant: "destructive" });
       setSubmitting(false);
     }
   }
