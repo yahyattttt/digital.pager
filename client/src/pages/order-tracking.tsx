@@ -4,7 +4,7 @@ import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Store, AlertTriangle, BellOff, Clock, CheckCircle, Loader2, Star, Banknote, Phone, MessageCircle } from "lucide-react";
+import { Store, AlertTriangle, BellOff, Bell, Volume2, Clock, CheckCircle, Loader2, Star, Banknote, Phone, MessageCircle } from "lucide-react";
 import type { WhatsAppOrder } from "@shared/schema";
 
 function PagerDevice({ orderNumber, isReady }: { orderNumber: string; isReady: boolean }) {
@@ -53,6 +53,8 @@ export default function OrderTrackingPage() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [alertActive, setAlertActive] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(false);
+  const [pendingAlert, setPendingAlert] = useState(false);
   const hasPlayedAlert = useRef(false);
 
   const alertSoundRef = useRef<HTMLAudioElement | null>(null);
@@ -61,41 +63,71 @@ export default function OrderTrackingPage() {
   const merchantId = new URLSearchParams(window.location.search).get("m") || "";
   const audioUnlockedRef = useRef(false);
 
+  function ensureAudioElement() {
+    if (!alertSoundRef.current) {
+      alertSoundRef.current = new Audio("/alert.mp3");
+      alertSoundRef.current.loop = true;
+      alertSoundRef.current.volume = 1.0;
+      alertSoundRef.current.preload = "auto";
+      alertSoundRef.current.addEventListener("error", () => {
+        console.warn("[OrderTracking] Alert sound file failed to load — check /alert.mp3");
+      });
+    }
+    return alertSoundRef.current;
+  }
+
+  const pendingAlertRef = useRef(false);
+
   function unlockAudio() {
     if (audioUnlockedRef.current) return;
-    audioUnlockedRef.current = true;
-    try {
-      if (!alertSoundRef.current) {
-        alertSoundRef.current = new Audio("/alert.mp3");
-        alertSoundRef.current.loop = true;
-        alertSoundRef.current.volume = 1.0;
-        alertSoundRef.current.addEventListener("error", () => {
-          console.warn("[OrderTracking] Alert sound file failed to load — check /alert.mp3");
-        });
+    const audio = ensureAudioElement();
+    audio.muted = true;
+    audio.play().then(() => {
+      audio.pause();
+      audio.muted = false;
+      audio.currentTime = 0;
+      audioUnlockedRef.current = true;
+      setSoundEnabled(true);
+      console.log("[OrderTracking] Audio unlocked successfully");
+      if (pendingAlertRef.current) {
+        console.log("[OrderTracking] Deferred alert detected — playing now");
+        setPendingAlert(false);
+        pendingAlertRef.current = false;
+        playAlert();
       }
-      alertSoundRef.current.muted = true;
-      alertSoundRef.current.play().then(() => {
-        alertSoundRef.current!.pause();
-        alertSoundRef.current!.muted = false;
-        alertSoundRef.current!.currentTime = 0;
-        console.log("[OrderTracking] Audio unlocked successfully");
-      }).catch((e) => {
-        alertSoundRef.current!.muted = false;
-        console.warn("[OrderTracking] Audio unlock failed:", e.message);
-      });
-    } catch (e) {
-      console.warn("[OrderTracking] Audio unlock error:", e);
-    }
+    }).catch((e) => {
+      audio.muted = false;
+      console.warn("[OrderTracking] Audio unlock failed:", e.message);
+    });
+  }
+
+  function handleEnableSound() {
+    const audio = ensureAudioElement();
+    audio.muted = true;
+    audio.play().then(() => {
+      audio.pause();
+      audio.muted = false;
+      audio.currentTime = 0;
+      audioUnlockedRef.current = true;
+      setSoundEnabled(true);
+      console.log("[OrderTracking] Audio enabled by user tap");
+      if (pendingAlertRef.current) {
+        setPendingAlert(false);
+        pendingAlertRef.current = false;
+        playAlert();
+      }
+    }).catch((e) => {
+      audio.muted = false;
+      console.warn("[OrderTracking] Audio enable failed:", e.message);
+    });
   }
 
   useEffect(() => {
     function handleInteraction() {
       unlockAudio();
-      document.removeEventListener("click", handleInteraction);
-      document.removeEventListener("touchstart", handleInteraction);
     }
-    document.addEventListener("click", handleInteraction, { once: true });
-    document.addEventListener("touchstart", handleInteraction, { once: true });
+    document.addEventListener("click", handleInteraction);
+    document.addEventListener("touchstart", handleInteraction);
     return () => {
       document.removeEventListener("click", handleInteraction);
       document.removeEventListener("touchstart", handleInteraction);
@@ -106,38 +138,25 @@ export default function OrderTrackingPage() {
     if (hasPlayedAlert.current) return;
     hasPlayedAlert.current = true;
     setAlertActive(true);
-    console.log("[OrderTracking] Attempting to play sound...");
+    console.log("[OrderTracking] Attempting to play sound... audioUnlocked:", audioUnlockedRef.current);
 
-    let playAttempts = 0;
-    function attemptPlay() {
-      playAttempts++;
-      console.log(`[OrderTracking] Play attempt ${playAttempts}/3`);
-      try {
-        if (!alertSoundRef.current) {
-          alertSoundRef.current = new Audio("/alert.mp3");
-          alertSoundRef.current.loop = true;
-          alertSoundRef.current.volume = 1.0;
-          alertSoundRef.current.addEventListener("error", () => {
-            console.warn("[OrderTracking] Alert sound file failed to load — check /alert.mp3");
-          });
-        }
-        alertSoundRef.current.currentTime = 0;
-        alertSoundRef.current.play().then(() => {
-          console.log(`[OrderTracking] Sound playing on attempt ${playAttempts}`);
-        }).catch((err) => {
-          console.warn(`[OrderTracking] Play attempt ${playAttempts} failed:`, err.message);
-          if (playAttempts < 3) {
-            setTimeout(attemptPlay, 1000);
-          }
-        });
-      } catch (err) {
-        console.warn(`[OrderTracking] Play attempt ${playAttempts} error:`, err);
-        if (playAttempts < 3) {
-          setTimeout(attemptPlay, 1000);
-        }
+    const audio = ensureAudioElement();
+    audio.currentTime = 0;
+    audio.play().then(() => {
+      console.log("[OrderTracking] Sound playing successfully");
+      setSoundEnabled(true);
+    }).catch((err) => {
+      console.warn("[OrderTracking] Play failed:", err.message, "— showing tap-to-play fallback");
+      hasPlayedAlert.current = false;
+      setAlertActive(false);
+      setPendingAlert(true);
+      pendingAlertRef.current = true;
+      if (vibrationIntervalRef.current) {
+        clearInterval(vibrationIntervalRef.current);
+        vibrationIntervalRef.current = null;
       }
-    }
-    attemptPlay();
+      if ("vibrate" in navigator) navigator.vibrate(0);
+    });
 
     if ("vibrate" in navigator) {
       navigator.vibrate([500, 200, 500, 200, 800]);
@@ -158,6 +177,8 @@ export default function OrderTrackingPage() {
     }
     if ("vibrate" in navigator) navigator.vibrate(0);
     setAlertActive(false);
+    setPendingAlert(false);
+    pendingAlertRef.current = false;
   }
 
   useEffect(() => {
@@ -335,6 +356,22 @@ export default function OrderTrackingPage() {
             </div>
           </div>
 
+          {!soundEnabled && (
+            <button
+              onClick={handleEnableSound}
+              className="w-full max-w-sm flex items-center justify-center gap-2 p-3 rounded-xl bg-red-600/10 border border-red-600/30 active:scale-[0.97] transition-all animate-pulse"
+              data-testid="button-enable-sound-pending"
+            >
+              <Volume2 className="w-4 h-4 text-red-400" />
+              <span className="text-red-400 text-sm font-bold" dir="rtl">اضغط لتفعيل صوت التنبيه</span>
+            </button>
+          )}
+          {soundEnabled && (
+            <div className="flex items-center justify-center gap-2 p-2 rounded-xl bg-emerald-500/5 border border-emerald-500/15">
+              <Bell className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="text-emerald-400/80 text-xs font-medium" dir="rtl">التنبيه الصوتي مُفعّل</span>
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
             <span className="text-white/30 text-xs" data-testid="text-live-status">Live Status</span>
@@ -365,6 +402,17 @@ export default function OrderTrackingPage() {
           </div>
         </div>
 
+        {pendingAlert && !alertActive && (
+          <button
+            onClick={handleEnableSound}
+            className="w-full max-w-xs h-16 flex items-center justify-center gap-3 font-bold text-lg bg-red-600 hover:bg-red-700 text-white rounded-xl active:scale-[0.97] transition-all animate-pulse"
+            style={{ boxShadow: "0 0 30px rgba(255,0,0,0.4)" }}
+            data-testid="button-tap-to-play"
+          >
+            <Volume2 className="w-6 h-6" />
+            <span dir="rtl">اضغط لسماع التنبيه</span>
+          </button>
+        )}
         {alertActive && (
           <Button size="lg" onClick={handleStopAlert} className="w-full max-w-xs h-14 font-bold text-base bg-transparent border-2 border-red-600 text-white hover:bg-red-600/20 rounded-xl" style={{ boxShadow: "0 0 20px rgba(255,0,0,0.2)" }} data-testid="button-stop-tracking-alert">
             <BellOff className="w-5 h-5 me-2" />
@@ -432,7 +480,24 @@ export default function OrderTrackingPage() {
         </div>
       </div>
 
-      <div className="w-full max-w-xs">
+      <div className="w-full max-w-xs space-y-3">
+        {!soundEnabled && (
+          <button
+            onClick={handleEnableSound}
+            className="w-full flex items-center justify-center gap-2 p-3 rounded-xl bg-red-600/10 border border-red-600/30 active:scale-[0.97] transition-all animate-pulse"
+            data-testid="button-enable-sound"
+          >
+            <Volume2 className="w-4 h-4 text-red-400" />
+            <span className="text-red-400 text-sm font-bold" dir="rtl">اضغط لتفعيل صوت التنبيه</span>
+            <span className="text-red-400/60 text-xs">Tap to enable alerts</span>
+          </button>
+        )}
+        {soundEnabled && (
+          <div className="flex items-center justify-center gap-2 p-2 rounded-xl bg-emerald-500/5 border border-emerald-500/15">
+            <Bell className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="text-emerald-400/80 text-xs font-medium" dir="rtl">التنبيه الصوتي مُفعّل</span>
+          </div>
+        )}
         <div className="p-3 rounded-xl bg-zinc-900/30 border border-zinc-800/20">
           <p className="text-white/30 text-xs text-center" dir="rtl">{order.customerName} • {order.items.length} items • {order.total.toFixed(2)} SAR</p>
         </div>
