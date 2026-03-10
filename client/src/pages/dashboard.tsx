@@ -996,7 +996,7 @@ export default function DashboardPage() {
   const navItems: { id: DashboardView; icon: typeof LayoutDashboard; label: string; badge?: number }[] = [
     { id: "overview", icon: LayoutDashboard, label: t("لوحة التحكم", "Dashboard"), badge: whatsappOrders.length || undefined },
     { id: "waitlist", icon: Users, label: t("قائمة الانتظار", "Waiting List"), badge: waitingPagers.length },
-    { id: "menu", icon: UtensilsCrossed, label: t("القائمة الرقمية", "Digital Menu") },
+    { id: "menu", icon: UtensilsCrossed, label: t("قسم الأونلاين", "Online Section") },
     { id: "feedback", icon: MessageSquare, label: t("ملاحظات العملاء", "Customer Feedback"), badge: unreadFeedbackCount || undefined },
     { id: "analytics", icon: BarChart3, label: t("التحليلات", "Analytics") },
     { id: "settings", icon: Settings, label: t("الإعدادات", "Settings") },
@@ -2433,7 +2433,7 @@ function MenuView({
         <div>
           <h2 className="text-xl font-bold">{t("المنتجات", "Products")}</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {t("إدارة منتجاتك والقائمة الرقمية", "Manage your products and digital menu")}
+            {t("إدارة منتجاتك وقسم الطلبات أونلاين", "Manage your products and online ordering section")}
           </p>
         </div>
         <Button onClick={openAddDialog} className="bg-emerald-600 hover:bg-emerald-700 text-white h-10 gap-1.5 rounded-2xl" data-testid="button-add-product">
@@ -2443,15 +2443,20 @@ function MenuView({
       </div>
 
       <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
-        <CardContent className="p-4">
+        <CardContent className="p-4 space-y-3">
           <div className="flex items-center gap-3">
             <div className="flex-1 min-w-0">
-              <p className="text-xs text-muted-foreground mb-1">{t("رابط القائمة الرقمية", "Menu Link (for Google Maps)")}</p>
+              <p className="text-xs text-muted-foreground mb-1">{t("رابط الطلب أونلاين", "Online Order Link (for Google Maps)")}</p>
               <p className="text-sm text-white/70 truncate font-mono" data-testid="text-menu-url">{menuUrl}</p>
             </div>
-            <Button size="sm" variant="outline" className="border-white/10 text-white/60 h-8" onClick={() => { navigator.clipboard.writeText(menuUrl); toast({ title: t("تم النسخ", "Copied") }); }} data-testid="button-copy-menu-url">
-              {t("نسخ", "Copy")}
+            <Button size="sm" variant="outline" className="border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 h-9 px-4 rounded-lg font-semibold" onClick={() => { navigator.clipboard.writeText(menuUrl); toast({ title: t("تم النسخ", "Copied") }); }} data-testid="button-copy-menu-url">
+              {t("نسخ الرابط", "Copy Link")}
             </Button>
+          </div>
+          <div className="p-3 rounded-xl bg-amber-500/8 border border-amber-500/15" dir="rtl" data-testid="tip-google-maps">
+            <p className="text-xs text-amber-300/90 leading-relaxed">
+              💡 {t("يفضل نسخ هذا الرابط ووضعه في خانة (طلب أونلاين) في خرائط قوقل لزيادة مبيعاتك وتسهيل وصول العملاء.", "We recommend copying this link and placing it in the 'Order Online' field on Google Maps to boost your sales and make it easier for customers to reach you.")}
+            </p>
           </div>
         </CardContent>
       </Card>
