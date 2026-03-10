@@ -86,6 +86,7 @@ export const whatsappOrderSchema = z.object({
   paymentMethod: z.string().default("cod"),
   orderNumber: z.string().optional(),
   displayOrderId: z.string().optional(),
+  orderType: z.enum(["online", "manual"]).optional(),
   createdAt: z.string(),
 });
 
@@ -106,6 +107,7 @@ export const pagerSchema = z.object({
   storeId: z.string(),
   orderNumber: z.string().min(1),
   displayOrderId: z.string().optional(),
+  orderType: z.enum(["online", "manual"]).optional(),
   status: pagerStatusEnum.default("waiting"),
   createdAt: z.string(),
   notifiedAt: z.string().nullable().optional(),
@@ -121,6 +123,7 @@ export const merchantSchema = z.object({
   businessType: businessTypeEnum,
   ownerName: z.string().optional(),
   email: z.string().email("البريد الإلكتروني غير صالح"),
+  cityCode: z.string().regex(/^\d{2}$/).optional(),
   logoUrl: z.string().optional(),
   commercialRegisterURL: z.string().optional(),
   googleMapsReviewUrl: z.string().url("رابط جوجل ماب غير صالح"),

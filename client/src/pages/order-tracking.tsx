@@ -516,6 +516,7 @@ export default function OrderTrackingPage() {
         paymentMethod: data.paymentMethod || "cod",
         orderNumber: data.orderNumber || "",
         displayOrderId: data.displayOrderId || "",
+        orderType: data.orderType || undefined,
         createdAt: data.createdAt || "",
       };
       setOrder(updatedOrder);
@@ -555,7 +556,7 @@ export default function OrderTrackingPage() {
     stopAlert();
   }
 
-  const isOnlineOrder = !!(order?.displayOrderId?.startsWith("ON-"));
+  const isOnlineOrder = order?.orderType === "online" || (!order?.orderType && !!(order?.displayOrderId && !order.displayOrderId.startsWith("MA-")));
 
   async function handleShareTracking() {
     const displayId = order?.displayOrderId || "";

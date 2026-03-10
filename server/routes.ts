@@ -2834,6 +2834,7 @@ export async function registerRoutes(
         paymentMethod: f.paymentMethod?.stringValue || "cod",
         orderNumber: f.orderNumber?.stringValue || "",
         displayOrderId: f.displayOrderId?.stringValue || "",
+        orderType: f.orderType?.stringValue || undefined,
         createdAt: f.createdAt?.stringValue || "",
       };
 

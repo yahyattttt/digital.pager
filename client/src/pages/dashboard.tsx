@@ -102,6 +102,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const businessTypeLabelsEn: Record<string, string> = {
   restaurant: "Restaurant",
@@ -415,6 +416,7 @@ export default function DashboardPage() {
           paymentMethod: data.paymentMethod || "cod",
           orderNumber: data.orderNumber || "",
           displayOrderId: data.displayOrderId || "",
+          orderType: data.orderType || undefined,
           createdAt: data.createdAt || "",
         };
       });
@@ -455,6 +457,7 @@ export default function DashboardPage() {
           paymentMethod: data.paymentMethod || "cod",
           orderNumber: data.orderNumber || "",
           displayOrderId: data.displayOrderId || "",
+          orderType: data.orderType || undefined,
           createdAt: data.createdAt || "",
         };
       });
@@ -688,6 +691,7 @@ export default function DashboardPage() {
         storeId: merchant.uid,
         orderNumber: String(orderNum),
         displayOrderId,
+        orderType: "manual",
         status: "waiting",
         createdAt: new Date().toISOString(),
         notifiedAt: null,
@@ -742,6 +746,7 @@ export default function DashboardPage() {
         storeId: merchant.uid,
         orderNumber: String(parsed),
         displayOrderId,
+        orderType: "manual",
         status: "waiting",
         createdAt: new Date().toISOString(),
         notifiedAt: null,
@@ -777,27 +782,36 @@ export default function DashboardPage() {
     try {
       const counterRef = doc(db, "merchants", merchant.uid, "settings", "orderCounter");
       let orderNum = 1;
+      const currentYY = new Date().getFullYear().toString().slice(-2);
       await runTransaction(db, async (txn) => {
         const snap = await txn.get(counterRef);
         const data = snap.exists() ? snap.data() : {};
-        const current = parseInt(String(data.onlineCounter || data.nextOrderNumber || 1), 10);
-        orderNum = isNaN(current) || current < 1 ? 1 : current;
-        txn.set(counterRef, { ...data, onlineCounter: orderNum + 1 }, { merge: true } as any);
+        const storedYear = data.onlineCounterYear || "";
+        if (storedYear !== currentYY) {
+          orderNum = 1;
+        } else {
+          const current = parseInt(String(data.onlineCounter || data.nextOrderNumber || 1), 10);
+          orderNum = isNaN(current) || current < 1 ? 1 : current;
+        }
+        txn.set(counterRef, { ...data, onlineCounter: orderNum + 1, onlineCounterYear: currentYY }, { merge: true } as any);
       });
 
-      const displayOrderId = `ON-${orderNum}`;
+      const cityCode = (merchant as any).cityCode || "00";
+      const paddedNum = orderNum.toString().padStart(3, "0");
+      const displayOrderId = `${cityCode}${currentYY}${paddedNum}`;
       const pagersRef = collection(db, "merchants", merchant.uid, "pagers");
       await addDoc(pagersRef, {
         storeId: merchant.uid,
         orderNumber: String(orderNum),
         displayOrderId,
+        orderType: "online",
         status: "waiting",
         createdAt: new Date().toISOString(),
         notifiedAt: null,
       });
 
       const orderRef = doc(db, "merchants", merchant.uid, "whatsappOrders", order.id);
-      await updateDoc(orderRef, { status: "preparing", orderNumber: String(orderNum), displayOrderId, preparingAt: new Date().toISOString() });
+      await updateDoc(orderRef, { status: "preparing", orderNumber: String(orderNum), displayOrderId, orderType: "online", preparingAt: new Date().toISOString() });
 
       toast({
         title: t(`تم قبول الطلب ${displayOrderId}`, `Order ${displayOrderId} Accepted`),
@@ -904,14 +918,15 @@ export default function DashboardPage() {
     }
     try {
       const counterRef = doc(db, "merchants", merchant.uid, "settings", "orderCounter");
-      await setDoc(counterRef, { onlineCounter: num, manualCounter: num }, { merge: true });
+      const currentYY = new Date().getFullYear().toString().slice(-2);
+      await setDoc(counterRef, { onlineCounter: num, manualCounter: num, onlineCounterYear: currentYY }, { merge: true });
       setShowShiftStart(false);
       setShiftStartNumber("");
       toast({
         title: t("تم تعيين الرقم", "Counter Set"),
         description: t(
-          `الطلب التالي: ON-${num} / MA-${num}`,
-          `Next orders: ON-${num} / MA-${num}`
+          `الطلب التالي أونلاين: ${num} / يدوي: MA-${num}`,
+          `Next: Online ${num} / Manual MA-${num}`
         ),
       });
     } catch {
@@ -927,12 +942,13 @@ export default function DashboardPage() {
     if (!merchant?.uid) return;
     try {
       const counterRef = doc(db, "merchants", merchant.uid, "settings", "orderCounter");
-      await setDoc(counterRef, { onlineCounter: resetTo, manualCounter: resetTo }, { merge: true });
+      const currentYY = new Date().getFullYear().toString().slice(-2);
+      await setDoc(counterRef, { onlineCounter: resetTo, manualCounter: resetTo, onlineCounterYear: currentYY }, { merge: true });
       toast({
         title: t("تم إعادة التعيين", "Counter Reset"),
         description: t(
-          `الطلب التالي: ON-${resetTo} / MA-${resetTo}`,
-          `Next orders: ON-${resetTo} / MA-${resetTo}`
+          `الطلب التالي أونلاين: ${resetTo} / يدوي: MA-${resetTo}`,
+          `Next: Online ${resetTo} / Manual MA-${resetTo}`
         ),
       });
     } catch {
@@ -1815,7 +1831,7 @@ function OverviewView({
               <Input
                 value={orderSearchQuery}
                 onChange={(e) => setOrderSearchQuery(e.target.value)}
-                placeholder={t("بحث ON-101, MA-5...", "Search ON-101, MA-5...")}
+                placeholder={t("بحث 0126001, MA-5...", "Search 0126001, MA-5...")}
                 className="h-8 w-40 sm:w-48 ps-8 text-xs bg-white/[0.04] border-white/10 rounded-lg placeholder:text-white/20"
                 dir="ltr"
                 data-testid="input-order-search"
@@ -4182,6 +4198,40 @@ function SettingsView({
   const [storePrivacyText, setStorePrivacyText] = useState<string>(merchant?.storePrivacyText || "");
   const [storeLegalSaving, setStoreLegalSaving] = useState(false);
   const [storeTermsToggling, setStoreTermsToggling] = useState(false);
+  const [cityCode, setCityCode] = useState<string>(merchant?.cityCode || "");
+  const [cityCodeSaving, setCityCodeSaving] = useState(false);
+
+  const cityCodeOptions = [
+    { code: "01", labelAr: "الرياض", labelEn: "Riyadh" },
+    { code: "02", labelAr: "جدة", labelEn: "Jeddah" },
+    { code: "03", labelAr: "مكة المكرمة", labelEn: "Makkah" },
+    { code: "04", labelAr: "المدينة المنورة", labelEn: "Madinah" },
+    { code: "05", labelAr: "الدمام", labelEn: "Dammam" },
+    { code: "06", labelAr: "الخبر", labelEn: "Khobar" },
+    { code: "07", labelAr: "تبوك", labelEn: "Tabuk" },
+    { code: "08", labelAr: "أبها", labelEn: "Abha" },
+    { code: "09", labelAr: "القصيم", labelEn: "Qassim" },
+    { code: "10", labelAr: "حائل", labelEn: "Hail" },
+    { code: "11", labelAr: "جازان", labelEn: "Jazan" },
+    { code: "12", labelAr: "نجران", labelEn: "Najran" },
+    { code: "13", labelAr: "الباحة", labelEn: "Al Baha" },
+    { code: "14", labelAr: "الجوف", labelEn: "Al Jouf" },
+    { code: "15", labelAr: "عرعر", labelEn: "Arar" },
+  ];
+
+  async function handleSaveCityCode() {
+    if (!merchant?.uid) return;
+    setCityCodeSaving(true);
+    try {
+      const merchantRef = doc(db, "merchants", merchant.uid);
+      await updateDoc(merchantRef, { cityCode });
+      toast({ title: t("تم الحفظ", "Saved"), description: t("تم حفظ رمز المدينة بنجاح", "City code saved successfully") });
+    } catch {
+      toast({ title: t("خطأ", "Error"), description: t("فشل في حفظ رمز المدينة", "Failed to save city code"), variant: "destructive" });
+    } finally {
+      setCityCodeSaving(false);
+    }
+  }
 
   useEffect(() => {
     if (!storeTermsToggling) {
@@ -4316,6 +4366,52 @@ function SettingsView({
                 {t("حفظ ساعات العمل", "Save Business Hours")}
               </Button>
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
+        <CardContent className="p-6">
+          <h3 className="font-semibold mb-4 flex items-center gap-2">
+            <MapPin className="w-4 h-4 text-red-400" />
+            {t("رمز المدينة (ترقيم الطلبات)", "City Code (Order Numbering)")}
+          </h3>
+          <p className="text-xs text-muted-foreground mb-4" dir="rtl">
+            {t(
+              "يُستخدم رمز المدينة في ترقيم الطلبات أونلاين. مثال: الرياض (01) + السنة (26) + الرقم التسلسلي = 0126001",
+              "City code is used in online order numbering. Example: Riyadh (01) + Year (26) + Sequential = 0126001"
+            )}
+          </p>
+          <div className="space-y-3">
+            <Select value={cityCode} onValueChange={setCityCode}>
+              <SelectTrigger className="h-12 bg-white/[0.03] border-white/10" data-testid="select-city-code">
+                <SelectValue placeholder={t("اختر المدينة", "Select City")} />
+              </SelectTrigger>
+              <SelectContent>
+                {cityCodeOptions.map((city) => (
+                  <SelectItem key={city.code} value={city.code} data-testid={`option-city-${city.code}`}>
+                    {city.code} — {lang === "ar" ? city.labelAr : city.labelEn}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {cityCode && (
+              <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.06]">
+                <p className="text-xs text-muted-foreground mb-1" dir="rtl">{t("معاينة رقم الطلب", "Order ID Preview")}</p>
+                <p className="text-lg font-mono font-bold text-center text-red-400" data-testid="text-city-code-preview">
+                  {cityCode}{new Date().getFullYear().toString().slice(-2)}001
+                </p>
+              </div>
+            )}
+            <Button
+              onClick={handleSaveCityCode}
+              disabled={cityCodeSaving || cityCode === (merchant?.cityCode || "")}
+              className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl disabled:opacity-30"
+              data-testid="button-save-city-code"
+            >
+              {cityCodeSaving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : null}
+              {t("حفظ رمز المدينة", "Save City Code")}
+            </Button>
           </div>
         </CardContent>
       </Card>
