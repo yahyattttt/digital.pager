@@ -78,6 +78,9 @@ import {
   Pencil,
   Package,
   Phone,
+  Timer,
+  ScanLine,
+  Activity,
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
@@ -372,6 +375,8 @@ export default function DashboardPage() {
   const [onlineOrdersEnabled, setOnlineOrdersEnabled] = useState<boolean>((merchant as any)?.onlineOrdersEnabled !== false);
   const [businessOpenTime, setBusinessOpenTime] = useState<string>((merchant as any)?.businessOpenTime || "");
   const [businessCloseTime, setBusinessCloseTime] = useState<string>((merchant as any)?.businessCloseTime || "");
+  const [completedToday, setCompletedToday] = useState(0);
+  const [flyingOrderId, setFlyingOrderId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!merchant?.uid) return;
@@ -473,6 +478,23 @@ export default function DashboardPage() {
       }
     });
     return () => unsub();
+  }, [merchant?.uid]);
+
+  useEffect(() => {
+    if (!merchant?.uid) return;
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayISO = todayStart.toISOString();
+
+    const pagersRef = collection(db, "merchants", merchant.uid, "pagers");
+    const pQ = query(pagersRef, where("status", "==", "archived"), where("archivedAt", ">=", todayISO));
+    const waRef = collection(db, "merchants", merchant.uid, "whatsappOrders");
+    const wQ = query(waRef, where("status", "==", "archived"), where("archivedAt", ">=", todayISO));
+
+    let pCount = 0, wCount = 0;
+    const unsub1 = onSnapshot(pQ, (snap) => { pCount = snap.size; setCompletedToday(pCount + wCount); });
+    const unsub2 = onSnapshot(wQ, (snap) => { wCount = snap.size; setCompletedToday(pCount + wCount); });
+    return () => { unsub1(); unsub2(); };
   }, [merchant?.uid]);
 
   useEffect(() => {
@@ -755,13 +777,18 @@ export default function DashboardPage() {
   const handleCompleteWhatsAppOrder = useCallback(async (order: WhatsAppOrder) => {
     if (!merchant?.uid) return;
     try {
+      setFlyingOrderId(`wa-${order.id}`);
+      await new Promise(r => setTimeout(r, 600));
+
       const orderRef = doc(db, "merchants", merchant.uid, "whatsappOrders", order.id);
       await updateDoc(orderRef, { status: "archived", archivedAt: new Date().toISOString() });
+      setFlyingOrderId(null);
       toast({
         title: t("تم إغلاق الطلب", "Order Closed"),
         description: t(`تم إغلاق الطلب #${order.orderNumber}`, `Order #${order.orderNumber} has been closed`),
       });
     } catch {
+      setFlyingOrderId(null);
       toast({
         title: t("خطأ", "Error"),
         description: t("فشل في إغلاق الطلب", "Failed to close order"),
@@ -883,6 +910,9 @@ export default function DashboardPage() {
   const handleComplete = useCallback(async (pager: Pager & { docId: string }) => {
     if (!merchant?.uid) return;
     try {
+      setFlyingOrderId(pager.docId);
+      await new Promise(r => setTimeout(r, 600));
+
       const pagerRef = doc(db, "merchants", merchant.uid, "pagers", pager.docId);
       await updateDoc(pagerRef, { status: "archived", archivedAt: new Date().toISOString() });
 
@@ -893,11 +923,13 @@ export default function DashboardPage() {
         await updateDoc(waSnap.docs[0].ref, { status: "archived", archivedAt: new Date().toISOString() });
       }
 
+      setFlyingOrderId(null);
       toast({
         title: t("تم الاستلام", "Order Picked Up"),
         description: t(`تم إغلاق الطلب #${pager.orderNumber}`, `Order #${pager.orderNumber} completed`),
       });
     } catch {
+      setFlyingOrderId(null);
       toast({
         title: t("خطأ", "Error"),
         description: t("فشل في إكمال الطلب", "Failed to complete order"),
@@ -1248,6 +1280,8 @@ export default function DashboardPage() {
                 onAcceptWhatsAppOrder={handleAcceptWhatsAppOrder}
                 onCompleteWhatsAppOrder={handleCompleteWhatsAppOrder}
                 acceptingOrderId={acceptingOrderId}
+                completedToday={completedToday}
+                flyingOrderId={flyingOrderId}
                 t={t}
                 lang={lang}
               />
@@ -1456,6 +1490,24 @@ export default function DashboardPage() {
   );
 }
 
+function TimeElapsed({ createdAt, lang }: { createdAt: string; lang: string }) {
+  const [elapsed, setElapsed] = useState("");
+  useEffect(() => {
+    const calc = () => {
+      const ts = new Date(createdAt).getTime();
+      if (isNaN(ts)) { setElapsed("--"); return; }
+      const diff = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+      if (diff < 60) setElapsed(lang === "ar" ? `${diff} ث` : `${diff}s`);
+      else if (diff < 3600) setElapsed(lang === "ar" ? `${Math.floor(diff / 60)} د` : `${Math.floor(diff / 60)}m`);
+      else setElapsed(lang === "ar" ? `${Math.floor(diff / 3600)} س` : `${Math.floor(diff / 3600)}h`);
+    };
+    calc();
+    const iv = setInterval(calc, 10000);
+    return () => clearInterval(iv);
+  }, [createdAt, lang]);
+  return <span>{elapsed}</span>;
+}
+
 function OverviewView({
   merchant,
   waitingPagers,
@@ -1480,6 +1532,8 @@ function OverviewView({
   onAcceptWhatsAppOrder,
   onCompleteWhatsAppOrder,
   acceptingOrderId,
+  completedToday,
+  flyingOrderId,
   t,
   lang,
 }: {
@@ -1506,48 +1560,101 @@ function OverviewView({
   onAcceptWhatsAppOrder: (order: WhatsAppOrder) => void;
   onCompleteWhatsAppOrder: (order: WhatsAppOrder) => void;
   acceptingOrderId: string | null;
+  completedToday: number;
+  flyingOrderId: string | null;
   t: (ar: string, en: string) => string;
   lang: string;
 }) {
   const [overviewInput, setOverviewInput] = useState("");
+  const [completedPulse, setCompletedPulse] = useState(false);
+  const prevCompleted = useState({ current: completedToday })[0];
+
+  useEffect(() => {
+    if (completedToday > prevCompleted.current) {
+      setCompletedPulse(true);
+      setTimeout(() => setCompletedPulse(false), 1000);
+    }
+    prevCompleted.current = completedToday;
+  }, [completedToday]);
+
   const handleManual = async () => {
     if (quickAddLoading || isPending || !overviewInput.trim()) return;
     const ok = await onManualAdd(overviewInput);
     if (ok) setOverviewInput("");
   };
+
+  const safeTime = (ts: string) => { const t = new Date(ts).getTime(); return isNaN(t) ? Date.now() : t; };
+
+  const allActiveOrders = [
+    ...waitingPagers.map(p => ({ type: "pager" as const, id: p.docId, orderNumber: p.orderNumber, status: p.status, createdAt: p.createdAt, pager: p })),
+    ...notifiedPagers.map(p => ({ type: "pager-notified" as const, id: p.docId, orderNumber: p.orderNumber, status: "notified" as const, createdAt: p.createdAt, pager: p })),
+    ...activeWhatsappOrders.map(o => ({ type: "wa" as const, id: o.id, orderNumber: o.orderNumber || "?", status: o.status, createdAt: o.createdAt, order: o })),
+    ...whatsappOrders.map(o => ({ type: "wa-new" as const, id: o.id, orderNumber: "NEW", status: "awaiting_confirmation" as const, createdAt: o.createdAt, order: o })),
+  ].sort((a, b) => safeTime(a.createdAt) - safeTime(b.createdAt));
+
+  const totalActive = waitingPagers.length + notifiedPagers.length + activeWhatsappOrders.length + whatsappOrders.length;
+
+  const avgWait = (() => {
+    const all = [...waitingPagers, ...notifiedPagers];
+    if (all.length === 0) return "0m";
+    const total = all.reduce((sum, p) => sum + Math.max(0, Date.now() - safeTime(p.createdAt)), 0);
+    const avg = Math.floor(total / all.length / 60000);
+    return avg < 1 ? "<1m" : `${avg}m`;
+  })();
+
+  const dailyScans = merchant?.qrScans ?? 0;
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold" data-testid="text-overview-title">
-            {t("لوحة التحكم", "Dashboard")}
-          </h2>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {t("نظرة عامة على متجرك", "Overview of your store")}
-          </p>
-        </div>
+        <h2 className="text-lg font-bold text-white" data-testid="text-overview-title">
+          {t("لوحة التحكم", "Dashboard")}
+        </h2>
         <div className="flex items-center gap-2">
           <Badge
-            className={`rounded-2xl ${storeOpen ? "bg-green-500/15 text-green-400 border-green-500/20" : "bg-red-500/15 text-red-400 border-red-500/20"}`}
+            className={`rounded-full text-[11px] px-2.5 py-0.5 ${storeOpen ? "bg-green-500/15 text-green-400 border-green-500/20" : "bg-red-500/15 text-red-400 border-red-500/20"}`}
             data-testid="badge-store-status"
           >
-            {storeOpen ? t("مفتوح الآن", "Open Now") : t("مغلق", "Closed")}
+            {storeOpen ? t("مفتوح", "Open") : t("مغلق", "Closed")}
           </Badge>
           <Badge
-            className={`rounded-2xl cursor-pointer select-none ${onlineOrdersEnabled ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" : "bg-orange-500/15 text-orange-400 border-orange-500/20"}`}
+            className={`rounded-full text-[11px] px-2.5 py-0.5 cursor-pointer select-none ${onlineOrdersEnabled ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" : "bg-orange-500/15 text-orange-400 border-orange-500/20"}`}
             onClick={onToggleOnlineOrders}
             data-testid="badge-online-orders-status"
           >
-            <Package className="w-3 h-3 me-1" />
-            {onlineOrdersEnabled
-              ? t("أونلاين - يستقبل طلبات", "Online - Accepting Orders")
-              : t("أوفلاين", "Offline")}
+            {onlineOrdersEnabled ? t("أونلاين", "Online") : t("أوفلاين", "Offline")}
           </Badge>
         </div>
       </div>
 
+      <div className="grid grid-cols-4 gap-3" data-testid="stats-header">
+        <div className="bg-[#111] border border-white/[0.06] rounded-xl p-3 text-center" data-testid="stat-daily-scans">
+          <ScanLine className="w-4 h-4 text-violet-400 mx-auto mb-1" />
+          <p className="text-2xl sm:text-3xl font-extrabold text-white leading-none" data-testid="text-daily-scans">{dailyScans}</p>
+          <p className="text-[10px] text-white/40 mt-1 uppercase tracking-wider">{t("المسح اليومي", "Daily Scans")}</p>
+        </div>
+        <div className="bg-[#111] border border-white/[0.06] rounded-xl p-3 text-center" data-testid="stat-active-orders">
+          <Activity className="w-4 h-4 text-amber-400 mx-auto mb-1" />
+          <p className="text-2xl sm:text-3xl font-extrabold text-white leading-none" data-testid="text-active-orders">{totalActive}</p>
+          <p className="text-[10px] text-white/40 mt-1 uppercase tracking-wider">{t("طلبات نشطة", "Active Orders")}</p>
+        </div>
+        <div
+          className={`bg-[#111] border border-white/[0.06] rounded-xl p-3 text-center transition-all duration-500 ${completedPulse ? "ring-2 ring-emerald-400/50 scale-[1.03]" : ""}`}
+          data-testid="stat-completed-today"
+        >
+          <CheckCircle className="w-4 h-4 text-emerald-400 mx-auto mb-1" />
+          <p className="text-2xl sm:text-3xl font-extrabold text-white leading-none" data-testid="text-completed-today">{completedToday}</p>
+          <p className="text-[10px] text-white/40 mt-1 uppercase tracking-wider">{t("مكتمل اليوم", "Done Today")}</p>
+        </div>
+        <div className="bg-[#111] border border-white/[0.06] rounded-xl p-3 text-center" data-testid="stat-avg-wait">
+          <Timer className="w-4 h-4 text-blue-400 mx-auto mb-1" />
+          <p className="text-2xl sm:text-3xl font-extrabold text-white leading-none" data-testid="text-avg-wait">{avgWait}</p>
+          <p className="text-[10px] text-white/40 mt-1 uppercase tracking-wider">{t("متوسط الانتظار", "Avg. Wait")}</p>
+        </div>
+      </div>
+
       {counterLoaded && (
-        <div className="flex gap-3 items-center" data-testid="overview-order-entry">
+        <div className="flex gap-2 items-center" data-testid="overview-order-entry">
           <Input
             type="text"
             inputMode="numeric"
@@ -1555,311 +1662,168 @@ function OverviewView({
             value={overviewInput}
             onChange={(e) => setOverviewInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && overviewInput.trim()) handleManual(); }}
-            className="w-28 sm:w-36 h-14 text-center text-lg font-bold border-white/10 focus:border-emerald-500 focus:ring-emerald-500/20 bg-white/[0.03] rounded-2xl"
+            className="w-24 sm:w-32 h-12 text-center text-base font-bold border-white/10 focus:border-emerald-500 focus:ring-emerald-500/20 bg-white/[0.03] rounded-xl"
             dir="ltr"
             data-testid="input-order-overview"
           />
           <Button
             onClick={handleManual}
             disabled={quickAddLoading || isPending || !overviewInput.trim()}
-            className="h-14 px-4 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 font-bold rounded-2xl"
+            className="h-12 px-3 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 font-bold rounded-xl"
             data-testid="button-manual-add-overview"
           >
-            {quickAddLoading && overviewInput.trim() ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <Plus className="w-5 h-5" />
-            )}
+            {quickAddLoading && overviewInput.trim() ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
           </Button>
           <Button
             onClick={async () => { await onQuickAdd(); }}
             disabled={quickAddLoading || isPending}
-            className="flex-1 h-14 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-lg rounded-2xl shadow-lg shadow-emerald-900/20 active:scale-[0.98] transition-all"
+            className="flex-1 h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-base rounded-xl shadow-lg shadow-emerald-900/20 active:scale-[0.98] transition-all"
             data-testid="button-quick-add-overview"
           >
-            {quickAddLoading && !overviewInput.trim() ? (
-              <Loader2 className="w-6 h-6 animate-spin me-3" />
-            ) : (
-              <Zap className="w-6 h-6 me-3" />
-            )}
+            {quickAddLoading && !overviewInput.trim() ? <Loader2 className="w-5 h-5 animate-spin me-2" /> : <Zap className="w-5 h-5 me-2" />}
             {t("إضافة سريعة", "Quick Add")} #{nextOrderNumber}
           </Button>
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div className="space-y-4" data-testid="column-action-required">
-          <div className="flex items-center gap-2 mb-1">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
-              {t("إجراء مطلوب", "Action Required")}
-            </h3>
-            {(whatsappOrders.length > 0 || activeWhatsappOrders.length > 0) && (
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-            )}
-          </div>
-
-          {whatsappOrders.length === 0 && activeWhatsappOrders.length === 0 && (
-            <Card className="border-white/[0.06] bg-[#111] rounded-2xl" data-testid="card-no-orders">
-              <CardContent className="p-6 flex flex-col items-center justify-center text-center py-12">
-                <div className="w-14 h-14 rounded-2xl bg-white/[0.03] flex items-center justify-center mb-3">
-                  <Package className="w-7 h-7 text-muted-foreground/30" />
-                </div>
-                <p className="text-muted-foreground text-sm">{t("لا توجد طلبات جديدة", "No incoming orders")}</p>
-              </CardContent>
-            </Card>
-          )}
-
-          {whatsappOrders.length > 0 && (
-            <div data-testid="section-whatsapp-orders">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">
-                  {t("طلبات واتساب جديدة", "New WhatsApp Orders")}
-                </p>
-                <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/20 text-xs rounded-2xl" data-testid="badge-whatsapp-count">
-                  {whatsappOrders.length}
-                </Badge>
-              </div>
-              <div className="space-y-3">
-                {whatsappOrders.map((order) => (
-                  <Card key={order.id} className="border-emerald-500/10 bg-[#111] rounded-2xl overflow-hidden" data-testid={`card-wa-order-${order.id}`}>
-                    <CardContent className="p-5">
-                      <div className="flex items-start justify-between mb-3">
-                        <div>
-                          <p className="text-white font-semibold text-sm" data-testid={`text-wa-customer-${order.id}`}>{order.customerName}</p>
-                          <a href={`tel:${order.customerPhone}`} className="text-xs text-emerald-400 flex items-center gap-1 mt-0.5">
-                            <Phone className="w-3 h-3" />
-                            <span dir="ltr">{order.customerPhone}</span>
-                          </a>
-                        </div>
-                        <p className="text-[11px] text-muted-foreground">
-                          {new Date(order.createdAt).toLocaleTimeString(lang === "ar" ? "ar-SA" : "en-US", { hour: "2-digit", minute: "2-digit" })}
-                        </p>
-                      </div>
-                      <div className="bg-white/[0.03] rounded-xl p-3 mb-3">
-                        {order.items.map((item, i) => (
-                          <div key={i} className="flex items-center justify-between text-sm py-0.5">
-                            <span className="text-white/70">{item.quantity}x {item.name}</span>
-                            <span className="text-white/40 text-xs">{(item.price * item.quantity).toFixed(2)}</span>
-                          </div>
-                        ))}
-                        <div className="border-t border-white/[0.06] mt-2 pt-2 flex items-center justify-between">
-                          <span className="text-xs text-muted-foreground">{t("الإجمالي", "Total")}</span>
-                          <span className="text-emerald-400 font-bold text-sm" data-testid={`text-wa-total-${order.id}`}>{order.total.toFixed(2)} SAR</span>
-                        </div>
-                      </div>
-                      <Button
-                        onClick={() => onAcceptWhatsAppOrder(order)}
-                        disabled={acceptingOrderId === order.id}
-                        className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl"
-                        data-testid={`button-accept-order-${order.id}`}
-                      >
-                        {acceptingOrderId === order.id ? (
-                          <Loader2 className="w-4 h-4 animate-spin me-2" />
-                        ) : (
-                          <CheckCircle className="w-4 h-4 me-2" />
-                        )}
-                        {t("قبول وبدء التحضير", "Accept & Start Preparing")}
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {activeWhatsappOrders.length > 0 && (
-            <div data-testid="section-active-orders">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-semibold text-amber-400 uppercase tracking-wider">
-                  {t("الطلبات النشطة", "Active Orders")}
-                </p>
-                <Badge className="bg-amber-500/15 text-amber-400 border-amber-500/20 text-xs rounded-2xl" data-testid="badge-active-orders-count">
-                  {activeWhatsappOrders.length}
-                </Badge>
-              </div>
-              <div className="space-y-3">
-                {activeWhatsappOrders.map((order) => (
-                  <Card key={order.id} className={`rounded-2xl overflow-hidden ${order.status === "ready" ? "border-emerald-500/15 bg-[#111]" : "border-amber-500/10 bg-[#111]"}`} data-testid={`card-active-order-${order.id}`}>
-                    <CardContent className="p-5">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${order.status === "ready" ? "bg-emerald-500/10 border border-emerald-500/15" : "bg-amber-500/10 border border-amber-500/15"}`}>
-                            <span className={`font-bold text-sm ${order.status === "ready" ? "text-emerald-400" : "text-amber-400"}`}>{order.orderNumber || "?"}</span>
-                          </div>
-                          <div>
-                            <p className="text-white font-semibold text-sm">{order.customerName}</p>
-                            <p className="text-xs text-muted-foreground">{order.items.length} {t("عناصر", "items")} · {order.total.toFixed(2)} SAR</p>
-                          </div>
-                        </div>
-                        <Badge className={`text-[10px] rounded-2xl ${order.status === "ready" ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" : "bg-amber-500/15 text-amber-400 border-amber-500/20"}`}>
-                          {order.status === "ready" ? t("جاهز", "Ready") : t("قيد التحضير", "Preparing")}
-                        </Badge>
-                      </div>
-                      {order.status === "ready" && (
-                        <Button
-                          onClick={() => onCompleteWhatsAppOrder(order)}
-                          className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-2xl"
-                          data-testid={`button-complete-wa-order-${order.id}`}
-                        >
-                          <CheckCircle className="w-4 h-4 me-1.5" />
-                          {t("تم الاستلام والأرشفة", "Order Received & Archive")}
-                        </Button>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </div>
+      <div className="rounded-xl bg-[#fafafa] dark:bg-[#0d0d0d] border border-white/[0.06] p-4" data-testid="workspace-active-orders">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-white/50">{t("الطلبات النشطة", "Active Orders")}</h3>
+          {allActiveOrders.length > 0 && (
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
           )}
         </div>
 
-        <div className="space-y-4" data-testid="column-current-status">
-          <div className="flex items-center justify-between mb-1">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
-              {t("قائمة الانتظار", "Live Waitlist")}
-            </h3>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onNavigate("waitlist")}
-              className="text-xs text-muted-foreground hover:text-foreground h-7 px-2"
-              data-testid="button-view-waitlist"
-            >
-              {t("عرض الكل", "View All")}
-            </Button>
+        {allActiveOrders.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-10 text-center" data-testid="card-no-orders">
+            <Package className="w-8 h-8 text-white/10 mb-2" />
+            <p className="text-sm text-white/30">{t("لا توجد طلبات نشطة", "No active orders")}</p>
           </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            {allActiveOrders.map((item) => {
+              const isFlying = (item.type === "pager" || item.type === "pager-notified")
+                ? flyingOrderId === item.id
+                : flyingOrderId === `wa-${item.id}`;
 
-          <Card className="border-white/[0.06] bg-[#111] rounded-2xl" data-testid="card-active-waitlist">
-            <CardContent className="p-5">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-violet-500/10 border border-violet-500/15 flex items-center justify-center">
-                  <Users className="w-6 h-6 text-violet-400" />
-                </div>
-                <div>
-                  <p className="text-3xl font-bold" data-testid="text-waitlist-count">{waitingPagers.length}</p>
-                  <p className="text-xs text-muted-foreground">{t("في قائمة الانتظار", "Currently waiting")}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {waitingPagers.length > 0 && (
-            <div className="space-y-2">
-              {waitingPagers.slice(0, 6).map((pager) => (
-                <Card key={pager.docId} className="border-white/[0.06] bg-[#111] rounded-2xl hover:border-violet-500/15 transition-colors" data-testid={`card-waiting-${pager.docId}`}>
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-500/15 flex items-center justify-center flex-shrink-0">
-                        <span className="text-violet-400 font-bold" data-testid={`text-order-num-${pager.docId}`}>
-                          {pager.orderNumber}
-                        </span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm">{t("طلب", "Order")} #{pager.orderNumber}</p>
-                        <p className="text-xs text-muted-foreground">{t("في الانتظار", "Waiting")}</p>
-                      </div>
-                      <div className="flex gap-1.5 flex-shrink-0">
-                        <Button
-                          size="sm"
-                          onClick={() => onNotify(pager)}
-                          disabled={isPending || notifyLoading === pager.docId}
-                          className="h-9 px-3 bg-violet-600 hover:bg-violet-700 text-white font-semibold rounded-xl"
-                          data-testid={`button-notify-${pager.docId}`}
-                        >
-                          {notifyLoading === pager.docId ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          ) : (
-                            <>
-                              <BellRing className="w-3.5 h-3.5 me-1" />
-                              {t("تنبيه", "Notify")}
-                            </>
-                          )}
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="outline"
-                          onClick={() => onRemove(pager)}
-                          className="h-9 w-9 border-red-500/20 text-red-400 hover:bg-red-500/10 rounded-xl"
-                          data-testid={`button-remove-${pager.docId}`}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
+              if (item.type === "wa-new") {
+                const order = (item as any).order as WhatsAppOrder;
+                return (
+                  <div
+                    key={`wa-new-${item.id}`}
+                    className="bg-[#111] border border-emerald-500/20 rounded-xl p-4 flex flex-col items-center justify-between gap-2"
+                    data-testid={`card-wa-order-${item.id}`}
+                  >
+                    <div className="text-center">
+                      <p className="text-[10px] text-emerald-400 font-bold uppercase mb-1">{t("طلب جديد", "NEW")}</p>
+                      <p className="text-xs text-white/60 truncate max-w-[100px]">{order.customerName}</p>
+                      <p className="text-[10px] text-white/30 mt-0.5">{order.items.length} {t("عناصر", "items")} · {order.total.toFixed(0)} SAR</p>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
-              {waitingPagers.length > 6 && (
-                <button
-                  onClick={() => onNavigate("waitlist")}
-                  className="mt-1 text-sm text-violet-400 hover:underline"
-                  data-testid="link-see-all-waiting"
-                >
-                  {t(`عرض الكل (${waitingPagers.length})`, `See all (${waitingPagers.length})`)}
-                </button>
-              )}
-            </div>
-          )}
+                    <Button
+                      onClick={() => onAcceptWhatsAppOrder(order)}
+                      disabled={acceptingOrderId === order.id}
+                      className="w-full h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg"
+                      data-testid={`button-accept-order-${item.id}`}
+                    >
+                      {acceptingOrderId === order.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : t("قبول", "Accept")}
+                    </Button>
+                  </div>
+                );
+              }
 
-          {notifiedPagers.length > 0 && (
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">
-                  {t("تم التنبيه", "Notified")}
-                </p>
-                <Badge variant="secondary" className="text-[10px] rounded-2xl" data-testid="badge-notified-count">
-                  {notifiedPagers.length}
-                </Badge>
-              </div>
-              <div className="space-y-2">
-                {notifiedPagers.slice(0, 3).map((pager) => (
-                  <Card key={pager.docId} className="border-emerald-500/10 bg-[#111] rounded-2xl" data-testid={`card-notified-${pager.docId}`}>
-                    <CardContent className="p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/15 flex items-center justify-center flex-shrink-0">
-                          <span className="text-emerald-400 font-bold">{pager.orderNumber}</span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm">{t("طلب", "Order")} #{pager.orderNumber}</p>
-                          <p className="text-xs text-emerald-400">{t("تم التنبيه", "Notified")}</p>
-                        </div>
-                        <div className="flex gap-1.5 flex-shrink-0">
-                          <Button
-                            size="sm"
-                            onClick={() => onComplete(pager)}
-                            className="h-9 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl"
-                            data-testid={`button-complete-${pager.docId}`}
-                          >
-                            <CheckCircle className="w-3 h-3 me-1" />
-                            {t("أرشفة", "Archive")}
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="outline"
-                            onClick={() => onRemove(pager)}
-                            className="h-9 w-9 border-red-500/20 text-red-400 hover:bg-red-500/10 rounded-xl"
-                            data-testid={`button-remove-notified-${pager.docId}`}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+              if (item.type === "pager") {
+                const pager = (item as any).pager as Pager & { docId: string };
+                return (
+                  <div
+                    key={`pager-${item.id}`}
+                    className={`bg-[#111] border border-white/[0.06] rounded-xl p-4 flex flex-col items-center justify-between gap-2 transition-all duration-500 ${isFlying ? "opacity-0 -translate-y-20 scale-75" : ""}`}
+                    data-testid={`card-waiting-${item.id}`}
+                  >
+                    <div className="text-center">
+                      <p className="text-3xl font-extrabold text-white leading-none" data-testid={`text-order-num-${item.id}`}>{item.orderNumber}</p>
+                      <p className="text-[11px] text-white/30 mt-1">
+                        <TimeElapsed createdAt={item.createdAt} lang={lang} />
+                      </p>
+                    </div>
+                    <Button
+                      onClick={() => onNotify(pager)}
+                      disabled={isPending || notifyLoading === pager.docId}
+                      className="w-full h-9 bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs rounded-lg"
+                      data-testid={`button-notify-${item.id}`}
+                    >
+                      {notifyLoading === pager.docId ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : (
+                        <><BellRing className="w-3.5 h-3.5 me-1" />{t("تنبيه", "Notify")}</>
+                      )}
+                    </Button>
+                  </div>
+                );
+              }
+
+              if (item.type === "pager-notified") {
+                const pager = (item as any).pager as Pager & { docId: string };
+                return (
+                  <div
+                    key={`notified-${item.id}`}
+                    className={`bg-[#111] border border-emerald-500/15 rounded-xl p-4 flex flex-col items-center justify-between gap-2 transition-all duration-500 ${isFlying ? "opacity-0 -translate-y-20 scale-75" : ""}`}
+                    data-testid={`card-notified-${item.id}`}
+                  >
+                    <div className="text-center">
+                      <p className="text-3xl font-extrabold text-emerald-400 leading-none">{item.orderNumber}</p>
+                      <p className="text-[11px] text-emerald-400/50 mt-1">
+                        <TimeElapsed createdAt={item.createdAt} lang={lang} />
+                      </p>
+                    </div>
+                    <Button
+                      onClick={() => onComplete(pager)}
+                      className="w-full h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg"
+                      data-testid={`button-complete-${item.id}`}
+                    >
+                      <CheckCircle className="w-3.5 h-3.5 me-1" />{t("تم", "Done")}
+                    </Button>
+                  </div>
+                );
+              }
+
+              const waOrder = (item as any).order as WhatsAppOrder;
+              const isReady = waOrder.status === "ready";
+              return (
+                <div
+                  key={`wa-${item.id}`}
+                  className={`bg-[#111] border rounded-xl p-4 flex flex-col items-center justify-between gap-2 transition-all duration-500 ${isReady ? "border-emerald-500/20" : "border-amber-500/15"} ${isFlying ? "opacity-0 -translate-y-20 scale-75" : ""}`}
+                  data-testid={`card-active-order-${item.id}`}
+                >
+                  <div className="text-center">
+                    <p className={`text-3xl font-extrabold leading-none ${isReady ? "text-emerald-400" : "text-amber-400"}`}>{item.orderNumber}</p>
+                    <p className={`text-[11px] mt-1 ${isReady ? "text-emerald-400/50" : "text-amber-400/50"}`}>
+                      <TimeElapsed createdAt={item.createdAt} lang={lang} />
+                    </p>
+                    <Badge className={`mt-1 text-[9px] rounded-full ${isReady ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" : "bg-amber-500/15 text-amber-400 border-amber-500/20"}`}>
+                      {isReady ? t("جاهز", "Ready") : t("يُحضّر", "Prep")}
+                    </Badge>
+                  </div>
+                  {isReady && (
+                    <Button
+                      onClick={() => onCompleteWhatsAppOrder(waOrder)}
+                      className="w-full h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg"
+                      data-testid={`button-complete-wa-order-${item.id}`}
+                    >
+                      <CheckCircle className="w-3.5 h-3.5 me-1" />{t("تسليم", "Deliver")}
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {recentFeedbacks.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider">
+            <h3 className="text-xs font-bold text-white/50 uppercase tracking-wider">
               {t("آخر التقييمات", "Recent Feedback")}
             </h3>
             <button
@@ -1870,26 +1834,19 @@ function OverviewView({
               {t("عرض الكل", "View All")}
             </button>
           </div>
-          <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
-            <CardContent className="p-0 divide-y divide-white/[0.04]">
-              {recentFeedbacks.map((fb) => (
-                <div key={fb.id} className="flex items-center gap-3 px-5 py-3" data-testid={`recent-feedback-${fb.id}`}>
-                  <div className="flex gap-0.5">
-                    {[1, 2, 3, 4, 5].map((s) => (
-                      <Star key={s} className={`w-3.5 h-3.5 ${s <= fb.stars ? "text-yellow-400 fill-yellow-400" : "text-white/10"}`} />
-                    ))}
-                  </div>
-                  <p className="flex-1 text-sm text-muted-foreground truncate">
-                    {fb.comment || t("بدون تعليق", "No comment")}
-                  </p>
-                  {!fb.read && <span className="w-2 h-2 rounded-full bg-orange-500 flex-shrink-0" />}
-                  <span className="text-[10px] text-muted-foreground/60 flex-shrink-0">
-                    {new Date(fb.timestamp).toLocaleDateString(lang === "ar" ? "ar-SA" : "en-US", { month: "short", day: "numeric" })}
-                  </span>
+          <div className="space-y-1">
+            {recentFeedbacks.slice(0, 3).map((fb) => (
+              <div key={fb.id} className="flex items-center gap-3 bg-[#111] border border-white/[0.04] rounded-lg px-3 py-2" data-testid={`recent-feedback-${fb.id}`}>
+                <div className="flex gap-0.5">
+                  {[1, 2, 3, 4, 5].map((s) => (
+                    <Star key={s} className={`w-3 h-3 ${s <= fb.stars ? "text-yellow-400 fill-yellow-400" : "text-white/10"}`} />
+                  ))}
                 </div>
-              ))}
-            </CardContent>
-          </Card>
+                <p className="flex-1 text-xs text-white/40 truncate">{fb.comment || t("بدون تعليق", "No comment")}</p>
+                {!fb.read && <span className="w-1.5 h-1.5 rounded-full bg-orange-500 flex-shrink-0" />}
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
