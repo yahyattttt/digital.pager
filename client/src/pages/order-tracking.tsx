@@ -4,7 +4,8 @@ import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Store, AlertTriangle, BellOff, Bell, Clock, CheckCircle, Loader2, Star, Banknote, Phone, MessageCircle } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Store, AlertTriangle, BellOff, Bell, Clock, CheckCircle, Loader2, Star, Banknote, Phone, MessageCircle, Send } from "lucide-react";
 import type { WhatsAppOrder } from "@shared/schema";
 
 function PagerDevice({ orderNumber, isReady }: { orderNumber: string; isReady: boolean }) {
@@ -40,6 +41,224 @@ function PagerDevice({ orderNumber, isReady }: { orderNumber: string; isReady: b
         >
           {orderNumber}
         </span>
+      </div>
+    </div>
+  );
+}
+
+function SmartRatingScreen({
+  merchantId,
+  storeName,
+  googleMapsReviewUrl,
+  orderNumber,
+}: {
+  merchantId: string;
+  storeName: string;
+  googleMapsReviewUrl?: string;
+  orderNumber: string;
+}) {
+  const [selectedStars, setSelectedStars] = useState(0);
+  const [hoveredStar, setHoveredStar] = useState(0);
+  const [phase, setPhase] = useState<"rating" | "feedback" | "thankyou" | "redirecting" | "done">("rating");
+  const [comment, setComment] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  function handleStarClick(star: number) {
+    setSelectedStars(star);
+
+    if (star >= 4 && googleMapsReviewUrl) {
+      setPhase("redirecting");
+      fetch("/api/store-internal-review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ merchantId, stars: star, comment: "", orderNumber }),
+      }).catch(() => {});
+
+      setTimeout(() => {
+        try { fetch(`/api/track/gmaps/${merchantId}`, { method: "POST" }); } catch {}
+        window.open(googleMapsReviewUrl, "_blank");
+        setPhase("done");
+      }, 1500);
+    } else if (star >= 4) {
+      fetch("/api/store-internal-review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ merchantId, stars: star, comment: "", orderNumber }),
+      }).catch(() => {});
+      setPhase("done");
+    } else {
+      setPhase("feedback");
+    }
+  }
+
+  async function handleSubmitFeedback() {
+    if (!comment.trim() && selectedStars <= 3) {
+      setSubmitting(true);
+      try {
+        await fetch("/api/store-internal-review", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ merchantId, stars: selectedStars, comment: comment.trim(), orderNumber }),
+        });
+      } catch {}
+      setSubmitting(false);
+      setPhase("done");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await fetch("/api/store-internal-review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ merchantId, stars: selectedStars, comment: comment.trim(), orderNumber }),
+      });
+      setPhase("done");
+    } catch {
+      setPhase("done");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div
+      className="h-[100dvh] flex flex-col items-center justify-center px-5 text-center overflow-hidden"
+      style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }}
+      data-testid="tracking-completed-screen"
+    >
+      <div className="flex flex-col items-center gap-6 w-full max-w-sm animate-in fade-in duration-700">
+        <div className="w-20 h-20 rounded-full border-2 border-green-500/30 bg-green-500/5 flex items-center justify-center" style={{ boxShadow: "0 0 40px rgba(34,197,94,0.12)" }}>
+          <CheckCircle className="w-10 h-10 text-green-500/80" />
+        </div>
+
+        <div>
+          <p className="text-green-400 text-2xl font-bold" data-testid="text-completed-message">Thank You!</p>
+          <p className="text-green-400/80 text-lg font-bold mt-1" dir="rtl" data-testid="text-completed-message-ar">
+            شكراً لزيارتك، نتمنى لك يوماً سعيداً!
+          </p>
+        </div>
+
+        {phase === "rating" && (
+          <div className="flex flex-col items-center gap-4 w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <Card className="w-full bg-[#111] border-white/[0.06] rounded-2xl">
+              <CardContent className="p-6 flex flex-col items-center gap-4">
+                <p className="text-white/80 text-sm font-medium" dir="rtl" data-testid="text-rate-prompt">كيف كانت تجربتك؟</p>
+                <p className="text-white/40 text-xs" data-testid="text-rate-prompt-en">Rate your experience</p>
+                <div className="flex items-center justify-center gap-3" data-testid="star-rating-widget">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => handleStarClick(star)}
+                      onMouseEnter={() => setHoveredStar(star)}
+                      onMouseLeave={() => setHoveredStar(0)}
+                      className="transition-all duration-200 active:scale-90 p-1"
+                      data-testid={`button-star-${star}`}
+                    >
+                      <Star
+                        className={`w-12 h-12 sm:w-14 sm:h-14 transition-all duration-200 ${
+                          star <= (hoveredStar || selectedStars)
+                            ? "fill-yellow-400 text-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.5)]"
+                            : "text-zinc-700 hover:text-zinc-500"
+                        }`}
+                      />
+                    </button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {phase === "feedback" && (
+          <div className="flex flex-col items-center gap-4 w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <Card className="w-full bg-[#111] border-white/[0.06] rounded-2xl">
+              <CardContent className="p-6 flex flex-col items-center gap-4">
+                <div className="flex items-center justify-center gap-2">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Star
+                      key={star}
+                      className={`w-8 h-8 ${star <= selectedStars ? "fill-yellow-400 text-yellow-400" : "text-zinc-700"}`}
+                    />
+                  ))}
+                </div>
+                <p className="text-white/80 text-sm font-medium" dir="rtl" data-testid="text-feedback-prompt">
+                  نأسف لذلك! ما الذي يمكننا تحسينه؟
+                </p>
+                <p className="text-white/40 text-xs" data-testid="text-feedback-prompt-en">
+                  We're sorry! What can we improve?
+                </p>
+                <Textarea
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  placeholder="اكتب ملاحظاتك هنا... / Write your feedback here..."
+                  className="w-full text-sm resize-none bg-black border-zinc-700 text-white placeholder:text-zinc-600"
+                  rows={3}
+                  dir="rtl"
+                  data-testid="textarea-feedback"
+                />
+                <Button
+                  onClick={handleSubmitFeedback}
+                  disabled={submitting}
+                  className="w-full h-12 font-bold text-base bg-red-600 hover:bg-red-700 text-white rounded-xl"
+                  data-testid="button-submit-feedback"
+                >
+                  {submitting ? <Loader2 className="w-5 h-5 me-2 animate-spin" /> : <Send className="w-5 h-5 me-2" />}
+                  <span dir="rtl">{submitting ? "جاري الإرسال..." : "إرسال الملاحظات"}</span>
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {phase === "redirecting" && (
+          <div className="flex flex-col items-center gap-4 w-full animate-in fade-in duration-500">
+            <Card className="w-full bg-[#111] border-white/[0.06] rounded-2xl">
+              <CardContent className="p-6 flex flex-col items-center gap-4">
+                <div className="flex items-center justify-center gap-2">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Star
+                      key={star}
+                      className={`w-8 h-8 ${star <= selectedStars ? "fill-yellow-400 text-yellow-400" : "text-zinc-700"}`}
+                    />
+                  ))}
+                </div>
+                <CheckCircle className="w-10 h-10 text-green-500" />
+                <p className="text-white text-base font-bold" dir="rtl" data-testid="text-rating-thankyou">
+                  شكراً لك! جاري تحويلك لجوجل ماب...
+                </p>
+                <p className="text-zinc-400 text-xs" data-testid="text-rating-redirect">
+                  Thank you! Redirecting to Google Maps...
+                </p>
+                <Loader2 className="w-5 h-5 animate-spin text-zinc-400" />
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {phase === "done" && (
+          <div className="flex flex-col items-center gap-3 w-full animate-in fade-in duration-500">
+            <Card className="w-full bg-[#111] border-white/[0.06] rounded-2xl">
+              <CardContent className="p-6 flex flex-col items-center gap-3">
+                <CheckCircle className="w-12 h-12 text-green-500" />
+                <p className="text-white text-lg font-bold" dir="rtl" data-testid="text-feedback-thankyou">
+                  {selectedStars <= 3
+                    ? "شكراً لملاحظاتك، نسعى دائماً للأفضل"
+                    : "شكراً لتقييمك!"}
+                </p>
+                <p className="text-zinc-400 text-sm" data-testid="text-feedback-thankyou-en">
+                  {selectedStars <= 3
+                    ? "Thank you for your feedback, we always strive to improve"
+                    : "Thank you for your rating!"}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {storeName && (
+          <p className="text-white/20 text-xs mt-2">{storeName}</p>
+        )}
       </div>
     </div>
   );
@@ -475,34 +694,12 @@ export default function OrderTrackingPage() {
 
   if (order.status === "completed" || order.status === "archived") {
     return (
-      <div className="h-[100dvh] flex flex-col items-center justify-center px-5 text-center" style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }} data-testid="tracking-completed-screen">
-        <div className="flex flex-col items-center gap-6 animate-in fade-in duration-700">
-          <div className="w-24 h-24 rounded-full border-2 border-green-500/30 bg-green-500/5 flex items-center justify-center" style={{ boxShadow: "0 0 40px rgba(34,197,94,0.12)" }}>
-            <CheckCircle className="w-12 h-12 text-green-500/80" />
-          </div>
-          <div>
-            <p className="text-green-400 text-2xl font-bold" data-testid="text-completed-message">Thank You!</p>
-            <p className="text-green-400/80 text-xl font-bold mt-2" dir="rtl" data-testid="text-completed-message-ar">
-              شكراً لزيارتك، نتمنى لك يوماً سعيداً!
-            </p>
-            <p className="text-white/50 text-sm mt-4">We hope to see you again soon!</p>
-            <p className="text-white/40 text-sm mt-0.5" dir="rtl">نراك قريباً!</p>
-          </div>
-          {merchant?.googleMapsReviewUrl && (
-            <Button
-              onClick={() => window.open(merchant.googleMapsReviewUrl, "_blank")}
-              className="mt-2 h-12 px-6 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 rounded-xl font-bold text-sm gap-2"
-              data-testid="button-rate-google-maps"
-            >
-              <Star className="w-5 h-5" />
-              <span dir="rtl">قيّمنا على جوجل ماب</span>
-            </Button>
-          )}
-          {merchant && (
-            <p className="text-white/20 text-xs mt-2">{merchant.storeName}</p>
-          )}
-        </div>
-      </div>
+      <SmartRatingScreen
+        merchantId={merchantId}
+        storeName={merchant?.storeName || ""}
+        googleMapsReviewUrl={merchant?.googleMapsReviewUrl}
+        orderNumber={order.orderNumber}
+      />
     );
   }
 

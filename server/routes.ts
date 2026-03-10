@@ -1156,6 +1156,50 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/store-internal-review", async (req, res) => {
+    try {
+      const { merchantId, stars, comment, orderNumber } = req.body;
+      if (!merchantId || typeof merchantId !== "string") {
+        return res.status(400).json({ message: "merchantId is required" });
+      }
+      if (!stars || typeof stars !== "number" || stars < 1 || stars > 5) {
+        return res.status(400).json({ message: "stars must be between 1 and 5" });
+      }
+
+      const accessToken = await getFirestoreAccessToken();
+      const baseUrl = getFirestoreBaseUrl();
+      if (!accessToken || !baseUrl) {
+        return res.status(500).json({ message: "Firestore not configured" });
+      }
+
+      const docId = randomUUID();
+      const data = {
+        fields: {
+          merchantId: { stringValue: merchantId },
+          stars: { integerValue: String(stars) },
+          comment: { stringValue: comment || "" },
+          orderNumber: { stringValue: orderNumber || "" },
+          timestamp: { stringValue: new Date().toISOString() },
+        },
+      };
+
+      const patchRes = await fetch(`${baseUrl}/store_internal_reviews/${docId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify(data),
+      });
+
+      if (!patchRes.ok) {
+        return res.status(500).json({ message: "Failed to save review" });
+      }
+
+      return res.json({ success: true, id: docId });
+    } catch (error) {
+      console.error("Save internal review error:", error);
+      return res.status(500).json({ message: "Failed to save review" });
+    }
+  });
+
   app.post("/api/feedback", async (req, res) => {
     try {
       const { merchantId, stars, comment } = req.body;
