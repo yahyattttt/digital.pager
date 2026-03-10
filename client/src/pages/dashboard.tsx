@@ -82,6 +82,9 @@ import {
   ScanLine,
   Activity,
   Banknote,
+  Printer,
+  ChefHat,
+  Utensils,
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
@@ -801,6 +804,24 @@ export default function DashboardPage() {
     }
   }, [merchant?.uid, t, toast]);
 
+  const handleReadyWhatsAppOrder = useCallback(async (order: WhatsAppOrder) => {
+    if (!merchant?.uid) return;
+    try {
+      const orderRef = doc(db, "merchants", merchant.uid, "whatsappOrders", order.id);
+      await updateDoc(orderRef, { status: "ready" });
+      toast({
+        title: t(`الطلب #${order.orderNumber} جاهز`, `Order #${order.orderNumber} Ready`),
+        description: t("تم تحديث حالة الطلب إلى جاهز", "Order status updated to ready"),
+      });
+    } catch {
+      toast({
+        title: t("خطأ", "Error"),
+        description: t("فشل في تحديث حالة الطلب", "Failed to update order status"),
+        variant: "destructive",
+      });
+    }
+  }, [merchant?.uid, t, toast]);
+
   const handleShiftStart = useCallback(async () => {
     if (!merchant?.uid) return;
     const num = parseInt(shiftStartNumber.trim(), 10);
@@ -1282,6 +1303,7 @@ export default function DashboardPage() {
                 whatsappOrders={whatsappOrders}
                 activeWhatsappOrders={activeWhatsappOrders}
                 onAcceptWhatsAppOrder={handleAcceptWhatsAppOrder}
+                onReadyWhatsAppOrder={handleReadyWhatsAppOrder}
                 onCompleteWhatsAppOrder={handleCompleteWhatsAppOrder}
                 acceptingOrderId={acceptingOrderId}
                 completedToday={completedToday}
@@ -1534,6 +1556,7 @@ function OverviewView({
   whatsappOrders,
   activeWhatsappOrders,
   onAcceptWhatsAppOrder,
+  onReadyWhatsAppOrder,
   onCompleteWhatsAppOrder,
   acceptingOrderId,
   completedToday,
@@ -1562,6 +1585,7 @@ function OverviewView({
   whatsappOrders: WhatsAppOrder[];
   activeWhatsappOrders: WhatsAppOrder[];
   onAcceptWhatsAppOrder: (order: WhatsAppOrder) => void;
+  onReadyWhatsAppOrder: (order: WhatsAppOrder) => void;
   onCompleteWhatsAppOrder: (order: WhatsAppOrder) => void;
   acceptingOrderId: string | null;
   completedToday: number;
@@ -1571,6 +1595,7 @@ function OverviewView({
 }) {
   const [overviewInput, setOverviewInput] = useState("");
   const [completedPulse, setCompletedPulse] = useState(false);
+  const [printOrder, setPrintOrder] = useState<WhatsAppOrder | null>(null);
   const prevCompleted = useState({ current: completedToday })[0];
 
   useEffect(() => {
@@ -1587,7 +1612,32 @@ function OverviewView({
     if (ok) setOverviewInput("");
   };
 
+  const handlePrint = (order: WhatsAppOrder) => {
+    setPrintOrder(order);
+    setTimeout(() => {
+      window.print();
+      setTimeout(() => setPrintOrder(null), 500);
+    }, 100);
+  };
+
   const safeTime = (ts: string) => { const t = new Date(ts).getTime(); return isNaN(t) ? Date.now() : t; };
+
+  const paymentLabel = (method: string) => {
+    if (method === "cod" || !method) return t("دفع عند الاستلام", "Cash on Delivery");
+    if (method === "card") return t("بطاقة ائتمان", "Credit Card");
+    if (method === "online") return t("دفع إلكتروني", "Online Payment");
+    return method;
+  };
+
+  const parseItemExtras = (name: string) => {
+    const parts = name.split(" + ");
+    const mainPart = parts[0];
+    const variantMatch = mainPart.match(/^(.+?)\s*\((.+?)\)$/);
+    const baseName = variantMatch ? variantMatch[1].trim() : mainPart.trim();
+    const variant = variantMatch ? variantMatch[2].trim() : null;
+    const extras = parts.slice(1).join(", ");
+    return { baseName, variant, extras: extras || null };
+  };
 
   const allActiveOrders = [
     ...waitingPagers.map(p => ({ type: "pager" as const, id: p.docId, orderNumber: p.orderNumber, status: p.status, createdAt: p.createdAt, pager: p })),
@@ -1607,6 +1657,14 @@ function OverviewView({
   })();
 
   const dailyScans = merchant?.qrScans ?? 0;
+
+  const statusColor = (status: string) => {
+    if (status === "awaiting_confirmation" || status === "pending_verification") return { bg: "bg-red-500/10", text: "text-red-400", border: "border-red-500/30", label: t("طلب جديد", "New Order") };
+    if (status === "preparing") return { bg: "bg-amber-500/10", text: "text-amber-400", border: "border-amber-500/20", label: t("يُحضّر", "Preparing") };
+    if (status === "ready") return { bg: "bg-emerald-500/10", text: "text-emerald-400", border: "border-emerald-500/20", label: t("جاهز", "Ready") };
+    if (status === "notified") return { bg: "bg-violet-500/10", text: "text-violet-400", border: "border-violet-500/20", label: t("تم التنبيه", "Notified") };
+    return { bg: "bg-white/5", text: "text-white/60", border: "border-white/10", label: t("في الانتظار", "Waiting") };
+  };
 
   return (
     <div className="space-y-4">
@@ -1690,8 +1748,8 @@ function OverviewView({
         </div>
       )}
 
-      <div className="rounded-xl bg-[#fafafa] dark:bg-[#0d0d0d] border border-white/[0.06] p-4" data-testid="workspace-active-orders">
-        <div className="flex items-center justify-between mb-3">
+      <div className="rounded-2xl bg-[#0d0d0d] border border-white/[0.06] p-4" data-testid="workspace-active-orders">
+        <div className="flex items-center justify-between mb-4">
           <h3 className="text-xs font-bold uppercase tracking-wider text-white/50">{t("الطلبات النشطة", "Active Orders")}</h3>
           {allActiveOrders.length > 0 && (
             <span className="relative flex h-2 w-2">
@@ -1707,143 +1765,278 @@ function OverviewView({
             <p className="text-sm text-white/30">{t("لا توجد طلبات نشطة", "No active orders")}</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {allActiveOrders.map((item) => {
               const isFlying = (item.type === "pager" || item.type === "pager-notified")
                 ? flyingOrderId === item.id
                 : flyingOrderId === `wa-${item.id}`;
 
+              const isOnline = item.type === "wa-new" || item.type === "wa";
+              const sc = statusColor(item.status);
+
               if (item.type === "wa-new") {
                 const order = (item as any).order as WhatsAppOrder;
                 return (
-                  <div
+                  <Card
                     key={`wa-new-${item.id}`}
-                    className="bg-[#111] border border-emerald-500/20 rounded-xl p-4 flex flex-col gap-2"
+                    className={`bg-[#111] rounded-2xl overflow-hidden transition-all duration-500 border-2 border-red-500/40 shadow-[0_0_15px_rgba(239,0,0,0.08)] ${isFlying ? "opacity-0 -translate-y-20 scale-75" : ""}`}
                     data-testid={`card-wa-order-${item.id}`}
                   >
-                    <div className="text-center">
-                      <p className="text-[10px] text-emerald-400 font-bold uppercase mb-1">{t("طلب جديد", "NEW")}</p>
-                      <p className="text-xs text-white/80 font-medium truncate max-w-[120px] mx-auto" data-testid={`text-customer-name-${item.id}`}>{order.customerName}</p>
-                      <p className="text-[10px] text-white/40 mt-0.5 font-mono" dir="ltr" data-testid={`text-customer-phone-${item.id}`}>{order.customerPhone}</p>
-                      <p className="text-[10px] text-white/30 mt-0.5">{order.items.length} {t("عناصر", "items")} · {order.total.toFixed(0)} SAR</p>
-                      <div className="flex items-center justify-center gap-1 mt-1">
-                        <Banknote className="w-3 h-3 text-amber-400" />
-                        <span className="text-[9px] text-amber-400 font-medium">{t("دفع عند الاستلام", "COD")}</span>
+                    <div className="flex items-center justify-between px-4 pt-4 pb-2">
+                      <div className="flex items-center gap-2">
+                        <Globe className="w-4 h-4 text-red-400" />
+                        <span className="text-lg font-extrabold text-white" data-testid={`text-order-num-${item.id}`}>
+                          #{order.orderNumber || t("جديد", "NEW")}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge className={`rounded-full text-[10px] px-2 py-0.5 ${sc.bg} ${sc.text} border ${sc.border}`}>
+                          {sc.label}
+                        </Badge>
+                        <div className="flex items-center gap-1 text-[11px] text-white/40">
+                          <Clock className="w-3 h-3" />
+                          <TimeElapsed createdAt={item.createdAt} lang={lang} />
+                        </div>
                       </div>
                     </div>
-                    <div className="flex gap-1.5">
-                      <Button
-                        size="sm"
-                        onClick={() => window.open(`tel:${order.customerPhone}`, "_self")}
-                        className="flex-1 h-8 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 text-[10px] font-bold rounded-lg border border-blue-500/20"
-                        data-testid={`button-call-${item.id}`}
-                      >
-                        <Phone className="w-3 h-3" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          const phone = order.customerPhone.replace(/[^0-9]/g, "");
-                          window.open(`https://wa.me/${phone}`, "_blank");
-                        }}
-                        className="flex-1 h-8 bg-green-600/20 hover:bg-green-600/30 text-green-400 text-[10px] font-bold rounded-lg border border-green-500/20"
-                        data-testid={`button-whatsapp-${item.id}`}
-                      >
-                        <MessageCircle className="w-3 h-3" />
-                      </Button>
-                    </div>
-                    <Button
-                      onClick={() => onAcceptWhatsAppOrder(order)}
-                      disabled={acceptingOrderId === order.id}
-                      className="w-full h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg"
-                      data-testid={`button-accept-order-${item.id}`}
-                    >
-                      {acceptingOrderId === order.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : t("قبول الطلب", "Accept Order")}
-                    </Button>
-                  </div>
+
+                    <CardContent className="px-4 pb-4 pt-0 space-y-3">
+                      <div className="flex items-center gap-2 text-xs text-white/50">
+                        <span className="font-semibold text-white/80" data-testid={`text-customer-name-${item.id}`}>{order.customerName}</span>
+                        <span className="text-white/20">|</span>
+                        <span className="font-mono text-white/50" dir="ltr" data-testid={`text-customer-phone-${item.id}`}>{order.customerPhone}</span>
+                      </div>
+
+                      <div className="space-y-1.5 bg-white/[0.02] rounded-xl p-3 border border-white/[0.04]">
+                        {order.items.map((itm, idx) => {
+                          const parsed = parseItemExtras(itm.name);
+                          return (
+                            <div key={idx} data-testid={`order-item-${item.id}-${idx}`}>
+                              <div className="flex items-start justify-between">
+                                <p className="text-sm font-bold text-white">
+                                  <span className="text-white/40 me-1.5">{itm.quantity}×</span>
+                                  {parsed.baseName}
+                                  {parsed.variant && <span className="text-white/40 text-xs ms-1">({parsed.variant})</span>}
+                                </p>
+                                <span className="text-xs text-white/50 font-mono shrink-0">{itm.price.toFixed(0)} SAR</span>
+                              </div>
+                              {parsed.extras && (
+                                <p className="text-[11px] text-amber-400/70 ps-5 mt-0.5">+ {parsed.extras}</p>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <div className="flex items-center justify-between pt-1 border-t border-white/[0.06]">
+                        <div className="flex items-center gap-1.5">
+                          <Banknote className="w-3.5 h-3.5 text-amber-400" />
+                          <span className="text-[11px] text-amber-400 font-medium">{paymentLabel(order.paymentMethod)}</span>
+                        </div>
+                        <p className="text-base font-extrabold text-white" data-testid={`text-order-total-${item.id}`}>
+                          {order.total.toFixed(0)} <span className="text-xs text-white/40">SAR</span>
+                        </p>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => window.open(`tel:${order.customerPhone}`, "_self")}
+                          className="h-9 px-3 bg-blue-600/15 hover:bg-blue-600/25 text-blue-400 text-xs font-bold rounded-xl border border-blue-500/20"
+                          data-testid={`button-call-${item.id}`}
+                        >
+                          <Phone className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            const phone = order.customerPhone.replace(/[^0-9]/g, "");
+                            window.open(`https://wa.me/${phone}`, "_blank");
+                          }}
+                          className="h-9 px-3 bg-green-600/15 hover:bg-green-600/25 text-green-400 text-xs font-bold rounded-xl border border-green-500/20"
+                          data-testid={`button-whatsapp-${item.id}`}
+                        >
+                          <MessageCircle className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button
+                          onClick={() => onAcceptWhatsAppOrder(order)}
+                          disabled={acceptingOrderId === order.id}
+                          className="flex-1 h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl"
+                          data-testid={`button-accept-order-${item.id}`}
+                        >
+                          {acceptingOrderId === order.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : (
+                            <><CheckCircle className="w-3.5 h-3.5 me-1" />{t("قبول", "Accept")}</>
+                          )}
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
                 );
               }
 
-              if (item.type === "pager") {
+              if (item.type === "pager" || item.type === "pager-notified") {
                 const pager = (item as any).pager as Pager & { docId: string };
+                const isNotified = item.type === "pager-notified";
                 return (
-                  <div
-                    key={`pager-${item.id}`}
-                    className={`bg-[#111] border border-white/[0.06] rounded-xl p-4 flex flex-col items-center justify-between gap-2 transition-all duration-500 ${isFlying ? "opacity-0 -translate-y-20 scale-75" : ""}`}
-                    data-testid={`card-waiting-${item.id}`}
+                  <Card
+                    key={`${item.type}-${item.id}`}
+                    className={`bg-[#111] rounded-2xl overflow-hidden transition-all duration-500 border border-white/[0.08] ${isFlying ? "opacity-0 -translate-y-20 scale-75" : ""}`}
+                    data-testid={`card-${isNotified ? "notified" : "waiting"}-${item.id}`}
                   >
-                    <div className="text-center">
-                      <p className="text-3xl font-extrabold text-white leading-none" data-testid={`text-order-num-${item.id}`}>{item.orderNumber}</p>
-                      <p className="text-[11px] text-white/30 mt-1">
-                        <TimeElapsed createdAt={item.createdAt} lang={lang} />
-                      </p>
+                    <div className="flex items-center justify-between px-4 pt-4 pb-2">
+                      <div className="flex items-center gap-2">
+                        <QrCode className="w-4 h-4 text-white/40" />
+                        <span className={`text-lg font-extrabold ${isNotified ? "text-emerald-400" : "text-white"}`} data-testid={`text-order-num-${item.id}`}>
+                          #{item.orderNumber}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge className={`rounded-full text-[10px] px-2 py-0.5 ${sc.bg} ${sc.text} border ${sc.border}`}>
+                          {isNotified ? t("تم التنبيه", "Notified") : t("في الانتظار", "Waiting")}
+                        </Badge>
+                        <div className="flex items-center gap-1 text-[11px] text-white/40">
+                          <Clock className="w-3 h-3" />
+                          <TimeElapsed createdAt={item.createdAt} lang={lang} />
+                        </div>
+                      </div>
                     </div>
-                    <Button
-                      onClick={() => onNotify(pager)}
-                      disabled={isPending || notifyLoading === pager.docId}
-                      className="w-full h-9 bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs rounded-lg"
-                      data-testid={`button-notify-${item.id}`}
-                    >
-                      {notifyLoading === pager.docId ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : (
-                        <><BellRing className="w-3.5 h-3.5 me-1" />{t("تنبيه", "Notify")}</>
-                      )}
-                    </Button>
-                  </div>
-                );
-              }
 
-              if (item.type === "pager-notified") {
-                const pager = (item as any).pager as Pager & { docId: string };
-                return (
-                  <div
-                    key={`notified-${item.id}`}
-                    className={`bg-[#111] border border-emerald-500/15 rounded-xl p-4 flex flex-col items-center justify-between gap-2 transition-all duration-500 ${isFlying ? "opacity-0 -translate-y-20 scale-75" : ""}`}
-                    data-testid={`card-notified-${item.id}`}
-                  >
-                    <div className="text-center">
-                      <p className="text-3xl font-extrabold text-emerald-400 leading-none">{item.orderNumber}</p>
-                      <p className="text-[11px] text-emerald-400/50 mt-1">
-                        <TimeElapsed createdAt={item.createdAt} lang={lang} />
-                      </p>
-                    </div>
-                    <Button
-                      onClick={() => onComplete(pager)}
-                      className="w-full h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg"
-                      data-testid={`button-complete-${item.id}`}
-                    >
-                      <CheckCircle className="w-3.5 h-3.5 me-1" />{t("تم", "Done")}
-                    </Button>
-                  </div>
+                    <CardContent className="px-4 pb-4 pt-0 space-y-3">
+                      <div className="flex items-center gap-2 text-xs text-white/40">
+                        <Badge className="rounded-full text-[10px] bg-white/5 text-white/50 border-white/10">{t("طلب يدوي", "QR / Manual")}</Badge>
+                      </div>
+
+                      <div className="flex gap-2">
+                        {!isNotified ? (
+                          <>
+                            <Button
+                              onClick={() => onNotify(pager)}
+                              disabled={isPending || notifyLoading === pager.docId}
+                              className="flex-1 h-10 bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs rounded-xl"
+                              data-testid={`button-notify-${item.id}`}
+                            >
+                              {notifyLoading === pager.docId ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : (
+                                <><BellRing className="w-3.5 h-3.5 me-1" />{t("تنبيه", "Notify")}</>
+                              )}
+                            </Button>
+                            <Button
+                              onClick={() => onRemove(pager)}
+                              className="h-10 px-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl border border-red-500/20"
+                              data-testid={`button-remove-${item.id}`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </>
+                        ) : (
+                          <Button
+                            onClick={() => onComplete(pager)}
+                            className="flex-1 h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl"
+                            data-testid={`button-complete-${item.id}`}
+                          >
+                            <CheckCircle className="w-3.5 h-3.5 me-1" />{t("تم الاستلام", "Received")}
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
                 );
               }
 
               const waOrder = (item as any).order as WhatsAppOrder;
               const isReady = waOrder.status === "ready";
+              const isPreparing = waOrder.status === "preparing";
               return (
-                <div
+                <Card
                   key={`wa-${item.id}`}
-                  className={`bg-[#111] border rounded-xl p-4 flex flex-col items-center justify-between gap-2 transition-all duration-500 ${isReady ? "border-emerald-500/20" : "border-amber-500/15"} ${isFlying ? "opacity-0 -translate-y-20 scale-75" : ""}`}
+                  className={`bg-[#111] rounded-2xl overflow-hidden transition-all duration-500 border-2 border-red-500/40 shadow-[0_0_15px_rgba(239,0,0,0.08)] ${isFlying ? "opacity-0 -translate-y-20 scale-75" : ""}`}
                   data-testid={`card-active-order-${item.id}`}
                 >
-                  <div className="text-center">
-                    <p className={`text-3xl font-extrabold leading-none ${isReady ? "text-emerald-400" : "text-amber-400"}`}>{item.orderNumber}</p>
-                    <p className={`text-[11px] mt-1 ${isReady ? "text-emerald-400/50" : "text-amber-400/50"}`}>
-                      <TimeElapsed createdAt={item.createdAt} lang={lang} />
-                    </p>
-                    <Badge className={`mt-1 text-[9px] rounded-full ${isReady ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" : "bg-amber-500/15 text-amber-400 border-amber-500/20"}`}>
-                      {isReady ? t("جاهز", "Ready") : t("يُحضّر", "Prep")}
-                    </Badge>
+                  <div className="flex items-center justify-between px-4 pt-4 pb-2">
+                    <div className="flex items-center gap-2">
+                      <Globe className="w-4 h-4 text-red-400" />
+                      <span className="text-lg font-extrabold text-white" data-testid={`text-order-num-${item.id}`}>
+                        #{item.orderNumber}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge className={`rounded-full text-[10px] px-2 py-0.5 ${sc.bg} ${sc.text} border ${sc.border}`}>
+                        {sc.label}
+                      </Badge>
+                      <div className="flex items-center gap-1 text-[11px] text-white/40">
+                        <Clock className="w-3 h-3" />
+                        <TimeElapsed createdAt={item.createdAt} lang={lang} />
+                      </div>
+                    </div>
                   </div>
-                  {isReady && (
-                    <Button
-                      onClick={() => onCompleteWhatsAppOrder(waOrder)}
-                      className="w-full h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg"
-                      data-testid={`button-complete-wa-order-${item.id}`}
-                    >
-                      <CheckCircle className="w-3.5 h-3.5 me-1" />{t("تسليم", "Deliver")}
-                    </Button>
-                  )}
-                </div>
+
+                  <CardContent className="px-4 pb-4 pt-0 space-y-3">
+                    <div className="flex items-center gap-2 text-xs text-white/50">
+                      <span className="font-semibold text-white/80">{waOrder.customerName}</span>
+                      <span className="text-white/20">|</span>
+                      <span className="font-mono text-white/50" dir="ltr">{waOrder.customerPhone}</span>
+                    </div>
+
+                    <div className="space-y-1.5 bg-white/[0.02] rounded-xl p-3 border border-white/[0.04]">
+                      {waOrder.items.map((itm, idx) => {
+                        const parsed = parseItemExtras(itm.name);
+                        return (
+                          <div key={idx} data-testid={`order-item-${item.id}-${idx}`}>
+                            <div className="flex items-start justify-between">
+                              <p className="text-sm font-bold text-white">
+                                <span className="text-white/40 me-1.5">{itm.quantity}×</span>
+                                {parsed.baseName}
+                                {parsed.variant && <span className="text-white/40 text-xs ms-1">({parsed.variant})</span>}
+                              </p>
+                              <span className="text-xs text-white/50 font-mono shrink-0">{itm.price.toFixed(0)} SAR</span>
+                            </div>
+                            {parsed.extras && (
+                              <p className="text-[11px] text-amber-400/70 ps-5 mt-0.5">+ {parsed.extras}</p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1 border-t border-white/[0.06]">
+                      <div className="flex items-center gap-1.5">
+                        <Banknote className="w-3.5 h-3.5 text-amber-400" />
+                        <span className="text-[11px] text-amber-400 font-medium">{paymentLabel(waOrder.paymentMethod)}</span>
+                      </div>
+                      <p className="text-base font-extrabold text-white" data-testid={`text-order-total-${item.id}`}>
+                        {waOrder.total.toFixed(0)} <span className="text-xs text-white/40">SAR</span>
+                      </p>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => handlePrint(waOrder)}
+                        className="h-9 px-3 bg-white/[0.06] hover:bg-white/[0.1] text-white/60 rounded-xl border border-white/10"
+                        data-testid={`button-print-${item.id}`}
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                      </Button>
+                      {isPreparing && (
+                        <Button
+                          onClick={() => onReadyWhatsAppOrder(waOrder)}
+                          className="flex-1 h-9 bg-amber-500 hover:bg-amber-600 text-black font-bold text-xs rounded-xl"
+                          data-testid={`button-ready-order-${item.id}`}
+                        >
+                          <Utensils className="w-3.5 h-3.5 me-1" />{t("جاهز", "Ready")}
+                        </Button>
+                      )}
+                      {isReady && (
+                        <Button
+                          onClick={() => onCompleteWhatsAppOrder(waOrder)}
+                          className="flex-1 h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl"
+                          data-testid={`button-complete-wa-order-${item.id}`}
+                        >
+                          <CheckCircle className="w-3.5 h-3.5 me-1" />{t("تسليم", "Deliver")}
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
               );
             })}
           </div>
@@ -1877,6 +2070,39 @@ function OverviewView({
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {printOrder && (
+        <div id="print-receipt" dir={lang === "ar" ? "rtl" : "ltr"}>
+          <div className="receipt-header">
+            <div className="receipt-store-name">{merchant?.storeName || "Digital Pager"}</div>
+            <div className="receipt-order-id">{t("رقم الطلب", "Order")} #{printOrder.orderNumber || "---"}</div>
+            <div className="receipt-datetime">{new Date(printOrder.createdAt).toLocaleString(lang === "ar" ? "ar-SA" : "en-US")}</div>
+          </div>
+          <div className="receipt-customer">
+            <div><strong>{t("العميل", "Customer")}:</strong> {printOrder.customerName}</div>
+            <div dir="ltr" style={{ textAlign: lang === "ar" ? "right" : "left" }}><strong>{t("الجوال", "Phone")}:</strong> {printOrder.customerPhone}</div>
+          </div>
+          <div className="receipt-items">
+            {printOrder.items.map((itm, idx) => {
+              const parsed = parseItemExtras(itm.name);
+              return (
+                <div key={idx}>
+                  <div className="receipt-item">
+                    <span>{itm.quantity}× {parsed.baseName}{parsed.variant ? ` (${parsed.variant})` : ""}</span>
+                    <span>{itm.price.toFixed(2)} SAR</span>
+                  </div>
+                  {parsed.extras && (
+                    <div className="receipt-item-extras">+ {parsed.extras}</div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <div className="receipt-total">{t("الإجمالي", "Total")}: {printOrder.total.toFixed(2)} SAR</div>
+          <div className="receipt-payment">{paymentLabel(printOrder.paymentMethod)}</div>
+          <div className="receipt-footer">{t("شكراً لطلبكم", "Thank you for your order")}</div>
         </div>
       )}
     </div>

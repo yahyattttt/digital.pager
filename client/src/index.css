@@ -350,3 +350,87 @@
     inset: -1px;
   }
 }
+
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+  #print-receipt,
+  #print-receipt * {
+    visibility: visible !important;
+  }
+  #print-receipt {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 80mm !important;
+    max-width: 80mm !important;
+    margin: 0 auto !important;
+    padding: 4mm !important;
+    background: white !important;
+    color: black !important;
+    font-size: 12px !important;
+    font-family: 'Cairo', 'Courier New', monospace !important;
+    z-index: 99999 !important;
+  }
+  #print-receipt .receipt-header {
+    text-align: center;
+    border-bottom: 1px dashed #000;
+    padding-bottom: 6px;
+    margin-bottom: 6px;
+  }
+  #print-receipt .receipt-store-name {
+    font-size: 16px;
+    font-weight: 700;
+  }
+  #print-receipt .receipt-order-id {
+    font-size: 11px;
+    color: #333;
+  }
+  #print-receipt .receipt-datetime {
+    font-size: 10px;
+    color: #666;
+  }
+  #print-receipt .receipt-customer {
+    border-bottom: 1px dashed #000;
+    padding-bottom: 4px;
+    margin-bottom: 4px;
+    font-size: 12px;
+  }
+  #print-receipt .receipt-items {
+    border-bottom: 1px dashed #000;
+    padding-bottom: 4px;
+    margin-bottom: 4px;
+  }
+  #print-receipt .receipt-item {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    padding: 2px 0;
+  }
+  #print-receipt .receipt-item-extras {
+    font-size: 10px;
+    color: #555;
+    padding-left: 8px;
+  }
+  #print-receipt .receipt-total {
+    font-size: 14px;
+    font-weight: 700;
+    text-align: center;
+    padding-top: 4px;
+    border-top: 1px dashed #000;
+  }
+  #print-receipt .receipt-payment {
+    text-align: center;
+    font-size: 11px;
+    color: #444;
+    margin-top: 4px;
+  }
+  #print-receipt .receipt-footer {
+    text-align: center;
+    font-size: 10px;
+    color: #888;
+    margin-top: 8px;
+    border-top: 1px dashed #000;
+    padding-top: 4px;
+  }
+}

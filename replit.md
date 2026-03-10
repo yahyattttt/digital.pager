@@ -20,7 +20,7 @@ The platform is a multi-tenant SaaS application with isolated merchant data in F
 - **Design System**: `rounded-2xl` for cards and badges, `bg-[#111]` for card backgrounds, consistent padding.
 - **Bilingual Support**: Full Arabic/English support with dynamic RTL/LTR, global toggle, and `localStorage` persistence.
 - **Merchant Dashboard**: Professional SaaS dashboard with sidebar navigation (Dashboard, Waiting List, Online Section, Customer Feedback, Analytics, Settings).
-  - **Overview**: Metric-driven hub with stats header (Daily Scans, Active Orders, Completed Today, Avg. Wait Time), order entry bar (Custom # + Quick Add), and active orders workspace (grid of mini-cards with order number, time elapsed, action button). Completed orders fade out with animation, and the "Completed Today" stat pulses.
+  - **Overview (KDS-Style)**: Metric-driven hub with stats header (Daily Scans, Active Orders, Completed Today, Avg. Wait Time), order entry bar (Custom # + Quick Add), and active orders workspace as a professional KDS-style card grid (1/2/3 cols responsive). Each card has a header (order #, type icon, status badge, live timer), body (item list with quantities, variants in parentheses, extras/addons in amber below), footer (dynamic payment label, total price), and action buttons (Accept/Ready/Deliver + Print for online orders). Online orders have neon red border + Globe icon; QR/Manual orders have white/gray border + QrCode icon. Print button generates an 80mm thermal receipt via `@media print` CSS with store name, order ID, datetime, customer info, itemized list, and total. Completed orders fade out with animation, and the "Completed Today" stat pulses.
   - **Waiting List**: Quick Add, manual add, and split-screen detail panel on larger screens.
   - **Order Entry System**: Manages `nextOrderNumber` via Firestore transactions, allowing custom or quick adds, with real-time sync and shift start functionality.
 - **Customer Pager UI**: Premium "Digital Pager" aesthetic with dark gradients.
@@ -37,7 +37,7 @@ The platform is a multi-tenant SaaS application with isolated merchant data in F
     - **Preparing**: Digital Pager device with LED ring animation, "جاري التحضير" status.
     - **Ready**: Full pager alert with sound/vibration, "الطلب جاهز" / "ORDER READY!".
     - **Completed/Archived**: Thank You screen with "Rate us on Google Maps" button (uses merchant's `googleMapsReviewUrl`).
-  - **Merchant Dashboard**: New order cards show customer name, phone, "COD" badge, Call/WhatsApp buttons, and Accept button. Accept triggers pager creation + status → `preparing`.
+  - **Merchant Dashboard Order Flow**: KDS-style order cards with full item details, extras, and action buttons. Accept → creates pager + status `preparing`. Ready → status `ready`. Deliver → status `archived`. Print generates 80mm thermal receipt.
 - **Online Ordering Controls**: Merchants control order availability via a master toggle (`onlineOrdersEnabled`) and business hours (`businessOpenTime`/`businessCloseTime`). Client and server-side enforcement.
 - **Dual-Layer Legal Compliance**:
   - **Platform Level**: Super Admin manages global terms/privacy, mandatory acceptance on registration.
