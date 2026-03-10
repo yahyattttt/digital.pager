@@ -528,20 +528,18 @@ function NotifiedScreen({
 
       <div className="w-full max-w-xs space-y-3">
         {alertActive && (
-          <>
-            <Button
-              size="lg"
-              onClick={onStopAlert}
-              className="w-full h-14 font-bold text-base bg-transparent border-2 border-red-600 text-white hover:bg-red-600/20 rounded-xl"
-              style={{ boxShadow: "0 0 20px rgba(255,0,0,0.2), inset 0 0 20px rgba(255,0,0,0.05)" }}
-              data-testid="button-stop-alert"
-            >
-              <BellOff className="w-5 h-5 me-2" />
-              <span dir="rtl">تم الاستلام</span>
-              <span className="mx-1">-</span>
-              <span>Received</span>
-            </Button>
-          </>
+          <Button
+            size="lg"
+            onClick={onStopAlert}
+            className="w-full h-14 font-bold text-base bg-transparent border-2 border-red-600 text-white hover:bg-red-600/20 rounded-xl"
+            style={{ boxShadow: "0 0 20px rgba(255,0,0,0.2), inset 0 0 20px rgba(255,0,0,0.05)" }}
+            data-testid="button-stop-alert"
+          >
+            <BellOff className="w-5 h-5 me-2" />
+            <span dir="rtl">إيقاف التنبيه</span>
+            <span className="mx-1">-</span>
+            <span>Stop Alert</span>
+          </Button>
         )}
 
         {!alertActive && googleMapsReviewUrl && (
@@ -940,9 +938,8 @@ export default function StorePagerPage() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (snapshot.empty) {
         if (!isFirstSnapshot) {
-          setSubmitted(false);
-          setOrderNumber("");
-          setPagerStatus("waiting");
+          stopAlert();
+          setPagerStatus("completed");
           if (sessionKey) localStorage.removeItem(sessionKey);
         }
         isFirstSnapshot = false;
@@ -1094,6 +1091,37 @@ export default function StorePagerPage() {
             </p>
           </CardContent>
         </Card>
+      </div>
+    );
+  } else if (submitted && pagerStatus === "completed") {
+    content = (
+      <div className="h-[100dvh] flex flex-col items-center justify-center px-5 text-center overflow-hidden" style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }} data-testid="pager-completed-screen">
+        <div className="flex flex-col items-center gap-6">
+          <div className="w-20 h-20 rounded-full border-2 border-green-500/30 bg-green-500/5 flex items-center justify-center" style={{ boxShadow: "0 0 30px rgba(34,197,94,0.1)" }}>
+            <CheckCircle className="w-10 h-10 text-green-500/70" />
+          </div>
+          <div>
+            <p className="text-green-400 text-xl font-bold" data-testid="text-pager-completed">Thank you!</p>
+            <p className="text-green-400/80 text-lg font-bold mt-1" dir="rtl">شكراً لك!</p>
+            <p className="text-white/50 text-sm mt-3">See you soon!</p>
+            <p className="text-white/40 text-sm mt-0.5" dir="rtl">نراك قريباً!</p>
+          </div>
+          {merchant && <p className="text-white/20 text-xs mt-4">{merchant.storeName}</p>}
+          {merchant?.googleMapsReviewUrl && (
+            <a
+              href={merchant.googleMapsReviewUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 mt-4 px-6 py-3 font-bold text-sm bg-transparent border-2 border-red-600/60 text-white hover:bg-red-600/20 rounded-xl transition-all"
+              data-testid="button-review-after-complete"
+            >
+              <MapPin className="w-4 h-4 text-red-500" />
+              <span>Rate Us</span>
+              <span className="mx-1">|</span>
+              <span dir="rtl">قيّمنا</span>
+            </a>
+          )}
+        </div>
       </div>
     );
   } else if (submitted && pagerStatus === "notified") {

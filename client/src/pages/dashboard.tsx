@@ -364,6 +364,7 @@ export default function DashboardPage() {
   const [quickAddLoading, setQuickAddLoading] = useState(false);
   const [counterLoaded, setCounterLoaded] = useState(false);
   const [whatsappOrders, setWhatsappOrders] = useState<WhatsAppOrder[]>([]);
+  const [activeWhatsappOrders, setActiveWhatsappOrders] = useState<WhatsAppOrder[]>([]);
   const prevWhatsappCountRef = useState({ current: -1 })[0];
   const waOrderAudioRef = useState<{ current: HTMLAudioElement | null }>({ current: null })[0];
 
@@ -401,6 +402,31 @@ export default function DashboardPage() {
       }
       prevWhatsappCountRef.current = orders.length;
       setWhatsappOrders(orders);
+    });
+    return () => unsub();
+  }, [merchant?.uid]);
+
+  useEffect(() => {
+    if (!merchant?.uid) return;
+    const ordersRef = collection(db, "merchants", merchant.uid, "whatsappOrders");
+    const q = query(ordersRef, where("status", "in", ["preparing", "ready"]));
+    const unsub = onSnapshot(q, (snap) => {
+      const orders: WhatsAppOrder[] = snap.docs.map(d => {
+        const data = d.data();
+        return {
+          id: d.id,
+          merchantId: data.merchantId || "",
+          customerName: data.customerName || "",
+          customerPhone: data.customerPhone || "",
+          items: (data.items || []).map((item: any) => ({ productId: item.productId || "", name: item.name || "", price: item.price || 0, quantity: item.quantity || 1 })),
+          total: data.total || 0,
+          status: data.status || "preparing",
+          orderNumber: data.orderNumber || "",
+          createdAt: data.createdAt || "",
+        };
+      });
+      orders.sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""));
+      setActiveWhatsappOrders(orders);
     });
     return () => unsub();
   }, [merchant?.uid]);
@@ -668,6 +694,24 @@ export default function DashboardPage() {
       setAcceptingOrderId(null);
     }
   }, [merchant?.uid, acceptingOrderId, t, toast]);
+
+  const handleCompleteWhatsAppOrder = useCallback(async (order: WhatsAppOrder) => {
+    if (!merchant?.uid) return;
+    try {
+      const orderRef = doc(db, "merchants", merchant.uid, "whatsappOrders", order.id);
+      await updateDoc(orderRef, { status: "completed" });
+      toast({
+        title: t("تم إغلاق الطلب", "Order Closed"),
+        description: t(`تم إغلاق الطلب #${order.orderNumber}`, `Order #${order.orderNumber} has been closed`),
+      });
+    } catch {
+      toast({
+        title: t("خطأ", "Error"),
+        description: t("فشل في إغلاق الطلب", "Failed to close order"),
+        variant: "destructive",
+      });
+    }
+  }, [merchant?.uid, t, toast]);
 
   const handleShiftStart = useCallback(async () => {
     if (!merchant?.uid) return;
@@ -1122,7 +1166,9 @@ export default function DashboardPage() {
                 counterLoaded={counterLoaded}
                 notifyLoading={notifyLoading}
                 whatsappOrders={whatsappOrders}
+                activeWhatsappOrders={activeWhatsappOrders}
                 onAcceptWhatsAppOrder={handleAcceptWhatsAppOrder}
+                onCompleteWhatsAppOrder={handleCompleteWhatsAppOrder}
                 acceptingOrderId={acceptingOrderId}
                 t={t}
                 lang={lang}
@@ -1345,7 +1391,9 @@ function OverviewView({
   counterLoaded,
   notifyLoading,
   whatsappOrders,
+  activeWhatsappOrders,
   onAcceptWhatsAppOrder,
+  onCompleteWhatsAppOrder,
   acceptingOrderId,
   t,
   lang,
@@ -1367,7 +1415,9 @@ function OverviewView({
   counterLoaded: boolean;
   notifyLoading: string | null;
   whatsappOrders: WhatsAppOrder[];
+  activeWhatsappOrders: WhatsAppOrder[];
   onAcceptWhatsAppOrder: (order: WhatsAppOrder) => void;
+  onCompleteWhatsAppOrder: (order: WhatsAppOrder) => void;
   acceptingOrderId: string | null;
   t: (ar: string, en: string) => string;
   lang: string;
@@ -1568,7 +1618,7 @@ function OverviewView({
                       data-testid={`button-complete-${pager.docId}`}
                     >
                       <CheckCircle className="w-3 h-3 me-1" />
-                      {t("مكتمل", "Complete")}
+                      {t("تم الاستلام", "Order Picked Up")}
                     </Button>
                     <Button
                       size="sm"
@@ -1642,6 +1692,53 @@ function OverviewView({
                     )}
                     {t("قبول وبدء التحضير", "Accept & Start Preparing")}
                   </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {activeWhatsappOrders.length > 0 && (
+        <div data-testid="section-active-orders">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold uppercase tracking-wider flex items-center gap-2">
+              <span className="text-amber-400">{t("الطلبات النشطة", "Active Orders")}</span>
+            </h3>
+            <Badge className="bg-amber-500/15 text-amber-400 border-amber-500/20 text-xs" data-testid="badge-active-orders-count">
+              {activeWhatsappOrders.length}
+            </Badge>
+          </div>
+          <div className="space-y-3">
+            {activeWhatsappOrders.map((order) => (
+              <Card key={order.id} className={`overflow-hidden ${order.status === "ready" ? "border-green-500/20 bg-green-500/[0.03]" : "border-amber-500/15 bg-amber-500/[0.03]"}`} data-testid={`card-active-order-${order.id}`}>
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${order.status === "ready" ? "bg-green-500/10 border border-green-500/15" : "bg-amber-500/10 border border-amber-500/15"}`}>
+                        <span className={`font-bold text-sm ${order.status === "ready" ? "text-green-400" : "text-amber-400"}`}>{order.orderNumber || "?"}</span>
+                      </div>
+                      <div>
+                        <p className="text-white font-medium text-sm">{order.customerName}</p>
+                        <p className="text-xs text-muted-foreground">{order.items.length} {t("عناصر", "items")} • {order.total.toFixed(2)} SAR</p>
+                      </div>
+                    </div>
+                    <Badge className={`text-[10px] ${order.status === "ready" ? "bg-green-500/15 text-green-400 border-green-500/20" : "bg-amber-500/15 text-amber-400 border-amber-500/20"}`}>
+                      {order.status === "ready" ? t("جاهز", "Ready") : t("قيد التحضير", "Preparing")}
+                    </Badge>
+                  </div>
+                  {order.status === "ready" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onCompleteWhatsAppOrder(order)}
+                      className="w-full h-10 border-green-500/20 text-green-400 hover:bg-green-500/10 font-semibold"
+                      data-testid={`button-complete-wa-order-${order.id}`}
+                    >
+                      <CheckCircle className="w-4 h-4 me-1.5" />
+                      {t("تم الاستلام / إغلاق الطلب", "Order Picked Up / Close Order")}
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
             ))}
@@ -1951,7 +2048,7 @@ function WaitlistView({
                             data-testid={`button-complete-${pager.docId}`}
                           >
                             <CheckCircle className="w-4 h-4 me-1.5" />
-                            {t("مكتمل", "Complete")}
+                            {t("تم الاستلام", "Order Picked Up")}
                           </Button>
                           <Button
                             size="sm"
@@ -2060,7 +2157,7 @@ function WaitlistView({
                       data-testid={`button-complete-${selectedPager.docId}`}
                     >
                       <CheckCircle className="w-6 h-6 me-2" />
-                      {t("تم الاستلام", "Mark Complete")}
+                      {t("تم الاستلام", "Order Picked Up")}
                     </Button>
                   )}
                   <Button

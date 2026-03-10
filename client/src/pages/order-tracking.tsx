@@ -159,6 +159,8 @@ export default function OrderTrackingPage() {
 
       if (currentStatus === "ready" && prevStatus === "preparing") {
         playAlert();
+      } else if (currentStatus === "completed") {
+        stopAlert();
       }
 
       prevStatus = currentStatus;
@@ -257,11 +259,32 @@ export default function OrderTrackingPage() {
         {alertActive && (
           <Button size="lg" onClick={handleStopAlert} className="w-full max-w-xs h-14 font-bold text-base bg-transparent border-2 border-red-600 text-white hover:bg-red-600/20 rounded-xl" style={{ boxShadow: "0 0 20px rgba(255,0,0,0.2)" }} data-testid="button-stop-tracking-alert">
             <BellOff className="w-5 h-5 me-2" />
-            <span dir="rtl">تم الاستلام</span>
+            <span dir="rtl">إيقاف التنبيه</span>
             <span className="mx-1">-</span>
-            <span>Received</span>
+            <span>Stop Alert</span>
           </Button>
         )}
+      </div>
+    );
+  }
+
+  if (order.status === "completed") {
+    return (
+      <div className="h-[100dvh] flex flex-col items-center justify-center px-5 text-center" style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }} data-testid="tracking-completed-screen">
+        <div className="flex flex-col items-center gap-6">
+          <div className="w-20 h-20 rounded-full border-2 border-green-500/30 bg-green-500/5 flex items-center justify-center" style={{ boxShadow: "0 0 30px rgba(34,197,94,0.1)" }}>
+            <CheckCircle className="w-10 h-10 text-green-500/70" />
+          </div>
+          <div>
+            <p className="text-green-400 text-xl font-bold" data-testid="text-completed-message">Thank you!</p>
+            <p className="text-green-400/80 text-lg font-bold mt-1" dir="rtl">شكراً لك!</p>
+            <p className="text-white/50 text-sm mt-3">See you soon!</p>
+            <p className="text-white/40 text-sm mt-0.5" dir="rtl">نراك قريباً!</p>
+          </div>
+          {merchant && (
+            <p className="text-white/20 text-xs mt-4">{merchant.storeName}</p>
+          )}
+        </div>
       </div>
     );
   }
