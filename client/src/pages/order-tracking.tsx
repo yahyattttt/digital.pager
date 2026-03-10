@@ -279,6 +279,7 @@ export default function OrderTrackingPage() {
   const alertSoundRef = useRef<HTMLAudioElement | null>(null);
   const vibrationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const keepAliveIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const merchantId = new URLSearchParams(window.location.search).get("m") || "";
   const audioUnlockedRef = useRef(false);
@@ -300,6 +301,26 @@ export default function OrderTrackingPage() {
 
   const [bellFading, setBellFading] = useState(false);
 
+  function startKeepAlive() {
+    if (keepAliveIntervalRef.current) return;
+    keepAliveIntervalRef.current = setInterval(() => {
+      const ctx = audioContextRef.current;
+      if (ctx && ctx.state === "suspended") {
+        ctx.resume().catch(() => {});
+      }
+      if (ctx && ctx.state === "running") {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        gain.gain.value = 0;
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.001);
+      }
+    }, 25000);
+    console.log("[OrderTracking] AudioContext keep-alive started (25s interval)");
+  }
+
   function unlockAudio(): Promise<boolean> {
     if (audioUnlockedRef.current) return Promise.resolve(true);
 
@@ -311,11 +332,22 @@ export default function OrderTrackingPage() {
       const ctx = audioContextRef.current;
 
       return (ctx.state === "suspended" ? ctx.resume() : Promise.resolve()).then(() => {
-        ensureAudioElement();
+        const audio = ensureAudioElement();
+        audio.volume = 1.0;
+        audio.currentTime = 0;
+        return audio.play().then(() => {
+          audio.pause();
+          audio.currentTime = 0;
+          console.log("[OrderTracking] Audio engine primed via play→pause→reset (silent to user)");
+        }).catch(() => {
+          console.log("[OrderTracking] Prime play failed, continuing with AudioContext only");
+        });
+      }).then(() => {
         audioUnlockedRef.current = true;
         setSoundEnabled(true);
         sessionStorage.setItem("pager_audio_unlocked", "true");
-        console.log("[OrderTracking] AudioContext unlocked (state:", ctx.state, ") — bell preloaded, NO sound played");
+        startKeepAlive();
+        console.log("[OrderTracking] AudioContext unlocked (state:", audioContextRef.current?.state, ")");
 
         if (pendingAlertRef.current) {
           console.log("[OrderTracking] Deferred alert detected — playing now");
@@ -336,6 +368,7 @@ export default function OrderTrackingPage() {
         audioUnlockedRef.current = true;
         setSoundEnabled(true);
         sessionStorage.setItem("pager_audio_unlocked", "true");
+        startKeepAlive();
         console.log("[OrderTracking] Audio unlocked via muted-play fallback");
         if (pendingAlertRef.current) {
           setPendingAlert(false);
@@ -397,6 +430,11 @@ export default function OrderTrackingPage() {
     }
   }
 
+  function replayAlert() {
+    hasPlayedAlert.current = false;
+    playAlert();
+  }
+
   function stopAlert() {
     if (alertSoundRef.current) {
       alertSoundRef.current.pause();
@@ -416,6 +454,7 @@ export default function OrderTrackingPage() {
     return () => {
       if (alertSoundRef.current) { alertSoundRef.current.pause(); alertSoundRef.current.currentTime = 0; }
       if (vibrationIntervalRef.current) clearInterval(vibrationIntervalRef.current);
+      if (keepAliveIntervalRef.current) clearInterval(keepAliveIntervalRef.current);
       if ("vibrate" in navigator) navigator.vibrate(0);
       if (audioContextRef.current && audioContextRef.current.state !== "closed") {
         audioContextRef.current.close().catch(() => {});
@@ -491,13 +530,12 @@ export default function OrderTrackingPage() {
         return;
       }
 
-      if (currentStatus === "ready") {
-        if (prevStatus !== "ready") {
-          console.log("[OrderTracking] Status changed to ready — playing alert");
-          hasPlayedAlert.current = false;
-          playAlert();
-        }
-      } else {
+      if (currentStatus === "ready" && prevStatus !== "ready") {
+        console.log("[OrderTracking] Transition detected:", prevStatus, "→ ready — triggering alert");
+        replayAlert();
+      } else if (currentStatus === "ready" && prevStatus === "ready") {
+        console.log("[OrderTracking] Firestore update on ready status — no duplicate bell (already playing or played)");
+      } else if (currentStatus !== "ready") {
         stopAlert();
         hasPlayedAlert.current = false;
       }
