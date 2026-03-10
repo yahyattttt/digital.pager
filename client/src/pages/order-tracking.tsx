@@ -135,7 +135,7 @@ function SmartRatingScreen({
         <div>
           <p className="text-green-400 text-2xl font-bold" data-testid="text-completed-message">Thank You!</p>
           <p className="text-green-400/80 text-lg font-bold mt-1" dir="rtl" data-testid="text-completed-message-ar">
-            شكراً لزيارتك، نتمنى لك يوماً سعيداً!
+            شكراً لزيارتك، قيم تجربتك معنا
           </p>
         </div>
 
@@ -143,7 +143,7 @@ function SmartRatingScreen({
           <div className="flex flex-col items-center gap-4 w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
             <Card className="w-full bg-[#111] border-white/[0.06] rounded-2xl">
               <CardContent className="p-6 flex flex-col items-center gap-4">
-                <p className="text-white/80 text-sm font-medium" dir="rtl" data-testid="text-rate-prompt">كيف كانت تجربتك؟</p>
+                <p className="text-white/80 text-sm font-medium" dir="rtl" data-testid="text-rate-prompt">قيم تجربتك معنا</p>
                 <p className="text-white/40 text-xs" data-testid="text-rate-prompt-en">Rate your experience</p>
                 <div className="flex items-center justify-center gap-3" data-testid="star-rating-widget">
                   {[1, 2, 3, 4, 5].map((star) => (
@@ -282,6 +282,7 @@ export default function OrderTrackingPage() {
   const hasAutoPlayedRef = useRef(false);
 
   const merchantId = new URLSearchParams(window.location.search).get("m") || "";
+  const trackingType = new URLSearchParams(window.location.search).get("type") || "";
 
   function ensureAudioElement() {
     if (!alertSoundRef.current) {
@@ -310,12 +311,12 @@ export default function OrderTrackingPage() {
     } catch {}
 
     audio.play().then(() => {
-      console.log("[OrderTracking] Bell primed — playing 1s preview");
+      console.log("[OrderTracking] Bell primed — playing 0.5s preview");
       setTimeout(() => {
         audio.pause();
         audio.currentTime = 0;
-        console.log("[OrderTracking] Bell preview stopped after 1s");
-      }, 1000);
+        console.log("[OrderTracking] Bell preview stopped after 0.5s");
+      }, 500);
       bellPrimedRef.current = true;
       setBellPrimed(true);
       sessionStorage.setItem("pager_bell_primed", "true");
@@ -392,7 +393,7 @@ export default function OrderTrackingPage() {
 
     async function fetchInitial() {
       try {
-        const res = await fetch(`/api/track/${orderId}?merchantId=${merchantId}`);
+        const res = await fetch(`/api/track/${orderId}?merchantId=${merchantId}${trackingType ? `&type=${trackingType}` : ""}`);
         if (!res.ok) { setNotFound(true); return; }
         const data = await res.json();
         setOrder(data.order);
@@ -404,7 +405,7 @@ export default function OrderTrackingPage() {
       }
     }
     fetchInitial();
-  }, [orderId, merchantId]);
+  }, [orderId, merchantId, trackingType]);
 
   useEffect(() => {
     if (!orderId || !merchantId) return;
@@ -412,8 +413,9 @@ export default function OrderTrackingPage() {
     let prevStatus: string | null = null;
     let isFirstSnapshot = true;
 
-    const docRef = doc(db, "merchants", merchantId, "whatsappOrders", orderId);
-    console.log("[OrderTracking] Setting up Firestore listener for:", `merchants/${merchantId}/whatsappOrders/${orderId}`);
+    const collectionName = trackingType === "pager" ? "pagers" : "whatsappOrders";
+    const docRef = doc(db, "merchants", merchantId, collectionName, orderId);
+    console.log("[OrderTracking] Setting up Firestore listener for:", `merchants/${merchantId}/${collectionName}/${orderId}`);
     const unsub = onSnapshot(docRef, (snap) => {
       if (!snap.exists()) {
         console.log("[OrderTracking] Document does not exist in snapshot");
@@ -422,25 +424,45 @@ export default function OrderTrackingPage() {
         return;
       }
       const data = snap.data();
-      const updatedOrder: WhatsAppOrder = {
-        id: snap.id,
-        merchantId: data.merchantId || "",
-        customerName: data.customerName || "",
-        customerPhone: data.customerPhone || "",
-        items: (data.items || []).map((item: any) => ({
-          productId: item.productId || "",
-          name: item.name || "",
-          price: item.price || 0,
-          quantity: item.quantity || 1,
-        })),
-        total: data.total || 0,
-        status: data.status || "pending_verification",
-        paymentMethod: data.paymentMethod || "cod",
-        orderNumber: data.orderNumber || "",
-        displayOrderId: data.displayOrderId || "",
-        orderType: data.orderType || undefined,
-        createdAt: data.createdAt || "",
-      };
+      let updatedOrder: WhatsAppOrder;
+      if (trackingType === "pager") {
+        const pagerStatus = data.status || "waiting";
+        const statusMap: Record<string, string> = { waiting: "preparing", notified: "ready", completed: "completed" };
+        updatedOrder = {
+          id: snap.id,
+          merchantId: data.storeId || "",
+          customerName: "",
+          customerPhone: "",
+          items: [],
+          total: 0,
+          status: (statusMap[pagerStatus] || pagerStatus) as any,
+          paymentMethod: "cod",
+          orderNumber: data.orderNumber || "",
+          displayOrderId: data.displayOrderId || "",
+          orderType: data.orderType || "manual",
+          createdAt: data.createdAt || "",
+        };
+      } else {
+        updatedOrder = {
+          id: snap.id,
+          merchantId: data.merchantId || "",
+          customerName: data.customerName || "",
+          customerPhone: data.customerPhone || "",
+          items: (data.items || []).map((item: any) => ({
+            productId: item.productId || "",
+            name: item.name || "",
+            price: item.price || 0,
+            quantity: item.quantity || 1,
+          })),
+          total: data.total || 0,
+          status: data.status || "pending_verification",
+          paymentMethod: data.paymentMethod || "cod",
+          orderNumber: data.orderNumber || "",
+          displayOrderId: data.displayOrderId || "",
+          orderType: data.orderType || undefined,
+          createdAt: data.createdAt || "",
+        };
+      }
       setOrder(updatedOrder);
 
       const currentStatus = updatedOrder.status;
@@ -472,7 +494,7 @@ export default function OrderTrackingPage() {
     });
 
     return () => unsub();
-  }, [orderId, merchantId]);
+  }, [orderId, merchantId, trackingType]);
 
   const isOnlineOrder = order?.orderType === "online" || (!order?.orderType && !!(order?.displayOrderId && !order.displayOrderId.startsWith("MA-")));
 
@@ -749,14 +771,14 @@ export default function OrderTrackingPage() {
             data-testid="button-prime-bell"
           >
             <span className="text-lg">🔔</span>
-            <span className="text-red-400/90 text-[13px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>ودك ننبهك بالجرس إذا جهز طلبك؟</span>
+            <span className="text-red-400/90 text-[13px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>ودك ننبهك بصوت الجرس ؟</span>
           </button>
         )}
 
         {bellPrimed && (
           <div className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl border border-emerald-500/15 bg-emerald-500/5 animate-in fade-in duration-500">
             <span className="text-sm">✅</span>
-            <span className="text-emerald-400/80 text-xs font-medium" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>تم تفعيل الجرس، سنقوم بتنبيهك فوراً</span>
+            <span className="text-emerald-400/80 text-xs font-medium" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>تم تفعيل التنبيه</span>
           </div>
         )}
 

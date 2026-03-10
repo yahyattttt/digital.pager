@@ -2878,7 +2878,7 @@ export async function registerRoutes(
   app.get("/api/track/:orderId", async (req, res) => {
     try {
       const { orderId } = req.params;
-      const { merchantId } = req.query;
+      const { merchantId, type } = req.query;
 
       if (!merchantId || typeof merchantId !== "string") {
         return res.status(400).json({ message: "merchantId query parameter required" });
@@ -2888,39 +2888,61 @@ export async function registerRoutes(
       const baseUrl = getFirestoreBaseUrl();
       if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
 
-      const docRes = await fetch(`${baseUrl}/merchants/${merchantId}/whatsappOrders/${orderId}`, {
+      const collectionName = type === "pager" ? "pagers" : "whatsappOrders";
+      const docRes = await fetch(`${baseUrl}/merchants/${merchantId}/${collectionName}/${orderId}`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
 
       if (!docRes.ok) return res.status(404).json({ message: "Order not found" });
       const doc = await docRes.json();
       const f = doc.fields || {};
-      const items = (f.items?.arrayValue?.values || []).map((v: any) => {
-        const mf = v.mapValue?.fields || {};
-        return {
-          productId: mf.productId?.stringValue || "",
-          name: mf.name?.stringValue || "",
-          price: mf.price?.doubleValue ?? parseFloat(mf.price?.integerValue || "0"),
-          quantity: parseInt(mf.quantity?.integerValue || "1"),
+
+      let order: any;
+      if (type === "pager") {
+        const pagerStatus = f.status?.stringValue || "waiting";
+        const statusMap: Record<string, string> = { waiting: "preparing", notified: "ready", completed: "completed" };
+        order = {
+          id: orderId,
+          merchantId: f.storeId?.stringValue || "",
+          customerName: "",
+          customerPhone: "",
+          items: [],
+          total: 0,
+          status: statusMap[pagerStatus] || pagerStatus,
+          paymentMethod: "cod",
+          orderNumber: f.orderNumber?.stringValue || "",
+          displayOrderId: f.displayOrderId?.stringValue || "",
+          orderType: f.orderType?.stringValue || "manual",
+          orderSource: f.orderSource?.stringValue || "Manual",
+          createdAt: f.createdAt?.stringValue || "",
         };
-      });
+      } else {
+        const items = (f.items?.arrayValue?.values || []).map((v: any) => {
+          const mf = v.mapValue?.fields || {};
+          return {
+            productId: mf.productId?.stringValue || "",
+            name: mf.name?.stringValue || "",
+            price: mf.price?.doubleValue ?? parseFloat(mf.price?.integerValue || "0"),
+            quantity: parseInt(mf.quantity?.integerValue || "1"),
+          };
+        });
 
-      const order = {
-        id: orderId,
-        merchantId: f.merchantId?.stringValue || "",
-        customerName: f.customerName?.stringValue || "",
-        customerPhone: f.customerPhone?.stringValue || "",
-        items,
-        total: f.total?.doubleValue ?? parseFloat(f.total?.integerValue || "0"),
-        status: f.status?.stringValue || "pending_verification",
-        paymentMethod: f.paymentMethod?.stringValue || "cod",
-        orderNumber: f.orderNumber?.stringValue || "",
-        displayOrderId: f.displayOrderId?.stringValue || "",
-        orderType: f.orderType?.stringValue || undefined,
-        createdAt: f.createdAt?.stringValue || "",
-      };
+        order = {
+          id: orderId,
+          merchantId: f.merchantId?.stringValue || "",
+          customerName: f.customerName?.stringValue || "",
+          customerPhone: f.customerPhone?.stringValue || "",
+          items,
+          total: f.total?.doubleValue ?? parseFloat(f.total?.integerValue || "0"),
+          status: f.status?.stringValue || "pending_verification",
+          paymentMethod: f.paymentMethod?.stringValue || "cod",
+          orderNumber: f.orderNumber?.stringValue || "",
+          displayOrderId: f.displayOrderId?.stringValue || "",
+          orderType: f.orderType?.stringValue || undefined,
+          createdAt: f.createdAt?.stringValue || "",
+        };
+      }
 
-      // Also get merchant info
       const mRes = await fetch(`${baseUrl}/merchants/${merchantId}`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });

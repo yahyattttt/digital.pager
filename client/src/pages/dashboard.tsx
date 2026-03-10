@@ -686,9 +686,10 @@ export default function DashboardPage() {
       return;
     }
     setManualAddLoading(true);
+    const newTab = window.open("about:blank", "_blank");
     try {
       const pagersRef = collection(db, "merchants", merchant.uid, "pagers");
-      await addDoc(pagersRef, {
+      const newPagerDoc = await addDoc(pagersRef, {
         storeId: merchant.uid,
         orderNumber: trimmed,
         displayOrderId: trimmed,
@@ -700,7 +701,10 @@ export default function DashboardPage() {
       });
       toast({ title: t(`تم إضافة الطلب #${trimmed}`, `Order #${trimmed} added`) });
       setManualDigitInput("");
+      const trackingUrl = `${window.location.origin}/order-tracking/${newPagerDoc.id}?m=${merchant.uid}&type=pager`;
+      if (newTab) { newTab.location.href = trackingUrl; } else { window.open(trackingUrl, "_blank"); }
     } catch {
+      if (newTab) newTab.close();
       toast({ title: t("خطأ", "Error"), description: t("فشل في إضافة الطلب", "Failed to add order"), variant: "destructive" });
     } finally {
       setManualAddLoading(false);
@@ -732,6 +736,7 @@ export default function DashboardPage() {
       return;
     }
     setManualAddLoading(true);
+    const newTab = window.open("about:blank", "_blank");
     try {
       const metaRef = doc(db, "merchants", merchant.uid, "settings", "manualShift");
       let newNum = 0;
@@ -744,7 +749,7 @@ export default function DashboardPage() {
       const displayId = String(newNum).padStart(3, "0").slice(-3);
 
       const pagersRef = collection(db, "merchants", merchant.uid, "pagers");
-      await addDoc(pagersRef, {
+      const newPagerDoc = await addDoc(pagersRef, {
         storeId: merchant.uid,
         orderNumber: String(newNum),
         displayOrderId: displayId,
@@ -755,7 +760,10 @@ export default function DashboardPage() {
         notifiedAt: null,
       });
       toast({ title: t(`تم إضافة الطلب #${displayId}`, `Order #${displayId} added`) });
+      const trackingUrl = `${window.location.origin}/order-tracking/${newPagerDoc.id}?m=${merchant.uid}&type=pager`;
+      if (newTab) { newTab.location.href = trackingUrl; } else { window.open(trackingUrl, "_blank"); }
     } catch {
+      if (newTab) newTab.close();
       toast({ title: t("خطأ", "Error"), description: t("فشل في إضافة الطلب", "Failed to add order"), variant: "destructive" });
     } finally {
       setManualAddLoading(false);
