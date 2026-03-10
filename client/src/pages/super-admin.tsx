@@ -1394,6 +1394,18 @@ export default function SuperAdminPage() {
                                   <span className="text-xs text-muted-foreground" dir="ltr" data-testid={`text-email-${merchant.uid}`}>
                                     {highlightMatch(merchant.email || "")}
                                   </span>
+                                  {merchant.commercialRegisterURL && (
+                                    <a
+                                      href={merchant.commercialRegisterURL}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 mt-1 transition-colors"
+                                      data-testid={`link-cr-${merchant.uid}`}
+                                    >
+                                      <FileText className="w-3 h-3" />
+                                      {t("السجل التجاري", "Commercial Register")}
+                                    </a>
+                                  )}
                                 </div>
                               </TableCell>
                               <TableCell data-testid={`badge-status-${merchant.uid}`}>

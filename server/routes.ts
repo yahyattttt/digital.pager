@@ -36,6 +36,32 @@ const upload = multer({
   },
 });
 
+const crUploadDir = path.join(process.cwd(), "client", "public", "uploads", "commercial_registers");
+if (!fs.existsSync(crUploadDir)) {
+  fs.mkdirSync(crUploadDir, { recursive: true });
+}
+
+const crStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    cb(null, crUploadDir);
+  },
+  filename: (_req, _file, cb) => {
+    cb(null, `${randomUUID()}.pdf`);
+  },
+});
+
+const crUpload = multer({
+  storage: crStorage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype === "application/pdf") {
+      cb(null, true);
+    } else {
+      cb(new Error("Only PDF files are allowed"));
+    }
+  },
+});
+
 async function logSystemError(merchantId: string, errorType: string, errorMessage: string): Promise<void> {
   const accessToken = await getFirestoreAccessToken();
   const baseUrl = getFirestoreBaseUrl();
@@ -320,6 +346,25 @@ export async function registerRoutes(
       return res.status(400).json({ message: "No file uploaded" });
     }
     const url = `/uploads/${req.file.filename}`;
+    return res.json({ url });
+  });
+
+  app.post("/api/upload-cr", crUpload.single("cr"), (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
+    const filePath = path.join(crUploadDir, req.file.filename);
+    try {
+      const buffer = fs.readFileSync(filePath, { encoding: null });
+      const pdfMagic = buffer.slice(0, 5).toString("ascii");
+      if (pdfMagic !== "%PDF-") {
+        fs.unlinkSync(filePath);
+        return res.status(400).json({ message: "Invalid PDF file" });
+      }
+    } catch {
+      return res.status(500).json({ message: "File validation failed" });
+    }
+    const url = `/uploads/commercial_registers/${req.file.filename}`;
     return res.json({ url });
   });
 
@@ -936,7 +981,7 @@ export async function registerRoutes(
         return res.status(401).json({ message: "Authentication required" });
       }
 
-      const { uid, storeName, businessType, ownerName, email, logoUrl, googleMapsReviewUrl } = req.body;
+      const { uid, storeName, businessType, ownerName, email, logoUrl, googleMapsReviewUrl, commercialRegisterURL } = req.body;
       if (!uid || !email || !storeName) {
         return res.status(400).json({ message: "Missing required fields" });
       }
@@ -979,6 +1024,7 @@ export async function registerRoutes(
           email: { stringValue: email },
           logoUrl: { stringValue: logoUrl || "" },
           googleMapsReviewUrl: { stringValue: googleMapsReviewUrl || "" },
+          commercialRegisterURL: { stringValue: commercialRegisterURL || "" },
           status: { stringValue: "pending" },
           subscriptionStatus: { stringValue: "pending" },
           plan: { stringValue: "trial" },

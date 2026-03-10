@@ -116,9 +116,10 @@ export const merchantSchema = z.object({
   uid: z.string(),
   storeName: z.string().min(2, "اسم المتجر يجب أن يكون حرفين على الأقل"),
   businessType: businessTypeEnum,
-  ownerName: z.string().min(2, "اسم المالك يجب أن يكون حرفين على الأقل"),
+  ownerName: z.string().optional(),
   email: z.string().email("البريد الإلكتروني غير صالح"),
   logoUrl: z.string().optional(),
+  commercialRegisterURL: z.string().optional(),
   googleMapsReviewUrl: z.string().url("رابط جوجل ماب غير صالح"),
   whatsappNumber: z.string().optional(),
   status: merchantStatusEnum.default("pending"),
@@ -157,7 +158,6 @@ export type InsertMerchant = z.infer<typeof insertMerchantSchema>;
 export const registerFormSchema = z.object({
   storeName: z.string().min(2, "اسم المتجر يجب أن يكون حرفين على الأقل"),
   businessType: businessTypeEnum,
-  ownerName: z.string().min(2, "اسم المالك يجب أن يكون حرفين على الأقل"),
   email: z.string().email("البريد الإلكتروني غير صالح"),
   googleMapsReviewUrl: z.string().url("يرجى إدخال رابط جوجل ماب صالح"),
 });
