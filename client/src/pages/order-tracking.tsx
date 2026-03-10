@@ -59,20 +59,86 @@ export default function OrderTrackingPage() {
   const vibrationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const merchantId = new URLSearchParams(window.location.search).get("m") || "";
+  const audioUnlockedRef = useRef(false);
 
-  function playAlert() {
-    if (hasPlayedAlert.current) return;
-    hasPlayedAlert.current = true;
-    setAlertActive(true);
+  function unlockAudio() {
+    if (audioUnlockedRef.current) return;
+    audioUnlockedRef.current = true;
     try {
       if (!alertSoundRef.current) {
         alertSoundRef.current = new Audio("/alert.mp3");
         alertSoundRef.current.loop = true;
         alertSoundRef.current.volume = 1.0;
+        alertSoundRef.current.addEventListener("error", () => {
+          console.warn("[OrderTracking] Alert sound file failed to load — check /alert.mp3");
+        });
       }
-      alertSoundRef.current.currentTime = 0;
-      alertSoundRef.current.play().catch(() => {});
-    } catch {}
+      alertSoundRef.current.muted = true;
+      alertSoundRef.current.play().then(() => {
+        alertSoundRef.current!.pause();
+        alertSoundRef.current!.muted = false;
+        alertSoundRef.current!.currentTime = 0;
+        console.log("[OrderTracking] Audio unlocked successfully");
+      }).catch((e) => {
+        alertSoundRef.current!.muted = false;
+        console.warn("[OrderTracking] Audio unlock failed:", e.message);
+      });
+    } catch (e) {
+      console.warn("[OrderTracking] Audio unlock error:", e);
+    }
+  }
+
+  useEffect(() => {
+    function handleInteraction() {
+      unlockAudio();
+      document.removeEventListener("click", handleInteraction);
+      document.removeEventListener("touchstart", handleInteraction);
+    }
+    document.addEventListener("click", handleInteraction, { once: true });
+    document.addEventListener("touchstart", handleInteraction, { once: true });
+    return () => {
+      document.removeEventListener("click", handleInteraction);
+      document.removeEventListener("touchstart", handleInteraction);
+    };
+  }, []);
+
+  function playAlert() {
+    if (hasPlayedAlert.current) return;
+    hasPlayedAlert.current = true;
+    setAlertActive(true);
+    console.log("[OrderTracking] Attempting to play sound...");
+
+    let playAttempts = 0;
+    function attemptPlay() {
+      playAttempts++;
+      console.log(`[OrderTracking] Play attempt ${playAttempts}/3`);
+      try {
+        if (!alertSoundRef.current) {
+          alertSoundRef.current = new Audio("/alert.mp3");
+          alertSoundRef.current.loop = true;
+          alertSoundRef.current.volume = 1.0;
+          alertSoundRef.current.addEventListener("error", () => {
+            console.warn("[OrderTracking] Alert sound file failed to load — check /alert.mp3");
+          });
+        }
+        alertSoundRef.current.currentTime = 0;
+        alertSoundRef.current.play().then(() => {
+          console.log(`[OrderTracking] Sound playing on attempt ${playAttempts}`);
+        }).catch((err) => {
+          console.warn(`[OrderTracking] Play attempt ${playAttempts} failed:`, err.message);
+          if (playAttempts < 3) {
+            setTimeout(attemptPlay, 1000);
+          }
+        });
+      } catch (err) {
+        console.warn(`[OrderTracking] Play attempt ${playAttempts} error:`, err);
+        if (playAttempts < 3) {
+          setTimeout(attemptPlay, 1000);
+        }
+      }
+    }
+    attemptPlay();
+
     if ("vibrate" in navigator) {
       navigator.vibrate([500, 200, 500, 200, 800]);
       vibrationIntervalRef.current = setInterval(() => {
@@ -150,6 +216,8 @@ export default function OrderTrackingPage() {
       setOrder(updatedOrder);
 
       const currentStatus = updatedOrder.status;
+      console.log("[OrderTracking] Current Status:", currentStatus);
+      console.log("[OrderTracking] Previous Status:", prevStatus);
 
       if (isFirstSnapshot) {
         prevStatus = currentStatus;
@@ -157,7 +225,10 @@ export default function OrderTrackingPage() {
         return;
       }
 
-      if (currentStatus === "ready" && prevStatus === "preparing") {
+      const shouldPlay = currentStatus === "ready" && prevStatus === "preparing";
+      console.log("[OrderTracking] shouldPlay:", shouldPlay);
+
+      if (shouldPlay) {
         playAlert();
       } else if (currentStatus === "completed") {
         stopAlert();

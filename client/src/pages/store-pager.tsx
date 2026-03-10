@@ -781,20 +781,69 @@ export default function StorePagerPage() {
   const alertVibrationRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const { isActive: wakeLockActive, isSupported: wakeLockSupported, requestWakeLock, releaseWakeLock } = useWakeLock(false);
 
-  function triggerAlert() {
-    if (hasPlayedNotification.current) return;
-    hasPlayedNotification.current = true;
-    setAlertActive(true);
-    setPagerStatus("notified");
+  function unlockAudio() {
     try {
       if (!alertSoundRef.current) {
         alertSoundRef.current = new Audio("/alert.mp3");
         alertSoundRef.current.loop = true;
         alertSoundRef.current.volume = 1.0;
+        alertSoundRef.current.addEventListener("error", () => {
+          console.warn("[StorePager] Alert sound file failed to load — check /alert.mp3");
+        });
       }
-      alertSoundRef.current.currentTime = 0;
-      alertSoundRef.current.play().catch(() => {});
-    } catch {}
+      alertSoundRef.current.muted = true;
+      alertSoundRef.current.play().then(() => {
+        alertSoundRef.current!.pause();
+        alertSoundRef.current!.muted = false;
+        alertSoundRef.current!.currentTime = 0;
+        console.log("[StorePager] Audio unlocked successfully");
+      }).catch((e) => {
+        alertSoundRef.current!.muted = false;
+        console.warn("[StorePager] Audio unlock failed:", e.message);
+      });
+    } catch (e) {
+      console.warn("[StorePager] Audio unlock error:", e);
+    }
+  }
+
+  function triggerAlert() {
+    if (hasPlayedNotification.current) return;
+    hasPlayedNotification.current = true;
+    setAlertActive(true);
+    setPagerStatus("notified");
+    console.log("[StorePager] Attempting to play sound...");
+
+    let playAttempts = 0;
+    function attemptPlay() {
+      playAttempts++;
+      console.log(`[StorePager] Play attempt ${playAttempts}/3`);
+      try {
+        if (!alertSoundRef.current) {
+          alertSoundRef.current = new Audio("/alert.mp3");
+          alertSoundRef.current.loop = true;
+          alertSoundRef.current.volume = 1.0;
+          alertSoundRef.current.addEventListener("error", () => {
+            console.warn("[StorePager] Alert sound file failed to load — check /alert.mp3");
+          });
+        }
+        alertSoundRef.current.currentTime = 0;
+        alertSoundRef.current.play().then(() => {
+          console.log(`[StorePager] Sound playing on attempt ${playAttempts}`);
+        }).catch((err) => {
+          console.warn(`[StorePager] Play attempt ${playAttempts} failed:`, err.message);
+          if (playAttempts < 3) {
+            setTimeout(attemptPlay, 1000);
+          }
+        });
+      } catch (err) {
+        console.warn(`[StorePager] Play attempt ${playAttempts} error:`, err);
+        if (playAttempts < 3) {
+          setTimeout(attemptPlay, 1000);
+        }
+      }
+    }
+    attemptPlay();
+
     if ("vibrate" in navigator) {
       navigator.vibrate([500, 200, 500, 200, 800]);
       alertVibrationRef.current = setInterval(() => {
@@ -949,6 +998,7 @@ export default function StorePagerPage() {
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (snapshot.empty) {
+        console.log("[StorePager] Snapshot empty — pager completed/removed");
         if (!isFirstSnapshot) {
           stopAlert();
           setPagerStatus("completed");
@@ -961,6 +1011,8 @@ export default function StorePagerPage() {
       const pagerDoc = snapshot.docs[0];
       const pager = pagerDoc.data() as Pager;
       const currentStatus = pager.status;
+      console.log("[StorePager] Current Status:", currentStatus);
+      console.log("[StorePager] Previous Status:", prevStatus);
 
       if (isFirstSnapshot) {
         prevStatus = currentStatus;
@@ -973,7 +1025,10 @@ export default function StorePagerPage() {
         return;
       }
 
-      if (currentStatus === "notified" && prevStatus === "waiting") {
+      const shouldPlay = currentStatus === "notified" && prevStatus === "waiting";
+      console.log("[StorePager] shouldPlay:", shouldPlay);
+
+      if (shouldPlay) {
         triggerAlert();
       } else if (currentStatus === "notified") {
         setPagerStatus("notified");
@@ -996,6 +1051,7 @@ export default function StorePagerPage() {
   }, []);
 
   function handleSelectOrder(selectedOrderNumber: string) {
+    unlockAudio();
     setOrderNumber(selectedOrderNumber);
     setSubmitted(true);
     setPagerStatus("waiting");
