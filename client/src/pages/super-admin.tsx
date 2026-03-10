@@ -286,6 +286,15 @@ export default function SuperAdminPage() {
   const [feedbackDialogData, setFeedbackDialogData] = useState<any[]>([]);
   const [feedbackDialogLoading, setFeedbackDialogLoading] = useState(false);
 
+  const [featureDialogOpen, setFeatureDialogOpen] = useState(false);
+  const [featureDialogMerchant, setFeatureDialogMerchant] = useState<Merchant | null>(null);
+  const [featureFlags, setFeatureFlags] = useState({ analyticsEnabled: true, crmEnabled: true, smartRatingEnabled: true, printReceiptsEnabled: true });
+  const [featureLoading, setFeatureLoading] = useState(false);
+  const [featureSaving, setFeatureSaving] = useState(false);
+
+  const [globalMonitorData, setGlobalMonitorData] = useState<any>(null);
+  const [globalMonitorLoading, setGlobalMonitorLoading] = useState(false);
+
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("newest");
@@ -437,6 +446,64 @@ export default function SuperAdminPage() {
       });
     } finally {
       setResolvingError(null);
+    }
+  }
+
+  async function handleOpenFeatures(merchant: Merchant) {
+    setFeatureDialogMerchant(merchant);
+    setFeatureDialogOpen(true);
+    setFeatureLoading(true);
+    try {
+      const res = await fetch(`/api/admin/merchant-features/${merchant.uid}`, {
+        headers: { "x-admin-email": user?.email || "" },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setFeatureFlags(data.features);
+      }
+    } catch {
+      toast({ title: t("خطأ", "Error"), description: t("فشل في تحميل الإعدادات", "Failed to load features"), variant: "destructive" });
+    } finally {
+      setFeatureLoading(false);
+    }
+  }
+
+  async function handleSaveFeatures() {
+    if (!featureDialogMerchant) return;
+    setFeatureSaving(true);
+    try {
+      const res = await fetch(`/api/admin/merchant-features/${featureDialogMerchant.uid}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "x-admin-email": user?.email || "" },
+        body: JSON.stringify(featureFlags),
+      });
+      if (res.ok) {
+        toast({ title: t("تم الحفظ", "Saved"), description: t("تم تحديث إعدادات المتجر", "Store features updated") });
+        setFeatureDialogOpen(false);
+      } else {
+        toast({ title: t("خطأ", "Error"), description: t("فشل في حفظ الإعدادات", "Failed to save features"), variant: "destructive" });
+      }
+    } catch {
+      toast({ title: t("خطأ", "Error"), description: t("فشل في حفظ الإعدادات", "Failed to save features"), variant: "destructive" });
+    } finally {
+      setFeatureSaving(false);
+    }
+  }
+
+  async function fetchGlobalMonitor() {
+    setGlobalMonitorLoading(true);
+    try {
+      const res = await fetch("/api/admin/global-monitor", {
+        headers: { "x-admin-email": user?.email || "" },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setGlobalMonitorData(data);
+      }
+    } catch {
+      toast({ title: t("خطأ", "Error"), description: t("فشل في تحميل البيانات", "Failed to load monitor data"), variant: "destructive" });
+    } finally {
+      setGlobalMonitorLoading(false);
     }
   }
 
@@ -887,6 +954,10 @@ export default function SuperAdminPage() {
             <TabsTrigger value="merchants" data-testid="tab-merchants">
               <Users className="w-4 h-4 me-1.5" />
               {t("التجار", "Merchants")}
+            </TabsTrigger>
+            <TabsTrigger value="monitor" data-testid="tab-monitor" onClick={() => { if (!globalMonitorData) fetchGlobalMonitor(); }}>
+              <Activity className="w-4 h-4 me-1.5" />
+              {t("المراقبة الشاملة", "Global Monitor")}
             </TabsTrigger>
             <TabsTrigger value="settings" data-testid="tab-settings">
               <Settings className="w-4 h-4 me-1.5" />
@@ -1403,6 +1474,15 @@ export default function SuperAdminPage() {
                                   <Button
                                     size="icon"
                                     variant="ghost"
+                                    onClick={() => handleOpenFeatures(merchant)}
+                                    data-testid={`button-features-${merchant.uid}`}
+                                    title={t("إعدادات الميزات", "Feature Settings")}
+                                  >
+                                    <Settings className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
                                     onClick={() => setDeleteTarget(merchant)}
                                     disabled={actionLoading === merchant.uid}
                                     data-testid={`button-delete-${merchant.uid}`}
@@ -1462,6 +1542,110 @@ export default function SuperAdminPage() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="monitor" className="space-y-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold flex items-center gap-2" data-testid="text-monitor-title">
+                <Activity className="w-5 h-5 text-primary" />
+                {t("المراقبة الشاملة", "Global Monitor")}
+              </h2>
+              <Button variant="outline" size="sm" onClick={fetchGlobalMonitor} disabled={globalMonitorLoading} data-testid="button-refresh-monitor">
+                <RefreshCw className={`w-4 h-4 me-1.5 ${globalMonitorLoading ? "animate-spin" : ""}`} />
+                {t("تحديث", "Refresh")}
+              </Button>
+            </div>
+            {globalMonitorLoading && !globalMonitorData ? (
+              <div className="flex items-center justify-center py-16"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+            ) : globalMonitorData ? (
+              <>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <Card>
+                    <CardContent className="p-4">
+                      <p className="text-xs text-muted-foreground">{t("إجمالي المتاجر", "Total Stores")}</p>
+                      <p className="text-2xl font-bold" data-testid="text-monitor-total-stores">{globalMonitorData.summary.totalMerchants}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4">
+                      <p className="text-xs text-muted-foreground">{t("طلبات اليوم", "Orders Today")}</p>
+                      <p className="text-2xl font-bold text-primary" data-testid="text-monitor-orders-today">{globalMonitorData.summary.totalOrdersToday}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4">
+                      <p className="text-xs text-muted-foreground">{t("إجمالي الطلبات", "All-Time Orders")}</p>
+                      <p className="text-2xl font-bold" data-testid="text-monitor-orders-total">{globalMonitorData.summary.totalOrdersAllTime}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4">
+                      <p className="text-xs text-muted-foreground">{t("تم التسليم", "Collected")}</p>
+                      <p className="text-2xl font-bold text-emerald-400" data-testid="text-monitor-collected">{globalMonitorData.summary.totalCollected}</p>
+                    </CardContent>
+                  </Card>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  <Card>
+                    <CardContent className="p-4">
+                      <p className="text-xs text-muted-foreground">{t("قيد التحضير", "Preparing")}</p>
+                      <p className="text-2xl font-bold text-amber-400" data-testid="text-monitor-preparing">{globalMonitorData.summary.totalPreparing}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4">
+                      <p className="text-xs text-muted-foreground">{t("جاهز", "Ready")}</p>
+                      <p className="text-2xl font-bold text-violet-400" data-testid="text-monitor-ready">{globalMonitorData.summary.totalReady}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4">
+                      <p className="text-xs text-muted-foreground">{t("لم يُستلم", "Uncollected")}</p>
+                      <p className="text-2xl font-bold text-red-400" data-testid="text-monitor-uncollected">{globalMonitorData.summary.totalUncollected}</p>
+                    </CardContent>
+                  </Card>
+                </div>
+                <Card>
+                  <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>{t("المتجر", "Store")}</TableHead>
+                            <TableHead className="text-center">{t("اليوم", "Today")}</TableHead>
+                            <TableHead className="text-center">{t("الإجمالي", "Total")}</TableHead>
+                            <TableHead className="text-center">{t("تم التسليم", "Collected")}</TableHead>
+                            <TableHead className="text-center">{t("لم يُستلم", "Uncollected")}</TableHead>
+                            <TableHead className="text-center">{t("الإيرادات", "Revenue")}</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {globalMonitorData.merchants.map((m: any, idx: number) => (
+                            <TableRow key={m.merchantId} data-testid={`row-monitor-${idx}`}>
+                              <TableCell className="font-medium" data-testid={`text-monitor-store-${idx}`}>{m.storeName}</TableCell>
+                              <TableCell className="text-center">{m.ordersToday}</TableCell>
+                              <TableCell className="text-center">{m.ordersTotal}</TableCell>
+                              <TableCell className="text-center text-emerald-400">{m.collected}</TableCell>
+                              <TableCell className="text-center text-red-400">{m.uncollected}</TableCell>
+                              <TableCell className="text-center font-mono">{m.revenue.toFixed(2)} <span className="text-muted-foreground text-xs">SAR</span></TableCell>
+                            </TableRow>
+                          ))}
+                          {globalMonitorData.merchants.length === 0 && (
+                            <TableRow>
+                              <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                                {t("لا توجد بيانات", "No data available")}
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
+            ) : (
+              <div className="text-center py-16 text-muted-foreground">{t("اضغط تحديث لتحميل البيانات", "Click refresh to load data")}</div>
+            )}
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-6">
@@ -1651,6 +1835,55 @@ export default function SuperAdminPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={featureDialogOpen} onOpenChange={setFeatureDialogOpen}>
+        <DialogContent className="max-w-md" data-testid="dialog-feature-toggles">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Settings className="w-5 h-5 text-primary" />
+              {t("إعدادات الميزات", "Feature Settings")} — {featureDialogMerchant?.storeName}
+            </DialogTitle>
+          </DialogHeader>
+          {featureLoading ? (
+            <div className="flex items-center justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+          ) : (
+            <div className="space-y-5">
+              <div className="flex items-center justify-between" data-testid="toggle-analytics">
+                <div>
+                  <p className="font-medium text-sm">{t("التحليلات", "Analytics")}</p>
+                  <p className="text-xs text-muted-foreground">{t("عرض صفحة التحليلات", "Show Analytics page")}</p>
+                </div>
+                <Switch checked={featureFlags.analyticsEnabled} onCheckedChange={(v) => setFeatureFlags(f => ({ ...f, analyticsEnabled: v }))} data-testid="switch-analytics" />
+              </div>
+              <div className="flex items-center justify-between" data-testid="toggle-crm">
+                <div>
+                  <p className="font-medium text-sm">{t("إدارة العملاء", "CRM / Customers")}</p>
+                  <p className="text-xs text-muted-foreground">{t("عرض صفحة العملاء", "Show Customers page")}</p>
+                </div>
+                <Switch checked={featureFlags.crmEnabled} onCheckedChange={(v) => setFeatureFlags(f => ({ ...f, crmEnabled: v }))} data-testid="switch-crm" />
+              </div>
+              <div className="flex items-center justify-between" data-testid="toggle-smart-rating">
+                <div>
+                  <p className="font-medium text-sm">{t("التقييم الذكي", "Smart Rating Redirect")}</p>
+                  <p className="text-xs text-muted-foreground">{t("إعادة توجيه التقييمات العالية إلى خرائط جوجل", "Redirect high ratings to Google Maps")}</p>
+                </div>
+                <Switch checked={featureFlags.smartRatingEnabled} onCheckedChange={(v) => setFeatureFlags(f => ({ ...f, smartRatingEnabled: v }))} data-testid="switch-smart-rating" />
+              </div>
+              <div className="flex items-center justify-between" data-testid="toggle-print">
+                <div>
+                  <p className="font-medium text-sm">{t("طباعة الإيصالات", "Print Receipts")}</p>
+                  <p className="text-xs text-muted-foreground">{t("عرض زر الطباعة في الطلبات", "Show print button on orders")}</p>
+                </div>
+                <Switch checked={featureFlags.printReceiptsEnabled} onCheckedChange={(v) => setFeatureFlags(f => ({ ...f, printReceiptsEnabled: v }))} data-testid="switch-print" />
+              </div>
+              <Button onClick={handleSaveFeatures} disabled={featureSaving} className="w-full" data-testid="button-save-features">
+                {featureSaving ? <Loader2 className="w-4 h-4 animate-spin me-1.5" /> : <Save className="w-4 h-4 me-1.5" />}
+                {t("حفظ", "Save")}
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={healthDialogOpen} onOpenChange={setHealthDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto" data-testid="dialog-health-monitor">

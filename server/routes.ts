@@ -1543,6 +1543,232 @@ export async function registerRoutes(
     }
   });
 
+  // ===== Merchant Feature Toggles =====
+  const DEFAULT_FEATURES = {
+    analyticsEnabled: true,
+    crmEnabled: true,
+    smartRatingEnabled: true,
+    printReceiptsEnabled: true,
+  };
+
+  function parseFeatures(fields: any) {
+    return {
+      analyticsEnabled: fields?.analyticsEnabled?.booleanValue ?? DEFAULT_FEATURES.analyticsEnabled,
+      crmEnabled: fields?.crmEnabled?.booleanValue ?? DEFAULT_FEATURES.crmEnabled,
+      smartRatingEnabled: fields?.smartRatingEnabled?.booleanValue ?? DEFAULT_FEATURES.smartRatingEnabled,
+      printReceiptsEnabled: fields?.printReceiptsEnabled?.booleanValue ?? DEFAULT_FEATURES.printReceiptsEnabled,
+    };
+  }
+
+  app.get("/api/merchant-features/:merchantId", async (req, res) => {
+    try {
+      const { merchantId } = req.params;
+      const accessToken = await getFirestoreAccessToken();
+      const baseUrl = getFirestoreBaseUrl();
+      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+
+      const docRes = await fetch(`${baseUrl}/merchants/${merchantId}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!docRes.ok) return res.status(404).json({ message: "Merchant not found" });
+
+      const doc = await docRes.json();
+      const features = parseFeatures(doc.fields || {});
+      return res.json({ features });
+    } catch (error) {
+      console.error("Get merchant features error:", error);
+      return res.status(500).json({ message: "Failed to get features" });
+    }
+  });
+
+  app.get("/api/admin/merchant-features/:merchantId", async (req, res) => {
+    try {
+      if (!(await isAdminRequest(req))) return res.status(403).json({ message: "Unauthorized" });
+      const { merchantId } = req.params;
+      const accessToken = await getFirestoreAccessToken();
+      const baseUrl = getFirestoreBaseUrl();
+      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+
+      const docRes = await fetch(`${baseUrl}/merchants/${merchantId}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!docRes.ok) return res.status(404).json({ message: "Merchant not found" });
+
+      const doc = await docRes.json();
+      const features = parseFeatures(doc.fields || {});
+      return res.json({ features });
+    } catch (error) {
+      console.error("Admin get merchant features error:", error);
+      return res.status(500).json({ message: "Failed to get features" });
+    }
+  });
+
+  app.patch("/api/admin/merchant-features/:merchantId", async (req, res) => {
+    try {
+      if (!(await isAdminRequest(req))) return res.status(403).json({ message: "Unauthorized" });
+      const { merchantId } = req.params;
+      const { analyticsEnabled, crmEnabled, smartRatingEnabled, printReceiptsEnabled } = req.body;
+      const accessToken = await getFirestoreAccessToken();
+      const baseUrl = getFirestoreBaseUrl();
+      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+
+      const docRes = await fetch(`${baseUrl}/merchants/${merchantId}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!docRes.ok) return res.status(404).json({ message: "Merchant not found" });
+
+      const doc = await docRes.json();
+      const existingFields = doc.fields || {};
+
+      const updatedFields: Record<string, any> = {};
+      const fieldPaths: string[] = [];
+
+      if (typeof analyticsEnabled === "boolean") {
+        updatedFields.analyticsEnabled = { booleanValue: analyticsEnabled };
+        fieldPaths.push("analyticsEnabled");
+      }
+      if (typeof crmEnabled === "boolean") {
+        updatedFields.crmEnabled = { booleanValue: crmEnabled };
+        fieldPaths.push("crmEnabled");
+      }
+      if (typeof smartRatingEnabled === "boolean") {
+        updatedFields.smartRatingEnabled = { booleanValue: smartRatingEnabled };
+        fieldPaths.push("smartRatingEnabled");
+      }
+      if (typeof printReceiptsEnabled === "boolean") {
+        updatedFields.printReceiptsEnabled = { booleanValue: printReceiptsEnabled };
+        fieldPaths.push("printReceiptsEnabled");
+      }
+
+      if (fieldPaths.length === 0) return res.status(400).json({ message: "No valid feature flags provided" });
+
+      const patchUrl = `${baseUrl}/merchants/${merchantId}?${fieldPaths.map(f => `updateMask.fieldPaths=${f}`).join("&")}`;
+      const patchRes = await fetch(patchUrl, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ fields: { ...existingFields, ...updatedFields } }),
+      });
+
+      if (!patchRes.ok) {
+        const errText = await patchRes.text();
+        console.error("Feature toggle PATCH failed:", errText);
+        return res.status(500).json({ message: "Failed to update features" });
+      }
+
+      const updatedDoc = await patchRes.json();
+      const features = parseFeatures(updatedDoc.fields || {});
+      console.log(`[FEATURES] Updated merchant ${merchantId}: ${JSON.stringify(features)}`);
+      return res.json({ features });
+    } catch (error) {
+      console.error("Admin update merchant features error:", error);
+      return res.status(500).json({ message: "Failed to update features" });
+    }
+  });
+
+  // ===== Global Monitor Endpoint =====
+  app.get("/api/admin/global-monitor", async (req, res) => {
+    try {
+      if (!(await isAdminRequest(req))) return res.status(403).json({ message: "Unauthorized" });
+      const accessToken = await getFirestoreAccessToken();
+      const baseUrl = getFirestoreBaseUrl();
+      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+
+      const merchantsRes = await fetch(`${baseUrl}/merchants`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!merchantsRes.ok) return res.status(500).json({ message: "Failed to fetch merchants" });
+      const merchantsData = await merchantsRes.json();
+      const merchantDocs = merchantsData.documents || [];
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayISO = today.toISOString();
+
+      const merchantStats: any[] = [];
+      let totalOrdersAllTime = 0;
+      let totalOrdersToday = 0;
+      let totalCollected = 0;
+      let totalUncollected = 0;
+      let totalPreparing = 0;
+      let totalReady = 0;
+
+      for (const doc of merchantDocs) {
+        const fields = doc.fields || {};
+        const merchantId = doc.name?.split("/").pop() || "";
+        const storeName = fields.storeName?.stringValue || fields.email?.stringValue || merchantId;
+
+        const ordersRes = await fetch(
+          `${baseUrl}/merchants/${merchantId}/whatsappOrders`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+
+        let ordersToday = 0;
+        let ordersTotal = 0;
+        let collected = 0;
+        let uncollected = 0;
+        let preparing = 0;
+        let ready = 0;
+        let revenue = 0;
+
+        if (ordersRes.ok) {
+          const ordersData = await ordersRes.json();
+          const orders = ordersData.documents || [];
+          ordersTotal = orders.length;
+
+          for (const o of orders) {
+            const of_ = o.fields || {};
+            const status = of_.status?.stringValue || "";
+            const createdAt = of_.createdAt?.stringValue || "";
+            const total = of_.total?.doubleValue ?? of_.total?.integerValue ?? 0;
+
+            if (status === "archived") { collected++; revenue += Number(total); }
+            if (status === "uncollected") uncollected++;
+            if (status === "preparing") preparing++;
+            if (status === "ready") ready++;
+            if (createdAt >= todayISO) ordersToday++;
+          }
+        }
+
+        merchantStats.push({
+          merchantId,
+          storeName,
+          ordersTotal,
+          ordersToday,
+          collected,
+          uncollected,
+          preparing,
+          ready,
+          revenue,
+        });
+
+        totalOrdersAllTime += ordersTotal;
+        totalOrdersToday += ordersToday;
+        totalCollected += collected;
+        totalUncollected += uncollected;
+        totalPreparing += preparing;
+        totalReady += ready;
+      }
+
+      merchantStats.sort((a, b) => b.ordersTotal - a.ordersTotal);
+
+      return res.json({
+        summary: {
+          totalMerchants: merchantDocs.length,
+          totalOrdersAllTime,
+          totalOrdersToday,
+          totalCollected,
+          totalUncollected,
+          totalPreparing,
+          totalReady,
+        },
+        merchants: merchantStats,
+      });
+    } catch (error) {
+      console.error("Global monitor error:", error);
+      return res.status(500).json({ message: "Failed to get global monitor data" });
+    }
+  });
+
   // ===== Product Management Routes =====
   app.post("/api/products/:merchantId", upload.single("image"), async (req, res) => {
     try {

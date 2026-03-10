@@ -391,6 +391,7 @@ export default function DashboardPage() {
   const [businessCloseTime, setBusinessCloseTime] = useState<string>((merchant as any)?.businessCloseTime || "");
   const [completedToday, setCompletedToday] = useState(0);
   const [flyingOrderId, setFlyingOrderId] = useState<string | null>(null);
+  const [merchantFeatures, setMerchantFeatures] = useState({ analyticsEnabled: true, crmEnabled: true, smartRatingEnabled: true, printReceiptsEnabled: true });
 
   useEffect(() => {
     if (!merchant?.uid) return;
@@ -469,6 +470,14 @@ export default function DashboardPage() {
     setBusinessOpenTime((merchant as any)?.businessOpenTime || "");
     setBusinessCloseTime((merchant as any)?.businessCloseTime || "");
   }, [(merchant as any)?.businessOpenTime, (merchant as any)?.businessCloseTime]);
+
+  useEffect(() => {
+    if (!merchant?.uid) return;
+    fetch(`/api/merchant-features/${merchant.uid}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.features) setMerchantFeatures(data.features); })
+      .catch(() => {});
+  }, [merchant?.uid]);
 
   useEffect(() => {
     if (!merchant?.uid) return;
@@ -1094,7 +1103,7 @@ export default function DashboardPage() {
       ? businessTypeLabels[merchant.businessType] || merchant.businessType
       : businessTypeLabelsEn[merchant.businessType] || merchant.businessType;
 
-  const navItems: { id: DashboardView; icon: typeof LayoutDashboard; label: string; badge?: number }[] = [
+  const allNavItems: { id: DashboardView; icon: typeof LayoutDashboard; label: string; badge?: number }[] = [
     { id: "overview", icon: LayoutDashboard, label: t("لوحة التحكم", "Dashboard"), badge: whatsappOrders.length || undefined },
     { id: "waitlist", icon: Users, label: t("قائمة الانتظار", "Waiting List"), badge: waitingPagers.length },
     { id: "menu", icon: UtensilsCrossed, label: t("قسم الأونلاين", "Online Section") },
@@ -1105,6 +1114,12 @@ export default function DashboardPage() {
     { id: "financial", icon: DollarSign, label: t("الإدارة المالية", "Financial") },
     { id: "settings", icon: Settings, label: t("الإعدادات", "Settings") },
   ];
+
+  const navItems = allNavItems.filter(item => {
+    if (item.id === "analytics" && !merchantFeatures.analyticsEnabled) return false;
+    if (item.id === "customers" && !merchantFeatures.crmEnabled) return false;
+    return true;
+  });
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] flex flex-col" dir={isRTL ? "rtl" : "ltr"}>
@@ -1354,6 +1369,7 @@ export default function DashboardPage() {
                 acceptingOrderId={acceptingOrderId}
                 completedToday={completedToday}
                 flyingOrderId={flyingOrderId}
+                printReceiptsEnabled={merchantFeatures.printReceiptsEnabled}
                 t={t}
                 lang={lang}
               />
@@ -1627,6 +1643,7 @@ function OverviewView({
   acceptingOrderId,
   completedToday,
   flyingOrderId,
+  printReceiptsEnabled,
   t,
   lang,
 }: {
@@ -1655,6 +1672,7 @@ function OverviewView({
   acceptingOrderId: string | null;
   completedToday: number;
   flyingOrderId: string | null;
+  printReceiptsEnabled: boolean;
   t: (ar: string, en: string) => string;
   lang: string;
 }) {
@@ -2024,6 +2042,7 @@ function OverviewView({
                     </div>
 
                     <div className="flex gap-2">
+                      {printReceiptsEnabled && (
                       <Button
                         size="sm"
                         onClick={() => handlePrint(waOrder)}
@@ -2032,6 +2051,7 @@ function OverviewView({
                       >
                         <Printer className="w-3.5 h-3.5" />
                       </Button>
+                      )}
                       {isPreparing && (
                         <Button
                           onClick={() => onReadyWhatsAppOrder(waOrder)}

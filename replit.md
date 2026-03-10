@@ -19,7 +19,7 @@ The platform is a multi-tenant SaaS application with isolated merchant data in F
 - **Typography**: Cairo / Tajawal fonts for Arabic text.
 - **Design System**: `rounded-2xl` for cards and badges, `bg-[#111]` for card backgrounds, consistent padding.
 - **Bilingual Support**: Full Arabic/English support with dynamic RTL/LTR, global toggle, and `localStorage` persistence.
-- **Merchant Dashboard**: Professional SaaS dashboard with sidebar navigation (Dashboard, Waiting List, Online Section, Customer Feedback, Analytics, My Customers, Coupons, Financial, Settings).
+- **Merchant Dashboard**: Professional SaaS dashboard with sidebar navigation (Dashboard, Waiting List, Online Section, Customer Feedback, Analytics, My Customers, Coupons, Financial, Settings). Sidebar items conditionally rendered based on feature flags from `/api/merchant-features/:merchantId` — Analytics hidden if `analyticsEnabled=false`, Customers hidden if `crmEnabled=false`, Print button hidden if `printReceiptsEnabled=false`.
   - **My Customers (عملائي)**: CRM table auto-populated from online orders. Columns: Name, Phone, Total Orders, Last Order Date, No-Shows, WhatsApp. WhatsApp button per row opens pre-filled promotional message with coupon placeholder. Customers with noShowCount >= 2 get red "غير ملتزم" / "Unreliable" warning badge.
   - **Coupons (الكوبونات)**: Create, toggle active/inactive, and delete discount coupons. Fields: Code, Discount %, Status. Stored in `merchants/{merchantId}/coupons` Firestore collection.
   - **Financial Management (الإدارة المالية)**: Dashboard with date filters (Today, 7 Days, 30 Days, Custom range). 4 stat cards: Total Sales, Collected (green), Lost/No-Show (red), Collection Rate % (dynamic color). Orders log table with status badges. CSV export button. Fetches from `GET /api/financial/:merchantId`.
@@ -55,7 +55,7 @@ The platform is a multi-tenant SaaS application with isolated merchant data in F
 - **PWA**: Progressive Web App with manifest, icons, and service worker for offline capabilities and push notifications.
 - **Real-time Updates**: Extensive use of Firestore `onSnapshot` listeners.
 - **Tracking & Marketing**: Web Share API, QR scan tracking, Smart Feedback Filter (Google Maps reviews for 4-5 stars, private feedback for 1-3 stars).
-- **Super Admin Panel**: Merchant management, global settings, impersonation, system health monitoring, and ROI reports. Includes merchant table with search, filters, sort, pagination, and analytics charts.
+- **Super Admin Panel**: Merchant management, global settings, impersonation, system health monitoring, and ROI reports. Includes merchant table with search, filters, sort, pagination, and analytics charts. **Feature Toggles**: Per-merchant toggles (Analytics, CRM, Smart Rating, Print Receipts) via Settings button on each merchant row. Flags stored in Firestore merchant document. Endpoints: `GET/PATCH /api/admin/merchant-features/:merchantId` (admin-only), `GET /api/merchant-features/:merchantId` (public). **Global Monitor**: Aggregated cross-merchant stats (total orders, today orders, collected, uncollected, preparing, ready) with per-merchant breakdown table showing revenue.
 - **Subscription System**: Two-layer gating (`status`, `subscriptionStatus`) with smart expiry. Admin sets duration, auto-calculation of expiry. Expired merchants see a dedicated page, and their QR pages show "Service Temporarily Unavailable." Dashboard shows a subscription countdown.
 
 ## External Dependencies

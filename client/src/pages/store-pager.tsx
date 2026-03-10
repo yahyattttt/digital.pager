@@ -56,10 +56,12 @@ function StarRatingWidget({
   storeId,
   googleMapsReviewUrl,
   variant = "dark",
+  smartRatingEnabled = true,
 }: {
   storeId: string;
   googleMapsReviewUrl: string;
   variant?: "dark" | "light";
+  smartRatingEnabled?: boolean;
 }) {
   const { toast } = useToast();
   const [selectedStars, setSelectedStars] = useState(0);
@@ -73,7 +75,7 @@ function StarRatingWidget({
   function handleStarClick(star: number) {
     setSelectedStars(star);
 
-    if (star >= 4) {
+    if (smartRatingEnabled && star >= 4) {
       setPhase("redirecting");
       setTimeout(async () => {
         try {
@@ -238,11 +240,13 @@ function ShareAndReviewButtons({
   storeName,
   googleMapsReviewUrl,
   variant = "dark",
+  smartRatingEnabled = true,
 }: {
   storeId: string;
   storeName: string;
   googleMapsReviewUrl: string;
   variant?: "dark" | "light";
+  smartRatingEnabled?: boolean;
 }) {
   const { toast } = useToast();
 
@@ -299,6 +303,7 @@ function ShareAndReviewButtons({
           storeId={storeId}
           googleMapsReviewUrl={googleMapsReviewUrl}
           variant={variant}
+          smartRatingEnabled={smartRatingEnabled}
         />
       )}
     </div>
@@ -391,13 +396,14 @@ function PagerDevice({ orderNumber, isReady }: { orderNumber: string; isReady: b
   );
 }
 
-function WaitingScreen({ orderNumber, storeName, storeId, googleMapsReviewUrl, onRefresh, pullProps }: {
+function WaitingScreen({ orderNumber, storeName, storeId, googleMapsReviewUrl, onRefresh, pullProps, smartRatingEnabled = true }: {
   orderNumber: string;
   storeName: string;
   storeId: string;
   googleMapsReviewUrl: string;
   onRefresh?: () => Promise<void>;
   pullProps?: ReturnType<typeof usePullToRefresh>;
+  smartRatingEnabled?: boolean;
 }) {
   return (
     <div
@@ -453,6 +459,7 @@ function WaitingScreen({ orderNumber, storeName, storeId, googleMapsReviewUrl, o
           storeName={storeName}
           googleMapsReviewUrl={googleMapsReviewUrl}
           variant="dark"
+          smartRatingEnabled={smartRatingEnabled}
         />
       </div>
 
@@ -469,6 +476,7 @@ function NotifiedScreen({
   showReview,
   alertActive,
   onStopAlert,
+  smartRatingEnabled = true,
 }: {
   orderNumber: string;
   storeName: string;
@@ -477,6 +485,7 @@ function NotifiedScreen({
   showReview: boolean;
   alertActive: boolean;
   onStopAlert: () => void;
+  smartRatingEnabled?: boolean;
 }) {
   return (
     <div
@@ -568,6 +577,7 @@ function NotifiedScreen({
               storeName={storeName}
               googleMapsReviewUrl={googleMapsReviewUrl}
               variant="dark"
+              smartRatingEnabled={smartRatingEnabled}
             />
           </div>
         )}
@@ -763,7 +773,7 @@ function OrderSelectionScreen({
   );
 }
 
-function CompletedScreen({ storeId, storeName, googleMapsReviewUrl, navigate }: { storeId: string; storeName: string; googleMapsReviewUrl?: string; navigate: (to: string) => void }) {
+function CompletedScreen({ storeId, storeName, googleMapsReviewUrl, navigate, smartRatingEnabled = true }: { storeId: string; storeName: string; googleMapsReviewUrl?: string; navigate: (to: string) => void; smartRatingEnabled?: boolean }) {
   const [countdown, setCountdown] = useState(5);
 
   useEffect(() => {
@@ -795,7 +805,7 @@ function CompletedScreen({ storeId, storeName, googleMapsReviewUrl, navigate }: 
           <p className="text-white/40 text-sm mt-0.5" dir="rtl">نراك قريباً!</p>
         </div>
         {storeName && <p className="text-white/20 text-xs mt-2">{storeName}</p>}
-        {googleMapsReviewUrl && (
+        {smartRatingEnabled && googleMapsReviewUrl && (
           <a
             href={googleMapsReviewUrl}
             target="_blank"
@@ -830,6 +840,7 @@ export default function StorePagerPage() {
   const [pagerStatus, setPagerStatus] = useState<"waiting" | "notified" | "completed" | "archived">("waiting");
   const [alertActive, setAlertActive] = useState(false);
   const [showReview, setShowReview] = useState(false);
+  const [smartRatingEnabled, setSmartRatingEnabled] = useState(true);
   const hasPlayedNotification = useRef(false);
   const reviewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const alertSoundRef = useRef<HTMLAudioElement | null>(null);
@@ -1019,6 +1030,10 @@ export default function StorePagerPage() {
           const data = merchantDoc.data() as Merchant;
           if (data.status === "approved" && data.subscriptionStatus === "active") {
             setMerchant(data);
+            fetch(`/api/merchant-features/${storeId}`)
+              .then(r => r.ok ? r.json() : null)
+              .then(d => { if (d?.features) setSmartRatingEnabled(d.features.smartRatingEnabled !== false); })
+              .catch(() => {});
           } else if (data.status === "approved" && data.subscriptionStatus !== "active") {
             setServiceUnavailable(true);
           } else {
@@ -1230,7 +1245,7 @@ export default function StorePagerPage() {
   } else if (submitted && (pagerStatus === "completed" || pagerStatus === "archived")) {
     if (sessionKey) localStorage.removeItem(sessionKey);
     content = (
-      <CompletedScreen storeId={storeId!} storeName={merchant?.storeName || ""} googleMapsReviewUrl={merchant?.googleMapsReviewUrl} navigate={navigate} />
+      <CompletedScreen storeId={storeId!} storeName={merchant?.storeName || ""} googleMapsReviewUrl={merchant?.googleMapsReviewUrl} navigate={navigate} smartRatingEnabled={smartRatingEnabled} />
     );
   } else if (submitted && pagerStatus === "notified") {
     content = (
@@ -1242,6 +1257,7 @@ export default function StorePagerPage() {
         showReview={showReview}
         alertActive={alertActive}
         onStopAlert={handleStopAlert}
+        smartRatingEnabled={smartRatingEnabled}
       />
     );
   } else if (submitted && pagerStatus === "waiting") {
@@ -1253,6 +1269,7 @@ export default function StorePagerPage() {
         googleMapsReviewUrl={merchant.googleMapsReviewUrl}
         onRefresh={handlePullRefresh}
         pullProps={pullProps}
+        smartRatingEnabled={smartRatingEnabled}
       />
     );
   } else if (merchant) {
