@@ -6,11 +6,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Store, ShoppingCart, Plus, Minus, X, AlertTriangle, Loader2, Check, ArrowLeft, Clock } from "lucide-react";
 import { SiWhatsapp } from "react-icons/si";
 import { useToast } from "@/hooks/use-toast";
-import type { Product } from "@shared/schema";
+import type { Product, ProductVariant, ProductAddon } from "@shared/schema";
 
 interface CartItem {
   product: Product;
   quantity: number;
+  selectedVariant: ProductVariant | null;
+  selectedAddons: ProductAddon[];
+  itemPrice: number;
 }
 
 interface MerchantInfo {
@@ -41,6 +44,11 @@ export default function PublicMenuPage() {
   const [pledgeAccepted, setPledgeAccepted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [, setTimeTick] = useState(0);
+
+  const [modalProduct, setModalProduct] = useState<Product | null>(null);
+  const [modalVariant, setModalVariant] = useState<ProductVariant | null>(null);
+  const [modalAddons, setModalAddons] = useState<ProductAddon[]>([]);
+  const [modalQty, setModalQty] = useState(1);
 
   const fetchMenu = useCallback(async (isRefresh = false) => {
     if (!merchantId) return;
@@ -73,17 +81,20 @@ export default function PublicMenuPage() {
     return () => clearInterval(interval);
   }, [fetchMenu]);
 
-  const cartTotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+  function getItemTotal(item: CartItem): number {
+    return item.itemPrice * item.quantity;
+  }
+
+  const cartTotal = cart.reduce((sum, item) => sum + getItemTotal(item), 0);
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   function isWithinBusinessHours(): boolean {
     if (!merchant) return true;
-    const { businessOpenTime, businessCloseTime } = merchant;
-    if (!businessOpenTime || !businessCloseTime) return true;
+    if (!merchant.businessOpenTime || !merchant.businessCloseTime) return true;
     const now = new Date();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
-    const [openH, openM] = businessOpenTime.split(":").map(Number);
-    const [closeH, closeM] = businessCloseTime.split(":").map(Number);
+    const [openH, openM] = merchant.businessOpenTime.split(":").map(Number);
+    const [closeH, closeM] = merchant.businessCloseTime.split(":").map(Number);
     const openMinutes = openH * 60 + openM;
     const closeMinutes = closeH * 60 + closeM;
     if (closeMinutes > openMinutes) {
@@ -92,11 +103,17 @@ export default function PublicMenuPage() {
     return currentMinutes >= openMinutes || currentMinutes < closeMinutes;
   }
 
-  const orderingDisabled = merchant ? (!merchant.onlineOrdersEnabled || !isWithinBusinessHours()) : false;
+  const orderingDisabled = !merchant?.storeOpen || merchant?.onlineOrdersEnabled === false || !isWithinBusinessHours();
 
   function getClosedReason(): { messageAr: string; messageEn: string; reopenTime?: string } {
     if (!merchant) return { messageAr: "", messageEn: "" };
-    if (!merchant.onlineOrdersEnabled) {
+    if (!merchant.storeOpen) {
+      return {
+        messageAr: "المعذرة، المتجر مغلق حالياً",
+        messageEn: "Sorry, the store is currently closed",
+      };
+    }
+    if (merchant.onlineOrdersEnabled === false) {
       return {
         messageAr: "المعذرة، المتجر لا يستقبل طلبات أونلاين حالياً",
         messageEn: "Sorry, the store is not accepting online orders at the moment",
@@ -114,30 +131,93 @@ export default function PublicMenuPage() {
 
   const closedInfo = getClosedReason();
 
-  function addToCart(product: Product) {
-    setCart(prev => {
-      const existing = prev.find(i => i.product.id === product.id);
-      if (existing) return prev.map(i => i.product.id === product.id ? { ...i, quantity: i.quantity + 1 } : i);
-      return [...prev, { product, quantity: 1 }];
+  function openProductModal(product: Product) {
+    setModalProduct(product);
+    const hasVariants = product.variants && product.variants.length > 0;
+    setModalVariant(hasVariants ? product.variants![0] : null);
+    setModalAddons([]);
+    setModalQty(1);
+  }
+
+  function getModalPrice(): number {
+    if (!modalProduct) return 0;
+    const base = modalVariant ? modalVariant.price : modalProduct.price;
+    const addonsTotal = modalAddons.reduce((s, a) => s + a.price, 0);
+    return base + addonsTotal;
+  }
+
+  function toggleModalAddon(addon: ProductAddon) {
+    setModalAddons(prev => {
+      const exists = prev.find(a => a.name === addon.name);
+      if (exists) return prev.filter(a => a.name !== addon.name);
+      return [...prev, addon];
     });
   }
 
-  function updateQuantity(productId: string, delta: number) {
+  function confirmAddToCart() {
+    if (!modalProduct) return;
+    const hasVariants = modalProduct.variants && modalProduct.variants.length > 0;
+    if (hasVariants && !modalVariant) return;
+
+    const itemPrice = getModalPrice();
+    const cartKey = `${modalProduct.id}-${modalVariant?.name || "base"}-${modalAddons.map(a => a.name).sort().join(",")}`;
+
+    setCart(prev => {
+      const existing = prev.find(i =>
+        i.product.id === modalProduct.id &&
+        (i.selectedVariant?.name || "base") === (modalVariant?.name || "base") &&
+        i.selectedAddons.map(a => a.name).sort().join(",") === modalAddons.map(a => a.name).sort().join(",")
+      );
+      if (existing) {
+        return prev.map(i =>
+          i.product.id === modalProduct.id &&
+          (i.selectedVariant?.name || "base") === (modalVariant?.name || "base") &&
+          i.selectedAddons.map(a => a.name).sort().join(",") === modalAddons.map(a => a.name).sort().join(",")
+            ? { ...i, quantity: i.quantity + modalQty }
+            : i
+        );
+      }
+      return [...prev, {
+        product: modalProduct,
+        quantity: modalQty,
+        selectedVariant: modalVariant,
+        selectedAddons: [...modalAddons],
+        itemPrice,
+      }];
+    });
+
+    setModalProduct(null);
+  }
+
+  function cartItemKey(item: CartItem): string {
+    return `${item.product.id}-${item.selectedVariant?.name || "base"}-${item.selectedAddons.map(a => a.name).sort().join(",")}`;
+  }
+
+  function updateQuantity(item: CartItem, delta: number) {
+    const key = cartItemKey(item);
     setCart(prev => {
       return prev.map(i => {
-        if (i.product.id !== productId) return i;
+        if (cartItemKey(i) !== key) return i;
         const newQty = i.quantity + delta;
         return newQty > 0 ? { ...i, quantity: newQty } : i;
       }).filter(i => i.quantity > 0);
     });
   }
 
-  function removeFromCart(productId: string) {
-    setCart(prev => prev.filter(i => i.product.id !== productId));
+  function removeFromCart(item: CartItem) {
+    const key = cartItemKey(item);
+    setCart(prev => prev.filter(i => cartItemKey(i) !== key));
   }
 
-  function getCartQuantity(productId: string): number {
-    return cart.find(i => i.product.id === productId)?.quantity || 0;
+  function getCartQuantityForProduct(productId: string): number {
+    return cart.filter(i => i.product.id === productId).reduce((s, i) => s + i.quantity, 0);
+  }
+
+  function formatCartItemLabel(item: CartItem): string {
+    let label = item.product.name;
+    if (item.selectedVariant) label += ` (${item.selectedVariant.name})`;
+    if (item.selectedAddons.length > 0) label += ` + ${item.selectedAddons.map(a => a.name).join(", ")}`;
+    return label;
   }
 
   async function handleConfirmOrder() {
@@ -151,8 +231,8 @@ export default function PublicMenuPage() {
     try {
       const orderItems = cart.map(item => ({
         productId: item.product.id,
-        name: item.product.name,
-        price: item.product.price,
+        name: formatCartItemLabel(item),
+        price: item.itemPrice,
         quantity: item.quantity,
       }));
 
@@ -176,7 +256,11 @@ export default function PublicMenuPage() {
       whatsappMsg += `👤 ${customerName.trim()}\n📱 ${customerPhone.trim()}\n\n`;
       whatsappMsg += `📋 *تفاصيل الطلب:*\n`;
       cart.forEach(item => {
-        whatsappMsg += `• ${item.product.name} × ${item.quantity} = ${(item.product.price * item.quantity).toFixed(2)} SAR\n`;
+        let line = `• ${item.product.name}`;
+        if (item.selectedVariant) line += ` (${item.selectedVariant.name})`;
+        if (item.selectedAddons.length > 0) line += ` + ${item.selectedAddons.map(a => a.name).join(", ")}`;
+        line += ` × ${item.quantity} = ${(item.itemPrice * item.quantity).toFixed(2)} SAR`;
+        whatsappMsg += line + `\n`;
       });
       whatsappMsg += `\n💰 *المجموع: ${cartTotal.toFixed(2)} SAR*\n\n`;
       whatsappMsg += `🔗 *رابط التتبع:*\n${trackingUrl}\n\n`;
@@ -224,6 +308,14 @@ export default function PublicMenuPage() {
   }
 
   if (showCheckout) {
+    if (cart.length === 0) {
+      setTimeout(() => setShowCheckout(false), 0);
+      return (
+        <div className="min-h-[100dvh] flex items-center justify-center" style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }}>
+          <p className="text-white/40 text-sm">No items in cart</p>
+        </div>
+      );
+    }
     return (
       <div className="min-h-[100dvh] flex flex-col" style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }}>
         <div className="flex-shrink-0 p-4 border-b border-red-600/10">
@@ -238,13 +330,47 @@ export default function PublicMenuPage() {
           <p className="text-white/40 text-sm text-center mb-6">Order Summary</p>
 
           <div className="space-y-3 mb-6">
-            {cart.map(item => (
-              <div key={item.product.id} className="flex items-center justify-between p-3 rounded-xl bg-zinc-900/60 border border-zinc-800/50" data-testid={`checkout-item-${item.product.id}`}>
-                <div className="flex-1 min-w-0">
-                  <p className="text-white text-sm font-medium truncate">{item.product.name}</p>
-                  <p className="text-red-400 text-xs">{item.product.price.toFixed(2)} SAR × {item.quantity}</p>
+            {cart.map((item, idx) => (
+              <div key={cartItemKey(item)} className="p-3 rounded-xl bg-zinc-900/60 border border-zinc-800/50" data-testid={`checkout-item-${item.product.id}-${idx}`}>
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white text-sm font-medium">{item.product.name}</p>
+                    {item.selectedVariant && (
+                      <p className="text-white/50 text-[11px]">{item.selectedVariant.name}</p>
+                    )}
+                    {item.selectedAddons.length > 0 && (
+                      <p className="text-white/40 text-[11px]">+ {item.selectedAddons.map(a => a.name).join(", ")}</p>
+                    )}
+                    <p className="text-red-400 text-xs mt-0.5">{item.itemPrice.toFixed(2)} SAR</p>
+                  </div>
+                  <p className="text-white font-bold text-sm ml-3">{getItemTotal(item).toFixed(2)}</p>
                 </div>
-                <p className="text-white font-bold text-sm ml-3">{(item.product.price * item.quantity).toFixed(2)}</p>
+                <div className="flex items-center justify-between mt-2 pt-2 border-t border-zinc-800/30">
+                  <button
+                    onClick={() => removeFromCart(item)}
+                    className="text-red-500/60 hover:text-red-400 text-xs transition-colors"
+                    data-testid={`button-remove-checkout-${idx}`}
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => updateQuantity(item, -1)}
+                      className="w-7 h-7 rounded-lg bg-zinc-800 flex items-center justify-center hover:bg-zinc-700 transition-colors"
+                      data-testid={`button-checkout-decrease-${idx}`}
+                    >
+                      <Minus className="w-3 h-3 text-white/60" />
+                    </button>
+                    <span className="w-6 text-center text-white text-sm font-bold" data-testid={`text-checkout-qty-${idx}`}>{item.quantity}</span>
+                    <button
+                      onClick={() => updateQuantity(item, 1)}
+                      className="w-7 h-7 rounded-lg bg-red-600/20 flex items-center justify-center hover:bg-red-600/30 transition-colors"
+                      data-testid={`button-checkout-increase-${idx}`}
+                    >
+                      <Plus className="w-3 h-3 text-red-400" />
+                    </button>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
@@ -363,13 +489,19 @@ export default function PublicMenuPage() {
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3" data-testid="menu-product-grid">
             {products.map(product => {
-              const qty = getCartQuantity(product.id);
+              const qty = getCartQuantityForProduct(product.id);
+              const hasVariants = product.variants && product.variants.length > 0;
+              const startPrice = hasVariants
+                ? Math.min(...product.variants!.map(v => v.price))
+                : product.price;
+
               return (
                 <div
                   key={product.id}
-                  className="rounded-xl border border-zinc-800/50 bg-zinc-900/40 overflow-hidden flex flex-col"
+                  className="rounded-xl border border-zinc-800/50 bg-zinc-900/40 overflow-hidden flex flex-col cursor-pointer active:scale-[0.98] transition-transform"
                   style={{ boxShadow: "0 2px 12px rgba(255,0,0,0.03)" }}
                   data-testid={`product-card-${product.id}`}
+                  onClick={() => { if (!orderingDisabled) openProductModal(product); }}
                 >
                   {product.imageUrl ? (
                     <div className="aspect-square overflow-hidden">
@@ -391,36 +523,23 @@ export default function PublicMenuPage() {
                       <p className="text-white/30 text-[11px] mt-0.5 line-clamp-2">{product.description}</p>
                     )}
                     <div className="mt-auto pt-2 flex items-center justify-between">
-                      <span className="text-red-400 font-bold text-sm" data-testid={`text-product-price-${product.id}`}>{product.price.toFixed(2)}</span>
+                      <span className="text-red-400 font-bold text-sm" data-testid={`text-product-price-${product.id}`}>
+                        {hasVariants ? `${startPrice.toFixed(2)}+` : product.price.toFixed(2)}
+                      </span>
                       {orderingDisabled ? (
                         <div className="w-8 h-8 rounded-lg bg-zinc-800/50 flex items-center justify-center opacity-30" data-testid={`button-add-disabled-${product.id}`}>
                           <Plus className="w-4 h-4 text-white/30" />
                         </div>
-                      ) : qty === 0 ? (
-                        <button
-                          onClick={() => addToCart(product)}
+                      ) : qty > 0 ? (
+                        <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                          <span className="bg-red-600/20 text-red-400 text-xs font-bold rounded-full px-2 py-0.5" data-testid={`text-qty-${product.id}`}>{qty}</span>
+                        </div>
+                      ) : (
+                        <div
                           className="w-8 h-8 rounded-lg bg-red-600/10 border border-red-600/20 flex items-center justify-center hover:bg-red-600/20 transition-colors"
                           data-testid={`button-add-${product.id}`}
                         >
                           <Plus className="w-4 h-4 text-red-500" />
-                        </button>
-                      ) : (
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => updateQuantity(product.id, -1)}
-                            className="w-7 h-7 rounded-md bg-zinc-800 flex items-center justify-center hover:bg-zinc-700 transition-colors"
-                            data-testid={`button-decrease-${product.id}`}
-                          >
-                            <Minus className="w-3 h-3 text-white/60" />
-                          </button>
-                          <span className="w-6 text-center text-white text-sm font-bold" data-testid={`text-qty-${product.id}`}>{qty}</span>
-                          <button
-                            onClick={() => updateQuantity(product.id, 1)}
-                            className="w-7 h-7 rounded-md bg-red-600/20 flex items-center justify-center hover:bg-red-600/30 transition-colors"
-                            data-testid={`button-increase-${product.id}`}
-                          >
-                            <Plus className="w-3 h-3 text-red-400" />
-                          </button>
                         </div>
                       )}
                     </div>
@@ -431,6 +550,132 @@ export default function PublicMenuPage() {
           </div>
         )}
       </div>
+
+      {modalProduct && (
+        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center" data-testid="modal-product-selection">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setModalProduct(null)} />
+          <div className="relative w-full max-w-md max-h-[85dvh] bg-[#111] border border-zinc-800 rounded-t-2xl sm:rounded-2xl flex flex-col overflow-hidden">
+            <div className="flex-shrink-0 flex items-center justify-between p-4 border-b border-zinc-800/50">
+              <h3 className="text-white font-bold text-base truncate flex-1" data-testid="modal-product-name">{modalProduct.name}</h3>
+              <button onClick={() => setModalProduct(null)} className="p-1 text-white/40 hover:text-white" data-testid="button-close-modal">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-5">
+              {modalProduct.imageUrl && (
+                <div className="aspect-video rounded-xl overflow-hidden">
+                  <img src={modalProduct.imageUrl} alt={modalProduct.name} className="w-full h-full object-cover" />
+                </div>
+              )}
+
+              {modalProduct.description && (
+                <p className="text-white/50 text-sm">{modalProduct.description}</p>
+              )}
+
+              {modalProduct.variants && modalProduct.variants.length > 0 && (
+                <div data-testid="section-variants">
+                  <p className="text-white/70 text-xs font-bold uppercase tracking-wider mb-2" dir="rtl">الحجم / Size</p>
+                  <div className="space-y-2">
+                    {modalProduct.variants.map((variant, idx) => (
+                      <div
+                        key={idx}
+                        onClick={() => setModalVariant(variant)}
+                        className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-colors ${
+                          modalVariant?.name === variant.name
+                            ? "border-red-500/40 bg-red-600/10"
+                            : "border-zinc-700/50 bg-zinc-900/30 hover:border-zinc-600"
+                        }`}
+                        data-testid={`variant-option-${idx}`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                            modalVariant?.name === variant.name ? "border-red-500" : "border-zinc-600"
+                          }`}>
+                            {modalVariant?.name === variant.name && (
+                              <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
+                            )}
+                          </div>
+                          <span className="text-white text-sm">{variant.name}</span>
+                        </div>
+                        <span className="text-red-400 text-sm font-bold">{variant.price.toFixed(2)} SAR</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {modalProduct.addons && modalProduct.addons.length > 0 && (
+                <div data-testid="section-addons">
+                  <p className="text-white/70 text-xs font-bold uppercase tracking-wider mb-2" dir="rtl">إضافات / Extras</p>
+                  <div className="space-y-2">
+                    {modalProduct.addons.map((addon, idx) => {
+                      const selected = modalAddons.some(a => a.name === addon.name);
+                      return (
+                        <div
+                          key={idx}
+                          onClick={() => toggleModalAddon(addon)}
+                          className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-colors ${
+                            selected
+                              ? "border-red-500/40 bg-red-600/10"
+                              : "border-zinc-700/50 bg-zinc-900/30 hover:border-zinc-600"
+                          }`}
+                          data-testid={`addon-option-${idx}`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center ${
+                              selected ? "border-red-500 bg-red-500" : "border-zinc-600"
+                            }`}>
+                              {selected && <Check className="w-3 h-3 text-white" />}
+                            </div>
+                            <span className="text-white text-sm">{addon.name}</span>
+                          </div>
+                          <span className="text-white/50 text-sm">{addon.price > 0 ? `+${addon.price.toFixed(2)}` : "Free"}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div data-testid="section-quantity">
+                <p className="text-white/70 text-xs font-bold uppercase tracking-wider mb-2" dir="rtl">الكمية / Quantity</p>
+                <div className="flex items-center gap-3 justify-center">
+                  <button
+                    onClick={() => setModalQty(q => Math.max(1, q - 1))}
+                    className="w-10 h-10 rounded-xl bg-zinc-800 flex items-center justify-center hover:bg-zinc-700 transition-colors"
+                    data-testid="button-modal-qty-minus"
+                  >
+                    <Minus className="w-4 h-4 text-white/60" />
+                  </button>
+                  <span className="text-white text-xl font-bold w-10 text-center" data-testid="text-modal-qty">{modalQty}</span>
+                  <button
+                    onClick={() => setModalQty(q => q + 1)}
+                    className="w-10 h-10 rounded-xl bg-red-600/20 flex items-center justify-center hover:bg-red-600/30 transition-colors"
+                    data-testid="button-modal-qty-plus"
+                  >
+                    <Plus className="w-4 h-4 text-red-400" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex-shrink-0 p-4 border-t border-zinc-800/50 bg-[#111]">
+              <Button
+                onClick={confirmAddToCart}
+                disabled={!!(modalProduct.variants && modalProduct.variants.length > 0 && !modalVariant)}
+                className="w-full h-14 text-base font-bold bg-red-600 hover:bg-red-700 text-white rounded-xl gap-2"
+                data-testid="button-modal-add-to-cart"
+              >
+                <ShoppingCart className="w-5 h-5" />
+                <span dir="rtl">أضف للسلة</span>
+                <span className="text-white/80">·</span>
+                <span>{(getModalPrice() * modalQty).toFixed(2)} SAR</span>
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {cartCount > 0 && !orderingDisabled && (
         <div className="fixed bottom-0 left-0 right-0 z-50 p-3">
