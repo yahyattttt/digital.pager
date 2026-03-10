@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
+import neonBellLogo from "@assets/image0_(1)_1773118136698.png";
 import { useLanguage } from "@/hooks/use-language";
 import {
   Form,
@@ -26,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Upload, Store, User, Mail, MapPin, Loader2, CheckCircle, ArrowRight, ArrowLeft, Briefcase, Globe, Bell, ShieldCheck, KeyRound } from "lucide-react";
+import { Upload, Store, User, Mail, MapPin, Loader2, CheckCircle, ArrowRight, ArrowLeft, Briefcase, Globe, ShieldCheck, KeyRound } from "lucide-react";
 
 const businessTypeLabelsEn: Record<string, string> = {
   restaurant: "Restaurant",
@@ -371,8 +372,8 @@ export default function RegisterPage() {
           </div>
 
           <div className="flex items-center justify-center gap-2 mb-4">
-            <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
-              <Bell className="w-5 h-5 text-primary-foreground" />
+            <div className="w-12 h-12 rounded-full bg-black border border-red-500/30 flex items-center justify-center overflow-hidden">
+              <img src={neonBellLogo} alt="Digital Pager" className="w-[75%] h-[75%] object-contain" style={{ filter: "drop-shadow(0 0 8px rgba(255, 0, 0, 0.8))" }} />
             </div>
           </div>
 

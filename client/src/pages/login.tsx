@@ -9,7 +9,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { useLanguage } from "@/hooks/use-language";
-import { Mail, Loader2, ArrowRight, ArrowLeft, Globe, Bell, KeyRound } from "lucide-react";
+import { Mail, Loader2, ArrowRight, ArrowLeft, Globe, KeyRound } from "lucide-react";
+import neonBellLogo from "@assets/image0_(1)_1773118136698.png";
 
 export default function LoginPage() {
   const [, setLocation] = useLocation();
@@ -226,8 +227,8 @@ export default function LoginPage() {
           </div>
 
           <div className="flex items-center justify-center gap-2 mb-4">
-            <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
-              <Bell className="w-5 h-5 text-primary-foreground" />
+            <div className="w-12 h-12 rounded-full bg-black border border-red-500/30 flex items-center justify-center overflow-hidden">
+              <img src={neonBellLogo} alt="Digital Pager" className="w-[75%] h-[75%] object-contain" style={{ filter: "drop-shadow(0 0 8px rgba(255, 0, 0, 0.8))" }} />
             </div>
           </div>
 

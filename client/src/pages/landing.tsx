@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useLanguage } from "@/hooks/use-language";
 import { Bell, Users, Zap, Shield, ArrowLeft, ArrowRight, Star, Globe } from "lucide-react";
+import neonBellLogo from "@assets/image0_(1)_1773118136698.png";
 
 export default function LandingPage() {
   const [, setLocation] = useLocation();
@@ -56,8 +57,8 @@ export default function LandingPage() {
       <nav className="relative z-10 border-b border-border/30 backdrop-blur-sm">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-md bg-primary flex items-center justify-center">
-              <Bell className="w-4 h-4 text-primary-foreground" />
+            <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center overflow-hidden">
+              <img src={neonBellLogo} alt="Digital Pager" className="w-[75%] h-[75%] object-contain" style={{ filter: "drop-shadow(0 0 8px rgba(255, 0, 0, 0.8))" }} />
             </div>
             <span className="font-bold text-lg tracking-tight" data-testid="text-brand-name">
               Digital Pager
@@ -191,8 +192,8 @@ export default function LandingPage() {
       <footer className="relative z-10 border-t border-border/30">
         <div className="max-w-6xl mx-auto px-6 py-6 flex items-center justify-between gap-4 flex-wrap text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded bg-primary flex items-center justify-center">
-              <Bell className="w-3 h-3 text-primary-foreground" />
+            <div className="w-6 h-6 rounded-full bg-black flex items-center justify-center overflow-hidden">
+              <img src={neonBellLogo} alt="Digital Pager" className="w-[75%] h-[75%] object-contain" style={{ filter: "drop-shadow(0 0 6px rgba(255, 0, 0, 0.8))" }} />
             </div>
             <span className="font-medium">Digital Pager</span>
           </div>
