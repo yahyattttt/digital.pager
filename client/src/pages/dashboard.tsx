@@ -700,7 +700,7 @@ export default function DashboardPage() {
     if (!merchant?.uid) return;
     try {
       const orderRef = doc(db, "merchants", merchant.uid, "whatsappOrders", order.id);
-      await updateDoc(orderRef, { status: "completed" });
+      await updateDoc(orderRef, { status: "archived", archivedAt: new Date().toISOString() });
       toast({
         title: t("تم إغلاق الطلب", "Order Closed"),
         description: t(`تم إغلاق الطلب #${order.orderNumber}`, `Order #${order.orderNumber} has been closed`),
@@ -828,13 +828,13 @@ export default function DashboardPage() {
     if (!merchant?.uid) return;
     try {
       const pagerRef = doc(db, "merchants", merchant.uid, "pagers", pager.docId);
-      await updateDoc(pagerRef, { status: "completed" });
+      await updateDoc(pagerRef, { status: "archived", archivedAt: new Date().toISOString() });
 
       const waOrdersRef = collection(db, "merchants", merchant.uid, "whatsappOrders");
       const waQuery = query(waOrdersRef, where("orderNumber", "==", pager.orderNumber), where("status", "in", ["preparing", "ready"]));
       const waSnap = await getDocs(waQuery);
       if (!waSnap.empty) {
-        await updateDoc(waSnap.docs[0].ref, { status: "completed" });
+        await updateDoc(waSnap.docs[0].ref, { status: "archived", archivedAt: new Date().toISOString() });
       }
 
       toast({

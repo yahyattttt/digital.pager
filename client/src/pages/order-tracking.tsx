@@ -230,7 +230,7 @@ export default function OrderTrackingPage() {
 
       if (shouldPlay) {
         playAlert();
-      } else if (currentStatus === "completed") {
+      } else if (currentStatus === "completed" || currentStatus === "archived") {
         stopAlert();
       }
 
@@ -339,7 +339,7 @@ export default function OrderTrackingPage() {
     );
   }
 
-  if (order.status === "completed") {
+  if (order.status === "completed" || order.status === "archived") {
     return (
       <div className="h-[100dvh] flex flex-col items-center justify-center px-5 text-center" style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }} data-testid="tracking-completed-screen">
         <div className="flex flex-col items-center gap-6 animate-in fade-in duration-700">

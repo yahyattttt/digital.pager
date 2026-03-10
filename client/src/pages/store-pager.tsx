@@ -764,7 +764,7 @@ function OrderSelectionScreen({
 }
 
 function CompletedScreen({ storeId, storeName, googleMapsReviewUrl, navigate }: { storeId: string; storeName: string; googleMapsReviewUrl?: string; navigate: (to: string) => void }) {
-  const [countdown, setCountdown] = useState(10);
+  const [countdown, setCountdown] = useState(5);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -827,7 +827,7 @@ export default function StorePagerPage() {
   const [serviceUnavailable, setServiceUnavailable] = useState(false);
   const [orderNumber, setOrderNumber] = useState("");
   const [submitted, setSubmitted] = useState(false);
-  const [pagerStatus, setPagerStatus] = useState<"waiting" | "notified" | "completed">("waiting");
+  const [pagerStatus, setPagerStatus] = useState<"waiting" | "notified" | "completed" | "archived">("waiting");
   const [alertActive, setAlertActive] = useState(false);
   const [showReview, setShowReview] = useState(false);
   const hasPlayedNotification = useRef(false);
@@ -976,7 +976,7 @@ export default function StorePagerPage() {
           return;
         }
         const pager = snap.docs[0].data() as Pager;
-        if (pager.status === "completed" || pager.status === "cancelled") {
+        if (pager.status === "completed" || pager.status === "archived" || pager.status === "cancelled") {
           localStorage.removeItem(sessionKey);
           return;
         }
@@ -1064,7 +1064,7 @@ export default function StorePagerPage() {
         console.log("[StorePager] Snapshot empty — pager completed/removed");
         if (!isFirstSnapshot) {
           stopAlert();
-          setPagerStatus("completed");
+          setPagerStatus("archived");
           if (sessionKey) localStorage.removeItem(sessionKey);
         }
         isFirstSnapshot = false;
@@ -1224,7 +1224,7 @@ export default function StorePagerPage() {
         </Card>
       </div>
     );
-  } else if (submitted && pagerStatus === "completed") {
+  } else if (submitted && (pagerStatus === "completed" || pagerStatus === "archived")) {
     if (sessionKey) localStorage.removeItem(sessionKey);
     content = (
       <CompletedScreen storeId={storeId!} storeName={merchant?.storeName || ""} googleMapsReviewUrl={merchant?.googleMapsReviewUrl} navigate={navigate} />
