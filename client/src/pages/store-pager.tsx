@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, TouchEvent as ReactTouchEvent } from "react";
-import { useParams } from "wouter";
+import { useParams, useLocation } from "wouter";
 import { doc, getDoc, getDocs, setDoc, updateDoc, collection, query, where, onSnapshot, orderBy, limit } from "firebase/firestore";
 import { db, requestFCMToken } from "@/lib/firebase";
 import type { Merchant, Pager } from "@shared/schema";
@@ -763,9 +763,64 @@ function OrderSelectionScreen({
   );
 }
 
+function CompletedScreen({ storeId, storeName, googleMapsReviewUrl, navigate }: { storeId: string; storeName: string; googleMapsReviewUrl?: string; navigate: (to: string) => void }) {
+  const [countdown, setCountdown] = useState(10);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          navigate(`/s/${storeId}?new=true`);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [storeId, navigate]);
+
+  return (
+    <div className="h-[100dvh] flex flex-col items-center justify-center px-5 text-center overflow-hidden" style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }} data-testid="pager-completed-screen">
+      <div className="flex flex-col items-center gap-6 animate-in fade-in duration-700">
+        <div className="w-24 h-24 rounded-full border-2 border-green-500/30 bg-green-500/5 flex items-center justify-center" style={{ boxShadow: "0 0 40px rgba(34,197,94,0.12)" }}>
+          <CheckCircle className="w-12 h-12 text-green-500/80" />
+        </div>
+        <div>
+          <p className="text-green-400 text-2xl font-bold" data-testid="text-pager-completed">Thank You!</p>
+          <p className="text-green-400/80 text-xl font-bold mt-2" dir="rtl" data-testid="text-pager-completed-ar">
+            شكراً لزيارتك، نتمنى لك يوماً سعيداً!
+          </p>
+          <p className="text-white/50 text-sm mt-4">We hope to see you again soon!</p>
+          <p className="text-white/40 text-sm mt-0.5" dir="rtl">نراك قريباً!</p>
+        </div>
+        {storeName && <p className="text-white/20 text-xs mt-2">{storeName}</p>}
+        {googleMapsReviewUrl && (
+          <a
+            href={googleMapsReviewUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 mt-2 px-6 py-3 font-bold text-sm bg-transparent border-2 border-red-600/60 text-white hover:bg-red-600/20 rounded-xl transition-all"
+            data-testid="button-review-after-complete"
+          >
+            <MapPin className="w-4 h-4 text-red-500" />
+            <span>Rate Us</span>
+            <span className="mx-1">|</span>
+            <span dir="rtl">قيّمنا</span>
+          </a>
+        )}
+        <p className="text-white/20 text-xs mt-4" data-testid="text-redirect-countdown">
+          Redirecting in {countdown}s...
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function StorePagerPage() {
   const params = useParams<{ storeId: string }>();
   const storeId = params.storeId;
+  const [, navigate] = useLocation();
   const [merchant, setMerchant] = useState<Merchant | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -883,6 +938,14 @@ export default function StorePagerPage() {
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get("new") === "true") {
       if (sessionKey) localStorage.removeItem(sessionKey);
+      stopAlert();
+      setSubmitted(false);
+      setOrderNumber("");
+      setPagerStatus("waiting");
+      setAlertActive(false);
+      setShowReview(false);
+      hasPlayedNotification.current = false;
+      releaseWakeLock();
       window.history.replaceState({}, "", window.location.pathname);
       return;
     }
@@ -1162,35 +1225,9 @@ export default function StorePagerPage() {
       </div>
     );
   } else if (submitted && pagerStatus === "completed") {
+    if (sessionKey) localStorage.removeItem(sessionKey);
     content = (
-      <div className="h-[100dvh] flex flex-col items-center justify-center px-5 text-center overflow-hidden" style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }} data-testid="pager-completed-screen">
-        <div className="flex flex-col items-center gap-6">
-          <div className="w-20 h-20 rounded-full border-2 border-green-500/30 bg-green-500/5 flex items-center justify-center" style={{ boxShadow: "0 0 30px rgba(34,197,94,0.1)" }}>
-            <CheckCircle className="w-10 h-10 text-green-500/70" />
-          </div>
-          <div>
-            <p className="text-green-400 text-xl font-bold" data-testid="text-pager-completed">Thank you!</p>
-            <p className="text-green-400/80 text-lg font-bold mt-1" dir="rtl">شكراً لك!</p>
-            <p className="text-white/50 text-sm mt-3">See you soon!</p>
-            <p className="text-white/40 text-sm mt-0.5" dir="rtl">نراك قريباً!</p>
-          </div>
-          {merchant && <p className="text-white/20 text-xs mt-4">{merchant.storeName}</p>}
-          {merchant?.googleMapsReviewUrl && (
-            <a
-              href={merchant.googleMapsReviewUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 mt-4 px-6 py-3 font-bold text-sm bg-transparent border-2 border-red-600/60 text-white hover:bg-red-600/20 rounded-xl transition-all"
-              data-testid="button-review-after-complete"
-            >
-              <MapPin className="w-4 h-4 text-red-500" />
-              <span>Rate Us</span>
-              <span className="mx-1">|</span>
-              <span dir="rtl">قيّمنا</span>
-            </a>
-          )}
-        </div>
-      </div>
+      <CompletedScreen storeId={storeId!} storeName={merchant?.storeName || ""} googleMapsReviewUrl={merchant?.googleMapsReviewUrl} navigate={navigate} />
     );
   } else if (submitted && pagerStatus === "notified") {
     content = (
