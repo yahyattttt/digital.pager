@@ -1685,7 +1685,6 @@ function OverviewView({
   const [uncollectedConfirmOrder, setUncollectedConfirmOrder] = useState<WhatsAppOrder | null>(null);
   const [customerNoShowMap, setCustomerNoShowMap] = useState<Record<string, number>>({});
   const [customerOrderCounts, setCustomerOrderCounts] = useState<Record<string, number>>({});
-  const [analyticsData, setAnalyticsData] = useState<any>(null);
 
   useEffect(() => {
     if (!merchant?.uid) return;
@@ -1702,21 +1701,6 @@ function OverviewView({
         setCustomerOrderCounts(orderCountMap);
       })
       .catch(() => {});
-  }, [merchant?.uid]);
-
-  useEffect(() => {
-    if (!merchant?.uid) return;
-    const fetchAnalytics = () => {
-      fetch(`/api/merchant-analytics/${merchant.uid}`, {
-        headers: { "x-merchant-email": merchant.email || "" },
-      })
-        .then(r => r.ok ? r.json() : null)
-        .then(d => { if (d) setAnalyticsData(d); })
-        .catch(() => {});
-    };
-    fetchAnalytics();
-    const interval = setInterval(fetchAnalytics, 60000);
-    return () => clearInterval(interval);
   }, [merchant?.uid]);
 
   const handleManual = async () => {
@@ -1770,11 +1754,11 @@ function OverviewView({
   };
 
   return (
-    <div className="flex flex-col h-full min-h-[calc(100dvh-7rem)]">
+    <div className="flex flex-col h-full min-h-[calc(100dvh-3.5rem)]">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
           <h2 className="text-lg font-bold text-white" data-testid="text-overview-title">
-            {t("لوحة التحكم", "Dashboard")}
+            {t("إدارة الطلبات", "Order Management")}
           </h2>
           {totalActive > 0 && (
             <Badge className="rounded-full text-[11px] px-2 py-0.5 bg-white/[0.06] text-white/60 border-white/10" data-testid="badge-active-count">
@@ -1798,85 +1782,6 @@ function OverviewView({
           </Badge>
         </div>
       </div>
-
-      {analyticsData && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4" data-testid="metrics-grid">
-          <div className="rounded-2xl bg-[#111] border border-white/[0.06] p-3.5">
-            <div className="flex items-center gap-2 mb-1">
-              <Timer className="w-4 h-4 text-amber-400" />
-              <span className="text-[11px] text-white/40 uppercase tracking-wider">{t("متوسط التحضير", "Avg Prep Time")}</span>
-            </div>
-            <p className="text-2xl font-bold text-white" data-testid="text-avg-prep-time">
-              {analyticsData.avgPrepTime > 0 ? `${Math.floor(analyticsData.avgPrepTime / 60)}:${String(analyticsData.avgPrepTime % 60).padStart(2, "0")}` : "—"}
-              {analyticsData.avgPrepTime > 0 && <span className="text-xs text-white/40 ms-1">{t("دقيقة", "min")}</span>}
-            </p>
-          </div>
-          <div className="rounded-2xl bg-[#111] border border-white/[0.06] p-3.5">
-            <div className="flex items-center gap-2 mb-1">
-              <Package className="w-4 h-4 text-blue-400" />
-              <span className="text-[11px] text-white/40 uppercase tracking-wider">{t("طلبات اليوم", "Total Orders")}</span>
-            </div>
-            <p className="text-2xl font-bold text-white" data-testid="text-total-orders-today">{analyticsData.totalOrdersToday}</p>
-          </div>
-          <div className="rounded-2xl bg-[#111] border border-white/[0.06] p-3.5">
-            <div className="flex items-center gap-2 mb-1">
-              <UserPlus className="w-4 h-4 text-violet-400" />
-              <span className="text-[11px] text-white/40 uppercase tracking-wider">{t("عملاء جدد", "New Customers")}</span>
-            </div>
-            <p className="text-2xl font-bold text-white" data-testid="text-new-customers-today">{analyticsData.newCustomersToday}</p>
-          </div>
-          <div className="rounded-2xl bg-[#111] border border-white/[0.06] p-3.5">
-            <div className="flex items-center gap-2 mb-1">
-              <DollarSign className="w-4 h-4 text-emerald-400" />
-              <span className="text-[11px] text-white/40 uppercase tracking-wider">{t("إيراد اليوم", "Today Revenue")}</span>
-            </div>
-            <p className="text-2xl font-bold text-white" data-testid="text-revenue-today">
-              {analyticsData.totalRevenueToday?.toLocaleString() || 0} <span className="text-xs text-white/40">SAR</span>
-            </p>
-          </div>
-        </div>
-      )}
-
-      {analyticsData && (analyticsData.orderSources?.length > 0 || analyticsData.totalRevenueToday > 0 || analyticsData.lostRevenueToday > 0) && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-          {analyticsData.orderSources?.length > 0 && (
-            <div className="rounded-2xl bg-[#111] border border-white/[0.06] p-4" data-testid="chart-order-sources">
-              <h4 className="text-[11px] font-bold uppercase tracking-wider text-white/40 mb-3">{t("مصادر الطلبات", "Top Order Sources")}</h4>
-              <ResponsiveContainer width="100%" height={120}>
-                <BarChart data={analyticsData.orderSources.slice(0, 5)} layout="vertical">
-                  <XAxis type="number" hide />
-                  <YAxis type="category" dataKey="source" tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 11 }} width={70} />
-                  <Tooltip contentStyle={{ background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#fff", fontSize: 12 }} />
-                  <Bar dataKey="count" radius={[0, 4, 4, 0]}>
-                    {(analyticsData.orderSources || []).slice(0, 5).map((_: any, i: number) => (
-                      <Cell key={i} fill={["#ef4444", "#8b5cf6", "#3b82f6", "#f59e0b", "#10b981"][i % 5]} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-          {(analyticsData.totalRevenueToday > 0 || analyticsData.lostRevenueToday > 0) && (
-            <div className="rounded-2xl bg-[#111] border border-white/[0.06] p-4" data-testid="chart-revenue-loss">
-              <h4 className="text-[11px] font-bold uppercase tracking-wider text-white/40 mb-3">{t("الإيرادات مقابل الخسائر", "Revenue vs Loss")}</h4>
-              <ResponsiveContainer width="100%" height={120}>
-                <BarChart data={[
-                  { name: lang === "ar" ? "إيرادات" : "Revenue", value: analyticsData.totalRevenueToday || 0 },
-                  { name: lang === "ar" ? "خسائر" : "Lost", value: analyticsData.lostRevenueToday || 0 },
-                ]}>
-                  <XAxis dataKey="name" tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 11 }} />
-                  <YAxis hide />
-                  <Tooltip contentStyle={{ background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#fff", fontSize: 12 }} />
-                  <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                    <Cell fill="#10b981" />
-                    <Cell fill="#ef4444" />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </div>
-      )}
 
       <div className="flex-1 rounded-2xl bg-[#0d0d0d] border border-white/[0.06] p-4 relative" data-testid="workspace-active-orders">
         <div className="flex items-center justify-between mb-4">
@@ -2261,10 +2166,10 @@ function OverviewView({
             ) : (
               <Button
                 onClick={() => setShowManualEntry(true)}
-                className="h-12 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-900/30 active:scale-[0.96] transition-all"
+                className="h-14 px-6 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-base rounded-2xl shadow-xl shadow-emerald-900/40 active:scale-[0.96] transition-all ring-2 ring-emerald-500/30 ring-offset-2 ring-offset-[#0d0d0d]"
                 data-testid="button-add-manual-order"
               >
-                <Plus className="w-5 h-5 me-1.5" />
+                <Plus className="w-6 h-6 me-2" />
                 {t("إضافة طلب يدوي", "Add Manual Order")}
               </Button>
             )}
@@ -3315,6 +3220,24 @@ function AnalyticsView({
   t: (ar: string, en: string) => string;
   lang: string;
 }) {
+  const [analyticsData, setAnalyticsData] = useState<any>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(true);
+
+  useEffect(() => {
+    if (!merchant?.uid) return;
+    const fetchAnalytics = () => {
+      fetch(`/api/merchant-analytics/${merchant.uid}`, {
+        headers: { "x-merchant-email": merchant.email || "" },
+      })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d) setAnalyticsData(d); setAnalyticsLoading(false); })
+        .catch(() => { setAnalyticsLoading(false); });
+    };
+    fetchAnalytics();
+    const interval = setInterval(fetchAnalytics, 60000);
+    return () => clearInterval(interval);
+  }, [merchant?.uid]);
+
   const totalActive = waitingPagers.length + notifiedPagers.length + activeWhatsappOrders.length + whatsappOrders.length;
   const avgWait = (() => {
     const all = [...waitingPagers, ...notifiedPagers];
@@ -3325,73 +3248,17 @@ function AnalyticsView({
   })();
 
   const operationalStats = [
-    {
-      icon: ScanLine,
-      value: merchant.qrScans ?? 0,
-      label: t("المسح اليومي", "Daily Scans"),
-      color: "text-violet-400",
-      bg: "bg-violet-500/10",
-      border: "border-violet-500/15",
-    },
-    {
-      icon: Activity,
-      value: totalActive,
-      label: t("طلبات نشطة", "Active Orders"),
-      color: "text-amber-400",
-      bg: "bg-amber-500/10",
-      border: "border-amber-500/15",
-    },
-    {
-      icon: CheckCircle,
-      value: completedToday,
-      label: t("مكتمل اليوم", "Done Today"),
-      color: "text-emerald-400",
-      bg: "bg-emerald-500/10",
-      border: "border-emerald-500/15",
-    },
-    {
-      icon: Timer,
-      value: avgWait,
-      label: t("متوسط الانتظار", "Avg. Wait"),
-      color: "text-blue-400",
-      bg: "bg-blue-500/10",
-      border: "border-blue-500/15",
-    },
+    { icon: ScanLine, value: merchant.qrScans ?? 0, label: t("المسح اليومي", "Daily Scans"), color: "text-violet-400", bg: "bg-violet-500/10", border: "border-violet-500/15" },
+    { icon: Activity, value: totalActive, label: t("طلبات نشطة", "Active Orders"), color: "text-amber-400", bg: "bg-amber-500/10", border: "border-amber-500/15" },
+    { icon: CheckCircle, value: completedToday, label: t("مكتمل اليوم", "Done Today"), color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/15" },
+    { icon: Timer, value: avgWait, label: t("متوسط الانتظار", "Avg. Wait"), color: "text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/15" },
   ];
 
-  const stats = [
-    {
-      icon: QrCode,
-      value: merchant.qrScans ?? 0,
-      label: t("زوار QR", "QR Visitors"),
-      color: "text-blue-400",
-      bg: "bg-blue-500/10",
-      border: "border-blue-500/15",
-    },
-    {
-      icon: Share2,
-      value: merchant.sharesCount ?? 0,
-      label: t("المشاركات", "Shares"),
-      color: "text-purple-400",
-      bg: "bg-purple-500/10",
-      border: "border-purple-500/15",
-    },
-    {
-      icon: MapPin,
-      value: merchant.googleMapsClicks ?? 0,
-      label: t("نقرات خرائط", "Maps Clicks"),
-      color: "text-emerald-400",
-      bg: "bg-emerald-500/10",
-      border: "border-emerald-500/15",
-    },
-    {
-      icon: Bell,
-      value: merchant.notificationsCount ?? 0,
-      label: t("تم تنبيههم", "Notifications Sent"),
-      color: "text-amber-400",
-      bg: "bg-amber-500/10",
-      border: "border-amber-500/15",
-    },
+  const marketingStats = [
+    { icon: QrCode, value: merchant.qrScans ?? 0, label: t("زوار QR", "QR Visitors"), color: "text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/15" },
+    { icon: Share2, value: merchant.sharesCount ?? 0, label: t("المشاركات", "Shares"), color: "text-purple-400", bg: "bg-purple-500/10", border: "border-purple-500/15" },
+    { icon: MapPin, value: merchant.googleMapsClicks ?? 0, label: t("نقرات خرائط", "Maps Clicks"), color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/15" },
+    { icon: Bell, value: merchant.notificationsCount ?? 0, label: t("تم تنبيههم", "Notifications Sent"), color: "text-amber-400", bg: "bg-amber-500/10", border: "border-amber-500/15" },
   ];
 
   const expiry = merchant.subscriptionExpiry;
@@ -3406,105 +3273,208 @@ function AnalyticsView({
       <div>
         <h2 className="text-xl font-bold">{t("التحليلات", "Analytics")}</h2>
         <p className="text-sm text-muted-foreground mt-0.5">
-          {t("إحصائيات التشغيل والتسويق", "Operations and marketing statistics")}
+          {t("إحصائيات التشغيل والتسويق وأداء الطلبات", "Operations, marketing, and order performance statistics")}
         </p>
       </div>
 
-      <div>
-        <h3 className="text-xs font-bold uppercase tracking-wider text-white/50 mb-3">{t("إحصائيات التشغيل", "Operations")}</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {operationalStats.map((stat, i) => {
-            const Icon = stat.icon;
-            return (
-              <Card key={`op-${i}`} className="border-white/[0.06] bg-[#111] rounded-2xl">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2.5">
-                    <div className={`w-9 h-9 rounded-xl ${stat.bg} border ${stat.border} flex items-center justify-center flex-shrink-0`}>
-                      <Icon className={`w-4 h-4 ${stat.color}`} />
-                    </div>
-                    <div>
-                      <p className="text-xl font-bold leading-tight" data-testid={`text-op-stat-${i}`}>{stat.value}</p>
-                      <p className="text-[11px] text-muted-foreground">{stat.label}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+      {analyticsLoading ? (
+        <div className="flex items-center justify-center py-10">
+          <Loader2 className="w-6 h-6 animate-spin text-white/30" />
         </div>
-      </div>
-
-      <div>
-        <h3 className="text-xs font-bold uppercase tracking-wider text-white/50 mb-3">{t("إحصائيات التسويق", "Marketing")}</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {stats.map((stat, i) => {
-            const Icon = stat.icon;
-            return (
-              <Card key={`mk-${i}`} className="border-white/[0.06] bg-[#111] rounded-2xl">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2.5">
-                    <div className={`w-9 h-9 rounded-xl ${stat.bg} border ${stat.border} flex items-center justify-center flex-shrink-0`}>
-                      <Icon className={`w-4 h-4 ${stat.color}`} />
+      ) : (
+        <>
+          {analyticsData && (
+            <>
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-white/50 mb-3">{t("ملخص اليوم", "Today's Summary")}</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3" data-testid="metrics-grid">
+                  <div className="rounded-2xl bg-[#111] border border-white/[0.06] p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/15 flex items-center justify-center">
+                        <DollarSign className="w-4 h-4 text-emerald-400" />
+                      </div>
+                      <span className="text-[11px] text-white/40 uppercase tracking-wider">{t("إيراد اليوم", "Today Revenue")}</span>
                     </div>
-                    <div>
-                      <p className="text-xl font-bold leading-tight" data-testid={`text-stat-${i}`}>{stat.value}</p>
-                      <p className="text-[11px] text-muted-foreground">{stat.label}</p>
-                    </div>
+                    <p className="text-2xl font-bold text-white" data-testid="text-revenue-today">
+                      {analyticsData.totalRevenueToday?.toLocaleString() || 0} <span className="text-xs text-white/40">SAR</span>
+                    </p>
                   </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      </div>
+                  <div className="rounded-2xl bg-[#111] border border-white/[0.06] p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/15 flex items-center justify-center">
+                        <Package className="w-4 h-4 text-blue-400" />
+                      </div>
+                      <span className="text-[11px] text-white/40 uppercase tracking-wider">{t("طلبات اليوم", "Total Orders")}</span>
+                    </div>
+                    <p className="text-2xl font-bold text-white" data-testid="text-total-orders-today">{analyticsData.totalOrdersToday}</p>
+                  </div>
+                  <div className="rounded-2xl bg-[#111] border border-white/[0.06] p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-8 h-8 rounded-lg bg-violet-500/10 border border-violet-500/15 flex items-center justify-center">
+                        <UserPlus className="w-4 h-4 text-violet-400" />
+                      </div>
+                      <span className="text-[11px] text-white/40 uppercase tracking-wider">{t("عملاء جدد", "New Customers")}</span>
+                    </div>
+                    <p className="text-2xl font-bold text-white" data-testid="text-new-customers-today">{analyticsData.newCustomersToday}</p>
+                  </div>
+                  <div className="rounded-2xl bg-[#111] border border-white/[0.06] p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/15 flex items-center justify-center">
+                        <Timer className="w-4 h-4 text-amber-400" />
+                      </div>
+                      <span className="text-[11px] text-white/40 uppercase tracking-wider">{t("متوسط التحضير", "Avg Prep Time")}</span>
+                    </div>
+                    <p className="text-2xl font-bold text-white" data-testid="text-avg-prep-time">
+                      {analyticsData.avgPrepTime > 0 ? `${Math.floor(analyticsData.avgPrepTime / 60)}:${String(analyticsData.avgPrepTime % 60).padStart(2, "0")}` : "—"}
+                      {analyticsData.avgPrepTime > 0 && <span className="text-xs text-white/40 ms-1">{t("دقيقة", "min")}</span>}
+                    </p>
+                  </div>
+                </div>
+              </div>
 
-      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
-        <CardContent className="p-5">
-          <h3 className="font-semibold mb-4">{t("حالة الاشتراك", "Subscription Status")}</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                daysRemaining !== null && daysRemaining <= 3 ? "bg-red-500/10" :
-                daysRemaining !== null && daysRemaining <= 7 ? "bg-orange-500/10" : "bg-green-500/10"
-              }`}>
-                {daysRemaining !== null && daysRemaining <= 7 ? (
-                  <AlertTriangle className={`w-5 h-5 ${daysRemaining <= 3 ? "text-red-500" : "text-orange-500"}`} />
-                ) : (
-                  <ShieldCheck className="w-5 h-5 text-green-500" />
-                )}
-              </div>
-              <div>
-                <p className="text-sm font-medium">
-                  {daysRemaining !== null ? `${daysRemaining} ${t("يوم متبقي", "days left")}` : t("غير محدد", "N/A")}
-                </p>
-                <p className="text-xs text-muted-foreground">{t("الأيام المتبقية", "Remaining")}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center flex-shrink-0">
-                <CreditCard className="w-5 h-5 text-violet-400" />
-              </div>
-              <div>
-                <p className="text-sm font-medium">
-                  {planLabels[merchant.plan] ? (lang === "ar" ? planLabels[merchant.plan].ar : planLabels[merchant.plan].en) : merchant.plan}
-                </p>
-                <p className="text-xs text-muted-foreground">{t("الخطة الحالية", "Current Plan")}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center flex-shrink-0">
-                <ShieldCheck className="w-5 h-5 text-green-500" />
-              </div>
-              <div>
-                <Badge className="bg-green-500/15 text-green-400 border-green-500/20" data-testid="badge-subscription-active">
-                  {t("نشط", "Active")}
-                </Badge>
-                <p className="text-xs text-muted-foreground mt-0.5">{t("حالة الاشتراك", "Status")}</p>
-              </div>
+              {(analyticsData.orderSources?.length > 0 || analyticsData.totalRevenueToday > 0 || analyticsData.lostRevenueToday > 0) && (
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-white/50 mb-3">{t("الرسوم البيانية", "Charts")}</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {(analyticsData.totalRevenueToday > 0 || analyticsData.lostRevenueToday > 0) && (
+                      <div className="rounded-2xl bg-[#111] border border-white/[0.06] p-4" data-testid="chart-revenue-loss">
+                        <h4 className="text-[11px] font-bold uppercase tracking-wider text-white/40 mb-3">{t("الإيرادات مقابل الخسائر", "Revenue vs Loss")}</h4>
+                        <ResponsiveContainer width="100%" height={160}>
+                          <BarChart data={[
+                            { name: lang === "ar" ? "إيرادات" : "Revenue", value: analyticsData.totalRevenueToday || 0 },
+                            { name: lang === "ar" ? "خسائر" : "Lost", value: analyticsData.lostRevenueToday || 0 },
+                          ]}>
+                            <XAxis dataKey="name" tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 11 }} />
+                            <YAxis hide />
+                            <Tooltip contentStyle={{ background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#fff", fontSize: 12 }} />
+                            <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                              <Cell fill="#10b981" />
+                              <Cell fill="#ef4444" />
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    )}
+                    {analyticsData.orderSources?.length > 0 && (
+                      <div className="rounded-2xl bg-[#111] border border-white/[0.06] p-4" data-testid="chart-order-sources">
+                        <h4 className="text-[11px] font-bold uppercase tracking-wider text-white/40 mb-3">{t("مصادر الطلبات", "Top Order Sources")}</h4>
+                        <ResponsiveContainer width="100%" height={160}>
+                          <BarChart data={analyticsData.orderSources.slice(0, 5)} layout="vertical">
+                            <XAxis type="number" hide />
+                            <YAxis type="category" dataKey="source" tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 11 }} width={70} />
+                            <Tooltip contentStyle={{ background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#fff", fontSize: 12 }} />
+                            <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+                              {(analyticsData.orderSources || []).slice(0, 5).map((_: any, i: number) => (
+                                <Cell key={i} fill={["#ef4444", "#8b5cf6", "#3b82f6", "#f59e0b", "#10b981"][i % 5]} />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-white/50 mb-3">{t("إحصائيات التشغيل", "Operations")}</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {operationalStats.map((stat, i) => {
+                const Icon = stat.icon;
+                return (
+                  <Card key={`op-${i}`} className="border-white/[0.06] bg-[#111] rounded-2xl">
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-2.5">
+                        <div className={`w-9 h-9 rounded-xl ${stat.bg} border ${stat.border} flex items-center justify-center flex-shrink-0`}>
+                          <Icon className={`w-4 h-4 ${stat.color}`} />
+                        </div>
+                        <div>
+                          <p className="text-xl font-bold leading-tight" data-testid={`text-op-stat-${i}`}>{stat.value}</p>
+                          <p className="text-[11px] text-muted-foreground">{stat.label}</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           </div>
-        </CardContent>
-      </Card>
+
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-white/50 mb-3">{t("إحصائيات التسويق", "Marketing")}</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {marketingStats.map((stat, i) => {
+                const Icon = stat.icon;
+                return (
+                  <Card key={`mk-${i}`} className="border-white/[0.06] bg-[#111] rounded-2xl">
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-2.5">
+                        <div className={`w-9 h-9 rounded-xl ${stat.bg} border ${stat.border} flex items-center justify-center flex-shrink-0`}>
+                          <Icon className={`w-4 h-4 ${stat.color}`} />
+                        </div>
+                        <div>
+                          <p className="text-xl font-bold leading-tight" data-testid={`text-stat-${i}`}>{stat.value}</p>
+                          <p className="text-[11px] text-muted-foreground">{stat.label}</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+
+          <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
+            <CardContent className="p-5">
+              <h3 className="font-semibold mb-4">{t("حالة الاشتراك", "Subscription Status")}</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                    daysRemaining !== null && daysRemaining <= 3 ? "bg-red-500/10" :
+                    daysRemaining !== null && daysRemaining <= 7 ? "bg-orange-500/10" : "bg-green-500/10"
+                  }`}>
+                    {daysRemaining !== null && daysRemaining <= 7 ? (
+                      <AlertTriangle className={`w-5 h-5 ${daysRemaining <= 3 ? "text-red-500" : "text-orange-500"}`} />
+                    ) : (
+                      <ShieldCheck className="w-5 h-5 text-green-500" />
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">
+                      {daysRemaining !== null ? `${daysRemaining} ${t("يوم متبقي", "days left")}` : t("غير محدد", "N/A")}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{t("الأيام المتبقية", "Remaining")}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center flex-shrink-0">
+                    <CreditCard className="w-5 h-5 text-violet-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">
+                      {planLabels[merchant.plan] ? (lang === "ar" ? planLabels[merchant.plan].ar : planLabels[merchant.plan].en) : merchant.plan}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{t("الخطة الحالية", "Current Plan")}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center flex-shrink-0">
+                    <ShieldCheck className="w-5 h-5 text-green-500" />
+                  </div>
+                  <div>
+                    <Badge className="bg-green-500/15 text-green-400 border-green-500/20" data-testid="badge-subscription-active">
+                      {t("نشط", "Active")}
+                    </Badge>
+                    <p className="text-xs text-muted-foreground mt-0.5">{t("حالة الاشتراك", "Status")}</p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
     </div>
   );
 }
