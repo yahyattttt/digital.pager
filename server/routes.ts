@@ -333,10 +333,10 @@ export async function registerRoutes(
       const qrBuffer = await QRCode.toBuffer(storeUrl, {
         type: "png",
         width: 512,
-        margin: 2,
+        margin: 4,
         color: {
-          dark: "#FF0000",
-          light: "#000000",
+          dark: "#000000",
+          light: "#FFFFFF",
         },
         errorCorrectionLevel: "H",
       });
@@ -344,7 +344,7 @@ export async function registerRoutes(
       res.set({
         "Content-Type": "image/png",
         "Content-Disposition": `attachment; filename="store-qr-${storeId}.png"`,
-        "Cache-Control": "public, max-age=3600",
+        "Cache-Control": "no-cache",
       });
       res.send(qrBuffer);
     } catch (error) {
