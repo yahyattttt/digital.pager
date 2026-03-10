@@ -780,30 +780,24 @@ export default function DashboardPage() {
     if (!merchant?.uid || acceptingOrderId) return;
     setAcceptingOrderId(order.id);
     try {
-      const counterRef = doc(db, "merchants", merchant.uid, "settings", "orderCounter");
-      let orderNum = 1;
-      const currentYY = new Date().getFullYear().toString().slice(-2);
-      await runTransaction(db, async (txn) => {
-        const snap = await txn.get(counterRef);
-        const data = snap.exists() ? snap.data() : {};
-        const storedYear = data.onlineCounterYear || "";
-        if (storedYear !== currentYY) {
-          orderNum = 1;
-        } else {
-          const current = parseInt(String(data.onlineCounter || data.nextOrderNumber || 1), 10);
-          orderNum = isNaN(current) || current < 1 ? 1 : current;
-        }
-        txn.set(counterRef, { ...data, onlineCounter: orderNum + 1, onlineCounterYear: currentYY }, { merge: true } as any);
-      });
+      const existingDisplayId = order.displayOrderId || "";
+      const existingOrderNumber = order.orderNumber || "";
 
-      const cityCode = (merchant as any).cityCode || "00";
-      const paddedNum = orderNum.toString().padStart(3, "0");
-      const displayOrderId = `${cityCode}${currentYY}${paddedNum}`;
+      if (!existingDisplayId || !existingOrderNumber) {
+        toast({
+          title: t("خطأ في بيانات الطلب", "Order Data Error"),
+          description: t("هذا الطلب لا يحتوي على رقم تعريف. يرجى إعادة المحاولة.", "This order has no ID assigned. Please try again."),
+          variant: "destructive",
+        });
+        setAcceptingOrderId(null);
+        return;
+      }
+
       const pagersRef = collection(db, "merchants", merchant.uid, "pagers");
       await addDoc(pagersRef, {
         storeId: merchant.uid,
-        orderNumber: String(orderNum),
-        displayOrderId,
+        orderNumber: existingOrderNumber,
+        displayOrderId: existingDisplayId,
         orderType: "online",
         status: "waiting",
         createdAt: new Date().toISOString(),
@@ -811,10 +805,10 @@ export default function DashboardPage() {
       });
 
       const orderRef = doc(db, "merchants", merchant.uid, "whatsappOrders", order.id);
-      await updateDoc(orderRef, { status: "preparing", orderNumber: String(orderNum), displayOrderId, orderType: "online", preparingAt: new Date().toISOString() });
+      await updateDoc(orderRef, { status: "preparing", preparingAt: new Date().toISOString() });
 
       toast({
-        title: t(`تم قبول الطلب ${displayOrderId}`, `Order ${displayOrderId} Accepted`),
+        title: t(`تم قبول الطلب ${existingDisplayId}`, `Order ${existingDisplayId} Accepted`),
         description: t("تم إنشاء جهاز بيجر وتحديث حالة الطلب", "Pager created and order status updated"),
       });
     } catch {
@@ -893,7 +887,7 @@ export default function DashboardPage() {
       const orderRef = doc(db, "merchants", merchant.uid, "whatsappOrders", order.id);
       await updateDoc(orderRef, { status: "ready", readyAt: new Date().toISOString() });
       toast({
-        title: t(`الطلب #${order.orderNumber} جاهز`, `Order #${order.orderNumber} Ready`),
+        title: t(`الطلب ${order.displayOrderId || "#" + order.orderNumber} جاهز`, `Order ${order.displayOrderId || "#" + order.orderNumber} Ready`),
         description: t("تم تحديث حالة الطلب إلى جاهز", "Order status updated to ready"),
       });
     } catch {

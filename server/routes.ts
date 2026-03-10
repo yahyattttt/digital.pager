@@ -144,6 +144,75 @@ function getFirestoreBaseUrl(): string | null {
   return `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
 }
 
+async function generateOnlineOrderId(merchantId: string, accessToken: string, baseUrl: string): Promise<{ orderNumber: string; currentYY: string }> {
+  const projectId = process.env.VITE_FIREBASE_PROJECT_ID || "";
+  const dbPath = `projects/${projectId}/databases/(default)/documents`;
+  const counterDocPath = `${dbPath}/merchants/${merchantId}/settings/orderCounter`;
+  const txUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:beginTransaction`;
+  const commitUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:commit`;
+  const currentYY = new Date().getFullYear().toString().slice(-2);
+
+  const txRes = await fetch(txUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({}),
+  });
+  if (!txRes.ok) throw new Error("Failed to begin transaction");
+  const { transaction } = await txRes.json();
+
+  const counterRes = await fetch(`${baseUrl}/merchants/${merchantId}/settings/orderCounter?transaction=${encodeURIComponent(transaction)}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  let currentCounter = 1;
+  let existingFields: Record<string, any> = {};
+  let storedYear = "";
+
+  if (counterRes.ok) {
+    const counterDoc = await counterRes.json();
+    if (counterDoc.fields) {
+      existingFields = counterDoc.fields;
+      storedYear = existingFields.onlineCounterYear?.stringValue || "";
+      if (storedYear === currentYY) {
+        const raw = existingFields.onlineCounter?.integerValue || existingFields.nextOrderNumber?.integerValue || "1";
+        currentCounter = parseInt(String(raw), 10);
+        if (isNaN(currentCounter) || currentCounter < 1) currentCounter = 1;
+      }
+    }
+  }
+
+  const orderNum = currentCounter;
+  const newFields = { ...existingFields };
+  newFields.onlineCounter = { integerValue: String(orderNum + 1) };
+  newFields.onlineCounterYear = { stringValue: currentYY };
+
+  const commitBody = {
+    transaction,
+    writes: [
+      {
+        update: {
+          name: `${dbPath}/merchants/${merchantId}/settings/orderCounter`,
+          fields: newFields,
+        },
+      },
+    ],
+  };
+
+  const commitRes = await fetch(commitUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify(commitBody),
+  });
+  if (!commitRes.ok) throw new Error("Failed to commit counter transaction");
+
+  return { orderNumber: String(orderNum), currentYY };
+}
+
+function buildCloudOrderId(cityCode: string, yearYY: string, orderNumber: string): string {
+  const paddedNum = parseInt(orderNumber, 10).toString().padStart(3, "0");
+  return `${cityCode || "00"}${yearYY}${paddedNum}`;
+}
+
 function sanitizeEmailKey(email: string): string {
   return createHash("sha256").update(email.toLowerCase().trim()).digest("hex").slice(0, 40);
 }
@@ -2602,6 +2671,16 @@ export async function registerRoutes(
         }
       }
 
+      let onlineId: { orderNumber: string; currentYY: string };
+      try {
+        onlineId = await generateOnlineOrderId(merchantId, accessToken, baseUrl);
+      } catch (err) {
+        console.error("[OrderCreate] Failed to generate online order ID:", err);
+        return res.status(500).json({ message: "Failed to generate order ID. Please try again." });
+      }
+      const cityCode = mf.cityCode?.stringValue || "00";
+      const displayOrderId = buildCloudOrderId(cityCode, onlineId.currentYY, onlineId.orderNumber);
+
       const fields: Record<string, any> = {
         merchantId: { stringValue: merchantId },
         customerName: { stringValue: customerName },
@@ -2610,6 +2689,9 @@ export async function registerRoutes(
         total: { doubleValue: finalTotal },
         status: { stringValue: "pending_verification" },
         paymentMethod: { stringValue: "cod" },
+        orderNumber: { stringValue: onlineId.orderNumber },
+        displayOrderId: { stringValue: displayOrderId },
+        orderType: { stringValue: "online" },
         createdAt: { stringValue: new Date().toISOString() },
       };
 
