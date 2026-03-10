@@ -32,6 +32,20 @@ export type PagerStatus = z.infer<typeof pagerStatusEnum>;
 export const whatsappOrderStatusEnum = z.enum(["awaiting_confirmation", "preparing", "ready", "completed"]);
 export type WhatsAppOrderStatus = z.infer<typeof whatsappOrderStatusEnum>;
 
+export const productVariantSchema = z.object({
+  name: z.string(),
+  price: z.number().min(0),
+});
+
+export type ProductVariant = z.infer<typeof productVariantSchema>;
+
+export const productAddonSchema = z.object({
+  name: z.string(),
+  price: z.number().min(0),
+});
+
+export type ProductAddon = z.infer<typeof productAddonSchema>;
+
 export const productSchema = z.object({
   id: z.string(),
   merchantId: z.string(),
@@ -40,6 +54,8 @@ export const productSchema = z.object({
   description: z.string().optional(),
   imageUrl: z.string().optional(),
   visible: z.boolean().default(true),
+  variants: z.array(productVariantSchema).optional(),
+  addons: z.array(productAddonSchema).optional(),
   createdAt: z.string(),
 });
 

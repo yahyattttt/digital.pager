@@ -1566,6 +1566,32 @@ export async function registerRoutes(
         createdAt: { stringValue: new Date().toISOString() },
       };
 
+      if (req.body.variants) {
+        try {
+          const variants = JSON.parse(req.body.variants);
+          fields.variants = {
+            arrayValue: {
+              values: variants.map((v: any) => ({
+                mapValue: { fields: { name: { stringValue: v.name || "" }, price: { doubleValue: v.price || 0 } } },
+              })),
+            },
+          };
+        } catch {}
+      }
+
+      if (req.body.addons) {
+        try {
+          const addons = JSON.parse(req.body.addons);
+          fields.addons = {
+            arrayValue: {
+              values: addons.map((a: any) => ({
+                mapValue: { fields: { name: { stringValue: a.name || "" }, price: { doubleValue: a.price || 0 } } },
+              })),
+            },
+          };
+        } catch {}
+      }
+
       const patchRes = await fetch(`${baseUrl}/merchants/${merchantId}/products/${docId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
@@ -1596,6 +1622,14 @@ export async function registerRoutes(
       const products = (data.documents || []).map((doc: any) => {
         const f = doc.fields || {};
         const parts = doc.name.split("/");
+        const variants = (f.variants?.arrayValue?.values || []).map((v: any) => ({
+          name: v.mapValue?.fields?.name?.stringValue || "",
+          price: v.mapValue?.fields?.price?.doubleValue ?? parseFloat(v.mapValue?.fields?.price?.integerValue || "0"),
+        }));
+        const addons = (f.addons?.arrayValue?.values || []).map((a: any) => ({
+          name: a.mapValue?.fields?.name?.stringValue || "",
+          price: a.mapValue?.fields?.price?.doubleValue ?? parseFloat(a.mapValue?.fields?.price?.integerValue || "0"),
+        }));
         return {
           id: parts[parts.length - 1],
           merchantId: f.merchantId?.stringValue || "",
@@ -1604,6 +1638,8 @@ export async function registerRoutes(
           description: f.description?.stringValue || "",
           imageUrl: f.imageUrl?.stringValue || "",
           visible: f.visible?.booleanValue !== false,
+          variants: variants.length > 0 ? variants : undefined,
+          addons: addons.length > 0 ? addons : undefined,
           createdAt: f.createdAt?.stringValue || "",
         };
       });
@@ -1645,6 +1681,32 @@ export async function registerRoutes(
       if (req.file) {
         updateFields.imageUrl = { stringValue: `/uploads/${req.file.filename}` };
         fieldPaths.push("imageUrl");
+      }
+      if (req.body.variants !== undefined) {
+        try {
+          const variants = JSON.parse(req.body.variants);
+          updateFields.variants = {
+            arrayValue: {
+              values: variants.map((v: any) => ({
+                mapValue: { fields: { name: { stringValue: v.name || "" }, price: { doubleValue: v.price || 0 } } },
+              })),
+            },
+          };
+          fieldPaths.push("variants");
+        } catch {}
+      }
+      if (req.body.addons !== undefined) {
+        try {
+          const addons = JSON.parse(req.body.addons);
+          updateFields.addons = {
+            arrayValue: {
+              values: addons.map((a: any) => ({
+                mapValue: { fields: { name: { stringValue: a.name || "" }, price: { doubleValue: a.price || 0 } } },
+              })),
+            },
+          };
+          fieldPaths.push("addons");
+        } catch {}
       }
 
       if (fieldPaths.length === 0) return res.status(400).json({ message: "No fields to update" });
@@ -1722,12 +1784,22 @@ export async function registerRoutes(
         .map((r: any) => {
           const f = r.document.fields || {};
           const parts = r.document.name.split("/");
+          const variants = (f.variants?.arrayValue?.values || []).map((v: any) => ({
+            name: v.mapValue?.fields?.name?.stringValue || "",
+            price: v.mapValue?.fields?.price?.doubleValue ?? parseFloat(v.mapValue?.fields?.price?.integerValue || "0"),
+          }));
+          const addons = (f.addons?.arrayValue?.values || []).map((a: any) => ({
+            name: a.mapValue?.fields?.name?.stringValue || "",
+            price: a.mapValue?.fields?.price?.doubleValue ?? parseFloat(a.mapValue?.fields?.price?.integerValue || "0"),
+          }));
           return {
             id: parts[parts.length - 1],
             name: f.name?.stringValue || "",
             price: f.price?.doubleValue ?? parseFloat(f.price?.integerValue || "0"),
             description: f.description?.stringValue || "",
             imageUrl: f.imageUrl?.stringValue || "",
+            variants: variants.length > 0 ? variants : undefined,
+            addons: addons.length > 0 ? addons : undefined,
           };
         });
 

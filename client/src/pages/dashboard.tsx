@@ -20,7 +20,7 @@ import { useLanguage } from "@/hooks/use-language";
 import { useWakeLock } from "@/hooks/use-wake-lock";
 import { useFullscreen } from "@/hooks/use-fullscreen";
 import { businessTypeLabels, planLabels } from "@shared/schema";
-import type { Pager, Product, WhatsAppOrder } from "@shared/schema";
+import type { Pager, Product, WhatsAppOrder, ProductVariant, ProductAddon } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -2306,6 +2306,8 @@ function MenuView({
   const [productDescription, setProductDescription] = useState("");
   const [productImage, setProductImage] = useState<File | null>(null);
   const [productImagePreview, setProductImagePreview] = useState("");
+  const [productVariants, setProductVariants] = useState<ProductVariant[]>([]);
+  const [productAddons, setProductAddons] = useState<ProductAddon[]>([]);
   const [savingProduct, setSavingProduct] = useState(false);
   const [deletingProduct, setDeletingProduct] = useState<string | null>(null);
   const [togglingVisibility, setTogglingVisibility] = useState<string | null>(null);
@@ -2337,6 +2339,8 @@ function MenuView({
     setProductDescription("");
     setProductImage(null);
     setProductImagePreview("");
+    setProductVariants([]);
+    setProductAddons([]);
     setShowProductDialog(true);
   }
 
@@ -2347,6 +2351,8 @@ function MenuView({
     setProductDescription(product.description || "");
     setProductImage(null);
     setProductImagePreview(product.imageUrl || "");
+    setProductVariants(product.variants || []);
+    setProductAddons(product.addons || []);
     setShowProductDialog(true);
   }
 
@@ -2367,6 +2373,10 @@ function MenuView({
       formData.append("price", productPrice);
       formData.append("description", productDescription.trim());
       if (productImage) formData.append("image", productImage);
+      const cleanVariants = productVariants.filter(v => v.name.trim());
+      const cleanAddons = productAddons.filter(a => a.name.trim());
+      formData.append("variants", JSON.stringify(cleanVariants));
+      formData.append("addons", JSON.stringify(cleanAddons));
 
       let res: Response;
       if (editingProduct) {
@@ -2477,7 +2487,15 @@ function MenuView({
                       {!product.visible && <Badge variant="outline" className="text-[10px] border-white/10 text-white/30 rounded-2xl">{t("مخفي", "Hidden")}</Badge>}
                     </div>
                     {product.description && <p className="text-muted-foreground text-xs mt-0.5 line-clamp-1">{product.description}</p>}
-                    <p className="text-emerald-400 font-bold text-sm mt-1" data-testid={`text-product-price-${product.id}`}>{product.price.toFixed(2)} SAR</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <p className="text-emerald-400 font-bold text-sm" data-testid={`text-product-price-${product.id}`}>{product.price.toFixed(2)} SAR</p>
+                      {(product.variants && product.variants.length > 0) && (
+                        <Badge variant="outline" className="text-[10px] border-violet-500/20 text-violet-400/70 rounded-2xl px-1.5 py-0">{product.variants.length} {t("أحجام", "sizes")}</Badge>
+                      )}
+                      {(product.addons && product.addons.length > 0) && (
+                        <Badge variant="outline" className="text-[10px] border-emerald-500/20 text-emerald-400/70 rounded-2xl px-1.5 py-0">{product.addons.length} {t("إضافات", "extras")}</Badge>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <Button size="icon" variant="ghost" className="w-8 h-8 text-muted-foreground hover:text-white" onClick={() => handleToggleVisibility(product)} disabled={togglingVisibility === product.id} data-testid={`button-toggle-visibility-${product.id}`}>
@@ -2498,11 +2516,11 @@ function MenuView({
       )}
 
       <Dialog open={showProductDialog} onOpenChange={setShowProductDialog}>
-        <DialogContent className="bg-[#111] border-white/[0.06] max-w-md">
+        <DialogContent className="bg-[#111] border-white/[0.06] max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingProduct ? t("تعديل المنتج", "Edit Product") : t("إضافة منتج", "Add Product")}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-5 py-2" dir="rtl">
             <div>
               <label className="text-xs text-muted-foreground mb-1.5 block">{t("الصورة", "Image")}</label>
               <div className="flex items-center gap-3">
@@ -2515,21 +2533,168 @@ function MenuView({
                 )}
                 <label className="cursor-pointer">
                   <input type="file" accept="image/*" className="hidden" onChange={handleImageChange} data-testid="input-product-image" />
-                  <span className="text-sm text-red-400 hover:text-red-300">{t("اختر صورة", "Choose Image")}</span>
+                  <span className="text-sm text-emerald-400 hover:text-emerald-300">{t("اختر صورة", "Choose Image")}</span>
                 </label>
               </div>
             </div>
             <div>
               <label className="text-xs text-muted-foreground mb-1.5 block">{t("اسم المنتج", "Product Name")}</label>
-              <Input value={productName} onChange={(e) => setProductName(e.target.value)} placeholder={t("مثال: برجر كلاسيك", "e.g. Classic Burger")} className="bg-black/40 border-white/10 text-white" data-testid="input-product-name" />
+              <Input
+                value={productName}
+                onChange={(e) => setProductName(e.target.value)}
+                placeholder={t("مثال: برجر لحم مشوي بالجبنة", "e.g. Grilled Beef Cheese Burger")}
+                className="bg-black/40 border-white/10 text-white placeholder:text-white/20"
+                dir="rtl"
+                data-testid="input-product-name"
+              />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground mb-1.5 block">{t("السعر (SAR)", "Price (SAR)")}</label>
-              <Input type="number" step="0.01" value={productPrice} onChange={(e) => setProductPrice(e.target.value)} placeholder="0.00" className="bg-black/40 border-white/10 text-white" dir="ltr" data-testid="input-product-price" />
+              <label className="text-xs text-muted-foreground mb-1.5 block">{t("السعر الأساسي (SAR)", "Base Price (SAR)")}</label>
+              <Input
+                type="number"
+                step="0.01"
+                value={productPrice}
+                onChange={(e) => setProductPrice(e.target.value)}
+                placeholder="0.00"
+                className="bg-black/40 border-white/10 text-white placeholder:text-white/20"
+                dir="ltr"
+                data-testid="input-product-price"
+              />
             </div>
             <div>
               <label className="text-xs text-muted-foreground mb-1.5 block">{t("الوصف (اختياري)", "Description (optional)")}</label>
-              <Input value={productDescription} onChange={(e) => setProductDescription(e.target.value)} placeholder={t("وصف قصير", "Short description")} className="bg-black/40 border-white/10 text-white" data-testid="input-product-description" />
+              <Input
+                value={productDescription}
+                onChange={(e) => setProductDescription(e.target.value)}
+                placeholder={t("مثال: شريحة لحم بلدي، جبنة شيدر، صوص الترافل", "e.g. Local beef patty, cheddar cheese, truffle sauce")}
+                className="bg-black/40 border-white/10 text-white placeholder:text-white/20"
+                dir="rtl"
+                data-testid="input-product-description"
+              />
+            </div>
+
+            <div className="border-t border-white/[0.06] pt-4">
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-semibold text-white/80">{t("الأحجام / المقاسات", "Sizes / Variants")}</label>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setProductVariants([...productVariants, { name: "", price: 0 }])}
+                  className="h-7 text-xs border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300 rounded-lg gap-1"
+                  data-testid="button-add-variant"
+                >
+                  <Plus className="w-3 h-3" />
+                  {t("إضافة حجم", "Add Size")}
+                </Button>
+              </div>
+              <p className="text-[11px] text-white/25 mb-3" dir="rtl">{t("أضف أحجاماً مختلفة لمنتجك (مثل: صغير، وسط، كبير)", "Add different sizes for your product (e.g. Small, Medium, Large)")}</p>
+              {productVariants.length > 0 && (
+                <div className="space-y-2">
+                  {productVariants.map((variant, i) => (
+                    <div key={i} className="flex items-center gap-2" data-testid={`variant-row-${i}`}>
+                      <Input
+                        value={variant.name}
+                        onChange={(e) => {
+                          const updated = [...productVariants];
+                          updated[i] = { ...updated[i], name: e.target.value };
+                          setProductVariants(updated);
+                        }}
+                        placeholder={t("مثال: صغير، دبل، أو حبة", "e.g. Small, Double, or Single")}
+                        className="flex-1 h-9 text-sm bg-black/40 border-white/10 text-white placeholder:text-white/20"
+                        dir="rtl"
+                        data-testid={`input-variant-name-${i}`}
+                      />
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={variant.price || ""}
+                        onChange={(e) => {
+                          const updated = [...productVariants];
+                          updated[i] = { ...updated[i], price: parseFloat(e.target.value) || 0 };
+                          setProductVariants(updated);
+                        }}
+                        placeholder="0.00"
+                        className="w-24 h-9 text-sm bg-black/40 border-white/10 text-white placeholder:text-white/20 text-center"
+                        dir="ltr"
+                        data-testid={`input-variant-price-${i}`}
+                      />
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => setProductVariants(productVariants.filter((_, idx) => idx !== i))}
+                        className="w-8 h-8 text-red-400/60 hover:text-red-400 hover:bg-red-500/10 flex-shrink-0"
+                        data-testid={`button-remove-variant-${i}`}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="border-t border-white/[0.06] pt-4">
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-semibold text-white/80">{t("الإضافات", "Add-ons / Extras")}</label>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setProductAddons([...productAddons, { name: "", price: 0 }])}
+                  className="h-7 text-xs border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300 rounded-lg gap-1"
+                  data-testid="button-add-addon"
+                >
+                  <Plus className="w-3 h-3" />
+                  {t("إضافة خيار", "Add Extra")}
+                </Button>
+              </div>
+              <p className="text-[11px] text-white/25 mb-3" dir="rtl">{t("يمكنك إضافة خيارات مدفوعة (مثلاً: جبنة +3 ريال) أو مجانية (مثلاً: بدون بصل 0 ريال)", "Add paid extras (e.g. Cheese +3 SAR) or free options (e.g. No onion 0 SAR)")}</p>
+              {productAddons.length > 0 && (
+                <div className="space-y-2">
+                  {productAddons.map((addon, i) => (
+                    <div key={i} className="flex items-center gap-2" data-testid={`addon-row-${i}`}>
+                      <Input
+                        value={addon.name}
+                        onChange={(e) => {
+                          const updated = [...productAddons];
+                          updated[i] = { ...updated[i], name: e.target.value };
+                          setProductAddons(updated);
+                        }}
+                        placeholder={t("مثال: جبنة إضافية أو بدون بصل", "e.g. Extra cheese or No onion")}
+                        className="flex-1 h-9 text-sm bg-black/40 border-white/10 text-white placeholder:text-white/20"
+                        dir="rtl"
+                        data-testid={`input-addon-name-${i}`}
+                      />
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={addon.price || ""}
+                        onChange={(e) => {
+                          const updated = [...productAddons];
+                          updated[i] = { ...updated[i], price: parseFloat(e.target.value) || 0 };
+                          setProductAddons(updated);
+                        }}
+                        placeholder="0.00"
+                        className="w-24 h-9 text-sm bg-black/40 border-white/10 text-white placeholder:text-white/20 text-center"
+                        dir="ltr"
+                        data-testid={`input-addon-price-${i}`}
+                      />
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => setProductAddons(productAddons.filter((_, idx) => idx !== i))}
+                        className="w-8 h-8 text-red-400/60 hover:text-red-400 hover:bg-red-500/10 flex-shrink-0"
+                        data-testid={`button-remove-addon-${i}`}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>
