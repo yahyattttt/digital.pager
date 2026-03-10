@@ -94,7 +94,10 @@ import {
   TrendingUp,
   ShieldAlert,
   AlertCircle,
+  UserCheck,
+  Sparkles,
 } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -782,7 +785,7 @@ export default function DashboardPage() {
       });
 
       const orderRef = doc(db, "merchants", merchant.uid, "whatsappOrders", order.id);
-      await updateDoc(orderRef, { status: "preparing", orderNumber: String(orderNum) });
+      await updateDoc(orderRef, { status: "preparing", orderNumber: String(orderNum), preparingAt: new Date().toISOString() });
 
       toast({
         title: t(`تم قبول الطلب #${orderNum}`, `Order #${orderNum} Accepted`),
@@ -862,7 +865,7 @@ export default function DashboardPage() {
     if (!merchant?.uid) return;
     try {
       const orderRef = doc(db, "merchants", merchant.uid, "whatsappOrders", order.id);
-      await updateDoc(orderRef, { status: "ready" });
+      await updateDoc(orderRef, { status: "ready", readyAt: new Date().toISOString() });
       toast({
         title: t(`الطلب #${order.orderNumber} جاهز`, `Order #${order.orderNumber} Ready`),
         description: t("تم تحديث حالة الطلب إلى جاهز", "Order status updated to ready"),
@@ -1681,19 +1684,39 @@ function OverviewView({
   const [printOrder, setPrintOrder] = useState<WhatsAppOrder | null>(null);
   const [uncollectedConfirmOrder, setUncollectedConfirmOrder] = useState<WhatsAppOrder | null>(null);
   const [customerNoShowMap, setCustomerNoShowMap] = useState<Record<string, number>>({});
+  const [customerOrderCounts, setCustomerOrderCounts] = useState<Record<string, number>>({});
+  const [analyticsData, setAnalyticsData] = useState<any>(null);
 
   useEffect(() => {
     if (!merchant?.uid) return;
     fetch(`/api/customers/${merchant.uid}`)
       .then(r => r.json())
       .then(data => {
-        const map: Record<string, number> = {};
+        const noShowMap: Record<string, number> = {};
+        const orderCountMap: Record<string, number> = {};
         for (const c of data.customers || []) {
-          if (c.noShowCount >= 2) map[c.phone] = c.noShowCount;
+          if (c.noShowCount >= 2) noShowMap[c.phone] = c.noShowCount;
+          orderCountMap[c.phone] = c.totalOrders || 0;
         }
-        setCustomerNoShowMap(map);
+        setCustomerNoShowMap(noShowMap);
+        setCustomerOrderCounts(orderCountMap);
       })
       .catch(() => {});
+  }, [merchant?.uid]);
+
+  useEffect(() => {
+    if (!merchant?.uid) return;
+    const fetchAnalytics = () => {
+      fetch(`/api/merchant-analytics/${merchant.uid}`, {
+        headers: { "x-merchant-email": merchant.email || "" },
+      })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d) setAnalyticsData(d); })
+        .catch(() => {});
+    };
+    fetchAnalytics();
+    const interval = setInterval(fetchAnalytics, 60000);
+    return () => clearInterval(interval);
   }, [merchant?.uid]);
 
   const handleManual = async () => {
@@ -1776,6 +1799,85 @@ function OverviewView({
         </div>
       </div>
 
+      {analyticsData && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4" data-testid="metrics-grid">
+          <div className="rounded-2xl bg-[#111] border border-white/[0.06] p-3.5">
+            <div className="flex items-center gap-2 mb-1">
+              <Timer className="w-4 h-4 text-amber-400" />
+              <span className="text-[11px] text-white/40 uppercase tracking-wider">{t("متوسط التحضير", "Avg Prep Time")}</span>
+            </div>
+            <p className="text-2xl font-bold text-white" data-testid="text-avg-prep-time">
+              {analyticsData.avgPrepTime > 0 ? `${Math.floor(analyticsData.avgPrepTime / 60)}:${String(analyticsData.avgPrepTime % 60).padStart(2, "0")}` : "—"}
+              {analyticsData.avgPrepTime > 0 && <span className="text-xs text-white/40 ms-1">{t("دقيقة", "min")}</span>}
+            </p>
+          </div>
+          <div className="rounded-2xl bg-[#111] border border-white/[0.06] p-3.5">
+            <div className="flex items-center gap-2 mb-1">
+              <Package className="w-4 h-4 text-blue-400" />
+              <span className="text-[11px] text-white/40 uppercase tracking-wider">{t("طلبات اليوم", "Total Orders")}</span>
+            </div>
+            <p className="text-2xl font-bold text-white" data-testid="text-total-orders-today">{analyticsData.totalOrdersToday}</p>
+          </div>
+          <div className="rounded-2xl bg-[#111] border border-white/[0.06] p-3.5">
+            <div className="flex items-center gap-2 mb-1">
+              <UserPlus className="w-4 h-4 text-violet-400" />
+              <span className="text-[11px] text-white/40 uppercase tracking-wider">{t("عملاء جدد", "New Customers")}</span>
+            </div>
+            <p className="text-2xl font-bold text-white" data-testid="text-new-customers-today">{analyticsData.newCustomersToday}</p>
+          </div>
+          <div className="rounded-2xl bg-[#111] border border-white/[0.06] p-3.5">
+            <div className="flex items-center gap-2 mb-1">
+              <DollarSign className="w-4 h-4 text-emerald-400" />
+              <span className="text-[11px] text-white/40 uppercase tracking-wider">{t("إيراد اليوم", "Today Revenue")}</span>
+            </div>
+            <p className="text-2xl font-bold text-white" data-testid="text-revenue-today">
+              {analyticsData.totalRevenueToday?.toLocaleString() || 0} <span className="text-xs text-white/40">SAR</span>
+            </p>
+          </div>
+        </div>
+      )}
+
+      {analyticsData && (analyticsData.orderSources?.length > 0 || analyticsData.totalRevenueToday > 0 || analyticsData.lostRevenueToday > 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+          {analyticsData.orderSources?.length > 0 && (
+            <div className="rounded-2xl bg-[#111] border border-white/[0.06] p-4" data-testid="chart-order-sources">
+              <h4 className="text-[11px] font-bold uppercase tracking-wider text-white/40 mb-3">{t("مصادر الطلبات", "Top Order Sources")}</h4>
+              <ResponsiveContainer width="100%" height={120}>
+                <BarChart data={analyticsData.orderSources.slice(0, 5)} layout="vertical">
+                  <XAxis type="number" hide />
+                  <YAxis type="category" dataKey="source" tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 11 }} width={70} />
+                  <Tooltip contentStyle={{ background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#fff", fontSize: 12 }} />
+                  <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+                    {(analyticsData.orderSources || []).slice(0, 5).map((_: any, i: number) => (
+                      <Cell key={i} fill={["#ef4444", "#8b5cf6", "#3b82f6", "#f59e0b", "#10b981"][i % 5]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+          {(analyticsData.totalRevenueToday > 0 || analyticsData.lostRevenueToday > 0) && (
+            <div className="rounded-2xl bg-[#111] border border-white/[0.06] p-4" data-testid="chart-revenue-loss">
+              <h4 className="text-[11px] font-bold uppercase tracking-wider text-white/40 mb-3">{t("الإيرادات مقابل الخسائر", "Revenue vs Loss")}</h4>
+              <ResponsiveContainer width="100%" height={120}>
+                <BarChart data={[
+                  { name: lang === "ar" ? "إيرادات" : "Revenue", value: analyticsData.totalRevenueToday || 0 },
+                  { name: lang === "ar" ? "خسائر" : "Lost", value: analyticsData.lostRevenueToday || 0 },
+                ]}>
+                  <XAxis dataKey="name" tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 11 }} />
+                  <YAxis hide />
+                  <Tooltip contentStyle={{ background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#fff", fontSize: 12 }} />
+                  <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                    <Cell fill="#10b981" />
+                    <Cell fill="#ef4444" />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="flex-1 rounded-2xl bg-[#0d0d0d] border border-white/[0.06] p-4 relative" data-testid="workspace-active-orders">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-xs font-bold uppercase tracking-wider text-white/50">{t("الطلبات النشطة", "Active Orders")}</h3>
@@ -1833,6 +1935,18 @@ function OverviewView({
                         <span className="font-semibold text-white/80" data-testid={`text-customer-name-${item.id}`}>{order.customerName}</span>
                         <span className="text-white/20">|</span>
                         <span className="font-mono text-white/50" dir="ltr" data-testid={`text-customer-phone-${item.id}`}>{order.customerPhone}</span>
+                        {(() => {
+                          const cnt = customerOrderCounts[order.customerPhone] || 0;
+                          return cnt <= 1 ? (
+                            <Badge className="rounded-full text-[9px] px-1.5 py-0 bg-violet-500/15 text-violet-400 border-violet-500/20" data-testid={`badge-new-customer-${item.id}`}>
+                              <Sparkles className="w-2.5 h-2.5 me-0.5" />{t("جديد", "New")}
+                            </Badge>
+                          ) : (
+                            <Badge className="rounded-full text-[9px] px-1.5 py-0 bg-emerald-500/15 text-emerald-400 border-emerald-500/20" data-testid={`badge-loyal-customer-${item.id}`}>
+                              <UserCheck className="w-2.5 h-2.5 me-0.5" />{t("عميل مخلص", "Loyal")}
+                            </Badge>
+                          );
+                        })()}
                       </div>
 
                       <div className="space-y-1.5 bg-white/[0.02] rounded-xl p-3 border border-white/[0.04]">
@@ -2004,10 +2118,22 @@ function OverviewView({
                   </div>
 
                   <CardContent className="px-4 pb-4 pt-0 space-y-3">
-                    <div className="flex items-center gap-2 text-xs text-white/50">
+                    <div className="flex items-center gap-2 text-xs text-white/50 flex-wrap">
                       <span className="font-semibold text-white/80">{waOrder.customerName}</span>
                       <span className="text-white/20">|</span>
                       <span className="font-mono text-white/50" dir="ltr">{waOrder.customerPhone}</span>
+                      {(() => {
+                        const cnt = customerOrderCounts[waOrder.customerPhone] || 0;
+                        return cnt <= 1 ? (
+                          <Badge className="rounded-full text-[9px] px-1.5 py-0 bg-violet-500/15 text-violet-400 border-violet-500/20" data-testid={`badge-new-active-${item.id}`}>
+                            <Sparkles className="w-2.5 h-2.5 me-0.5" />{t("جديد", "New")}
+                          </Badge>
+                        ) : (
+                          <Badge className="rounded-full text-[9px] px-1.5 py-0 bg-emerald-500/15 text-emerald-400 border-emerald-500/20" data-testid={`badge-loyal-active-${item.id}`}>
+                            <UserCheck className="w-2.5 h-2.5 me-0.5" />{t("عميل مخلص", "Loyal")}
+                          </Badge>
+                        );
+                      })()}
                     </div>
 
                     <div className="space-y-1.5 bg-white/[0.02] rounded-xl p-3 border border-white/[0.04]">

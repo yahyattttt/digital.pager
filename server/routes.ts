@@ -1665,6 +1665,96 @@ export async function registerRoutes(
     }
   });
 
+  // ===== Merchant Analytics Endpoint =====
+  app.get("/api/merchant-analytics/:merchantId", async (req, res) => {
+    try {
+      const { merchantId } = req.params;
+      const merchantEmail = req.headers["x-merchant-email"];
+      if (!merchantEmail) return res.status(401).json({ message: "Authentication required" });
+
+      const accessToken = await getFirestoreAccessToken();
+      const baseUrl = getFirestoreBaseUrl();
+      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+
+      const mCheck = await fetch(`${baseUrl}/merchants/${merchantId}`, { headers: { Authorization: `Bearer ${accessToken}` } });
+      if (!mCheck.ok) return res.status(404).json({ message: "Merchant not found" });
+      const mDoc = await mCheck.json();
+      const mEmail = mDoc.fields?.email?.stringValue || "";
+      if (mEmail !== merchantEmail) return res.status(403).json({ message: "Unauthorized" });
+
+      const ordersRes = await fetch(`${baseUrl}/merchants/${merchantId}/whatsappOrders?pageSize=500`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!ordersRes.ok) return res.json({ avgPrepTime: 0, totalOrdersToday: 0, newCustomersToday: 0, totalRevenueToday: 0, lostRevenueToday: 0, orderSources: [] });
+
+      const data = await ordersRes.json();
+      const docs = data.documents || [];
+
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const todayStartMs = todayStart.getTime();
+
+      let prepTimes: number[] = [];
+      let totalOrdersToday = 0;
+      let totalRevenueToday = 0;
+      let lostRevenueToday = 0;
+      const sourceCounts: Record<string, number> = {};
+      const todayPhones: Set<string> = new Set();
+
+      for (const d of docs) {
+        const f = d.fields || {};
+        const createdAt = f.createdAt?.stringValue || "";
+        const createdMs = new Date(createdAt).getTime();
+        if (isNaN(createdMs) || createdMs < todayStartMs) continue;
+
+        totalOrdersToday++;
+
+        const status = f.status?.stringValue || "";
+        const total = Number(f.total?.doubleValue ?? f.total?.integerValue ?? 0);
+        if (status === "archived" || status === "completed") totalRevenueToday += total;
+        if (status === "uncollected") lostRevenueToday += total;
+
+        const preparingAt = f.preparingAt?.stringValue;
+        const readyAt = f.readyAt?.stringValue;
+        if (preparingAt && readyAt) {
+          const diff = new Date(readyAt).getTime() - new Date(preparingAt).getTime();
+          if (diff > 0 && diff < 3600000) prepTimes.push(diff);
+        }
+
+        const source = f.source?.stringValue || "direct";
+        sourceCounts[source] = (sourceCounts[source] || 0) + 1;
+
+        const phone = f.customerPhone?.stringValue || "";
+        if (phone) todayPhones.add(phone.replace(/[^0-9]/g, ""));
+      }
+
+      const custRes = await fetch(`${baseUrl}/merchants/${merchantId}/customers?pageSize=500`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      let newCustomersToday = 0;
+      if (custRes.ok) {
+        const custData = await custRes.json();
+        const custDocs = custData.documents || [];
+        for (const cd of custDocs) {
+          const cf = cd.fields || {};
+          const phone = cf.phone?.stringValue || "";
+          const totalOrders = parseInt(cf.totalOrders?.integerValue || "0");
+          if (totalOrders === 1 && todayPhones.has(phone.replace(/[^0-9]/g, ""))) {
+            newCustomersToday++;
+          }
+        }
+      }
+
+      const avgPrepTime = prepTimes.length > 0 ? Math.round(prepTimes.reduce((a, b) => a + b, 0) / prepTimes.length / 1000) : 0;
+      const orderSources = Object.entries(sourceCounts).map(([source, count]) => ({ source, count })).sort((a, b) => b.count - a.count);
+
+      return res.json({ avgPrepTime, totalOrdersToday, newCustomersToday, totalRevenueToday, lostRevenueToday, orderSources });
+    } catch (error) {
+      console.error("Merchant analytics error:", error);
+      return res.status(500).json({ message: "Failed to get analytics" });
+    }
+  });
+
   // ===== Subscription Payment Endpoints =====
   app.post("/api/admin/subscription-payment/:merchantId", async (req, res) => {
     try {
@@ -2439,6 +2529,11 @@ export async function registerRoutes(
         fields.originalTotal = { doubleValue: total || 0 };
       }
 
+      const { source } = req.body;
+      if (source && typeof source === "string") {
+        fields.source = { stringValue: source };
+      }
+
       const patchRes = await fetch(`${baseUrl}/merchants/${merchantId}/whatsappOrders/${docId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
@@ -2547,10 +2642,18 @@ export async function registerRoutes(
         fieldPaths.push("orderNumber");
       }
 
-      const { archivedAt } = req.body;
+      const { archivedAt, preparingAt, readyAt } = req.body;
       if (archivedAt) {
         updateFields.archivedAt = { stringValue: archivedAt };
         fieldPaths.push("archivedAt");
+      }
+      if (preparingAt) {
+        updateFields.preparingAt = { stringValue: preparingAt };
+        fieldPaths.push("preparingAt");
+      }
+      if (readyAt) {
+        updateFields.readyAt = { stringValue: readyAt };
+        fieldPaths.push("readyAt");
       }
 
       if (fieldPaths.length === 0) return res.status(400).json({ message: "No fields to update" });

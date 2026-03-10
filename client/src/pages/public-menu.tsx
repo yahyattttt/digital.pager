@@ -310,12 +310,18 @@ export default function PublicMenuPage() {
         quantity: item.quantity,
       }));
 
+      const urlParams = new URLSearchParams(window.location.search);
+      const orderSource = urlParams.get("source") || "";
+
       const orderBody: any = {
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim(),
         items: orderItems,
         total: cartTotal,
       };
+      if (orderSource) {
+        orderBody.source = orderSource;
+      }
       if (couponValid && couponCode.trim()) {
         orderBody.couponCode = couponCode.trim();
       }
