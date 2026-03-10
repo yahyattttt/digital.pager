@@ -1902,6 +1902,35 @@ export default function SuperAdminPage() {
                   </Card>
                 </div>
 
+                {(platformFinanceData.revenueByMerchant || []).length > 0 && (
+                  <Card className="border-violet-500/30">
+                    <CardHeader className="flex flex-row items-center gap-2 pb-4">
+                      <Star className="w-5 h-5 text-violet-400" />
+                      <h3 className="font-semibold">{t("ترتيب الولاء (بعدد التجديدات)", "Loyalty Ranking (by Total Renewals)")}</h3>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        {[...platformFinanceData.revenueByMerchant].sort((a: any, b: any) => b.paymentCount - a.paymentCount).map((m: any, i: number) => (
+                          <div key={m.merchantId} className="flex items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]" data-testid={`row-loyalty-${i}`}>
+                            <div className="flex items-center gap-3">
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${i === 0 ? "bg-amber-500/20 text-amber-400" : i === 1 ? "bg-gray-400/20 text-gray-300" : i === 2 ? "bg-orange-600/20 text-orange-400" : "bg-white/[0.06] text-muted-foreground"}`}>
+                                {i + 1}
+                              </div>
+                              <div>
+                                <p className="font-medium text-sm">{m.storeName}</p>
+                                <p className="text-xs text-muted-foreground">{m.totalPaid?.toLocaleString()} {t("ر.س إجمالي", "SAR total")}</p>
+                              </div>
+                            </div>
+                            <Badge className="bg-violet-500/20 text-violet-400 border-violet-500/30">
+                              {m.paymentCount} {t("تجديد", "renewals")}
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
                 {renewalData && (renewalData.upcomingExpirations || []).length > 0 && (
                   <Card className="border-amber-500/30">
                     <CardHeader className="flex flex-row items-center gap-2 pb-4">
