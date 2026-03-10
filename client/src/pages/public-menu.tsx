@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Store, ShoppingCart, Plus, Minus, X, AlertTriangle, Loader2, Check, ArrowLeft } from "lucide-react";
+import { Store, ShoppingCart, Plus, Minus, X, AlertTriangle, Loader2, Check, ArrowLeft, Clock } from "lucide-react";
 import { SiWhatsapp } from "react-icons/si";
 import { useToast } from "@/hooks/use-toast";
 import type { Product } from "@shared/schema";
@@ -19,6 +19,10 @@ interface MerchantInfo {
   whatsappNumber: string;
   status: string;
   subscriptionStatus: string;
+  storeOpen: boolean;
+  onlineOrdersEnabled: boolean;
+  businessOpenTime: string;
+  businessCloseTime: string;
 }
 
 export default function PublicMenuPage() {
@@ -36,31 +40,79 @@ export default function PublicMenuPage() {
   const [customerPhone, setCustomerPhone] = useState("");
   const [pledgeAccepted, setPledgeAccepted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [, setTimeTick] = useState(0);
+
+  const fetchMenu = useCallback(async (isRefresh = false) => {
+    if (!merchantId) return;
+    try {
+      const res = await fetch(`/api/menu/${merchantId}`);
+      if (!res.ok) { if (!isRefresh) setNotFound(true); return; }
+      const data = await res.json();
+      if (!data.merchant || data.merchant.status !== "approved" || data.merchant.subscriptionStatus !== "active") {
+        if (!isRefresh) setNotFound(true);
+        return;
+      }
+      setMerchant(data.merchant);
+      if (!isRefresh) setProducts(data.products || []);
+    } catch {
+      if (!isRefresh) setNotFound(true);
+    } finally {
+      if (!isRefresh) setLoading(false);
+    }
+  }, [merchantId]);
 
   useEffect(() => {
-    async function fetchMenu() {
-      if (!merchantId) return;
-      try {
-        const res = await fetch(`/api/menu/${merchantId}`);
-        if (!res.ok) { setNotFound(true); return; }
-        const data = await res.json();
-        if (!data.merchant || data.merchant.status !== "approved" || data.merchant.subscriptionStatus !== "active") {
-          setNotFound(true);
-          return;
-        }
-        setMerchant(data.merchant);
-        setProducts(data.products || []);
-      } catch {
-        setNotFound(true);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchMenu();
-  }, [merchantId]);
+    fetchMenu(false);
+  }, [fetchMenu]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTimeTick(t => t + 1);
+      fetchMenu(true);
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [fetchMenu]);
 
   const cartTotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+
+  function isWithinBusinessHours(): boolean {
+    if (!merchant) return true;
+    const { businessOpenTime, businessCloseTime } = merchant;
+    if (!businessOpenTime || !businessCloseTime) return true;
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const [openH, openM] = businessOpenTime.split(":").map(Number);
+    const [closeH, closeM] = businessCloseTime.split(":").map(Number);
+    const openMinutes = openH * 60 + openM;
+    const closeMinutes = closeH * 60 + closeM;
+    if (closeMinutes > openMinutes) {
+      return currentMinutes >= openMinutes && currentMinutes < closeMinutes;
+    }
+    return currentMinutes >= openMinutes || currentMinutes < closeMinutes;
+  }
+
+  const orderingDisabled = merchant ? (!merchant.onlineOrdersEnabled || !isWithinBusinessHours()) : false;
+
+  function getClosedReason(): { messageAr: string; messageEn: string; reopenTime?: string } {
+    if (!merchant) return { messageAr: "", messageEn: "" };
+    if (!merchant.onlineOrdersEnabled) {
+      return {
+        messageAr: "المعذرة، المتجر لا يستقبل طلبات أونلاين حالياً",
+        messageEn: "Sorry, the store is not accepting online orders at the moment",
+      };
+    }
+    if (!isWithinBusinessHours() && merchant.businessOpenTime) {
+      return {
+        messageAr: "المعذرة، المتجر لا يستقبل طلبات أونلاين حالياً",
+        messageEn: "Sorry, the store is not accepting online orders at the moment",
+        reopenTime: merchant.businessOpenTime,
+      };
+    }
+    return { messageAr: "", messageEn: "" };
+  }
+
+  const closedInfo = getClosedReason();
 
   function addToCart(product: Product) {
     setCart(prev => {
@@ -90,6 +142,10 @@ export default function PublicMenuPage() {
 
   async function handleConfirmOrder() {
     if (!merchantId || !customerName.trim() || !customerPhone.trim() || !pledgeAccepted || cart.length === 0) return;
+    if (orderingDisabled) {
+      toast({ title: "عذراً", description: closedInfo.messageAr || "Online ordering unavailable", variant: "destructive" });
+      return;
+    }
     setSubmitting(true);
 
     try {
@@ -281,6 +337,23 @@ export default function PublicMenuPage() {
         <p className="text-white/30 text-xs">Digital Menu</p>
       </div>
 
+      {orderingDisabled && (
+        <div className="mx-4 mb-4 p-4 rounded-xl bg-orange-500/10 border border-orange-500/20" data-testid="banner-ordering-disabled">
+          <div className="flex items-center gap-3 justify-center">
+            <Clock className="w-5 h-5 text-orange-400 flex-shrink-0" />
+            <div className="text-center">
+              <p className="text-orange-300 text-sm font-semibold" dir="rtl" data-testid="text-closed-message-ar">{closedInfo.messageAr}</p>
+              <p className="text-orange-300/60 text-xs mt-0.5" data-testid="text-closed-message-en">{closedInfo.messageEn}</p>
+              {closedInfo.reopenTime && (
+                <p className="text-orange-400 text-xs mt-1.5 font-mono" data-testid="text-reopen-time">
+                  <span dir="rtl">يفتح الساعة</span> {closedInfo.reopenTime} <span className="text-orange-400/50">• Reopening at {closedInfo.reopenTime}</span>
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto px-4 pb-28">
         {products.length === 0 ? (
           <div className="text-center py-16" data-testid="empty-menu-state">
@@ -319,7 +392,11 @@ export default function PublicMenuPage() {
                     )}
                     <div className="mt-auto pt-2 flex items-center justify-between">
                       <span className="text-red-400 font-bold text-sm" data-testid={`text-product-price-${product.id}`}>{product.price.toFixed(2)}</span>
-                      {qty === 0 ? (
+                      {orderingDisabled ? (
+                        <div className="w-8 h-8 rounded-lg bg-zinc-800/50 flex items-center justify-center opacity-30" data-testid={`button-add-disabled-${product.id}`}>
+                          <Plus className="w-4 h-4 text-white/30" />
+                        </div>
+                      ) : qty === 0 ? (
                         <button
                           onClick={() => addToCart(product)}
                           className="w-8 h-8 rounded-lg bg-red-600/10 border border-red-600/20 flex items-center justify-center hover:bg-red-600/20 transition-colors"
@@ -355,7 +432,7 @@ export default function PublicMenuPage() {
         )}
       </div>
 
-      {cartCount > 0 && (
+      {cartCount > 0 && !orderingDisabled && (
         <div className="fixed bottom-0 left-0 right-0 z-50 p-3">
           <button
             onClick={() => setShowCheckout(true)}

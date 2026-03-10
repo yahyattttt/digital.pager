@@ -80,6 +80,7 @@ import {
   Phone,
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { Switch } from "@/components/ui/switch";
 
 const businessTypeLabelsEn: Record<string, string> = {
   restaurant: "Restaurant",
@@ -368,6 +369,9 @@ export default function DashboardPage() {
   const [activeWhatsappOrders, setActiveWhatsappOrders] = useState<WhatsAppOrder[]>([]);
   const prevWhatsappCountRef = useState({ current: -1 })[0];
   const waOrderAudioRef = useState<{ current: HTMLAudioElement | null }>({ current: null })[0];
+  const [onlineOrdersEnabled, setOnlineOrdersEnabled] = useState<boolean>((merchant as any)?.onlineOrdersEnabled !== false);
+  const [businessOpenTime, setBusinessOpenTime] = useState<string>((merchant as any)?.businessOpenTime || "");
+  const [businessCloseTime, setBusinessCloseTime] = useState<string>((merchant as any)?.businessCloseTime || "");
 
   useEffect(() => {
     if (!merchant?.uid) return;
@@ -435,6 +439,15 @@ export default function DashboardPage() {
   useEffect(() => {
     setStoreOpen((merchant as any)?.storeOpen !== false);
   }, [(merchant as any)?.storeOpen]);
+
+  useEffect(() => {
+    setOnlineOrdersEnabled((merchant as any)?.onlineOrdersEnabled !== false);
+  }, [(merchant as any)?.onlineOrdersEnabled]);
+
+  useEffect(() => {
+    setBusinessOpenTime((merchant as any)?.businessOpenTime || "");
+    setBusinessCloseTime((merchant as any)?.businessCloseTime || "");
+  }, [(merchant as any)?.businessOpenTime, (merchant as any)?.businessCloseTime]);
 
   useEffect(() => {
     if (!merchant?.uid) return;
@@ -551,6 +564,49 @@ export default function DashboardPage() {
       });
     }
   }, [merchant?.uid, storeOpen, t, toast]);
+
+  const handleToggleOnlineOrders = useCallback(async () => {
+    if (!merchant?.uid) return;
+    const newState = !onlineOrdersEnabled;
+    setOnlineOrdersEnabled(newState);
+    try {
+      const merchantRef = doc(db, "merchants", merchant.uid);
+      await updateDoc(merchantRef, { onlineOrdersEnabled: newState });
+      toast({
+        title: newState ? t("تم التفعيل", "Enabled") : t("تم الإيقاف", "Disabled"),
+        description: newState
+          ? t("سيتم استقبال الطلبات أونلاين الآن", "Online orders are now accepted")
+          : t("تم إيقاف استقبال الطلبات أونلاين", "Online orders are now paused"),
+      });
+    } catch {
+      setOnlineOrdersEnabled(!newState);
+      toast({
+        title: t("خطأ", "Error"),
+        description: t("فشل في تحديث حالة الطلبات", "Failed to update online orders status"),
+        variant: "destructive",
+      });
+    }
+  }, [merchant?.uid, onlineOrdersEnabled, t, toast]);
+
+  const handleSaveBusinessHours = useCallback(async (openTime: string, closeTime: string) => {
+    if (!merchant?.uid) return;
+    try {
+      const merchantRef = doc(db, "merchants", merchant.uid);
+      await updateDoc(merchantRef, { businessOpenTime: openTime, businessCloseTime: closeTime });
+      setBusinessOpenTime(openTime);
+      setBusinessCloseTime(closeTime);
+      toast({
+        title: t("تم الحفظ", "Saved"),
+        description: t("تم تحديث ساعات العمل بنجاح", "Business hours updated successfully"),
+      });
+    } catch {
+      toast({
+        title: t("خطأ", "Error"),
+        description: t("فشل في حفظ ساعات العمل", "Failed to save business hours"),
+        variant: "destructive",
+      });
+    }
+  }, [merchant?.uid, t, toast]);
 
   function handleSignOut() {
     logout();
@@ -1174,6 +1230,8 @@ export default function DashboardPage() {
                 notifiedPagers={notifiedPagers}
                 recentFeedbacks={recentFeedbacks}
                 storeOpen={storeOpen}
+                onlineOrdersEnabled={onlineOrdersEnabled}
+                onToggleOnlineOrders={handleToggleOnlineOrders}
                 isPending={isPending}
                 onNotify={handleNotify}
                 onComplete={handleComplete}
@@ -1245,6 +1303,11 @@ export default function DashboardPage() {
                 nextOrderNumber={nextOrderNumber}
                 onResetCounter={handleResetCounter}
                 onOpenShiftStart={() => setShowShiftStart(true)}
+                onlineOrdersEnabled={onlineOrdersEnabled}
+                onToggleOnlineOrders={handleToggleOnlineOrders}
+                businessOpenTime={businessOpenTime}
+                businessCloseTime={businessCloseTime}
+                onSaveBusinessHours={handleSaveBusinessHours}
                 t={t}
                 lang={lang}
               />
@@ -1399,6 +1462,8 @@ function OverviewView({
   notifiedPagers,
   recentFeedbacks,
   storeOpen,
+  onlineOrdersEnabled,
+  onToggleOnlineOrders,
   isPending,
   onNotify,
   onComplete,
@@ -1423,6 +1488,8 @@ function OverviewView({
   notifiedPagers: (Pager & { docId: string })[];
   recentFeedbacks: Array<{ id: string; stars: number; comment: string; timestamp: string; read: boolean }>;
   storeOpen: boolean;
+  onlineOrdersEnabled: boolean;
+  onToggleOnlineOrders: () => void;
   isPending: boolean;
   onNotify: (pager: Pager & { docId: string }) => void;
   onComplete: (pager: Pager & { docId: string }) => void;
@@ -1459,12 +1526,24 @@ function OverviewView({
             {t("نظرة عامة على متجرك", "Overview of your store")}
           </p>
         </div>
-        <Badge
-          className={`rounded-2xl ${storeOpen ? "bg-green-500/15 text-green-400 border-green-500/20" : "bg-red-500/15 text-red-400 border-red-500/20"}`}
-          data-testid="badge-store-status"
-        >
-          {storeOpen ? t("مفتوح الآن", "Open Now") : t("مغلق", "Closed")}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge
+            className={`rounded-2xl ${storeOpen ? "bg-green-500/15 text-green-400 border-green-500/20" : "bg-red-500/15 text-red-400 border-red-500/20"}`}
+            data-testid="badge-store-status"
+          >
+            {storeOpen ? t("مفتوح الآن", "Open Now") : t("مغلق", "Closed")}
+          </Badge>
+          <Badge
+            className={`rounded-2xl cursor-pointer select-none ${onlineOrdersEnabled ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" : "bg-orange-500/15 text-orange-400 border-orange-500/20"}`}
+            onClick={onToggleOnlineOrders}
+            data-testid="badge-online-orders-status"
+          >
+            <Package className="w-3 h-3 me-1" />
+            {onlineOrdersEnabled
+              ? t("أونلاين - يستقبل طلبات", "Online - Accepting Orders")
+              : t("أوفلاين", "Offline")}
+          </Badge>
+        </div>
       </div>
 
       {counterLoaded && (
@@ -2730,6 +2809,11 @@ function SettingsView({
   nextOrderNumber,
   onResetCounter,
   onOpenShiftStart,
+  onlineOrdersEnabled,
+  onToggleOnlineOrders,
+  businessOpenTime,
+  businessCloseTime,
+  onSaveBusinessHours,
   t,
   lang,
 }: {
@@ -2739,10 +2823,25 @@ function SettingsView({
   nextOrderNumber: number;
   onResetCounter: (n: number) => void;
   onOpenShiftStart: () => void;
+  onlineOrdersEnabled: boolean;
+  onToggleOnlineOrders: () => void;
+  businessOpenTime: string;
+  businessCloseTime: string;
+  onSaveBusinessHours: (openTime: string, closeTime: string) => void;
   t: (ar: string, en: string) => string;
   lang: string;
 }) {
   const [resetValue, setResetValue] = useState("");
+  const [localOpenTime, setLocalOpenTime] = useState(businessOpenTime);
+  const [localCloseTime, setLocalCloseTime] = useState(businessCloseTime);
+
+  useEffect(() => {
+    setLocalOpenTime(businessOpenTime);
+    setLocalCloseTime(businessCloseTime);
+  }, [businessOpenTime, businessCloseTime]);
+
+  const hoursChanged = localOpenTime !== businessOpenTime || localCloseTime !== businessCloseTime;
+
   return (
     <div className="space-y-6">
       <div>
@@ -2751,6 +2850,79 @@ function SettingsView({
           {t("إعدادات المتجر وأدوات إضافية", "Store settings and tools")}
         </p>
       </div>
+
+      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
+        <CardContent className="p-6">
+          <h3 className="font-semibold mb-4 flex items-center gap-2">
+            <Package className="w-4 h-4 text-emerald-400" />
+            {t("التحكم بالطلبات أونلاين", "Online Ordering Controls")}
+          </h3>
+
+          <div className="space-y-5">
+            <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]" data-testid="online-orders-toggle-row">
+              <div className="flex-1">
+                <p className="text-sm font-semibold" dir="rtl">{t("استقبال الطلبات أونلاين", "Enable Online Orders")}</p>
+                <p className="text-xs text-muted-foreground mt-0.5" dir="rtl">
+                  {t("إيقاف فوري لاستقبال الطلبات عند ضغط المطبخ", "Instantly stop receiving orders during kitchen pressure")}
+                </p>
+              </div>
+              <Switch
+                checked={onlineOrdersEnabled}
+                onCheckedChange={onToggleOnlineOrders}
+                className="data-[state=checked]:bg-emerald-600"
+                data-testid="switch-online-orders"
+              />
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-sm font-semibold flex items-center gap-2">
+                <Clock className="w-4 h-4 text-violet-400" />
+                {t("ساعات العمل", "Business Hours")}
+              </p>
+              <p className="text-xs text-muted-foreground" dir="rtl">
+                {t("حدد أوقات فتح وإغلاق المتجر. خارج هذه الأوقات لن يتمكن العملاء من الطلب.", "Set your opening and closing times. Outside these hours, customers cannot place orders.")}
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground block mb-1.5">{t("وقت الفتح", "Opening Time")}</label>
+                  <Input
+                    type="time"
+                    value={localOpenTime}
+                    onChange={(e) => setLocalOpenTime(e.target.value)}
+                    className="h-12 bg-white/[0.03] border-white/10 text-center font-mono"
+                    dir="ltr"
+                    data-testid="input-open-time"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground block mb-1.5">{t("وقت الإغلاق", "Closing Time")}</label>
+                  <Input
+                    type="time"
+                    value={localCloseTime}
+                    onChange={(e) => setLocalCloseTime(e.target.value)}
+                    className="h-12 bg-white/[0.03] border-white/10 text-center font-mono"
+                    dir="ltr"
+                    data-testid="input-close-time"
+                  />
+                </div>
+              </div>
+              {localOpenTime && localCloseTime && (
+                <p className="text-xs text-muted-foreground text-center" dir="rtl" data-testid="text-hours-preview">
+                  {t("ساعات العمل:", "Business Hours:")} {localOpenTime} → {localCloseTime}
+                </p>
+              )}
+              <Button
+                onClick={() => onSaveBusinessHours(localOpenTime, localCloseTime)}
+                disabled={!hoursChanged}
+                className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl disabled:opacity-30"
+                data-testid="button-save-hours"
+              >
+                {t("حفظ ساعات العمل", "Save Business Hours")}
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
         <CardContent className="p-6">

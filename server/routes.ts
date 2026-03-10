@@ -1747,6 +1747,10 @@ export async function registerRoutes(
             whatsappNumber: mf.whatsappNumber?.stringValue || "",
             status: mf.status?.stringValue || "",
             subscriptionStatus: mf.subscriptionStatus?.stringValue || "",
+            storeOpen: mf.storeOpen?.booleanValue !== false,
+            onlineOrdersEnabled: mf.onlineOrdersEnabled?.booleanValue !== false,
+            businessOpenTime: mf.businessOpenTime?.stringValue || "",
+            businessCloseTime: mf.businessCloseTime?.stringValue || "",
           };
         }
       }
@@ -1771,6 +1775,41 @@ export async function registerRoutes(
       const accessToken = await getFirestoreAccessToken();
       const baseUrl = getFirestoreBaseUrl();
       if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+
+      const mRes = await fetch(`${baseUrl}/merchants/${merchantId}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!mRes.ok) return res.status(404).json({ message: "Merchant not found" });
+      const mDoc = await mRes.json();
+      const mf = mDoc.fields || {};
+
+      if (mf.status?.stringValue !== "approved" || mf.subscriptionStatus?.stringValue !== "active") {
+        return res.status(403).json({ message: "Store is not available" });
+      }
+
+      if (mf.onlineOrdersEnabled?.booleanValue === false) {
+        return res.status(403).json({ message: "Online ordering is currently disabled" });
+      }
+
+      const openTime = mf.businessOpenTime?.stringValue || "";
+      const closeTime = mf.businessCloseTime?.stringValue || "";
+      if (openTime && closeTime) {
+        const now = new Date();
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+        const [openH, openM] = openTime.split(":").map(Number);
+        const [closeH, closeM] = closeTime.split(":").map(Number);
+        const openMins = openH * 60 + openM;
+        const closeMins = closeH * 60 + closeM;
+        let withinHours: boolean;
+        if (closeMins > openMins) {
+          withinHours = currentMinutes >= openMins && currentMinutes < closeMins;
+        } else {
+          withinHours = currentMinutes >= openMins || currentMinutes < closeMins;
+        }
+        if (!withinHours) {
+          return res.status(403).json({ message: "Store is outside business hours", reopenTime: openTime });
+        }
+      }
 
       const docId = randomUUID();
       const itemsArray = items.map((item: any) => ({
