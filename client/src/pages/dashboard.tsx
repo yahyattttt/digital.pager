@@ -983,8 +983,8 @@ export default function DashboardPage() {
                 data-testid="img-dashboard-logo"
               />
             ) : (
-              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center border border-primary/20">
-                <Store className="w-4 h-4 text-primary" />
+              <div className="w-8 h-8 rounded-xl bg-violet-500/10 flex items-center justify-center border border-violet-500/20">
+                <Store className="w-4 h-4 text-violet-400" />
               </div>
             )}
             <div className="hidden sm:block">
@@ -1064,7 +1064,7 @@ export default function DashboardPage() {
             size="icon"
             onClick={() => setShowAddDialog(true)}
             disabled={isPending}
-            className="h-8 w-8 bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg"
+            className="h-8 w-8 bg-emerald-600 text-white hover:bg-emerald-700 rounded-xl"
             data-testid="button-add-to-waitlist"
             title={t("إضافة للانتظار", "Add to Waitlist")}
           >
@@ -1258,7 +1258,7 @@ export default function DashboardPage() {
           onClick={() => setShowAddDialog(true)}
           disabled={isPending}
           aria-label={t("إضافة للانتظار", "Add to Waitlist")}
-          className="fixed bottom-6 end-6 z-50 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/25 flex items-center justify-center hover:bg-primary/90 transition-all active:scale-95 disabled:opacity-50 md:hidden"
+          className="fixed bottom-6 end-6 z-50 w-14 h-14 rounded-2xl bg-emerald-600 text-white shadow-lg shadow-emerald-900/25 flex items-center justify-center hover:bg-emerald-700 transition-all active:scale-95 disabled:opacity-50 md:hidden"
           data-testid="fab-add-to-waitlist"
         >
           <UserPlus className="w-6 h-6" />
@@ -1266,7 +1266,7 @@ export default function DashboardPage() {
       )}
 
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="border-white/[0.08] bg-[#141414] sm:max-w-md">
+        <DialogContent className="border-white/[0.08] bg-[#111] sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <UserPlus className="w-5 h-5 text-primary" />
@@ -1308,7 +1308,7 @@ export default function DashboardPage() {
             <Button
               onClick={handleQuickAdd}
               disabled={quickAddLoading || !counterLoaded}
-              className="w-full h-14 bg-primary hover:bg-primary/90 font-bold text-lg rounded-xl shadow-lg shadow-primary/20 active:scale-[0.98] transition-all"
+              className="w-full h-14 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-lg rounded-2xl shadow-lg shadow-emerald-900/20 active:scale-[0.98] transition-all"
               data-testid="button-quick-add"
             >
               {quickAddLoading ? (
@@ -1323,7 +1323,7 @@ export default function DashboardPage() {
       </Dialog>
 
       <Dialog open={showShiftStart} onOpenChange={setShowShiftStart}>
-        <DialogContent className="border-white/[0.08] bg-[#141414] sm:max-w-sm">
+        <DialogContent className="border-white/[0.08] bg-[#111] sm:max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Hash className="w-5 h-5 text-primary" />
@@ -1449,7 +1449,7 @@ function OverviewView({
     if (ok) setOverviewInput("");
   };
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold" data-testid="text-overview-title">
@@ -1460,7 +1460,7 @@ function OverviewView({
           </p>
         </div>
         <Badge
-          className={`${storeOpen ? "bg-green-500/15 text-green-400 border-green-500/20" : "bg-red-500/15 text-red-400 border-red-500/20"}`}
+          className={`rounded-2xl ${storeOpen ? "bg-green-500/15 text-green-400 border-green-500/20" : "bg-red-500/15 text-red-400 border-red-500/20"}`}
           data-testid="badge-store-status"
         >
           {storeOpen ? t("مفتوح الآن", "Open Now") : t("مغلق", "Closed")}
@@ -1468,22 +1468,22 @@ function OverviewView({
       </div>
 
       {counterLoaded && (
-        <div className="flex gap-2 items-center" data-testid="overview-order-entry">
+        <div className="flex gap-3 items-center" data-testid="overview-order-entry">
           <Input
             type="text"
             inputMode="numeric"
-            placeholder={t("رقم مخصص", "Custom Number")}
+            placeholder={t("رقم مخصص", "Custom #")}
             value={overviewInput}
             onChange={(e) => setOverviewInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && overviewInput.trim()) handleManual(); }}
-            className="w-28 sm:w-36 h-16 text-center text-lg font-bold border-white/10 focus:border-primary focus:ring-primary/20 bg-white/[0.03] rounded-xl"
+            className="w-28 sm:w-36 h-14 text-center text-lg font-bold border-white/10 focus:border-emerald-500 focus:ring-emerald-500/20 bg-white/[0.03] rounded-2xl"
             dir="ltr"
             data-testid="input-order-overview"
           />
           <Button
             onClick={handleManual}
             disabled={quickAddLoading || isPending || !overviewInput.trim()}
-            className="h-16 px-4 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 font-bold rounded-xl"
+            className="h-14 px-4 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 font-bold rounded-2xl"
             data-testid="button-manual-add-overview"
           >
             {quickAddLoading && overviewInput.trim() ? (
@@ -1495,7 +1495,7 @@ function OverviewView({
           <Button
             onClick={async () => { await onQuickAdd(); }}
             disabled={quickAddLoading || isPending}
-            className="flex-1 h-16 bg-primary hover:bg-primary/90 font-bold text-lg rounded-xl shadow-lg shadow-primary/20 active:scale-[0.98] transition-all"
+            className="flex-1 h-14 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-lg rounded-2xl shadow-lg shadow-emerald-900/20 active:scale-[0.98] transition-all"
             data-testid="button-quick-add-overview"
           >
             {quickAddLoading && !overviewInput.trim() ? (
@@ -1508,279 +1508,293 @@ function OverviewView({
         </div>
       )}
 
-      <Card className="border-white/[0.06] bg-[#141414]" data-testid="card-active-waitlist">
-        <CardContent className="p-5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
-                <Users className="w-7 h-7 text-primary" />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div className="space-y-4" data-testid="column-action-required">
+          <div className="flex items-center gap-2 mb-1">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
+              {t("إجراء مطلوب", "Action Required")}
+            </h3>
+            {(whatsappOrders.length > 0 || activeWhatsappOrders.length > 0) && (
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+            )}
+          </div>
+
+          {whatsappOrders.length === 0 && activeWhatsappOrders.length === 0 && (
+            <Card className="border-white/[0.06] bg-[#111] rounded-2xl" data-testid="card-no-orders">
+              <CardContent className="p-6 flex flex-col items-center justify-center text-center py-12">
+                <div className="w-14 h-14 rounded-2xl bg-white/[0.03] flex items-center justify-center mb-3">
+                  <Package className="w-7 h-7 text-muted-foreground/30" />
+                </div>
+                <p className="text-muted-foreground text-sm">{t("لا توجد طلبات جديدة", "No incoming orders")}</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {whatsappOrders.length > 0 && (
+            <div data-testid="section-whatsapp-orders">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">
+                  {t("طلبات واتساب جديدة", "New WhatsApp Orders")}
+                </p>
+                <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/20 text-xs rounded-2xl" data-testid="badge-whatsapp-count">
+                  {whatsappOrders.length}
+                </Badge>
               </div>
-              <div>
-                <p className="text-3xl font-bold" data-testid="text-waitlist-count">{waitingPagers.length}</p>
-                <p className="text-sm text-muted-foreground">{t("في قائمة الانتظار", "Active Waitlist")}</p>
+              <div className="space-y-3">
+                {whatsappOrders.map((order) => (
+                  <Card key={order.id} className="border-emerald-500/10 bg-[#111] rounded-2xl overflow-hidden" data-testid={`card-wa-order-${order.id}`}>
+                    <CardContent className="p-5">
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <p className="text-white font-semibold text-sm" data-testid={`text-wa-customer-${order.id}`}>{order.customerName}</p>
+                          <a href={`tel:${order.customerPhone}`} className="text-xs text-emerald-400 flex items-center gap-1 mt-0.5">
+                            <Phone className="w-3 h-3" />
+                            <span dir="ltr">{order.customerPhone}</span>
+                          </a>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">
+                          {new Date(order.createdAt).toLocaleTimeString(lang === "ar" ? "ar-SA" : "en-US", { hour: "2-digit", minute: "2-digit" })}
+                        </p>
+                      </div>
+                      <div className="bg-white/[0.03] rounded-xl p-3 mb-3">
+                        {order.items.map((item, i) => (
+                          <div key={i} className="flex items-center justify-between text-sm py-0.5">
+                            <span className="text-white/70">{item.quantity}x {item.name}</span>
+                            <span className="text-white/40 text-xs">{(item.price * item.quantity).toFixed(2)}</span>
+                          </div>
+                        ))}
+                        <div className="border-t border-white/[0.06] mt-2 pt-2 flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground">{t("الإجمالي", "Total")}</span>
+                          <span className="text-emerald-400 font-bold text-sm" data-testid={`text-wa-total-${order.id}`}>{order.total.toFixed(2)} SAR</span>
+                        </div>
+                      </div>
+                      <Button
+                        onClick={() => onAcceptWhatsAppOrder(order)}
+                        disabled={acceptingOrderId === order.id}
+                        className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl"
+                        data-testid={`button-accept-order-${order.id}`}
+                      >
+                        {acceptingOrderId === order.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin me-2" />
+                        ) : (
+                          <CheckCircle className="w-4 h-4 me-2" />
+                        )}
+                        {t("قبول وبدء التحضير", "Accept & Start Preparing")}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
             </div>
+          )}
+
+          {activeWhatsappOrders.length > 0 && (
+            <div data-testid="section-active-orders">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-semibold text-amber-400 uppercase tracking-wider">
+                  {t("الطلبات النشطة", "Active Orders")}
+                </p>
+                <Badge className="bg-amber-500/15 text-amber-400 border-amber-500/20 text-xs rounded-2xl" data-testid="badge-active-orders-count">
+                  {activeWhatsappOrders.length}
+                </Badge>
+              </div>
+              <div className="space-y-3">
+                {activeWhatsappOrders.map((order) => (
+                  <Card key={order.id} className={`rounded-2xl overflow-hidden ${order.status === "ready" ? "border-emerald-500/15 bg-[#111]" : "border-amber-500/10 bg-[#111]"}`} data-testid={`card-active-order-${order.id}`}>
+                    <CardContent className="p-5">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${order.status === "ready" ? "bg-emerald-500/10 border border-emerald-500/15" : "bg-amber-500/10 border border-amber-500/15"}`}>
+                            <span className={`font-bold text-sm ${order.status === "ready" ? "text-emerald-400" : "text-amber-400"}`}>{order.orderNumber || "?"}</span>
+                          </div>
+                          <div>
+                            <p className="text-white font-semibold text-sm">{order.customerName}</p>
+                            <p className="text-xs text-muted-foreground">{order.items.length} {t("عناصر", "items")} · {order.total.toFixed(2)} SAR</p>
+                          </div>
+                        </div>
+                        <Badge className={`text-[10px] rounded-2xl ${order.status === "ready" ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" : "bg-amber-500/15 text-amber-400 border-amber-500/20"}`}>
+                          {order.status === "ready" ? t("جاهز", "Ready") : t("قيد التحضير", "Preparing")}
+                        </Badge>
+                      </div>
+                      {order.status === "ready" && (
+                        <Button
+                          onClick={() => onCompleteWhatsAppOrder(order)}
+                          className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-2xl"
+                          data-testid={`button-complete-wa-order-${order.id}`}
+                        >
+                          <CheckCircle className="w-4 h-4 me-1.5" />
+                          {t("تم الاستلام والأرشفة", "Order Received & Archive")}
+                        </Button>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-4" data-testid="column-current-status">
+          <div className="flex items-center justify-between mb-1">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
+              {t("قائمة الانتظار", "Live Waitlist")}
+            </h3>
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
               onClick={() => onNavigate("waitlist")}
-              className="border-white/10 text-xs"
+              className="text-xs text-muted-foreground hover:text-foreground h-7 px-2"
               data-testid="button-view-waitlist"
             >
               {t("عرض الكل", "View All")}
             </Button>
           </div>
-        </CardContent>
-      </Card>
 
-      {waitingPagers.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-              {t("في الانتظار الآن", "Currently Waiting")}
-            </h3>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {waitingPagers.slice(0, 6).map((pager) => (
-              <Card key={pager.docId} className="border-white/[0.06] bg-[#141414] hover:border-primary/20 transition-colors" data-testid={`card-waiting-${pager.docId}`}>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between mb-3">
+          <Card className="border-white/[0.06] bg-[#111] rounded-2xl" data-testid="card-active-waitlist">
+            <CardContent className="p-5">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-violet-500/10 border border-violet-500/15 flex items-center justify-center">
+                  <Users className="w-6 h-6 text-violet-400" />
+                </div>
+                <div>
+                  <p className="text-3xl font-bold" data-testid="text-waitlist-count">{waitingPagers.length}</p>
+                  <p className="text-xs text-muted-foreground">{t("في قائمة الانتظار", "Currently waiting")}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {waitingPagers.length > 0 && (
+            <div className="space-y-2">
+              {waitingPagers.slice(0, 6).map((pager) => (
+                <Card key={pager.docId} className="border-white/[0.06] bg-[#111] rounded-2xl hover:border-violet-500/15 transition-colors" data-testid={`card-waiting-${pager.docId}`}>
+                  <CardContent className="p-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-xl bg-primary/10 border border-primary/15 flex items-center justify-center">
-                        <span className="text-primary font-bold text-lg" data-testid={`text-order-num-${pager.docId}`}>
+                      <div className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-500/15 flex items-center justify-center flex-shrink-0">
+                        <span className="text-violet-400 font-bold" data-testid={`text-order-num-${pager.docId}`}>
                           {pager.orderNumber}
                         </span>
                       </div>
-                      <div>
+                      <div className="flex-1 min-w-0">
                         <p className="font-medium text-sm">{t("طلب", "Order")} #{pager.orderNumber}</p>
                         <p className="text-xs text-muted-foreground">{t("في الانتظار", "Waiting")}</p>
                       </div>
+                      <div className="flex gap-1.5 flex-shrink-0">
+                        <Button
+                          size="sm"
+                          onClick={() => onNotify(pager)}
+                          disabled={isPending || notifyLoading === pager.docId}
+                          className="h-9 px-3 bg-violet-600 hover:bg-violet-700 text-white font-semibold rounded-xl"
+                          data-testid={`button-notify-${pager.docId}`}
+                        >
+                          {notifyLoading === pager.docId ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <>
+                              <BellRing className="w-3.5 h-3.5 me-1" />
+                              {t("تنبيه", "Notify")}
+                            </>
+                          )}
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          onClick={() => onRemove(pager)}
+                          className="h-9 w-9 border-red-500/20 text-red-400 hover:bg-red-500/10 rounded-xl"
+                          data-testid={`button-remove-${pager.docId}`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() => onNotify(pager)}
-                      disabled={isPending || notifyLoading === pager.docId}
-                      className="flex-1 h-10 bg-primary hover:bg-primary/90 font-semibold"
-                      data-testid={`button-notify-${pager.docId}`}
-                    >
-                      {notifyLoading === pager.docId ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <>
-                          <BellRing className="w-4 h-4 me-1.5" />
-                          {t("تنبيه", "Notify")}
-                        </>
-                      )}
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="outline"
-                      onClick={() => onRemove(pager)}
-                      className="h-10 w-10 border-red-500/20 text-red-400 hover:bg-red-500/10"
-                      data-testid={`button-remove-${pager.docId}`}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-          {waitingPagers.length > 6 && (
-            <button
-              onClick={() => onNavigate("waitlist")}
-              className="mt-3 text-sm text-primary hover:underline"
-              data-testid="link-see-all-waiting"
-            >
-              {t(`عرض الكل (${waitingPagers.length})`, `See all (${waitingPagers.length})`)}
-            </button>
+                  </CardContent>
+                </Card>
+              ))}
+              {waitingPagers.length > 6 && (
+                <button
+                  onClick={() => onNavigate("waitlist")}
+                  className="mt-1 text-sm text-violet-400 hover:underline"
+                  data-testid="link-see-all-waiting"
+                >
+                  {t(`عرض الكل (${waitingPagers.length})`, `See all (${waitingPagers.length})`)}
+                </button>
+              )}
+            </div>
+          )}
+
+          {notifiedPagers.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">
+                  {t("تم التنبيه", "Notified")}
+                </p>
+                <Badge variant="secondary" className="text-[10px] rounded-2xl" data-testid="badge-notified-count">
+                  {notifiedPagers.length}
+                </Badge>
+              </div>
+              <div className="space-y-2">
+                {notifiedPagers.slice(0, 3).map((pager) => (
+                  <Card key={pager.docId} className="border-emerald-500/10 bg-[#111] rounded-2xl" data-testid={`card-notified-${pager.docId}`}>
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/15 flex items-center justify-center flex-shrink-0">
+                          <span className="text-emerald-400 font-bold">{pager.orderNumber}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm">{t("طلب", "Order")} #{pager.orderNumber}</p>
+                          <p className="text-xs text-emerald-400">{t("تم التنبيه", "Notified")}</p>
+                        </div>
+                        <div className="flex gap-1.5 flex-shrink-0">
+                          <Button
+                            size="sm"
+                            onClick={() => onComplete(pager)}
+                            className="h-9 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl"
+                            data-testid={`button-complete-${pager.docId}`}
+                          >
+                            <CheckCircle className="w-3 h-3 me-1" />
+                            {t("أرشفة", "Archive")}
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="outline"
+                            onClick={() => onRemove(pager)}
+                            className="h-9 w-9 border-red-500/20 text-red-400 hover:bg-red-500/10 rounded-xl"
+                            data-testid={`button-remove-notified-${pager.docId}`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
           )}
         </div>
-      )}
-
-      {notifiedPagers.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-              {t("تم التنبيه", "Recently Notified")}
-            </h3>
-            <Badge variant="secondary" className="text-[10px]" data-testid="badge-notified-count">
-              {notifiedPagers.length}
-            </Badge>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {notifiedPagers.slice(0, 3).map((pager) => (
-              <Card key={pager.docId} className="border-green-500/10 bg-green-500/[0.03]" data-testid={`card-notified-${pager.docId}`}>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-green-500/10 border border-green-500/15 flex items-center justify-center">
-                        <span className="text-green-400 font-bold">{pager.orderNumber}</span>
-                      </div>
-                      <div>
-                        <p className="font-medium text-sm">{t("طلب", "Order")} #{pager.orderNumber}</p>
-                        <p className="text-xs text-green-400">{t("تم التنبيه", "Notified")}</p>
-                      </div>
-                    </div>
-                    <Badge className="bg-green-500/15 text-green-400 border-green-500/20 text-[10px]">
-                      <BellRing className="w-3 h-3 me-1" />
-                      {t("مُنبّه", "Paged")}
-                    </Badge>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() => onComplete(pager)}
-                      className="flex-1 h-9 bg-green-600 hover:bg-green-700 text-white font-semibold"
-                      data-testid={`button-complete-${pager.docId}`}
-                    >
-                      <CheckCircle className="w-3 h-3 me-1" />
-                      {t("تم الاستلام والأرشفة", "Received & Archive")}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => onRemove(pager)}
-                      className="h-9 border-red-500/20 text-red-400 hover:bg-red-500/10"
-                      data-testid={`button-remove-notified-${pager.docId}`}
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {whatsappOrders.length > 0 && (
-        <div data-testid="section-whatsapp-orders">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold uppercase tracking-wider flex items-center gap-2">
-              <span className="relative flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
-              </span>
-              <span className="text-green-400">{t("طلبات واتساب جديدة", "New WhatsApp Orders")}</span>
-            </h3>
-            <Badge className="bg-green-500/15 text-green-400 border-green-500/20 text-xs" data-testid="badge-whatsapp-count">
-              {whatsappOrders.length}
-            </Badge>
-          </div>
-          <div className="space-y-3">
-            {whatsappOrders.map((order) => (
-              <Card key={order.id} className="border-green-500/15 bg-green-500/[0.03] overflow-hidden" data-testid={`card-wa-order-${order.id}`}>
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <p className="text-white font-medium text-sm" data-testid={`text-wa-customer-${order.id}`}>{order.customerName}</p>
-                      <a href={`tel:${order.customerPhone}`} className="text-xs text-green-400 flex items-center gap-1 mt-0.5">
-                        <Phone className="w-3 h-3" />
-                        <span dir="ltr">{order.customerPhone}</span>
-                      </a>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(order.createdAt).toLocaleTimeString(lang === "ar" ? "ar-SA" : "en-US", { hour: "2-digit", minute: "2-digit" })}
-                    </p>
-                  </div>
-                  <div className="bg-black/20 rounded-lg p-2.5 mb-3">
-                    {order.items.map((item, i) => (
-                      <div key={i} className="flex items-center justify-between text-sm py-0.5">
-                        <span className="text-white/70">{item.quantity}x {item.name}</span>
-                        <span className="text-white/50 text-xs">{(item.price * item.quantity).toFixed(2)}</span>
-                      </div>
-                    ))}
-                    <div className="border-t border-white/[0.06] mt-1.5 pt-1.5 flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground">{t("الإجمالي", "Total")}</span>
-                      <span className="text-red-400 font-bold text-sm" data-testid={`text-wa-total-${order.id}`}>{order.total.toFixed(2)} SAR</span>
-                    </div>
-                  </div>
-                  <Button
-                    onClick={() => onAcceptWhatsAppOrder(order)}
-                    disabled={acceptingOrderId === order.id}
-                    className="w-full h-11 bg-green-600 hover:bg-green-700 text-white font-bold"
-                    data-testid={`button-accept-order-${order.id}`}
-                  >
-                    {acceptingOrderId === order.id ? (
-                      <Loader2 className="w-4 h-4 animate-spin me-2" />
-                    ) : (
-                      <CheckCircle className="w-4 h-4 me-2" />
-                    )}
-                    {t("قبول وبدء التحضير", "Accept & Start Preparing")}
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {activeWhatsappOrders.length > 0 && (
-        <div data-testid="section-active-orders">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold uppercase tracking-wider flex items-center gap-2">
-              <span className="text-amber-400">{t("الطلبات النشطة", "Active Orders")}</span>
-            </h3>
-            <Badge className="bg-amber-500/15 text-amber-400 border-amber-500/20 text-xs" data-testid="badge-active-orders-count">
-              {activeWhatsappOrders.length}
-            </Badge>
-          </div>
-          <div className="space-y-3">
-            {activeWhatsappOrders.map((order) => (
-              <Card key={order.id} className={`overflow-hidden ${order.status === "ready" ? "border-green-500/20 bg-green-500/[0.03]" : "border-amber-500/15 bg-amber-500/[0.03]"}`} data-testid={`card-active-order-${order.id}`}>
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${order.status === "ready" ? "bg-green-500/10 border border-green-500/15" : "bg-amber-500/10 border border-amber-500/15"}`}>
-                        <span className={`font-bold text-sm ${order.status === "ready" ? "text-green-400" : "text-amber-400"}`}>{order.orderNumber || "?"}</span>
-                      </div>
-                      <div>
-                        <p className="text-white font-medium text-sm">{order.customerName}</p>
-                        <p className="text-xs text-muted-foreground">{order.items.length} {t("عناصر", "items")} • {order.total.toFixed(2)} SAR</p>
-                      </div>
-                    </div>
-                    <Badge className={`text-[10px] ${order.status === "ready" ? "bg-green-500/15 text-green-400 border-green-500/20" : "bg-amber-500/15 text-amber-400 border-amber-500/20"}`}>
-                      {order.status === "ready" ? t("جاهز", "Ready") : t("قيد التحضير", "Preparing")}
-                    </Badge>
-                  </div>
-                  {order.status === "ready" && (
-                    <Button
-                      onClick={() => onCompleteWhatsAppOrder(order)}
-                      className="w-full h-11 bg-green-600 hover:bg-green-700 text-white font-bold text-sm"
-                      data-testid={`button-complete-wa-order-${order.id}`}
-                    >
-                      <CheckCircle className="w-4 h-4 me-1.5" />
-                      {t("تم الاستلام والأرشفة", "Order Received & Archive")}
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      )}
+      </div>
 
       {recentFeedbacks.length > 0 && (
         <div>
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-              {t("آخر التقييمات", "Recent Activity")}
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider">
+              {t("آخر التقييمات", "Recent Feedback")}
             </h3>
             <button
               onClick={() => onNavigate("feedback")}
-              className="text-xs text-primary hover:underline"
+              className="text-xs text-violet-400 hover:underline"
               data-testid="link-view-all-feedback"
             >
               {t("عرض الكل", "View All")}
             </button>
           </div>
-          <Card className="border-white/[0.06] bg-[#141414]">
+          <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
             <CardContent className="p-0 divide-y divide-white/[0.04]">
               {recentFeedbacks.map((fb) => (
-                <div key={fb.id} className="flex items-center gap-3 px-4 py-3" data-testid={`recent-feedback-${fb.id}`}>
+                <div key={fb.id} className="flex items-center gap-3 px-5 py-3" data-testid={`recent-feedback-${fb.id}`}>
                   <div className="flex gap-0.5">
                     {[1, 2, 3, 4, 5].map((s) => (
                       <Star key={s} className={`w-3.5 h-3.5 ${s <= fb.stars ? "text-yellow-400 fill-yellow-400" : "text-white/10"}`} />
@@ -1789,7 +1803,7 @@ function OverviewView({
                   <p className="flex-1 text-sm text-muted-foreground truncate">
                     {fb.comment || t("بدون تعليق", "No comment")}
                   </p>
-                  {!fb.read && <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />}
+                  {!fb.read && <span className="w-2 h-2 rounded-full bg-orange-500 flex-shrink-0" />}
                   <span className="text-[10px] text-muted-foreground/60 flex-shrink-0">
                     {new Date(fb.timestamp).toLocaleDateString(lang === "ar" ? "ar-SA" : "en-US", { month: "short", day: "numeric" })}
                   </span>
@@ -1855,22 +1869,22 @@ function WaitlistView({
       <button
         key={pager.docId}
         onClick={() => onSelectPager(isSelected ? null : pager.docId)}
-        className={`w-full text-start rounded-xl border p-4 transition-all ${
+        className={`w-full text-start rounded-2xl border p-4 transition-all ${
           isSelected
-            ? "border-primary/40 bg-primary/5 shadow-lg shadow-primary/5"
+            ? "border-violet-500/40 bg-violet-500/5 shadow-lg shadow-violet-500/5"
             : isNotified
-              ? "border-green-500/10 bg-green-500/[0.02] hover:border-green-500/20"
-              : "border-white/[0.06] bg-[#141414] hover:border-primary/20"
+              ? "border-emerald-500/10 bg-emerald-500/[0.02] hover:border-emerald-500/20"
+              : "border-white/[0.06] bg-[#111] hover:border-violet-500/20"
         }`}
         data-testid={isNotified ? `card-notified-${pager.docId}` : `card-waiting-${pager.docId}`}
       >
         <div className="flex items-center gap-3">
           <div className={`w-14 h-14 rounded-2xl border flex items-center justify-center flex-shrink-0 ${
             isNotified
-              ? "bg-green-500/10 border-green-500/15"
-              : "bg-primary/10 border-primary/15"
+              ? "bg-emerald-500/10 border-emerald-500/15"
+              : "bg-violet-500/10 border-violet-500/15"
           }`}>
-            <span className={`font-bold text-xl ${isNotified ? "text-green-400" : "text-primary"}`} data-testid={`text-order-num-${pager.docId}`}>
+            <span className={`font-bold text-xl ${isNotified ? "text-emerald-400" : "text-violet-400"}`} data-testid={`text-order-num-${pager.docId}`}>
               {pager.orderNumber}
             </span>
           </div>
@@ -1880,9 +1894,9 @@ function WaitlistView({
               {pager.createdAt && new Date(pager.createdAt).toLocaleTimeString(lang === "ar" ? "ar-SA" : "en-US", { hour: "2-digit", minute: "2-digit" })}
             </p>
           </div>
-          <Badge className={`text-[10px] flex-shrink-0 ${
+          <Badge className={`text-[10px] flex-shrink-0 rounded-2xl ${
             isNotified
-              ? "bg-green-500/15 text-green-400 border-green-500/20"
+              ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20"
               : "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"
           }`}>
             {isNotified ? t("مُنبّه", "Paged") : t("في الانتظار", "Waiting")}
@@ -1904,22 +1918,22 @@ function WaitlistView({
       </div>
 
       {counterLoaded && (
-        <div className="flex gap-2 items-center" data-testid="waitlist-order-entry">
+        <div className="flex gap-3 items-center" data-testid="waitlist-order-entry">
           <Input
             type="text"
             inputMode="numeric"
-            placeholder={t("رقم مخصص", "Custom Number")}
+            placeholder={t("رقم مخصص", "Custom #")}
             value={waitlistInput}
             onChange={(e) => setWaitlistInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && waitlistInput.trim()) handleManual(); }}
-            className="w-28 sm:w-36 h-16 text-center text-lg font-bold border-white/10 focus:border-primary focus:ring-primary/20 bg-white/[0.03] rounded-xl"
+            className="w-28 sm:w-36 h-14 text-center text-lg font-bold border-white/10 focus:border-emerald-500 focus:ring-emerald-500/20 bg-white/[0.03] rounded-2xl"
             dir="ltr"
             data-testid="input-order-waitlist"
           />
           <Button
             onClick={handleManual}
             disabled={quickAddLoading || isPending || !waitlistInput.trim()}
-            className="h-16 px-4 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 font-bold rounded-xl"
+            className="h-14 px-4 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 font-bold rounded-2xl"
             data-testid="button-manual-add-waitlist"
           >
             {quickAddLoading && waitlistInput.trim() ? (
@@ -1931,7 +1945,7 @@ function WaitlistView({
           <Button
             onClick={async () => { await onQuickAdd(); }}
             disabled={quickAddLoading || isPending}
-            className="flex-1 h-16 bg-primary hover:bg-primary/90 font-bold text-lg rounded-xl shadow-lg shadow-primary/20 active:scale-[0.98] transition-all"
+            className="flex-1 h-14 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-lg rounded-2xl shadow-lg shadow-emerald-900/20 active:scale-[0.98] transition-all"
             data-testid="button-quick-add-waitlist"
           >
             {quickAddLoading && !waitlistInput.trim() ? (
@@ -1950,9 +1964,9 @@ function WaitlistView({
             {t("في الانتظار", "Waiting")} ({waitingPagers.length})
           </h3>
           {waitingPagers.length === 0 && notifiedPagers.length === 0 ? (
-            <Card className="border-white/[0.06] bg-[#141414]">
+            <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
               <CardContent className="py-16 flex flex-col items-center justify-center text-center">
-                <div className="w-20 h-20 rounded-full bg-white/[0.03] flex items-center justify-center mb-4">
+                <div className="w-20 h-20 rounded-2xl bg-white/[0.03] flex items-center justify-center mb-4">
                   <Users className="w-10 h-10 text-muted-foreground/30" />
                 </div>
                 <p className="text-muted-foreground font-medium" data-testid="text-no-orders">
@@ -1964,7 +1978,7 @@ function WaitlistView({
                 <Button
                   onClick={onAdd}
                   disabled={isPending}
-                  className="mt-4 bg-primary hover:bg-primary/90"
+                  className="mt-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl"
                   data-testid="button-add-empty-state"
                 >
                   <UserPlus className="w-4 h-4 me-2" />
@@ -1978,11 +1992,11 @@ function WaitlistView({
                 selectedPager ? (
                   <div key={pager.docId}>{renderOrderCard(pager, false)}</div>
                 ) : (
-                  <Card key={pager.docId} className="border-white/[0.06] bg-[#141414] hover:border-primary/20 transition-all hover:shadow-lg hover:shadow-primary/5" data-testid={`card-waiting-${pager.docId}`}>
+                  <Card key={pager.docId} className="border-white/[0.06] bg-[#111] rounded-2xl hover:border-violet-500/20 transition-all" data-testid={`card-waiting-${pager.docId}`}>
                     <CardContent className="p-5">
                       <div className="flex items-center gap-4 mb-4">
-                        <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/15 flex items-center justify-center">
-                          <span className="text-primary font-bold text-2xl" data-testid={`text-order-num-${pager.docId}`}>
+                        <div className="w-14 h-14 rounded-2xl bg-violet-500/10 border border-violet-500/15 flex items-center justify-center">
+                          <span className="text-violet-400 font-bold text-2xl" data-testid={`text-order-num-${pager.docId}`}>
                             {pager.orderNumber}
                           </span>
                         </div>
@@ -1991,7 +2005,7 @@ function WaitlistView({
                           <p className="text-xs text-muted-foreground mt-0.5">
                             {pager.createdAt && new Date(pager.createdAt).toLocaleTimeString(lang === "ar" ? "ar-SA" : "en-US", { hour: "2-digit", minute: "2-digit" })}
                           </p>
-                          <Badge className="mt-1.5 bg-yellow-500/10 text-yellow-400 border-yellow-500/20 text-[10px]">
+                          <Badge className="mt-1.5 bg-yellow-500/10 text-yellow-400 border-yellow-500/20 text-[10px] rounded-2xl">
                             {t("في الانتظار", "Waiting")}
                           </Badge>
                         </div>
@@ -2000,7 +2014,7 @@ function WaitlistView({
                         <Button
                           onClick={() => onNotify(pager)}
                           disabled={isPending || notifyLoading === pager.docId}
-                          className="flex-1 h-14 bg-primary hover:bg-primary/90 font-bold text-base"
+                          className="flex-1 h-12 bg-violet-600 hover:bg-violet-700 text-white font-bold text-base rounded-2xl"
                           data-testid={`button-notify-${pager.docId}`}
                         >
                           {notifyLoading === pager.docId ? (
@@ -2016,7 +2030,7 @@ function WaitlistView({
                           size="icon"
                           variant="outline"
                           onClick={() => onRemove(pager)}
-                          className="h-14 w-14 border-red-500/15 text-red-400 hover:bg-red-500/10"
+                          className="h-12 w-12 border-red-500/15 text-red-400 hover:bg-red-500/10 rounded-2xl"
                           data-testid={`button-remove-${pager.docId}`}
                         >
                           <Trash2 className="w-5 h-5" />
@@ -2039,19 +2053,19 @@ function WaitlistView({
                   selectedPager ? (
                     <div key={pager.docId}>{renderOrderCard(pager, true)}</div>
                   ) : (
-                    <Card key={pager.docId} className="border-green-500/10 bg-green-500/[0.02]" data-testid={`card-notified-${pager.docId}`}>
+                    <Card key={pager.docId} className="border-emerald-500/10 bg-[#111] rounded-2xl" data-testid={`card-notified-${pager.docId}`}>
                       <CardContent className="p-5">
                         <div className="flex items-center justify-between mb-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-14 h-14 rounded-2xl bg-green-500/10 border border-green-500/15 flex items-center justify-center">
-                              <span className="text-green-400 font-bold text-xl">{pager.orderNumber}</span>
+                            <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/15 flex items-center justify-center">
+                              <span className="text-emerald-400 font-bold text-xl">{pager.orderNumber}</span>
                             </div>
                             <div>
                               <p className="font-semibold">{t("طلب", "Order")} #{pager.orderNumber}</p>
-                              <p className="text-xs text-green-400 mt-0.5">{t("تم التنبيه", "Notified")}</p>
+                              <p className="text-xs text-emerald-400 mt-0.5">{t("تم التنبيه", "Notified")}</p>
                             </div>
                           </div>
-                          <Badge className="bg-green-500/15 text-green-400 border-green-500/20">
+                          <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/20 rounded-2xl">
                             <BellRing className="w-3 h-3 me-1" />
                             {t("مُنبّه", "Paged")}
                           </Badge>
@@ -2060,7 +2074,7 @@ function WaitlistView({
                           <Button
                             size="sm"
                             onClick={() => onComplete(pager)}
-                            className="flex-1 h-12 bg-green-600 hover:bg-green-700 text-white font-semibold"
+                            className="flex-1 h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-2xl"
                             data-testid={`button-complete-${pager.docId}`}
                           >
                             <CheckCircle className="w-4 h-4 me-1.5" />
@@ -2070,7 +2084,7 @@ function WaitlistView({
                             size="sm"
                             variant="outline"
                             onClick={() => onRemove(pager)}
-                            className="h-12 border-red-500/15 text-red-400 hover:bg-red-500/10"
+                            className="h-12 border-red-500/15 text-red-400 hover:bg-red-500/10 rounded-2xl"
                             data-testid={`button-remove-notified-${pager.docId}`}
                           >
                             <Trash2 className="w-4 h-4" />
@@ -2087,13 +2101,13 @@ function WaitlistView({
 
         {selectedPager && (
           <div className="flex-1 min-w-0" data-testid="order-detail-panel">
-            <Card className="border-white/[0.06] bg-[#141414] sticky top-4">
+            <Card className="border-white/[0.06] bg-[#111] rounded-2xl sticky top-4">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-lg font-bold">{t("تفاصيل الطلب", "Order Details")}</h3>
                   <button
                     onClick={() => onSelectPager(null)}
-                    className="p-1.5 rounded-lg hover:bg-white/[0.06] text-muted-foreground"
+                    className="p-1.5 rounded-xl hover:bg-white/[0.06] text-muted-foreground"
                     data-testid="button-close-detail"
                   >
                     <X className="w-5 h-5" />
@@ -2103,20 +2117,20 @@ function WaitlistView({
                 <div className="flex items-center gap-5 mb-8">
                   <div className={`w-20 h-20 rounded-2xl border-2 flex items-center justify-center ${
                     selectedPager.status === "notified"
-                      ? "bg-green-500/10 border-green-500/20"
-                      : "bg-primary/10 border-primary/20"
+                      ? "bg-emerald-500/10 border-emerald-500/20"
+                      : "bg-violet-500/10 border-violet-500/20"
                   }`}>
                     <span className={`font-bold text-3xl ${
-                      selectedPager.status === "notified" ? "text-green-400" : "text-primary"
+                      selectedPager.status === "notified" ? "text-emerald-400" : "text-violet-400"
                     }`}>
                       {selectedPager.orderNumber}
                     </span>
                   </div>
                   <div>
                     <p className="text-xl font-bold">{t("طلب", "Order")} #{selectedPager.orderNumber}</p>
-                    <Badge className={`mt-2 ${
+                    <Badge className={`mt-2 rounded-2xl ${
                       selectedPager.status === "notified"
-                        ? "bg-green-500/15 text-green-400 border-green-500/20"
+                        ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20"
                         : "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"
                     }`}>
                       {selectedPager.status === "notified" ? t("تم التنبيه", "Notified") : t("في الانتظار", "Waiting")}
@@ -2140,7 +2154,7 @@ function WaitlistView({
                   {selectedPager.fcmToken && (
                     <div className="flex items-center justify-between py-2 border-b border-white/[0.04]">
                       <span className="text-sm text-muted-foreground">{t("إشعارات", "Push")}</span>
-                      <Badge className="bg-green-500/15 text-green-400 border-green-500/20 text-[10px]">
+                      <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/20 text-[10px] rounded-2xl">
                         {t("مفعّل", "Enabled")}
                       </Badge>
                     </div>
@@ -2152,7 +2166,7 @@ function WaitlistView({
                     <Button
                       onClick={() => onNotify(selectedPager)}
                       disabled={isPending || notifyLoading === selectedPager.docId}
-                      className="w-full h-14 bg-primary hover:bg-primary/90 font-bold text-lg"
+                      className="w-full h-14 bg-violet-600 hover:bg-violet-700 text-white font-bold text-lg rounded-2xl"
                       data-testid={`button-notify-${selectedPager.docId}`}
                     >
                       {notifyLoading === selectedPager.docId ? (
@@ -2168,7 +2182,7 @@ function WaitlistView({
                   {selectedPager.status === "notified" && (
                     <Button
                       onClick={() => onComplete(selectedPager)}
-                      className="w-full h-14 bg-green-600 hover:bg-green-700 text-white font-bold text-lg"
+                      className="w-full h-14 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-lg rounded-2xl"
                       data-testid={`button-complete-${selectedPager.docId}`}
                     >
                       <CheckCircle className="w-6 h-6 me-2" />
@@ -2178,7 +2192,7 @@ function WaitlistView({
                   <Button
                     variant="outline"
                     onClick={() => { onRemove(selectedPager); onSelectPager(null); }}
-                    className="w-full h-12 border-red-500/15 text-red-400 hover:bg-red-500/10 font-semibold"
+                    className="w-full h-12 border-red-500/15 text-red-400 hover:bg-red-500/10 font-semibold rounded-2xl"
                     data-testid={`button-remove-${selectedPager.docId}`}
                   >
                     <Trash2 className="w-5 h-5 me-2" />
@@ -2333,13 +2347,13 @@ function MenuView({
             {t("إدارة منتجاتك والقائمة الرقمية", "Manage your products and digital menu")}
           </p>
         </div>
-        <Button onClick={openAddDialog} className="bg-red-600 hover:bg-red-700 text-white h-10 gap-1.5" data-testid="button-add-product">
+        <Button onClick={openAddDialog} className="bg-emerald-600 hover:bg-emerald-700 text-white h-10 gap-1.5 rounded-2xl" data-testid="button-add-product">
           <Plus className="w-4 h-4" />
           <span>{t("إضافة", "Add")}</span>
         </Button>
       </div>
 
-      <Card className="border-white/[0.06] bg-[#141414]">
+      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
         <CardContent className="p-4">
           <div className="flex items-center gap-3">
             <div className="flex-1 min-w-0">
@@ -2358,7 +2372,7 @@ function MenuView({
           <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
         </div>
       ) : products.length === 0 ? (
-        <Card className="border-white/[0.06] bg-[#141414]">
+        <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
           <CardContent className="py-16 flex flex-col items-center justify-center text-center">
             <Package className="w-12 h-12 text-muted-foreground/20 mb-4" />
             <p className="text-muted-foreground">{t("لا توجد منتجات", "No products yet")}</p>
@@ -2368,23 +2382,23 @@ function MenuView({
       ) : (
         <div className="space-y-3" data-testid="products-list">
           {products.map(product => (
-            <Card key={product.id} className={`border-white/[0.06] ${product.visible ? "bg-[#141414]" : "bg-[#0e0e0e] opacity-60"}`} data-testid={`product-item-${product.id}`}>
-              <CardContent className="p-3">
+            <Card key={product.id} className={`border-white/[0.06] rounded-2xl ${product.visible ? "bg-[#111]" : "bg-[#0e0e0e] opacity-60"}`} data-testid={`product-item-${product.id}`}>
+              <CardContent className="p-4">
                 <div className="flex items-start gap-3">
                   {product.imageUrl ? (
-                    <img src={product.imageUrl} alt={product.name} className="w-16 h-16 rounded-lg object-cover flex-shrink-0 border border-white/[0.06]" style={{ boxShadow: "0 2px 8px rgba(255,0,0,0.06)" }} />
+                    <img src={product.imageUrl} alt={product.name} className="w-16 h-16 rounded-xl object-cover flex-shrink-0 border border-white/[0.06]" />
                   ) : (
-                    <div className="w-16 h-16 rounded-lg bg-white/[0.03] flex items-center justify-center flex-shrink-0 border border-white/[0.06]">
+                    <div className="w-16 h-16 rounded-xl bg-white/[0.03] flex items-center justify-center flex-shrink-0 border border-white/[0.06]">
                       <Image className="w-6 h-6 text-muted-foreground/20" />
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <p className="text-white font-medium text-sm truncate" data-testid={`text-product-name-${product.id}`}>{product.name}</p>
-                      {!product.visible && <Badge variant="outline" className="text-[10px] border-white/10 text-white/30">{t("مخفي", "Hidden")}</Badge>}
+                      <p className="text-white font-semibold text-sm truncate" data-testid={`text-product-name-${product.id}`}>{product.name}</p>
+                      {!product.visible && <Badge variant="outline" className="text-[10px] border-white/10 text-white/30 rounded-2xl">{t("مخفي", "Hidden")}</Badge>}
                     </div>
                     {product.description && <p className="text-muted-foreground text-xs mt-0.5 line-clamp-1">{product.description}</p>}
-                    <p className="text-red-400 font-bold text-sm mt-1" data-testid={`text-product-price-${product.id}`}>{product.price.toFixed(2)} SAR</p>
+                    <p className="text-emerald-400 font-bold text-sm mt-1" data-testid={`text-product-price-${product.id}`}>{product.price.toFixed(2)} SAR</p>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <Button size="icon" variant="ghost" className="w-8 h-8 text-muted-foreground hover:text-white" onClick={() => handleToggleVisibility(product)} disabled={togglingVisibility === product.id} data-testid={`button-toggle-visibility-${product.id}`}>
@@ -2405,7 +2419,7 @@ function MenuView({
       )}
 
       <Dialog open={showProductDialog} onOpenChange={setShowProductDialog}>
-        <DialogContent className="bg-[#141414] border-white/[0.06] max-w-md">
+        <DialogContent className="bg-[#111] border-white/[0.06] max-w-md">
           <DialogHeader>
             <DialogTitle>{editingProduct ? t("تعديل المنتج", "Edit Product") : t("إضافة منتج", "Add Product")}</DialogTitle>
           </DialogHeader>
@@ -2441,7 +2455,7 @@ function MenuView({
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowProductDialog(false)} className="border-white/10 text-white/60">{t("إلغاء", "Cancel")}</Button>
-            <Button onClick={handleSaveProduct} disabled={!productName.trim() || !productPrice.trim() || savingProduct} className="bg-red-600 hover:bg-red-700 text-white" data-testid="button-save-product">
+            <Button onClick={handleSaveProduct} disabled={!productName.trim() || !productPrice.trim() || savingProduct} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl" data-testid="button-save-product">
               {savingProduct ? <Loader2 className="w-4 h-4 animate-spin me-2" /> : null}
               {t("حفظ", "Save")}
             </Button>
@@ -2499,9 +2513,9 @@ function FeedbackView({
           <p className="text-muted-foreground text-sm">{t("جاري التحميل...", "Loading...")}</p>
         </div>
       ) : feedbacks.length === 0 ? (
-        <Card className="border-white/[0.06] bg-[#141414]">
+        <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
           <CardContent className="py-20 flex flex-col items-center justify-center text-center">
-            <div className="w-20 h-20 rounded-full bg-white/[0.03] flex items-center justify-center mb-4">
+            <div className="w-20 h-20 rounded-2xl bg-white/[0.03] flex items-center justify-center mb-4">
               <MessageSquare className="w-10 h-10 text-muted-foreground/30" />
             </div>
             <p className="text-muted-foreground font-medium text-lg" data-testid="text-no-feedbacks">
@@ -2513,67 +2527,65 @@ function FeedbackView({
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {feedbacks.map((feedback) => (
-            <Card
-              key={feedback.id}
-              className={`border-white/[0.06] bg-[#141414] ${!feedback.read ? "ring-1 ring-orange-500/20" : ""}`}
-              data-testid={`card-feedback-${feedback.id}`}
-            >
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-1">
+        <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
+          <CardContent className="p-0 divide-y divide-white/[0.04]">
+            {feedbacks.map((feedback) => (
+              <div
+                key={feedback.id}
+                className={`flex items-start gap-4 px-5 py-4 ${!feedback.read ? "bg-orange-500/[0.02]" : ""}`}
+                data-testid={`card-feedback-${feedback.id}`}
+              >
+                <div className="flex-shrink-0 pt-0.5">
+                  <div className="flex gap-0.5">
                     {[1, 2, 3, 4, 5].map((s) => (
                       <Star
                         key={s}
-                        className={`w-4 h-4 ${s <= feedback.stars ? "text-yellow-400 fill-yellow-400" : "text-white/10"}`}
+                        className={`w-3.5 h-3.5 ${s <= feedback.stars ? "text-yellow-400 fill-yellow-400" : "text-white/10"}`}
                         data-testid={`star-${feedback.id}-${s}`}
                       />
                     ))}
                   </div>
-                  {!feedback.read && (
-                    <Badge className="bg-orange-500/15 text-orange-400 border-orange-500/20 text-[10px]" data-testid={`badge-unread-${feedback.id}`}>
-                      {t("جديد", "Unread")}
-                    </Badge>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    {!feedback.read && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-orange-400 flex-shrink-0" data-testid={`badge-unread-${feedback.id}`} />
+                    )}
+                    <p className="text-xs text-muted-foreground/60" data-testid={`text-feedback-time-${feedback.id}`}>
+                      {new Date(feedback.timestamp).toLocaleDateString(lang === "ar" ? "ar-SA" : "en-US", {
+                        month: "short",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </p>
+                  </div>
+                  {feedback.comment && (
+                    <p className="text-sm text-foreground/80 leading-relaxed" data-testid={`text-feedback-comment-${feedback.id}`}>
+                      {feedback.comment}
+                    </p>
                   )}
                 </div>
-                {feedback.comment && (
-                  <p className="text-sm mb-4 leading-relaxed" data-testid={`text-feedback-comment-${feedback.id}`}>
-                    {feedback.comment}
-                  </p>
+                {!feedback.read && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => onMarkAsRead(feedback.id)}
+                    disabled={markingRead === feedback.id}
+                    className="flex-shrink-0 text-xs h-8 px-2 text-muted-foreground hover:text-foreground"
+                    data-testid={`button-mark-read-${feedback.id}`}
+                  >
+                    {markingRead === feedback.id ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Eye className="w-3.5 h-3.5" />
+                    )}
+                  </Button>
                 )}
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs text-muted-foreground/60" data-testid={`text-feedback-time-${feedback.id}`}>
-                    {new Date(feedback.timestamp).toLocaleDateString(lang === "ar" ? "ar-SA" : "en-US", {
-                      year: "numeric",
-                      month: "short",
-                      day: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </p>
-                  {!feedback.read && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => onMarkAsRead(feedback.id)}
-                      disabled={markingRead === feedback.id}
-                      className="border-white/10 text-xs"
-                      data-testid={`button-mark-read-${feedback.id}`}
-                    >
-                      {markingRead === feedback.id ? (
-                        <Loader2 className="w-3 h-3 animate-spin me-1" />
-                      ) : (
-                        <Eye className="w-3 h-3 me-1" />
-                      )}
-                      {t("تم القراءة", "Mark Read")}
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
       )}
     </div>
   );
@@ -2639,19 +2651,19 @@ function AnalyticsView({
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {stats.map((stat, i) => {
           const Icon = stat.icon;
           return (
-            <Card key={i} className={`border-white/[0.06] bg-[#141414]`}>
-              <CardContent className="p-5">
-                <div className="flex items-center gap-3">
-                  <div className={`w-12 h-12 rounded-xl ${stat.bg} border ${stat.border} flex items-center justify-center flex-shrink-0`}>
-                    <Icon className={`w-6 h-6 ${stat.color}`} />
+            <Card key={i} className="border-white/[0.06] bg-[#111] rounded-2xl">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2.5">
+                  <div className={`w-9 h-9 rounded-xl ${stat.bg} border ${stat.border} flex items-center justify-center flex-shrink-0`}>
+                    <Icon className={`w-4 h-4 ${stat.color}`} />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold" data-testid={`text-stat-${i}`}>{stat.value}</p>
-                    <p className="text-xs text-muted-foreground">{stat.label}</p>
+                    <p className="text-xl font-bold leading-tight" data-testid={`text-stat-${i}`}>{stat.value}</p>
+                    <p className="text-[11px] text-muted-foreground">{stat.label}</p>
                   </div>
                 </div>
               </CardContent>
@@ -2660,7 +2672,7 @@ function AnalyticsView({
         })}
       </div>
 
-      <Card className="border-white/[0.06] bg-[#141414]">
+      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
         <CardContent className="p-5">
           <h3 className="font-semibold mb-4">{t("حالة الاشتراك", "Subscription Status")}</h3>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -2683,8 +2695,8 @@ function AnalyticsView({
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <CreditCard className="w-5 h-5 text-primary" />
+              <div className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center flex-shrink-0">
+                <CreditCard className="w-5 h-5 text-violet-400" />
               </div>
               <div>
                 <p className="text-sm font-medium">
@@ -2740,16 +2752,16 @@ function SettingsView({
         </p>
       </div>
 
-      <Card className="border-primary/10 bg-[#141414]">
-        <CardContent className="p-5">
+      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
+        <CardContent className="p-6">
           <h3 className="font-semibold mb-4 flex items-center gap-2">
-            <Hash className="w-4 h-4 text-primary" />
+            <Hash className="w-4 h-4 text-violet-400" />
             {t("عداد الطلبات", "Order Counter")}
           </h3>
           <div className="space-y-4">
             <div className="flex items-center justify-between py-2 border-b border-white/[0.04]">
               <span className="text-sm text-muted-foreground">{t("الطلب التالي", "Next Order Number")}</span>
-              <span className="text-lg font-mono font-bold text-primary" data-testid="text-next-order-number">#{nextOrderNumber}</span>
+              <span className="text-lg font-mono font-bold text-violet-400" data-testid="text-next-order-number">#{nextOrderNumber}</span>
             </div>
 
             <p className="text-xs text-muted-foreground">
@@ -2812,8 +2824,8 @@ function SettingsView({
         </CardContent>
       </Card>
 
-      <Card className="border-white/[0.06] bg-[#141414]">
-        <CardContent className="p-5">
+      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
+        <CardContent className="p-6">
           <h3 className="font-semibold mb-4">{t("معلومات المتجر", "Store Information")}</h3>
           <div className="space-y-3">
             <div className="flex items-center justify-between py-2 border-b border-white/[0.04]">
@@ -2840,11 +2852,11 @@ function SettingsView({
         </CardContent>
       </Card>
 
-      <Card className="border-white/[0.06] bg-[#141414]">
-        <CardContent className="p-5">
+      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
+        <CardContent className="p-6">
           <h3 className="font-semibold mb-4">{t("رمز QR", "QR Code")}</h3>
           <div className="flex flex-col items-center gap-4 mb-4">
-            <div className="bg-white p-3 rounded-xl" data-testid="qr-preview-container">
+            <div className="bg-white p-4 rounded-2xl" data-testid="qr-preview-container">
               <img
                 src={`/api/qr/${merchant.uid}?t=${Date.now()}`}
                 alt="Store QR Code"
@@ -2861,7 +2873,7 @@ function SettingsView({
               variant="outline"
               onClick={onDownloadQR}
               disabled={qrLoading}
-              className="h-12 border-white/10 justify-start"
+              className="h-12 border-white/10 justify-start rounded-2xl"
               data-testid="button-download-qr-settings"
             >
               {qrLoading ? <Loader2 className="w-4 h-4 animate-spin me-3" /> : <Download className="w-4 h-4 me-3" />}
@@ -2877,7 +2889,7 @@ function SettingsView({
                   navigator.clipboard.writeText(url);
                 }
               }}
-              className="h-12 border-white/10 justify-start"
+              className="h-12 border-white/10 justify-start rounded-2xl"
               data-testid="button-share-store-link"
             >
               <Share2 className="w-4 h-4 me-3" />
@@ -2887,8 +2899,8 @@ function SettingsView({
         </CardContent>
       </Card>
 
-      <Card className="border-white/[0.06] bg-[#141414]">
-        <CardContent className="p-5">
+      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
+        <CardContent className="p-6">
           <h3 className="font-semibold mb-2">{t("الدعم الفني", "Support")}</h3>
           <p className="text-sm text-muted-foreground mb-4">
             {t("تواصل مع فريق الدعم للمساعدة", "Contact support for assistance")}
@@ -2896,7 +2908,7 @@ function SettingsView({
           <Button
             variant="outline"
             onClick={() => window.open(ADMIN_WHATSAPP, "_blank")}
-            className="border-white/10"
+            className="border-white/10 rounded-2xl"
             data-testid="button-contact-support"
           >
             <MessageCircle className="w-4 h-4 me-2" />
