@@ -92,11 +92,17 @@ export default function PublicMenuPage() {
   const cartTotal = cart.reduce((sum, item) => sum + getItemTotal(item), 0);
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
+  function getRiyadhTime(): { hours: number; minutes: number } {
+    const now = new Date();
+    const riyadh = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Riyadh" }));
+    return { hours: riyadh.getHours(), minutes: riyadh.getMinutes() };
+  }
+
   function isWithinBusinessHours(): boolean {
     if (!merchant) return true;
     if (!merchant.businessOpenTime || !merchant.businessCloseTime) return true;
-    const now = new Date();
-    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const { hours, minutes } = getRiyadhTime();
+    const currentMinutes = hours * 60 + minutes;
     const [openH, openM] = merchant.businessOpenTime.split(":").map(Number);
     const [closeH, closeM] = merchant.businessCloseTime.split(":").map(Number);
     const openMinutes = openH * 60 + openM;
@@ -107,7 +113,22 @@ export default function PublicMenuPage() {
     return currentMinutes >= openMinutes || currentMinutes < closeMinutes;
   }
 
-  const orderingDisabled = !merchant?.storeOpen || merchant?.onlineOrdersEnabled === false || !isWithinBusinessHours();
+  const orderingDisabled = (() => {
+    if (!merchant) return false;
+    const withinHours = isWithinBusinessHours();
+    const { hours, minutes } = getRiyadhTime();
+    let disabled = false;
+    let reason = "open";
+    if (!merchant.storeOpen) {
+      disabled = true;
+      reason = "store_manually_closed";
+    } else if (merchant.onlineOrdersEnabled === false) {
+      disabled = true;
+      reason = "online_orders_disabled";
+    }
+    console.log(`[StoreStatus] storeOpen=${merchant.storeOpen}, onlineEnabled=${merchant.onlineOrdersEnabled}, withinHours=${withinHours}, riyadhTime=${hours}:${String(minutes).padStart(2, "0")}, open=${merchant.businessOpenTime}, close=${merchant.businessCloseTime}, orderingDisabled=${disabled}, reason=${reason}`);
+    return disabled;
+  })();
 
   function getClosedReason(): { messageAr: string; messageEn: string; reopenTime?: string } {
     if (!merchant) return { messageAr: "", messageEn: "" };
@@ -121,13 +142,6 @@ export default function PublicMenuPage() {
       return {
         messageAr: "المعذرة، المتجر لا يستقبل طلبات أونلاين حالياً",
         messageEn: "Sorry, the store is not accepting online orders at the moment",
-      };
-    }
-    if (!isWithinBusinessHours() && merchant.businessOpenTime) {
-      return {
-        messageAr: "المعذرة، المتجر لا يستقبل طلبات أونلاين حالياً",
-        messageEn: "Sorry, the store is not accepting online orders at the moment",
-        reopenTime: merchant.businessOpenTime,
       };
     }
     return { messageAr: "", messageEn: "" };
@@ -274,8 +288,8 @@ export default function PublicMenuPage() {
     } catch (err: any) {
       const msg = (err?.message || "").toLowerCase();
       let description = "فشل في إرسال الطلب. يرجى المحاولة مرة أخرى";
-      if (msg.includes("business hours")) {
-        description = "المتجر مغلق حالياً. يرجى المحاولة خلال ساعات العمل";
+      if (msg.includes("closed") || msg.includes("business hours")) {
+        description = "المتجر مغلق حالياً";
       } else if (msg.includes("not available") || msg.includes("not found")) {
         description = "المتجر غير متاح حالياً";
       } else if (msg.includes("online order")) {

@@ -38,7 +38,7 @@ The platform is a multi-tenant SaaS application with isolated merchant data in F
     - **Ready**: Full pager alert with sound/vibration, "الطلب جاهز" / "ORDER READY!".
     - **Completed/Archived**: Thank You screen with "Rate us on Google Maps" button (uses merchant's `googleMapsReviewUrl`).
   - **Merchant Dashboard Order Flow**: KDS-style order cards with full item details, extras, and action buttons. Accept → creates pager + status `preparing`. Ready → status `ready`. Deliver → status `archived`. Print generates 80mm thermal receipt.
-- **Online Ordering Controls**: Merchants control order availability via a master toggle (`onlineOrdersEnabled`) and business hours (`businessOpenTime`/`businessCloseTime`). Client and server-side enforcement.
+- **Online Ordering Controls**: `storeOpen` toggle takes 100% priority — when manually set to Open, business hours are NOT checked. `onlineOrdersEnabled` toggle separately controls online ordering. All time checks use Asia/Riyadh timezone (UTC+3). During loading, no "closed" banner is shown. Debug `[StoreStatus]` logs printed in both client console and server for diagnostics.
 - **Dual-Layer Legal Compliance**:
   - **Platform Level**: Super Admin manages global terms/privacy, mandatory acceptance on registration.
   - **Store Level**: Merchants manage store-specific terms/privacy, mandatory acceptance during public menu checkout.

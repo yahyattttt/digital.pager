@@ -1862,29 +1862,19 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Store is not available" });
       }
 
+      const storeOpen = mf.storeOpen?.booleanValue !== false;
+      if (!storeOpen) {
+        return res.status(403).json({ message: "Store is currently closed" });
+      }
+
       if (mf.onlineOrdersEnabled?.booleanValue === false) {
         return res.status(403).json({ message: "Online ordering is currently disabled" });
       }
 
-      const openTime = mf.businessOpenTime?.stringValue || "";
-      const closeTime = mf.businessCloseTime?.stringValue || "";
-      if (openTime && closeTime) {
-        const now = new Date();
-        const currentMinutes = now.getHours() * 60 + now.getMinutes();
-        const [openH, openM] = openTime.split(":").map(Number);
-        const [closeH, closeM] = closeTime.split(":").map(Number);
-        const openMins = openH * 60 + openM;
-        const closeMins = closeH * 60 + closeM;
-        let withinHours: boolean;
-        if (closeMins > openMins) {
-          withinHours = currentMinutes >= openMins && currentMinutes < closeMins;
-        } else {
-          withinHours = currentMinutes >= openMins || currentMinutes < closeMins;
-        }
-        if (!withinHours) {
-          return res.status(403).json({ message: "Store is outside business hours", reopenTime: openTime });
-        }
-      }
+      const riyadhNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Riyadh" }));
+      const riyadhHours = riyadhNow.getHours();
+      const riyadhMinutes = riyadhNow.getMinutes();
+      console.log(`[StoreStatus] Server check for ${merchantId}: storeOpen=${storeOpen}, riyadhTime=${riyadhHours}:${String(riyadhMinutes).padStart(2, "0")}`);
 
       const docId = randomUUID();
       const itemsArray = items.map((item: any) => ({
