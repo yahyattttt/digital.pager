@@ -215,8 +215,15 @@ export default function OrderTrackingPage() {
     let isFirstSnapshot = true;
 
     const docRef = doc(db, "merchants", merchantId, "whatsappOrders", orderId);
+    console.log("[OrderTracking] Setting up Firestore listener for:", `merchants/${merchantId}/whatsappOrders/${orderId}`);
     const unsub = onSnapshot(docRef, (snap) => {
-      if (!snap.exists()) return;
+      if (!snap.exists()) {
+        console.log("[OrderTracking] Document does not exist in snapshot");
+        stopAlert();
+        setOrder(null);
+        setNotFound(true);
+        return;
+      }
       const data = snap.data();
       const updatedOrder: WhatsAppOrder = {
         id: snap.id,
@@ -238,7 +245,7 @@ export default function OrderTrackingPage() {
       setOrder(updatedOrder);
 
       const currentStatus = updatedOrder.status;
-      console.log("[OrderTracking] Status update:", currentStatus, "prev:", prevStatus, "firstSnap:", isFirstSnapshot);
+      console.log("[OrderTracking] Firestore snapshot — status:", currentStatus, "prev:", prevStatus, "firstSnap:", isFirstSnapshot);
 
       if (isFirstSnapshot) {
         prevStatus = currentStatus;
@@ -256,13 +263,14 @@ export default function OrderTrackingPage() {
           hasPlayedAlert.current = false;
           playAlert();
         }
-      } else if (currentStatus === "completed" || currentStatus === "archived") {
-        stopAlert();
       } else {
+        stopAlert();
         hasPlayedAlert.current = false;
       }
 
       prevStatus = currentStatus;
+    }, (error) => {
+      console.error("[OrderTracking] Firestore listener error:", error.message);
     });
 
     return () => unsub();
