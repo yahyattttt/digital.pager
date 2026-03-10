@@ -225,7 +225,7 @@ export default function PublicMenuPage() {
   }
 
   async function handleConfirmOrder() {
-    if (!merchantId || !customerName.trim() || !customerPhone.trim() || cart.length === 0) return;
+    if (!merchantId || !customerName.trim() || customerPhone.length !== 10 || cart.length === 0) return;
     if (merchant?.storeTermsEnabled && !storeTermsAccepted) return;
     if (orderingDisabled) {
       toast({ title: "عذراً", description: closedInfo.messageAr || "Online ordering unavailable", variant: "destructive" });
@@ -378,13 +378,22 @@ export default function PublicMenuPage() {
               <label className="text-white/60 text-xs mb-1.5 block" dir="rtl">رقم الجوال / Phone</label>
               <Input
                 value={customerPhone}
-                onChange={(e) => setCustomerPhone(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/[^0-9]/g, "");
+                  if (val.length <= 10) setCustomerPhone(val);
+                }}
                 placeholder="05xxxxxxxx"
                 type="tel"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={10}
                 className="h-12 bg-zinc-900/80 border-zinc-700 text-white placeholder:text-white/20 focus:border-red-500 rounded-xl"
                 dir="ltr"
                 data-testid="input-customer-phone"
               />
+              {customerPhone.length > 0 && customerPhone.length < 10 && (
+                <p className="text-red-400/60 text-[10px] mt-1" dir="rtl">يجب إدخال 10 أرقام</p>
+              )}
             </div>
           </div>
 
@@ -394,20 +403,19 @@ export default function PublicMenuPage() {
                 <Banknote className="w-5 h-5 text-emerald-400" />
               </div>
               <div>
-                <p className="text-emerald-400 text-sm font-bold" dir="rtl">طريقة الدفع</p>
-                <p className="text-white/80 text-base font-bold mt-0.5" dir="rtl" data-testid="text-payment-method">الدفع عند الاستلام</p>
-                <p className="text-white/30 text-[11px] mt-0.5">Cash on Delivery</p>
+                <p className="text-white/80 text-base font-bold" dir="rtl" data-testid="text-payment-method">طريقة الدفع: الدفع عند الاستلام (كاش)</p>
+                <p className="text-white/30 text-[11px] mt-0.5">Payment Method: Cash on Delivery</p>
               </div>
             </div>
           </div>
 
           {merchant.storeTermsEnabled && (
-            <label className="flex items-start gap-3 p-4 rounded-xl bg-zinc-900/40 border border-zinc-800/30 cursor-pointer mb-6" data-testid="label-store-terms">
+            <label className="flex items-center gap-3 p-4 rounded-xl bg-zinc-900/40 border border-zinc-800/30 cursor-pointer mb-6" dir="rtl" data-testid="label-store-terms">
               <input
                 type="checkbox"
                 checked={storeTermsAccepted}
                 onChange={(e) => setStoreTermsAccepted(e.target.checked)}
-                className="mt-1 w-5 h-5 rounded border-red-600/50 text-red-600 focus:ring-red-500 bg-transparent accent-red-600 flex-shrink-0"
+                className="w-5 h-5 rounded border-red-600/50 text-red-600 focus:ring-red-500 bg-transparent accent-red-600 flex-shrink-0"
                 data-testid="checkbox-store-terms"
               />
               <div className="text-sm leading-relaxed" dir="rtl">
@@ -441,7 +449,7 @@ export default function PublicMenuPage() {
 
           <Button
             onClick={handleConfirmOrder}
-            disabled={!customerName.trim() || !customerPhone.trim() || (merchant.storeTermsEnabled && !storeTermsAccepted) || submitting}
+            disabled={!customerName.trim() || customerPhone.length !== 10 || (merchant.storeTermsEnabled && !storeTermsAccepted) || submitting}
             className="w-full h-14 text-base font-bold bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-30 rounded-xl gap-2"
             style={{ boxShadow: "0 0 25px rgba(16,185,129,0.15)" }}
             data-testid="button-confirm-order"
@@ -451,7 +459,7 @@ export default function PublicMenuPage() {
             ) : (
               <Check className="w-5 h-5" />
             )}
-            <span dir="rtl">{submitting ? "جاري إرسال الطلب..." : "تأكيد الطلب"}</span>
+            <span dir="rtl">{submitting ? "جاري إرسال الطلب..." : "إرسال الطلب وبدء التتبع"}</span>
           </Button>
         </div>
 

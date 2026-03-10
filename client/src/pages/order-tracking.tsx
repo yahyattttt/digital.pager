@@ -286,8 +286,8 @@ export default function OrderTrackingPage() {
           </div>
 
           <div>
-            <p className="text-emerald-400 text-lg font-bold" dir="rtl" data-testid="text-awaiting-message">تم إرسال طلبك بنجاح!</p>
-            <p className="text-white/50 text-sm mt-1.5" data-testid="text-awaiting-hint">Your order has been submitted successfully!</p>
+            <p className="text-emerald-400 text-lg font-bold" dir="rtl" data-testid="text-awaiting-message">تم إرسال طلبك..</p>
+            <p className="text-white/50 text-sm mt-1.5" data-testid="text-awaiting-hint">Your order has been submitted!</p>
           </div>
 
           <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/15 w-full" data-testid="verification-message">
@@ -295,11 +295,11 @@ export default function OrderTrackingPage() {
               <Phone className="w-4 h-4 text-amber-400" />
               <MessageCircle className="w-4 h-4 text-amber-400" />
             </div>
-            <p className="text-amber-400/90 text-sm leading-relaxed" dir="rtl">
-              يرجى انتظار اتصال أو رسالة واتساب من المتجر للتحقق من هويتك وقبول الطلب.
+            <p className="text-amber-400/90 text-sm leading-relaxed font-bold" dir="rtl">
+              بانتظار اتصال المتجر للتحقق
             </p>
             <p className="text-white/40 text-[11px] mt-2">
-              Please wait for a call or WhatsApp message from the store to verify your identity and accept the order.
+              Waiting for the store to call and verify your order.
             </p>
           </div>
 
