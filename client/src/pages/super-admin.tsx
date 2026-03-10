@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useLocation } from "wouter";
 import { collection, getDocs, doc, updateDoc, deleteDoc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -80,6 +80,8 @@ import {
   CalendarDays,
   Plus,
   Minus,
+  Maximize,
+  Minimize,
 } from "lucide-react";
 
 const SUPER_ADMIN_EMAIL = "yahiatohary@hotmail.com";
@@ -309,6 +311,22 @@ export default function SuperAdminPage() {
   const [subPaymentEndDate, setSubPaymentEndDate] = useState("");
   const [subPaymentSaving, setSubPaymentSaving] = useState(false);
   const [subPaymentHistory, setSubPaymentHistory] = useState<any[]>([]);
+
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const toggleFullscreen = useCallback(() => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  }, []);
+
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", handler);
+    return () => document.removeEventListener("fullscreenchange", handler);
+  }, []);
   const [subPaymentHistoryLoading, setSubPaymentHistoryLoading] = useState(false);
 
   const [platformFinanceData, setPlatformFinanceData] = useState<any>(null);
@@ -1042,6 +1060,15 @@ export default function SuperAdminPage() {
                 </>
               )}
             </div>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={toggleFullscreen}
+              title={t("ملء الشاشة", "Toggle Fullscreen")}
+              data-testid="button-toggle-fullscreen"
+            >
+              {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+            </Button>
             <Button
               variant="outline"
               size="icon"
