@@ -378,6 +378,28 @@ export default function OrderTrackingPage() {
     setBellAutoPlayed(false);
   }
 
+  function cleanupAudioSession() {
+    console.log("[OrderTracking] Cleaning up audio session fully");
+    if (alertSoundRef.current) {
+      alertSoundRef.current.pause();
+      alertSoundRef.current.currentTime = 0;
+      alertSoundRef.current.src = "";
+      alertSoundRef.current.load();
+      alertSoundRef.current = null;
+    }
+    if (audioContextRef.current && audioContextRef.current.state !== "closed") {
+      audioContextRef.current.close().catch(() => {});
+      audioContextRef.current = null;
+    }
+    if ("mediaSession" in navigator) {
+      navigator.mediaSession.playbackState = "none";
+      navigator.mediaSession.metadata = null;
+    }
+    if ("vibrate" in navigator) navigator.vibrate(0);
+    setBellAutoPlayed(false);
+    hasAutoPlayedRef.current = false;
+  }
+
   useEffect(() => {
     ensureAudioElement();
     if (sessionStorage.getItem("pager_bell_primed") === "true") {
@@ -388,11 +410,7 @@ export default function OrderTrackingPage() {
 
   useEffect(() => {
     return () => {
-      if (alertSoundRef.current) { alertSoundRef.current.pause(); alertSoundRef.current.currentTime = 0; }
-      if (audioContextRef.current && audioContextRef.current.state !== "closed") {
-        audioContextRef.current.close().catch(() => {});
-      }
-      if ("vibrate" in navigator) navigator.vibrate(0);
+      cleanupAudioSession();
     };
   }, []);
 
@@ -506,7 +524,9 @@ export default function OrderTrackingPage() {
       if (isFirstSnapshot) {
         prevStatus = currentStatus;
         isFirstSnapshot = false;
-        if (currentStatus === "ready" && bellPrimedRef.current) {
+        if (currentStatus === "completed" || currentStatus === "archived") {
+          cleanupAudioSession();
+        } else if (currentStatus === "ready" && bellPrimedRef.current) {
           console.log("[OrderTracking] Page loaded with ready status + bell primed — auto-playing");
           playFullAlert();
         }
@@ -518,6 +538,8 @@ export default function OrderTrackingPage() {
         if (bellPrimedRef.current) {
           playFullAlert();
         }
+      } else if (currentStatus === "completed" || currentStatus === "archived") {
+        cleanupAudioSession();
       } else if (currentStatus !== "ready") {
         stopAlert();
         hasAutoPlayedRef.current = false;
