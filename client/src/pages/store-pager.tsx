@@ -379,17 +379,36 @@ function PagerDevice({ orderNumber, isReady }: { orderNumber: string; isReady: b
           />
         ))}
       </svg>
-      <div className="absolute inset-0 flex items-center justify-center">
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        {orderNumber.length > 3 && (
+          <span
+            className="text-red-500/40 tracking-[0.15em] select-none"
+            style={{
+              fontSize: "clamp(0.7rem, 2.5vw, 0.9rem)",
+              fontFamily: "'DSEG7Modern', monospace",
+              textShadow: "0 0 8px rgba(255,0,0,0.3)",
+              marginBottom: "2px",
+            }}
+            data-testid="text-pager-order-prefix"
+          >
+            {orderNumber.slice(0, -3)}
+          </span>
+        )}
         <span
           className="font-dseg7 text-red-500 tracking-wider select-none"
           style={{
-            fontSize: orderNumber.length > 3 ? "3rem" : orderNumber.length > 2 ? "3.5rem" : "4.5rem",
+            fontSize: orderNumber.length > 3
+              ? "clamp(2.5rem, 10vw, 3.5rem)"
+              : orderNumber.length > 2
+                ? "clamp(2.8rem, 11vw, 3.5rem)"
+                : "clamp(3.2rem, 13vw, 4.5rem)",
             textShadow: "0 0 20px rgba(255,0,0,0.6), 0 0 40px rgba(255,0,0,0.3), 0 0 60px rgba(255,0,0,0.15)",
             letterSpacing: "0.08em",
+            lineHeight: 1,
           }}
           data-testid="text-pager-order-number"
         >
-          {orderNumber}
+          {orderNumber.length > 3 ? orderNumber.slice(-3) : orderNumber}
         </span>
       </div>
     </div>
@@ -424,11 +443,11 @@ function WaitingScreen({ orderNumber, storeName, storeId, googleMapsReviewUrl, o
       )}
 
       <div className="w-full flex-shrink-0">
-        <p className="text-white/40 text-[13px] font-medium tracking-[0.3em] uppercase mb-0.5" data-testid="text-pager-branding">
+        <p className="text-white/40 text-[14px] font-medium tracking-[0.3em] uppercase mb-0.5" data-testid="text-pager-branding">
           DIGITAL PAGER
         </p>
         <h2
-          className="text-white/90 text-[24px] font-bold"
+          className="text-white text-[26px] font-bold"
           style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}
           data-testid="text-store-name-pager"
         >
@@ -497,11 +516,11 @@ function NotifiedScreen({
       data-testid="pager-notified-screen"
     >
       <div className="w-full">
-        <p className="text-white/40 text-[13px] font-medium tracking-[0.3em] uppercase mb-0.5" data-testid="text-pager-branding-notified">
+        <p className="text-white/40 text-[14px] font-medium tracking-[0.3em] uppercase mb-0.5" data-testid="text-pager-branding-notified">
           DIGITAL PAGER
         </p>
         <h2
-          className="text-white/90 text-[24px] font-bold"
+          className="text-white text-[26px] font-bold"
           style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}
           data-testid="text-notified-store"
         >
@@ -647,7 +666,7 @@ function OrderSelectionScreen({
             <Store className="w-8 h-8 text-red-500" />
           </div>
         )}
-        <p className="text-white/40 text-[13px] font-medium tracking-[0.3em] uppercase mb-1">DIGITAL PAGER</p>
+        <p className="text-white/40 text-[14px] font-medium tracking-[0.3em] uppercase mb-1">DIGITAL PAGER</p>
         <h1 className="text-white text-[26px] font-bold" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }} data-testid="text-store-name-entry">
           {merchant.storeName}
         </h1>
@@ -697,14 +716,30 @@ function OrderSelectionScreen({
                 style={{ boxShadow: "0 0 15px rgba(255,0,0,0.05), inset 0 1px 10px rgba(0,0,0,0.4)" }}
                 data-testid={`button-order-${order.orderNumber}`}
               >
-                <span
-                  className="font-dseg7 text-red-500 select-none"
-                  style={{
-                    fontSize: order.orderNumber.length > 3 ? "1.5rem" : order.orderNumber.length > 2 ? "2rem" : "2.5rem",
-                    textShadow: "0 0 15px rgba(255,0,0,0.4), 0 0 30px rgba(255,0,0,0.2)",
-                  }}
-                >
-                  {order.orderNumber}
+                <span className="flex flex-col items-center justify-center">
+                  {order.orderNumber.length > 3 && (
+                    <span
+                      className="text-red-500/40 select-none"
+                      style={{
+                        fontSize: "0.55rem",
+                        fontFamily: "'DSEG7Modern', monospace",
+                        textShadow: "0 0 6px rgba(255,0,0,0.3)",
+                        lineHeight: 1.2,
+                      }}
+                    >
+                      {order.orderNumber.slice(0, -3)}
+                    </span>
+                  )}
+                  <span
+                    className="font-dseg7 text-red-500 select-none"
+                    style={{
+                      fontSize: order.orderNumber.length > 3 ? "1.5rem" : order.orderNumber.length > 2 ? "2rem" : "2.5rem",
+                      textShadow: "0 0 15px rgba(255,0,0,0.4), 0 0 30px rgba(255,0,0,0.2)",
+                      lineHeight: 1,
+                    }}
+                  >
+                    {order.orderNumber.length > 3 ? order.orderNumber.slice(-3) : order.orderNumber}
+                  </span>
                 </span>
               </button>
             ))}
@@ -724,17 +759,31 @@ function OrderSelectionScreen({
             onClick={(e) => e.stopPropagation()}
           >
             <div
-              className="w-24 h-24 rounded-full border border-red-600/20 bg-black mx-auto mb-5 flex items-center justify-center"
+              className="w-24 h-24 rounded-full border border-red-600/20 bg-black mx-auto mb-5 flex flex-col items-center justify-center"
               style={{ boxShadow: "0 0 30px rgba(255,0,0,0.1), inset 0 2px 15px rgba(0,0,0,0.8)" }}
             >
+              {confirmOrder.length > 3 && (
+                <span
+                  className="text-red-500/40 select-none"
+                  style={{
+                    fontSize: "0.6rem",
+                    fontFamily: "'DSEG7Modern', monospace",
+                    textShadow: "0 0 6px rgba(255,0,0,0.3)",
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {confirmOrder.slice(0, -3)}
+                </span>
+              )}
               <span
                 className="font-dseg7 text-red-500"
                 style={{
                   fontSize: confirmOrder.length > 3 ? "1.8rem" : "2.5rem",
                   textShadow: "0 0 20px rgba(255,0,0,0.5), 0 0 40px rgba(255,0,0,0.25)",
+                  lineHeight: 1,
                 }}
               >
-                {confirmOrder}
+                {confirmOrder.length > 3 ? confirmOrder.slice(-3) : confirmOrder}
               </span>
             </div>
 
@@ -806,8 +855,8 @@ function CompletedScreen({ storeId, storeName, googleMapsReviewUrl, navigate, sm
         </div>
         {storeName && (
           <div className="mt-3">
-            <p className="text-white/40 text-[11px] font-medium tracking-[0.3em] uppercase mb-0.5">DIGITAL PAGER</p>
-            <p className="text-white/60 text-lg font-bold" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>{storeName}</p>
+            <p className="text-white/40 text-[14px] font-medium tracking-[0.3em] uppercase mb-0.5">DIGITAL PAGER</p>
+            <p className="text-white text-[26px] font-bold" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>{storeName}</p>
           </div>
         )}
         {smartRatingEnabled && googleMapsReviewUrl && (

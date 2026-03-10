@@ -18,6 +18,14 @@ function PagerDevice({ orderNumber, isReady }: { orderNumber: string; isReady: b
     return { cx: 50 + r * Math.cos(rad), cy: 50 + r * Math.sin(rad), delay: `${(i * 0.2).toFixed(1)}s` };
   });
 
+  const isLongId = orderNumber.length > 3;
+  const prefix = isLongId ? orderNumber.slice(0, -3) : "";
+  const lastDigits = isLongId ? orderNumber.slice(-3) : orderNumber;
+
+  const digitFontSize = lastDigits.length > 2
+    ? "clamp(2.2rem, 10vw, 3rem)"
+    : "clamp(2.8rem, 12vw, 3.5rem)";
+
   return (
     <div className="relative w-64 h-64 sm:w-72 sm:h-72 mx-auto" data-testid="pager-device">
       <div className={`absolute inset-0 rounded-full ${isReady ? "pager-neon-pulse" : ""}`} style={{ background: "radial-gradient(circle at center, rgba(30,0,0,0.6) 30%, rgba(0,0,0,0.9) 70%)" }} />
@@ -32,16 +40,31 @@ function PagerDevice({ orderNumber, isReady }: { orderNumber: string; isReady: b
           <circle key={i} cx={led.cx} cy={led.cy} r={isReady ? "2.2" : "1.8"} fill="#ff0000" className={isReady ? "pager-led-ready" : "pager-led-waiting"} style={{ animationDelay: led.delay }} />
         ))}
       </svg>
-      <div className="absolute inset-0 flex items-center justify-center">
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        {prefix && (
+          <span
+            className="text-red-500/40 tracking-[0.15em] select-none"
+            style={{
+              fontSize: "clamp(0.65rem, 2.5vw, 0.8rem)",
+              fontFamily: "'DSEG7Modern', monospace",
+              textShadow: "0 0 8px rgba(255,0,0,0.3)",
+              marginBottom: "2px",
+            }}
+            data-testid="text-tracking-order-prefix"
+          >
+            {prefix}
+          </span>
+        )}
         <span
           className="font-dseg7 text-red-500 tracking-wider select-none"
           style={{
-            fontSize: orderNumber.length > 3 ? "2.5rem" : orderNumber.length > 2 ? "3rem" : "3.5rem",
+            fontSize: digitFontSize,
             textShadow: "0 0 20px rgba(255,0,0,0.6), 0 0 40px rgba(255,0,0,0.3)",
+            lineHeight: 1,
           }}
           data-testid="text-tracking-order-number"
         >
-          {orderNumber}
+          {lastDigits}
         </span>
       </div>
     </div>
@@ -585,8 +608,8 @@ export default function OrderTrackingPage() {
         data-testid="manual-id-input-screen"
       >
         <div className="flex flex-col items-center gap-6 w-full max-w-xs animate-in fade-in duration-500">
-          <p className="text-white/40 text-[13px] font-medium tracking-[0.3em] uppercase mb-0.5">DIGITAL PAGER</p>
-          {merchant && <h2 className="text-white/90 text-[24px] font-bold" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>{merchant.storeName}</h2>}
+          <p className="text-white/40 text-[14px] font-medium tracking-[0.3em] uppercase mb-0.5">DIGITAL PAGER</p>
+          {merchant && <h2 className="text-white text-[26px] font-bold" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>{merchant.storeName}</h2>}
 
           <PagerDevice orderNumber={manualInput || "---"} isReady={false} />
 
@@ -679,8 +702,8 @@ export default function OrderTrackingPage() {
     return (
       <div className="h-[100dvh] flex flex-col items-center justify-center px-5 text-center" style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }} data-testid="tracking-awaiting-screen">
         <div className="w-full flex-shrink-0 mb-6">
-          <p className="text-white/40 text-[13px] font-medium tracking-[0.3em] uppercase mb-0.5">DIGITAL PAGER</p>
-          {merchant && <h2 className="text-white/90 text-[24px] font-bold" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>{merchant.storeName}</h2>}
+          <p className="text-white/40 text-[14px] font-medium tracking-[0.3em] uppercase mb-0.5">DIGITAL PAGER</p>
+          {merchant && <h2 className="text-white text-[26px] font-bold" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>{merchant.storeName}</h2>}
         </div>
 
         <div className="flex flex-col items-center gap-5 w-full max-w-sm">
@@ -704,13 +727,6 @@ export default function OrderTrackingPage() {
             <p className="text-white/40 text-[11px] mt-2">
               Waiting for the store to call and verify your order.
             </p>
-          </div>
-
-          <div className="p-3 rounded-xl bg-zinc-900/40 border border-zinc-800/30 w-full">
-            <div className="flex items-center justify-center gap-2 mb-2">
-              <span className="text-white/30 text-[10px] uppercase tracking-wider">Order ID</span>
-            </div>
-            <p className="text-white/70 text-sm font-mono text-center" data-testid="text-order-id">{orderId}</p>
           </div>
 
           <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
@@ -764,8 +780,8 @@ export default function OrderTrackingPage() {
         data-testid="tracking-ready-screen"
       >
         <div className="w-full">
-          <p className="text-white/40 text-[13px] font-medium tracking-[0.3em] uppercase mb-0.5">DIGITAL PAGER</p>
-          {merchant && <h2 className="text-white/90 text-[24px] font-bold" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>{merchant.storeName}</h2>}
+          <p className="text-white/40 text-[14px] font-medium tracking-[0.3em] uppercase mb-0.5">DIGITAL PAGER</p>
+          {merchant && <h2 className="text-white text-[26px] font-bold" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>{merchant.storeName}</h2>}
         </div>
 
         <div className="flex-1 flex flex-col items-center justify-center -mt-4">
@@ -860,8 +876,8 @@ export default function OrderTrackingPage() {
         data-testid="tracking-preparing-screen"
       >
         <div className="w-full flex-shrink-0">
-          <p className="text-white/40 text-[13px] font-medium tracking-[0.3em] uppercase mb-0.5">DIGITAL PAGER</p>
-          {merchant && <h2 className="text-white/90 text-[24px] font-bold" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>{merchant.storeName}</h2>}
+          <p className="text-white/40 text-[14px] font-medium tracking-[0.3em] uppercase mb-0.5">DIGITAL PAGER</p>
+          {merchant && <h2 className="text-white text-[26px] font-bold" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>{merchant.storeName}</h2>}
         </div>
 
         <div className="flex-1 flex flex-col items-center justify-center min-h-0">
@@ -876,17 +892,17 @@ export default function OrderTrackingPage() {
           {!bellPrimed && (
             <button
               onClick={handlePrimeBell}
-              className="w-full flex items-center justify-center gap-2.5 py-3.5 px-4 rounded-2xl border border-red-500/20 bg-gradient-to-r from-red-950/40 via-red-900/20 to-red-950/40 active:scale-[0.97] transition-all duration-200 animate-pulse"
+              className="w-full flex items-center justify-center gap-3 py-4 px-5 rounded-2xl border border-red-500/20 bg-gradient-to-r from-red-950/40 via-red-900/20 to-red-950/40 active:scale-[0.97] transition-all duration-200 animate-pulse"
               style={{ boxShadow: "0 0 20px rgba(255,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.03)" }}
               data-testid="button-prime-bell"
             >
               <span className="text-lg">🔔</span>
-              <span className="text-red-400/90 text-[13px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>ودك ننبهك بالجرس ؟</span>
+              <span className="text-red-400/90 text-[14px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>ودك ننبهك بالجرس ؟</span>
             </button>
           )}
 
           {bellPrimed && (
-            <div className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl border border-emerald-500/15 bg-emerald-500/5 animate-in fade-in duration-500">
+            <div className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl border border-emerald-500/15 bg-emerald-500/5 animate-in fade-in duration-500">
               <span className="text-sm">✅</span>
               <span className="text-emerald-400/80 text-xs font-medium" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>تم تفعيل التنبيه</span>
             </div>
@@ -907,8 +923,8 @@ export default function OrderTrackingPage() {
       data-testid="tracking-preparing-screen"
     >
       <div className="w-full flex-shrink-0">
-        <p className="text-white/40 text-[13px] font-medium tracking-[0.3em] uppercase mb-0.5">DIGITAL PAGER</p>
-        {merchant && <h2 className="text-white/90 text-[24px] font-bold" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>{merchant.storeName}</h2>}
+        <p className="text-white/40 text-[14px] font-medium tracking-[0.3em] uppercase mb-0.5">DIGITAL PAGER</p>
+        {merchant && <h2 className="text-white text-[26px] font-bold" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>{merchant.storeName}</h2>}
       </div>
 
       <div className="flex-1 flex flex-col items-center justify-center min-h-0">
@@ -916,9 +932,6 @@ export default function OrderTrackingPage() {
         <div className="mt-6">
           <p className="text-red-400 text-lg font-bold" dir="rtl" data-testid="text-preparing-message">جاري التحضير...</p>
           <p className="text-white/50 text-sm mt-1.5">We'll buzz you when it's ready!</p>
-          {(order.displayOrderId || order.orderNumber) && (
-            <p className="text-white/30 text-xs mt-3">Order {order.displayOrderId || `#${order.orderNumber}`}</p>
-          )}
         </div>
       </div>
 
@@ -940,17 +953,17 @@ export default function OrderTrackingPage() {
         {!bellPrimed && (
           <button
             onClick={handlePrimeBell}
-            className="w-full flex items-center justify-center gap-2.5 py-3.5 px-4 rounded-2xl border border-red-500/20 bg-gradient-to-r from-red-950/40 via-red-900/20 to-red-950/40 active:scale-[0.97] transition-all duration-200 animate-pulse"
+            className="w-full flex items-center justify-center gap-3 py-4 px-5 rounded-2xl border border-red-500/20 bg-gradient-to-r from-red-950/40 via-red-900/20 to-red-950/40 active:scale-[0.97] transition-all duration-200 animate-pulse"
             style={{ boxShadow: "0 0 20px rgba(255,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.03)" }}
             data-testid="button-prime-bell"
           >
             <span className="text-lg">🔔</span>
-            <span className="text-red-400/90 text-[13px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>ودك ننبهك بصوت الجرس ؟</span>
+            <span className="text-red-400/90 text-[14px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>ودك ننبهك بصوت الجرس ؟</span>
           </button>
         )}
 
         {bellPrimed && (
-          <div className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl border border-emerald-500/15 bg-emerald-500/5 animate-in fade-in duration-500">
+          <div className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl border border-emerald-500/15 bg-emerald-500/5 animate-in fade-in duration-500">
             <span className="text-sm">✅</span>
             <span className="text-emerald-400/80 text-xs font-medium" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>تم تفعيل التنبيه</span>
           </div>
