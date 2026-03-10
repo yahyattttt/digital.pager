@@ -4,7 +4,7 @@ import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Store, AlertTriangle, BellOff, Bell, Volume2, Clock, CheckCircle, Loader2, Star, Banknote, Phone, MessageCircle } from "lucide-react";
+import { Store, AlertTriangle, BellOff, Bell, Clock, CheckCircle, Loader2, Star, Banknote, Phone, MessageCircle } from "lucide-react";
 import type { WhatsAppOrder } from "@shared/schema";
 
 function PagerDevice({ orderNumber, isReady }: { orderNumber: string; isReady: boolean }) {
@@ -78,6 +78,15 @@ export default function OrderTrackingPage() {
 
   const pendingAlertRef = useRef(false);
 
+  const cleanupListenersRef = useRef<(() => void) | null>(null);
+
+  function removeUnlockListeners() {
+    if (cleanupListenersRef.current) {
+      cleanupListenersRef.current();
+      cleanupListenersRef.current = null;
+    }
+  }
+
   function unlockAudio() {
     if (audioUnlockedRef.current) return;
     const audio = ensureAudioElement();
@@ -88,6 +97,7 @@ export default function OrderTrackingPage() {
       audio.currentTime = 0;
       audioUnlockedRef.current = true;
       setSoundEnabled(true);
+      removeUnlockListeners();
       console.log("[OrderTracking] Audio unlocked successfully");
       if (pendingAlertRef.current) {
         console.log("[OrderTracking] Deferred alert detected — playing now");
@@ -97,41 +107,20 @@ export default function OrderTrackingPage() {
       }
     }).catch((e) => {
       audio.muted = false;
-      console.warn("[OrderTracking] Audio unlock failed:", e.message);
-    });
-  }
-
-  function handleEnableSound() {
-    const audio = ensureAudioElement();
-    audio.muted = true;
-    audio.play().then(() => {
-      audio.pause();
-      audio.muted = false;
-      audio.currentTime = 0;
-      audioUnlockedRef.current = true;
-      setSoundEnabled(true);
-      console.log("[OrderTracking] Audio enabled by user tap");
-      if (pendingAlertRef.current) {
-        setPendingAlert(false);
-        pendingAlertRef.current = false;
-        playAlert();
-      }
-    }).catch((e) => {
-      audio.muted = false;
-      console.warn("[OrderTracking] Audio enable failed:", e.message);
     });
   }
 
   useEffect(() => {
+    ensureAudioElement();
+    const events = ["click", "touchstart", "touchmove", "scroll", "keydown", "pointerdown"];
     function handleInteraction() {
       unlockAudio();
     }
-    document.addEventListener("click", handleInteraction);
-    document.addEventListener("touchstart", handleInteraction);
-    return () => {
-      document.removeEventListener("click", handleInteraction);
-      document.removeEventListener("touchstart", handleInteraction);
+    events.forEach(e => document.addEventListener(e, handleInteraction, { passive: true }));
+    cleanupListenersRef.current = () => {
+      events.forEach(e => document.removeEventListener(e, handleInteraction));
     };
+    return () => removeUnlockListeners();
   }, []);
 
   function playAlert() {
@@ -364,25 +353,19 @@ export default function OrderTrackingPage() {
             </div>
           </div>
 
-          {!soundEnabled && (
-            <button
-              onClick={handleEnableSound}
-              className="w-full max-w-sm flex items-center justify-center gap-2 p-3 rounded-xl bg-red-600/10 border border-red-600/30 active:scale-[0.97] transition-all animate-pulse"
-              data-testid="button-enable-sound-pending"
-            >
-              <Volume2 className="w-4 h-4 text-red-400" />
-              <span className="text-red-400 text-sm font-bold" dir="rtl">اضغط لتفعيل صوت التنبيه</span>
-            </button>
-          )}
-          {soundEnabled && (
-            <div className="flex items-center justify-center gap-2 p-2 rounded-xl bg-emerald-500/5 border border-emerald-500/15">
-              <Bell className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="text-emerald-400/80 text-xs font-medium" dir="rtl">التنبيه الصوتي مُفعّل</span>
+          <div className="flex items-center justify-center gap-3">
+            <div className="flex items-center gap-1.5">
+              {soundEnabled ? (
+                <span className="text-white/25 text-[10px]">🔔 التنبيهات الصوتية مفعلة</span>
+              ) : (
+                <span className="text-white/20 text-[10px]" dir="rtl">المس الشاشة لتفعيل الصوت</span>
+              )}
             </div>
-          )}
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-            <span className="text-white/30 text-xs" data-testid="text-live-status">Live Status</span>
+            <div className="w-px h-3 bg-white/10" />
+            <div className="flex items-center gap-1.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+              <span className="text-white/25 text-[10px]" data-testid="text-live-status">Live</span>
+            </div>
           </div>
         </div>
       </div>
@@ -411,15 +394,10 @@ export default function OrderTrackingPage() {
         </div>
 
         {pendingAlert && !alertActive && (
-          <button
-            onClick={handleEnableSound}
-            className="w-full max-w-xs h-16 flex items-center justify-center gap-3 font-bold text-lg bg-red-600 hover:bg-red-700 text-white rounded-xl active:scale-[0.97] transition-all animate-pulse"
-            style={{ boxShadow: "0 0 30px rgba(255,0,0,0.4)" }}
-            data-testid="button-tap-to-play"
-          >
-            <Volume2 className="w-6 h-6" />
-            <span dir="rtl">اضغط لسماع التنبيه</span>
-          </button>
+          <div className="flex items-center justify-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 animate-pulse cursor-pointer" onClick={unlockAudio} data-testid="chip-tap-for-sound">
+            <Bell className="w-3.5 h-3.5 text-white/40" />
+            <span className="text-white/40 text-xs" dir="rtl">المس الشاشة لتشغيل التنبيه</span>
+          </div>
         )}
         {alertActive && (
           <Button size="lg" onClick={handleStopAlert} className="w-full max-w-xs h-14 font-bold text-base bg-transparent border-2 border-red-600 text-white hover:bg-red-600/20 rounded-xl" style={{ boxShadow: "0 0 20px rgba(255,0,0,0.2)" }} data-testid="button-stop-tracking-alert">
@@ -489,25 +467,22 @@ export default function OrderTrackingPage() {
       </div>
 
       <div className="w-full max-w-xs space-y-3">
-        {!soundEnabled && (
-          <button
-            onClick={handleEnableSound}
-            className="w-full flex items-center justify-center gap-2 p-3 rounded-xl bg-red-600/10 border border-red-600/30 active:scale-[0.97] transition-all animate-pulse"
-            data-testid="button-enable-sound"
-          >
-            <Volume2 className="w-4 h-4 text-red-400" />
-            <span className="text-red-400 text-sm font-bold" dir="rtl">اضغط لتفعيل صوت التنبيه</span>
-            <span className="text-red-400/60 text-xs">Tap to enable alerts</span>
-          </button>
-        )}
-        {soundEnabled && (
-          <div className="flex items-center justify-center gap-2 p-2 rounded-xl bg-emerald-500/5 border border-emerald-500/15">
-            <Bell className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="text-emerald-400/80 text-xs font-medium" dir="rtl">التنبيه الصوتي مُفعّل</span>
-          </div>
-        )}
         <div className="p-3 rounded-xl bg-zinc-900/30 border border-zinc-800/20">
           <p className="text-white/30 text-xs text-center" dir="rtl">{order.customerName} • {order.items.length} items • {order.total.toFixed(2)} SAR</p>
+        </div>
+        <div className="flex items-center justify-center gap-3">
+          <div className="flex items-center gap-1.5">
+            {soundEnabled ? (
+              <span className="text-white/20 text-[10px]">🔔 التنبيهات الصوتية مفعلة</span>
+            ) : (
+              <span className="text-white/15 text-[10px]" dir="rtl">المس الشاشة لتفعيل الصوت</span>
+            )}
+          </div>
+          <div className="w-px h-3 bg-white/10" />
+          <div className="flex items-center gap-1.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+            <span className="text-white/20 text-[10px]">Live</span>
+          </div>
         </div>
       </div>
     </div>
