@@ -1,0 +1,53 @@
+"I want to implement a complete Direct Ordering System from Google Maps via WhatsApp. Please follow these technical requirements strictly:
+
+1. Merchant Menu Manager:
+
+In the Merchant Dashboard, add a 'Products' tab.
+
+Fields: Image, Name, Price, Description, and a 'Visibility Toggle' (Show/Hide in Menu).
+
+Store this in a Firestore sub-collection: merchants/[merchantId]/products.
+
+2. Public Menu Page (The Google Maps Link):
+
+Create a new route: /menu/:merchantId (This is the URL the merchant puts on Google Maps).
+
+Design: Use the Dark/Neon Red theme. Display products in a clean grid.
+
+Functionality: Add an 'Add to Cart' system with a floating total price bar.
+
+3. Checkout & The Pledge:
+
+When clicking 'Checkout', show a summary and a mandatory checkbox: 'أتعهد باستلام طلبي من الفرع لكونه غير مدفوع إلكترونياً'.
+
+Require 'Customer Name' and 'Phone Number'.
+
+4. WhatsApp Order Generation:
+
+Create a button: 'Confirm & Send to WhatsApp'.
+
+Logic: Before redirecting to WhatsApp, create an order in Firestore with status awaiting_confirmation.
+
+Formatting: The WhatsApp message must include the Order Details, Total, and a Unique Tracking Link (/track/[orderId]).
+
+5. Merchant Real-time Dashboard Sync:
+
+Incoming WhatsApp orders must appear INSTANTLY in the Merchant Dashboard in a new section called 'Pending WhatsApp Orders'.
+
+Alert the merchant with a sound/jingle when a new pending order is detected via onSnapshot.
+
+Add an 'Accept & Start' button for the merchant. Clicking this moves the order to preparing and assigns the Next Sequential Order Number (from our Smart Numbering system).
+
+6. The Tracking Loop (UX):
+
+After the user sends the WhatsApp message, auto-redirect them to the /track/[orderId] page.
+
+Status Flow:
+
+If awaiting_confirmation: Show 'Waiting for Merchant to Confirm...'.
+
+If preparing: Immediately activate the Digital Pager (Neon Red Pulse).
+
+If ready: Trigger the Vibration (15ms tap) and Sound Alert.
+
+7. Visual Refinement: Ensure all product images use a unified style (border-radius, subtle red box-shadow) as discussed."

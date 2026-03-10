@@ -1543,5 +1543,417 @@ export async function registerRoutes(
     }
   });
 
+  // ===== Product Management Routes =====
+  app.post("/api/products/:merchantId", upload.single("image"), async (req, res) => {
+    try {
+      const { merchantId } = req.params;
+      const { name, price, description, visible } = req.body;
+      if (!name || !price) return res.status(400).json({ message: "name and price are required" });
+
+      const accessToken = await getFirestoreAccessToken();
+      const baseUrl = getFirestoreBaseUrl();
+      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+
+      const docId = randomUUID();
+      const imageUrl = req.file ? `/uploads/${req.file.filename}` : "";
+      const fields: Record<string, any> = {
+        merchantId: { stringValue: merchantId },
+        name: { stringValue: name },
+        price: { doubleValue: parseFloat(price) },
+        description: { stringValue: description || "" },
+        imageUrl: { stringValue: imageUrl },
+        visible: { booleanValue: visible === "false" ? false : true },
+        createdAt: { stringValue: new Date().toISOString() },
+      };
+
+      const patchRes = await fetch(`${baseUrl}/merchants/${merchantId}/products/${docId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ fields }),
+      });
+
+      if (!patchRes.ok) return res.status(500).json({ message: "Failed to create product" });
+      return res.json({ success: true, id: docId, imageUrl });
+    } catch (error) {
+      console.error("Create product error:", error);
+      return res.status(500).json({ message: "Failed to create product" });
+    }
+  });
+
+  app.get("/api/products/:merchantId", async (req, res) => {
+    try {
+      const { merchantId } = req.params;
+      const accessToken = await getFirestoreAccessToken();
+      const baseUrl = getFirestoreBaseUrl();
+      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+
+      const listRes = await fetch(`${baseUrl}/merchants/${merchantId}/products?pageSize=500`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      if (!listRes.ok) return res.status(500).json({ message: "Failed to list products" });
+      const data = await listRes.json();
+      const products = (data.documents || []).map((doc: any) => {
+        const f = doc.fields || {};
+        const parts = doc.name.split("/");
+        return {
+          id: parts[parts.length - 1],
+          merchantId: f.merchantId?.stringValue || "",
+          name: f.name?.stringValue || "",
+          price: f.price?.doubleValue ?? parseFloat(f.price?.integerValue || "0"),
+          description: f.description?.stringValue || "",
+          imageUrl: f.imageUrl?.stringValue || "",
+          visible: f.visible?.booleanValue !== false,
+          createdAt: f.createdAt?.stringValue || "",
+        };
+      });
+
+      products.sort((a: any, b: any) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+      return res.json({ products });
+    } catch (error) {
+      console.error("List products error:", error);
+      return res.status(500).json({ message: "Failed to list products" });
+    }
+  });
+
+  app.patch("/api/products/:merchantId/:productId", upload.single("image"), async (req, res) => {
+    try {
+      const { merchantId, productId } = req.params;
+      const accessToken = await getFirestoreAccessToken();
+      const baseUrl = getFirestoreBaseUrl();
+      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+
+      const updateFields: Record<string, any> = {};
+      const fieldPaths: string[] = [];
+
+      if (req.body.name !== undefined) {
+        updateFields.name = { stringValue: req.body.name };
+        fieldPaths.push("name");
+      }
+      if (req.body.price !== undefined) {
+        updateFields.price = { doubleValue: parseFloat(req.body.price) };
+        fieldPaths.push("price");
+      }
+      if (req.body.description !== undefined) {
+        updateFields.description = { stringValue: req.body.description };
+        fieldPaths.push("description");
+      }
+      if (req.body.visible !== undefined) {
+        updateFields.visible = { booleanValue: req.body.visible === "true" || req.body.visible === true };
+        fieldPaths.push("visible");
+      }
+      if (req.file) {
+        updateFields.imageUrl = { stringValue: `/uploads/${req.file.filename}` };
+        fieldPaths.push("imageUrl");
+      }
+
+      if (fieldPaths.length === 0) return res.status(400).json({ message: "No fields to update" });
+
+      const maskParams = fieldPaths.map(fp => `updateMask.fieldPaths=${fp}`).join("&");
+      const patchRes = await fetch(`${baseUrl}/merchants/${merchantId}/products/${productId}?${maskParams}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ fields: updateFields }),
+      });
+
+      if (!patchRes.ok) return res.status(500).json({ message: "Failed to update product" });
+      const imageUrl = req.file ? `/uploads/${req.file.filename}` : undefined;
+      return res.json({ success: true, imageUrl });
+    } catch (error) {
+      console.error("Update product error:", error);
+      return res.status(500).json({ message: "Failed to update product" });
+    }
+  });
+
+  app.delete("/api/products/:merchantId/:productId", async (req, res) => {
+    try {
+      const { merchantId, productId } = req.params;
+      const accessToken = await getFirestoreAccessToken();
+      const baseUrl = getFirestoreBaseUrl();
+      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+
+      const delRes = await fetch(`${baseUrl}/merchants/${merchantId}/products/${productId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      if (!delRes.ok) return res.status(500).json({ message: "Failed to delete product" });
+      return res.json({ success: true });
+    } catch (error) {
+      console.error("Delete product error:", error);
+      return res.status(500).json({ message: "Failed to delete product" });
+    }
+  });
+
+  app.get("/api/menu/:merchantId", async (req, res) => {
+    try {
+      const { merchantId } = req.params;
+      const accessToken = await getFirestoreAccessToken();
+      const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
+      if (!accessToken || !projectId) return res.status(500).json({ message: "Firestore not configured" });
+
+      const queryBody = {
+        structuredQuery: {
+          from: [{ collectionId: "products" }],
+          where: {
+            fieldFilter: {
+              field: { fieldPath: "visible" },
+              op: "EQUAL",
+              value: { booleanValue: true },
+            },
+          },
+          limit: 500,
+        },
+      };
+
+      const queryRes = await fetch(
+        `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/merchants/${merchantId}:runQuery`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+          body: JSON.stringify(queryBody),
+        }
+      );
+
+      if (!queryRes.ok) return res.status(500).json({ message: "Failed to query products" });
+      const results = await queryRes.json();
+      const products = results
+        .filter((r: any) => r.document)
+        .map((r: any) => {
+          const f = r.document.fields || {};
+          const parts = r.document.name.split("/");
+          return {
+            id: parts[parts.length - 1],
+            name: f.name?.stringValue || "",
+            price: f.price?.doubleValue ?? parseFloat(f.price?.integerValue || "0"),
+            description: f.description?.stringValue || "",
+            imageUrl: f.imageUrl?.stringValue || "",
+          };
+        });
+
+      // Also get merchant info for display
+      const baseUrl = getFirestoreBaseUrl();
+      let merchant = null;
+      if (baseUrl) {
+        const mRes = await fetch(`${baseUrl}/merchants/${merchantId}`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (mRes.ok) {
+          const mDoc = await mRes.json();
+          const mf = mDoc.fields || {};
+          merchant = {
+            storeName: mf.storeName?.stringValue || "",
+            logoUrl: mf.logoUrl?.stringValue || "",
+            whatsappNumber: mf.whatsappNumber?.stringValue || "",
+            status: mf.status?.stringValue || "",
+            subscriptionStatus: mf.subscriptionStatus?.stringValue || "",
+          };
+        }
+      }
+
+      return res.json({ products, merchant });
+    } catch (error) {
+      console.error("Public menu error:", error);
+      return res.status(500).json({ message: "Failed to load menu" });
+    }
+  });
+
+  // ===== WhatsApp Order Routes =====
+  app.post("/api/whatsapp-orders/:merchantId", async (req, res) => {
+    try {
+      const { merchantId } = req.params;
+      const { customerName, customerPhone, items, total } = req.body;
+
+      if (!customerName || !customerPhone || !items || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ message: "customerName, customerPhone, and items are required" });
+      }
+
+      const accessToken = await getFirestoreAccessToken();
+      const baseUrl = getFirestoreBaseUrl();
+      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+
+      const docId = randomUUID();
+      const itemsArray = items.map((item: any) => ({
+        mapValue: {
+          fields: {
+            productId: { stringValue: item.productId || "" },
+            name: { stringValue: item.name || "" },
+            price: { doubleValue: item.price || 0 },
+            quantity: { integerValue: String(item.quantity || 1) },
+          },
+        },
+      }));
+
+      const fields: Record<string, any> = {
+        merchantId: { stringValue: merchantId },
+        customerName: { stringValue: customerName },
+        customerPhone: { stringValue: customerPhone },
+        items: { arrayValue: { values: itemsArray } },
+        total: { doubleValue: total || 0 },
+        status: { stringValue: "awaiting_confirmation" },
+        createdAt: { stringValue: new Date().toISOString() },
+      };
+
+      const patchRes = await fetch(`${baseUrl}/merchants/${merchantId}/whatsappOrders/${docId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ fields }),
+      });
+
+      if (!patchRes.ok) return res.status(500).json({ message: "Failed to create order" });
+      return res.json({ success: true, orderId: docId });
+    } catch (error) {
+      console.error("Create WhatsApp order error:", error);
+      return res.status(500).json({ message: "Failed to create order" });
+    }
+  });
+
+  app.get("/api/whatsapp-orders/:merchantId", async (req, res) => {
+    try {
+      const { merchantId } = req.params;
+      const accessToken = await getFirestoreAccessToken();
+      const baseUrl = getFirestoreBaseUrl();
+      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+
+      const listRes = await fetch(`${baseUrl}/merchants/${merchantId}/whatsappOrders?pageSize=200`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      if (!listRes.ok) return res.status(500).json({ message: "Failed to list orders" });
+      const data = await listRes.json();
+      const orders = (data.documents || []).map((doc: any) => {
+        const f = doc.fields || {};
+        const parts = doc.name.split("/");
+        const items = (f.items?.arrayValue?.values || []).map((v: any) => {
+          const mf = v.mapValue?.fields || {};
+          return {
+            productId: mf.productId?.stringValue || "",
+            name: mf.name?.stringValue || "",
+            price: mf.price?.doubleValue ?? parseFloat(mf.price?.integerValue || "0"),
+            quantity: parseInt(mf.quantity?.integerValue || "1"),
+          };
+        });
+        return {
+          id: parts[parts.length - 1],
+          merchantId: f.merchantId?.stringValue || "",
+          customerName: f.customerName?.stringValue || "",
+          customerPhone: f.customerPhone?.stringValue || "",
+          items,
+          total: f.total?.doubleValue ?? parseFloat(f.total?.integerValue || "0"),
+          status: f.status?.stringValue || "awaiting_confirmation",
+          orderNumber: f.orderNumber?.stringValue || "",
+          createdAt: f.createdAt?.stringValue || "",
+        };
+      });
+
+      orders.sort((a: any, b: any) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+      return res.json({ orders });
+    } catch (error) {
+      console.error("List WhatsApp orders error:", error);
+      return res.status(500).json({ message: "Failed to list orders" });
+    }
+  });
+
+  app.patch("/api/whatsapp-orders/:merchantId/:orderId", async (req, res) => {
+    try {
+      const { merchantId, orderId } = req.params;
+      const { status, orderNumber } = req.body;
+
+      const accessToken = await getFirestoreAccessToken();
+      const baseUrl = getFirestoreBaseUrl();
+      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+
+      const updateFields: Record<string, any> = {};
+      const fieldPaths: string[] = [];
+
+      if (status) {
+        updateFields.status = { stringValue: status };
+        fieldPaths.push("status");
+      }
+      if (orderNumber) {
+        updateFields.orderNumber = { stringValue: String(orderNumber) };
+        fieldPaths.push("orderNumber");
+      }
+
+      if (fieldPaths.length === 0) return res.status(400).json({ message: "No fields to update" });
+
+      const maskParams = fieldPaths.map(fp => `updateMask.fieldPaths=${fp}`).join("&");
+      const patchRes = await fetch(`${baseUrl}/merchants/${merchantId}/whatsappOrders/${orderId}?${maskParams}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ fields: updateFields }),
+      });
+
+      if (!patchRes.ok) return res.status(500).json({ message: "Failed to update order" });
+      return res.json({ success: true });
+    } catch (error) {
+      console.error("Update WhatsApp order error:", error);
+      return res.status(500).json({ message: "Failed to update order" });
+    }
+  });
+
+  app.get("/api/track/:orderId", async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      const { merchantId } = req.query;
+
+      if (!merchantId || typeof merchantId !== "string") {
+        return res.status(400).json({ message: "merchantId query parameter required" });
+      }
+
+      const accessToken = await getFirestoreAccessToken();
+      const baseUrl = getFirestoreBaseUrl();
+      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+
+      const docRes = await fetch(`${baseUrl}/merchants/${merchantId}/whatsappOrders/${orderId}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      if (!docRes.ok) return res.status(404).json({ message: "Order not found" });
+      const doc = await docRes.json();
+      const f = doc.fields || {};
+      const items = (f.items?.arrayValue?.values || []).map((v: any) => {
+        const mf = v.mapValue?.fields || {};
+        return {
+          productId: mf.productId?.stringValue || "",
+          name: mf.name?.stringValue || "",
+          price: mf.price?.doubleValue ?? parseFloat(mf.price?.integerValue || "0"),
+          quantity: parseInt(mf.quantity?.integerValue || "1"),
+        };
+      });
+
+      const order = {
+        id: orderId,
+        merchantId: f.merchantId?.stringValue || "",
+        customerName: f.customerName?.stringValue || "",
+        customerPhone: f.customerPhone?.stringValue || "",
+        items,
+        total: f.total?.doubleValue ?? parseFloat(f.total?.integerValue || "0"),
+        status: f.status?.stringValue || "awaiting_confirmation",
+        orderNumber: f.orderNumber?.stringValue || "",
+        createdAt: f.createdAt?.stringValue || "",
+      };
+
+      // Also get merchant info
+      const mRes = await fetch(`${baseUrl}/merchants/${merchantId}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      let merchant = null;
+      if (mRes.ok) {
+        const mDoc = await mRes.json();
+        const mf = mDoc.fields || {};
+        merchant = {
+          storeName: mf.storeName?.stringValue || "",
+          logoUrl: mf.logoUrl?.stringValue || "",
+        };
+      }
+
+      return res.json({ order, merchant });
+    } catch (error) {
+      console.error("Track order error:", error);
+      return res.status(500).json({ message: "Failed to load order" });
+    }
+  });
+
   return httpServer;
 }

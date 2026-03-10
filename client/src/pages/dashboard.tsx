@@ -19,7 +19,7 @@ import { useLanguage } from "@/hooks/use-language";
 import { useWakeLock } from "@/hooks/use-wake-lock";
 import { useFullscreen } from "@/hooks/use-fullscreen";
 import { businessTypeLabels, planLabels } from "@shared/schema";
-import type { Pager } from "@shared/schema";
+import type { Pager, Product, WhatsAppOrder } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -72,6 +72,11 @@ import {
   Zap,
   RotateCcw,
   Hash,
+  Image,
+  EyeOff,
+  Pencil,
+  Package,
+  Phone,
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 
@@ -358,6 +363,47 @@ export default function DashboardPage() {
   const [shiftStartNumber, setShiftStartNumber] = useState("");
   const [quickAddLoading, setQuickAddLoading] = useState(false);
   const [counterLoaded, setCounterLoaded] = useState(false);
+  const [whatsappOrders, setWhatsappOrders] = useState<WhatsAppOrder[]>([]);
+  const prevWhatsappCountRef = useState({ current: -1 })[0];
+  const waOrderAudioRef = useState<{ current: HTMLAudioElement | null }>({ current: null })[0];
+
+  useEffect(() => {
+    if (!merchant?.uid) return;
+    const ordersRef = collection(db, "merchants", merchant.uid, "whatsappOrders");
+    const q = query(ordersRef, where("status", "==", "awaiting_confirmation"));
+    const unsub = onSnapshot(q, (snap) => {
+      const orders: WhatsAppOrder[] = snap.docs.map(d => {
+        const data = d.data();
+        return {
+          id: d.id,
+          merchantId: data.merchantId || "",
+          customerName: data.customerName || "",
+          customerPhone: data.customerPhone || "",
+          items: (data.items || []).map((item: any) => ({ productId: item.productId || "", name: item.name || "", price: item.price || 0, quantity: item.quantity || 1 })),
+          total: data.total || 0,
+          status: data.status || "awaiting_confirmation",
+          orderNumber: data.orderNumber || "",
+          createdAt: data.createdAt || "",
+        };
+      });
+      orders.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+
+      if (prevWhatsappCountRef.current >= 0 && orders.length > prevWhatsappCountRef.current) {
+        try {
+          if (!waOrderAudioRef.current) {
+            waOrderAudioRef.current = new Audio("/alert.mp3");
+          }
+          waOrderAudioRef.current.currentTime = 0;
+          waOrderAudioRef.current.play().catch(() => {});
+          setTimeout(() => { waOrderAudioRef.current?.pause(); }, 3000);
+        } catch {}
+        toast({ title: t("طلب جديد!", "New Order!"), description: t("وصل طلب واتساب جديد", "New WhatsApp order received") });
+      }
+      prevWhatsappCountRef.current = orders.length;
+      setWhatsappOrders(orders);
+    });
+    return () => unsub();
+  }, [merchant?.uid]);
 
   useEffect(() => {
     setStoreOpen((merchant as any)?.storeOpen !== false);
@@ -581,6 +627,48 @@ export default function DashboardPage() {
     }
   }, [merchant?.uid, isApproved, quickAddLoading, t, toast]);
 
+  const [acceptingOrderId, setAcceptingOrderId] = useState<string | null>(null);
+
+  const handleAcceptWhatsAppOrder = useCallback(async (order: WhatsAppOrder) => {
+    if (!merchant?.uid || acceptingOrderId) return;
+    setAcceptingOrderId(order.id);
+    try {
+      const counterRef = doc(db, "merchants", merchant.uid, "settings", "orderCounter");
+      let orderNum = 1;
+      await runTransaction(db, async (txn) => {
+        const snap = await txn.get(counterRef);
+        const current = snap.exists() ? parseInt(String(snap.data().nextOrderNumber), 10) : 1;
+        orderNum = isNaN(current) || current < 1 ? 1 : current;
+        txn.set(counterRef, { nextOrderNumber: orderNum + 1 }, { merge: true } as any);
+      });
+
+      const pagersRef = collection(db, "merchants", merchant.uid, "pagers");
+      await addDoc(pagersRef, {
+        storeId: merchant.uid,
+        orderNumber: String(orderNum),
+        status: "waiting",
+        createdAt: new Date().toISOString(),
+        notifiedAt: null,
+      });
+
+      const orderRef = doc(db, "merchants", merchant.uid, "whatsappOrders", order.id);
+      await updateDoc(orderRef, { status: "preparing", orderNumber: String(orderNum) });
+
+      toast({
+        title: t(`تم قبول الطلب #${orderNum}`, `Order #${orderNum} Accepted`),
+        description: t("تم إنشاء جهاز بيجر وتحديث حالة الطلب", "Pager created and order status updated"),
+      });
+    } catch {
+      toast({
+        title: t("خطأ", "Error"),
+        description: t("فشل في قبول الطلب", "Failed to accept order"),
+        variant: "destructive",
+      });
+    } finally {
+      setAcceptingOrderId(null);
+    }
+  }, [merchant?.uid, acceptingOrderId, t, toast]);
+
   const handleShiftStart = useCallback(async () => {
     if (!merchant?.uid) return;
     const num = parseInt(shiftStartNumber.trim(), 10);
@@ -786,7 +874,7 @@ export default function DashboardPage() {
       : businessTypeLabelsEn[merchant.businessType] || merchant.businessType;
 
   const navItems: { id: DashboardView; icon: typeof LayoutDashboard; label: string; badge?: number }[] = [
-    { id: "overview", icon: LayoutDashboard, label: t("لوحة التحكم", "Dashboard") },
+    { id: "overview", icon: LayoutDashboard, label: t("لوحة التحكم", "Dashboard"), badge: whatsappOrders.length || undefined },
     { id: "waitlist", icon: Users, label: t("قائمة الانتظار", "Waiting List"), badge: waitingPagers.length },
     { id: "menu", icon: UtensilsCrossed, label: t("القائمة الرقمية", "Digital Menu") },
     { id: "feedback", icon: MessageSquare, label: t("ملاحظات العملاء", "Customer Feedback"), badge: unreadFeedbackCount || undefined },
@@ -1033,6 +1121,9 @@ export default function DashboardPage() {
                 nextOrderNumber={nextOrderNumber}
                 counterLoaded={counterLoaded}
                 notifyLoading={notifyLoading}
+                whatsappOrders={whatsappOrders}
+                onAcceptWhatsAppOrder={handleAcceptWhatsAppOrder}
+                acceptingOrderId={acceptingOrderId}
                 t={t}
                 lang={lang}
               />
@@ -1253,6 +1344,9 @@ function OverviewView({
   nextOrderNumber,
   counterLoaded,
   notifyLoading,
+  whatsappOrders,
+  onAcceptWhatsAppOrder,
+  acceptingOrderId,
   t,
   lang,
 }: {
@@ -1272,6 +1366,9 @@ function OverviewView({
   nextOrderNumber: number;
   counterLoaded: boolean;
   notifyLoading: string | null;
+  whatsappOrders: WhatsAppOrder[];
+  onAcceptWhatsAppOrder: (order: WhatsAppOrder) => void;
+  acceptingOrderId: string | null;
   t: (ar: string, en: string) => string;
   lang: string;
 }) {
@@ -1483,6 +1580,68 @@ function OverviewView({
                       <Trash2 className="w-3 h-3" />
                     </Button>
                   </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {whatsappOrders.length > 0 && (
+        <div data-testid="section-whatsapp-orders">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold uppercase tracking-wider flex items-center gap-2">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
+              </span>
+              <span className="text-green-400">{t("طلبات واتساب جديدة", "New WhatsApp Orders")}</span>
+            </h3>
+            <Badge className="bg-green-500/15 text-green-400 border-green-500/20 text-xs" data-testid="badge-whatsapp-count">
+              {whatsappOrders.length}
+            </Badge>
+          </div>
+          <div className="space-y-3">
+            {whatsappOrders.map((order) => (
+              <Card key={order.id} className="border-green-500/15 bg-green-500/[0.03] overflow-hidden" data-testid={`card-wa-order-${order.id}`}>
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <p className="text-white font-medium text-sm" data-testid={`text-wa-customer-${order.id}`}>{order.customerName}</p>
+                      <a href={`tel:${order.customerPhone}`} className="text-xs text-green-400 flex items-center gap-1 mt-0.5">
+                        <Phone className="w-3 h-3" />
+                        <span dir="ltr">{order.customerPhone}</span>
+                      </a>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(order.createdAt).toLocaleTimeString(lang === "ar" ? "ar-SA" : "en-US", { hour: "2-digit", minute: "2-digit" })}
+                    </p>
+                  </div>
+                  <div className="bg-black/20 rounded-lg p-2.5 mb-3">
+                    {order.items.map((item, i) => (
+                      <div key={i} className="flex items-center justify-between text-sm py-0.5">
+                        <span className="text-white/70">{item.quantity}x {item.name}</span>
+                        <span className="text-white/50 text-xs">{(item.price * item.quantity).toFixed(2)}</span>
+                      </div>
+                    ))}
+                    <div className="border-t border-white/[0.06] mt-1.5 pt-1.5 flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">{t("الإجمالي", "Total")}</span>
+                      <span className="text-red-400 font-bold text-sm" data-testid={`text-wa-total-${order.id}`}>{order.total.toFixed(2)} SAR</span>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={() => onAcceptWhatsAppOrder(order)}
+                    disabled={acceptingOrderId === order.id}
+                    className="w-full h-11 bg-green-600 hover:bg-green-700 text-white font-bold"
+                    data-testid={`button-accept-order-${order.id}`}
+                  >
+                    {acceptingOrderId === order.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin me-2" />
+                    ) : (
+                      <CheckCircle className="w-4 h-4 me-2" />
+                    )}
+                    {t("قبول وبدء التحضير", "Accept & Start Preparing")}
+                  </Button>
                 </CardContent>
               </Card>
             ))}
@@ -1932,31 +2091,251 @@ function MenuView({
   t: (ar: string, en: string) => string;
   lang: string;
 }) {
+  const { toast } = useToast();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [productsLoading, setProductsLoading] = useState(true);
+  const [showProductDialog, setShowProductDialog] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [productName, setProductName] = useState("");
+  const [productPrice, setProductPrice] = useState("");
+  const [productDescription, setProductDescription] = useState("");
+  const [productImage, setProductImage] = useState<File | null>(null);
+  const [productImagePreview, setProductImagePreview] = useState("");
+  const [savingProduct, setSavingProduct] = useState(false);
+  const [deletingProduct, setDeletingProduct] = useState<string | null>(null);
+  const [togglingVisibility, setTogglingVisibility] = useState<string | null>(null);
+
+  const uid = merchant?.uid;
+
+  useEffect(() => {
+    if (!uid) return;
+    fetchProducts();
+  }, [uid]);
+
+  async function fetchProducts() {
+    if (!uid) return;
+    try {
+      const res = await fetch(`/api/products/${uid}`);
+      if (res.ok) {
+        const data = await res.json();
+        setProducts(data.products || []);
+      }
+    } catch {} finally {
+      setProductsLoading(false);
+    }
+  }
+
+  function openAddDialog() {
+    setEditingProduct(null);
+    setProductName("");
+    setProductPrice("");
+    setProductDescription("");
+    setProductImage(null);
+    setProductImagePreview("");
+    setShowProductDialog(true);
+  }
+
+  function openEditDialog(product: Product) {
+    setEditingProduct(product);
+    setProductName(product.name);
+    setProductPrice(String(product.price));
+    setProductDescription(product.description || "");
+    setProductImage(null);
+    setProductImagePreview(product.imageUrl || "");
+    setShowProductDialog(true);
+  }
+
+  function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) {
+      setProductImage(file);
+      setProductImagePreview(URL.createObjectURL(file));
+    }
+  }
+
+  async function handleSaveProduct() {
+    if (!productName.trim() || !productPrice.trim()) return;
+    setSavingProduct(true);
+    try {
+      const formData = new FormData();
+      formData.append("name", productName.trim());
+      formData.append("price", productPrice);
+      formData.append("description", productDescription.trim());
+      if (productImage) formData.append("image", productImage);
+
+      let res: Response;
+      if (editingProduct) {
+        res = await fetch(`/api/products/${uid}/${editingProduct.id}`, { method: "PATCH", body: formData });
+      } else {
+        formData.append("visible", "true");
+        res = await fetch(`/api/products/${uid}`, { method: "POST", body: formData });
+      }
+
+      if (res.ok) {
+        toast({ title: t("تم الحفظ", "Saved"), description: t("تم حفظ المنتج بنجاح", "Product saved successfully") });
+        setShowProductDialog(false);
+        fetchProducts();
+      } else {
+        toast({ title: t("خطأ", "Error"), description: t("فشل حفظ المنتج", "Failed to save product"), variant: "destructive" });
+      }
+    } catch {
+      toast({ title: t("خطأ", "Error"), description: t("فشل حفظ المنتج", "Failed to save product"), variant: "destructive" });
+    } finally {
+      setSavingProduct(false);
+    }
+  }
+
+  async function handleDeleteProduct(productId: string) {
+    setDeletingProduct(productId);
+    try {
+      const res = await fetch(`/api/products/${uid}/${productId}`, { method: "DELETE" });
+      if (res.ok) {
+        toast({ title: t("تم الحذف", "Deleted"), description: t("تم حذف المنتج", "Product deleted") });
+        fetchProducts();
+      }
+    } catch {} finally {
+      setDeletingProduct(null);
+    }
+  }
+
+  async function handleToggleVisibility(product: Product) {
+    setTogglingVisibility(product.id);
+    try {
+      const formData = new FormData();
+      formData.append("visible", String(!product.visible));
+      const res = await fetch(`/api/products/${uid}/${product.id}`, { method: "PATCH", body: formData });
+      if (res.ok) fetchProducts();
+    } catch {} finally {
+      setTogglingVisibility(null);
+    }
+  }
+
+  const menuUrl = `${window.location.origin}/menu/${uid}`;
+
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-bold">{t("القائمة الرقمية", "Digital Menu")}</h2>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          {t("إدارة القائمة الرقمية لمتجرك", "Manage your store's digital menu")}
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold">{t("المنتجات", "Products")}</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {t("إدارة منتجاتك والقائمة الرقمية", "Manage your products and digital menu")}
+          </p>
+        </div>
+        <Button onClick={openAddDialog} className="bg-red-600 hover:bg-red-700 text-white h-10 gap-1.5" data-testid="button-add-product">
+          <Plus className="w-4 h-4" />
+          <span>{t("إضافة", "Add")}</span>
+        </Button>
       </div>
 
       <Card className="border-white/[0.06] bg-[#141414]">
-        <CardContent className="py-20 flex flex-col items-center justify-center text-center">
-          <div className="w-20 h-20 rounded-full bg-white/[0.03] flex items-center justify-center mb-4">
-            <UtensilsCrossed className="w-10 h-10 text-muted-foreground/30" />
+        <CardContent className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-muted-foreground mb-1">{t("رابط القائمة الرقمية", "Menu Link (for Google Maps)")}</p>
+              <p className="text-sm text-white/70 truncate font-mono" data-testid="text-menu-url">{menuUrl}</p>
+            </div>
+            <Button size="sm" variant="outline" className="border-white/10 text-white/60 h-8" onClick={() => { navigator.clipboard.writeText(menuUrl); toast({ title: t("تم النسخ", "Copied") }); }} data-testid="button-copy-menu-url">
+              {t("نسخ", "Copy")}
+            </Button>
           </div>
-          <p className="text-muted-foreground font-medium text-lg">
-            {t("قريباً", "Coming Soon")}
-          </p>
-          <p className="text-muted-foreground/50 text-sm mt-2 max-w-sm">
-            {t(
-              "سيتم إضافة ميزة القائمة الرقمية قريباً. ستتمكن من إنشاء وإدارة قائمتك الرقمية مباشرة من لوحة التحكم.",
-              "The digital menu feature is coming soon. You'll be able to create and manage your digital menu directly from the dashboard."
-            )}
-          </p>
         </CardContent>
       </Card>
+
+      {productsLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        </div>
+      ) : products.length === 0 ? (
+        <Card className="border-white/[0.06] bg-[#141414]">
+          <CardContent className="py-16 flex flex-col items-center justify-center text-center">
+            <Package className="w-12 h-12 text-muted-foreground/20 mb-4" />
+            <p className="text-muted-foreground">{t("لا توجد منتجات", "No products yet")}</p>
+            <p className="text-muted-foreground/50 text-sm mt-1">{t("أضف أول منتج لبدء القائمة", "Add your first product to get started")}</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3" data-testid="products-list">
+          {products.map(product => (
+            <Card key={product.id} className={`border-white/[0.06] ${product.visible ? "bg-[#141414]" : "bg-[#0e0e0e] opacity-60"}`} data-testid={`product-item-${product.id}`}>
+              <CardContent className="p-3">
+                <div className="flex items-start gap-3">
+                  {product.imageUrl ? (
+                    <img src={product.imageUrl} alt={product.name} className="w-16 h-16 rounded-lg object-cover flex-shrink-0 border border-white/[0.06]" style={{ boxShadow: "0 2px 8px rgba(255,0,0,0.06)" }} />
+                  ) : (
+                    <div className="w-16 h-16 rounded-lg bg-white/[0.03] flex items-center justify-center flex-shrink-0 border border-white/[0.06]">
+                      <Image className="w-6 h-6 text-muted-foreground/20" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-white font-medium text-sm truncate" data-testid={`text-product-name-${product.id}`}>{product.name}</p>
+                      {!product.visible && <Badge variant="outline" className="text-[10px] border-white/10 text-white/30">{t("مخفي", "Hidden")}</Badge>}
+                    </div>
+                    {product.description && <p className="text-muted-foreground text-xs mt-0.5 line-clamp-1">{product.description}</p>}
+                    <p className="text-red-400 font-bold text-sm mt-1" data-testid={`text-product-price-${product.id}`}>{product.price.toFixed(2)} SAR</p>
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <Button size="icon" variant="ghost" className="w-8 h-8 text-muted-foreground hover:text-white" onClick={() => handleToggleVisibility(product)} disabled={togglingVisibility === product.id} data-testid={`button-toggle-visibility-${product.id}`}>
+                      {togglingVisibility === product.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : product.visible ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                    </Button>
+                    <Button size="icon" variant="ghost" className="w-8 h-8 text-muted-foreground hover:text-white" onClick={() => openEditDialog(product)} data-testid={`button-edit-product-${product.id}`}>
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button size="icon" variant="ghost" className="w-8 h-8 text-muted-foreground hover:text-red-500" onClick={() => handleDeleteProduct(product.id)} disabled={deletingProduct === product.id} data-testid={`button-delete-product-${product.id}`}>
+                      {deletingProduct === product.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <Dialog open={showProductDialog} onOpenChange={setShowProductDialog}>
+        <DialogContent className="bg-[#141414] border-white/[0.06] max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editingProduct ? t("تعديل المنتج", "Edit Product") : t("إضافة منتج", "Add Product")}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1.5 block">{t("الصورة", "Image")}</label>
+              <div className="flex items-center gap-3">
+                {productImagePreview ? (
+                  <img src={productImagePreview} alt="" className="w-20 h-20 rounded-lg object-cover border border-white/[0.06]" />
+                ) : (
+                  <div className="w-20 h-20 rounded-lg bg-white/[0.03] border border-dashed border-white/10 flex items-center justify-center">
+                    <Image className="w-8 h-8 text-muted-foreground/20" />
+                  </div>
+                )}
+                <label className="cursor-pointer">
+                  <input type="file" accept="image/*" className="hidden" onChange={handleImageChange} data-testid="input-product-image" />
+                  <span className="text-sm text-red-400 hover:text-red-300">{t("اختر صورة", "Choose Image")}</span>
+                </label>
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1.5 block">{t("اسم المنتج", "Product Name")}</label>
+              <Input value={productName} onChange={(e) => setProductName(e.target.value)} placeholder={t("مثال: برجر كلاسيك", "e.g. Classic Burger")} className="bg-black/40 border-white/10 text-white" data-testid="input-product-name" />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1.5 block">{t("السعر (SAR)", "Price (SAR)")}</label>
+              <Input type="number" step="0.01" value={productPrice} onChange={(e) => setProductPrice(e.target.value)} placeholder="0.00" className="bg-black/40 border-white/10 text-white" dir="ltr" data-testid="input-product-price" />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1.5 block">{t("الوصف (اختياري)", "Description (optional)")}</label>
+              <Input value={productDescription} onChange={(e) => setProductDescription(e.target.value)} placeholder={t("وصف قصير", "Short description")} className="bg-black/40 border-white/10 text-white" data-testid="input-product-description" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowProductDialog(false)} className="border-white/10 text-white/60">{t("إلغاء", "Cancel")}</Button>
+            <Button onClick={handleSaveProduct} disabled={!productName.trim() || !productPrice.trim() || savingProduct} className="bg-red-600 hover:bg-red-700 text-white" data-testid="button-save-product">
+              {savingProduct ? <Loader2 className="w-4 h-4 animate-spin me-2" /> : null}
+              {t("حفظ", "Save")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

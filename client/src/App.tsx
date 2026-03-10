@@ -14,6 +14,8 @@ import PendingPage from "@/pages/pending";
 import DashboardPage from "@/pages/dashboard";
 import SuperAdminPage from "@/pages/super-admin";
 import StorePagerPage from "@/pages/store-pager";
+import PublicMenuPage from "@/pages/public-menu";
+import OrderTrackingPage from "@/pages/order-tracking";
 
 const SUPER_ADMIN_EMAIL = "yahiatohary@hotmail.com";
 
@@ -191,6 +193,8 @@ function Router() {
         <SuperAdminRoute />
       </Route>
       <Route path="/s/:storeId" component={StorePagerPage} />
+      <Route path="/menu/:merchantId" component={PublicMenuPage} />
+      <Route path="/track/:orderId" component={OrderTrackingPage} />
       <Route component={NotFound} />
     </Switch>
   );

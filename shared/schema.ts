@@ -29,6 +29,59 @@ export const businessTypeLabels: Record<string, string> = {
 export const pagerStatusEnum = z.enum(["waiting", "notified", "completed"]);
 export type PagerStatus = z.infer<typeof pagerStatusEnum>;
 
+export const whatsappOrderStatusEnum = z.enum(["awaiting_confirmation", "preparing", "ready", "completed"]);
+export type WhatsAppOrderStatus = z.infer<typeof whatsappOrderStatusEnum>;
+
+export const productSchema = z.object({
+  id: z.string(),
+  merchantId: z.string(),
+  name: z.string().min(1),
+  price: z.number().min(0),
+  description: z.string().optional(),
+  imageUrl: z.string().optional(),
+  visible: z.boolean().default(true),
+  createdAt: z.string(),
+});
+
+export type Product = z.infer<typeof productSchema>;
+
+export const insertProductSchema = productSchema.omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertProduct = z.infer<typeof insertProductSchema>;
+
+export const whatsappOrderItemSchema = z.object({
+  productId: z.string(),
+  name: z.string(),
+  price: z.number(),
+  quantity: z.number().min(1),
+});
+
+export const whatsappOrderSchema = z.object({
+  id: z.string(),
+  merchantId: z.string(),
+  customerName: z.string().min(1),
+  customerPhone: z.string().min(5),
+  items: z.array(whatsappOrderItemSchema).min(1),
+  total: z.number().min(0),
+  status: whatsappOrderStatusEnum.default("awaiting_confirmation"),
+  orderNumber: z.string().optional(),
+  createdAt: z.string(),
+});
+
+export type WhatsAppOrder = z.infer<typeof whatsappOrderSchema>;
+
+export const insertWhatsAppOrderSchema = whatsappOrderSchema.omit({
+  id: true,
+  status: true,
+  orderNumber: true,
+  createdAt: true,
+});
+
+export type InsertWhatsAppOrder = z.infer<typeof insertWhatsAppOrderSchema>;
+
 export const pagerSchema = z.object({
   id: z.string(),
   storeId: z.string(),
@@ -50,6 +103,7 @@ export const merchantSchema = z.object({
   email: z.string().email("البريد الإلكتروني غير صالح"),
   logoUrl: z.string().optional(),
   googleMapsReviewUrl: z.string().url("رابط جوجل ماب غير صالح"),
+  whatsappNumber: z.string().optional(),
   status: merchantStatusEnum.default("pending"),
   subscriptionStatus: subscriptionStatusEnum.default("pending"),
   subscriptionExpiry: z.string().nullable().optional(),
