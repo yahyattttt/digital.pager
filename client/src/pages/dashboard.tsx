@@ -875,7 +875,7 @@ export default function DashboardPage() {
     if (!merchant?.uid) return;
     setQrLoading(true);
     try {
-      const response = await fetch(`/api/qr/${merchant.uid}`);
+      const response = await fetch(`/api/qr/${merchant.uid}?t=${Date.now()}`);
       if (!response.ok) throw new Error("Failed to fetch QR");
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
@@ -2842,7 +2842,20 @@ function SettingsView({
 
       <Card className="border-white/[0.06] bg-[#141414]">
         <CardContent className="p-5">
-          <h3 className="font-semibold mb-4">{t("أدوات", "Tools")}</h3>
+          <h3 className="font-semibold mb-4">{t("رمز QR", "QR Code")}</h3>
+          <div className="flex flex-col items-center gap-4 mb-4">
+            <div className="bg-white p-3 rounded-xl" data-testid="qr-preview-container">
+              <img
+                src={`/api/qr/${merchant.uid}?t=${Date.now()}`}
+                alt="Store QR Code"
+                className="w-48 h-48"
+                data-testid="img-qr-preview"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground text-center">
+              {t("امسح هذا الرمز لفتح صفحة المتجر", "Scan this code to open your store page")}
+            </p>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Button
               variant="outline"
