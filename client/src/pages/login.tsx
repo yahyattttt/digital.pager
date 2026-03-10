@@ -227,9 +227,7 @@ export default function LoginPage() {
           </div>
 
           <div className="flex items-center justify-center mb-4">
-            <div className="w-[51px] h-[51px] flex items-center justify-center">
-              <img src={neonBellLogo} alt="Digital Pager" className="w-full h-full object-contain" style={{ mixBlendMode: "screen" }} />
-            </div>
+            <img src={neonBellLogo} alt="Digital Pager" className="h-[60px] w-auto object-contain" style={{ mixBlendMode: "screen" }} />
           </div>
 
           <h1
