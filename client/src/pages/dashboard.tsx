@@ -85,6 +85,8 @@ import {
   Printer,
   ChefHat,
   Utensils,
+  Users2,
+  Ticket,
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
@@ -99,7 +101,7 @@ const businessTypeLabelsEn: Record<string, string> = {
 
 const ADMIN_WHATSAPP = "https://wa.me/966500000000";
 
-type DashboardView = "overview" | "waitlist" | "menu" | "feedback" | "analytics" | "settings";
+type DashboardView = "overview" | "waitlist" | "menu" | "feedback" | "analytics" | "customers" | "coupons" | "settings";
 
 function SubscriptionRequiredScreen({
   storeName,
@@ -1055,6 +1057,8 @@ export default function DashboardPage() {
     { id: "menu", icon: UtensilsCrossed, label: t("قسم الأونلاين", "Online Section") },
     { id: "feedback", icon: MessageSquare, label: t("ملاحظات العملاء", "Customer Feedback"), badge: unreadFeedbackCount || undefined },
     { id: "analytics", icon: BarChart3, label: t("التحليلات", "Analytics") },
+    { id: "customers", icon: Users2, label: t("عملائي", "My Customers") },
+    { id: "coupons", icon: Ticket, label: t("الكوبونات", "Coupons") },
     { id: "settings", icon: Settings, label: t("الإعدادات", "Settings") },
   ];
 
@@ -1359,6 +1363,14 @@ export default function DashboardPage() {
                 t={t}
                 lang={lang}
               />
+            )}
+
+            {currentView === "customers" && (
+              <CustomersView merchant={merchant} t={t} lang={lang} />
+            )}
+
+            {currentView === "coupons" && (
+              <CouponsView merchant={merchant} t={t} lang={lang} />
             )}
 
             {currentView === "settings" && (
@@ -3221,6 +3233,379 @@ function AnalyticsView({
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+interface CustomerData {
+  name: string;
+  phone: string;
+  totalOrders: number;
+  lastOrderDate: string;
+}
+
+function CustomersView({
+  merchant,
+  t,
+  lang,
+}: {
+  merchant: { uid: string };
+  t: (ar: string, en: string) => string;
+  lang: string;
+}) {
+  const [customers, setCustomers] = useState<CustomerData[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!merchant?.uid) return;
+    setLoading(true);
+    fetch(`/api/customers/${merchant.uid}`)
+      .then((res) => {
+        if (res.ok) return res.json();
+        return [];
+      })
+      .then((data) => {
+        setCustomers(Array.isArray(data) ? data : data?.customers || []);
+      })
+      .catch(() => {
+        setCustomers([]);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [merchant?.uid]);
+
+  const getWhatsAppLink = (phone: string, name: string) => {
+    const cleanPhone = phone.replace(/[^0-9]/g, "");
+    const message = `أهلاً ${name}، لدينا عرض خاص لك! استخدم كود الخصم التالي: [كود الخصم] في طلبك القادم`;
+    return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20" data-testid="customers-loading">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="mb-6">
+        <h2 className="text-xl font-bold text-white" data-testid="text-customers-title">
+          {t("عملائي", "My Customers")}
+        </h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          {t("قائمة العملاء الذين طلبوا من متجرك", "List of customers who ordered from your store")}
+        </p>
+      </div>
+
+      <Card className="bg-[#111] border-white/[0.06] rounded-2xl overflow-visible">
+        <CardContent className="p-0">
+          {customers.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 px-4" data-testid="customers-empty">
+              <Users2 className="w-12 h-12 text-muted-foreground/40 mb-4" />
+              <p className="text-muted-foreground text-sm">
+                {t("لا يوجد عملاء بعد", "No customers yet")}
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full" data-testid="customers-table">
+                <thead>
+                  <tr className="border-b border-white/[0.06]">
+                    <th className="text-start text-xs font-medium text-muted-foreground px-4 py-3">
+                      {t("الاسم", "Name")}
+                    </th>
+                    <th className="text-start text-xs font-medium text-muted-foreground px-4 py-3">
+                      {t("رقم الجوال", "Phone")}
+                    </th>
+                    <th className="text-start text-xs font-medium text-muted-foreground px-4 py-3">
+                      {t("عدد الطلبات", "Total Orders")}
+                    </th>
+                    <th className="text-start text-xs font-medium text-muted-foreground px-4 py-3">
+                      {t("آخر طلب", "Last Order")}
+                    </th>
+                    <th className="text-start text-xs font-medium text-muted-foreground px-4 py-3">
+                      {t("واتساب", "WhatsApp")}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {customers.map((customer, index) => (
+                    <tr
+                      key={`${customer.phone}-${index}`}
+                      className="border-b border-white/[0.04] last:border-b-0"
+                      data-testid={`row-customer-${index}`}
+                    >
+                      <td className="px-4 py-3 text-sm text-white" data-testid={`text-customer-name-${index}`}>
+                        {customer.name}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-muted-foreground" dir="ltr" data-testid={`text-customer-phone-${index}`}>
+                        {customer.phone}
+                      </td>
+                      <td className="px-4 py-3" data-testid={`text-customer-orders-${index}`}>
+                        <Badge variant="secondary" className="text-xs">
+                          {customer.totalOrders}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-muted-foreground" data-testid={`text-customer-last-order-${index}`}>
+                        {customer.lastOrderDate
+                          ? new Date(customer.lastOrderDate).toLocaleDateString(lang === "ar" ? "ar-SA" : "en-US", {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            })
+                          : "-"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="text-green-500 hover:text-green-400"
+                          onClick={() => window.open(getWhatsAppLink(customer.phone, customer.name), "_blank")}
+                          data-testid={`button-whatsapp-${index}`}
+                        >
+                          <MessageCircle className="w-4 h-4" />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+interface Coupon {
+  id: string;
+  code: string;
+  discountPercent: number;
+  active: boolean;
+  createdAt: string;
+}
+
+function CouponsView({
+  merchant,
+  t,
+  lang,
+}: {
+  merchant: { uid: string; storeName: string; [key: string]: any };
+  t: (ar: string, en: string) => string;
+  lang: string;
+}) {
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [code, setCode] = useState("");
+  const [discountPercent, setDiscountPercent] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const fetchCoupons = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/coupons/${merchant.uid}`);
+      if (res.ok) {
+        const data = await res.json();
+        setCoupons(data.coupons || []);
+      }
+    } catch {
+    } finally {
+      setLoading(false);
+    }
+  }, [merchant.uid]);
+
+  useEffect(() => {
+    fetchCoupons();
+  }, [fetchCoupons]);
+
+  const handleCreate = async () => {
+    const trimmedCode = code.trim().toUpperCase();
+    const pct = parseInt(discountPercent, 10);
+    if (!trimmedCode || isNaN(pct) || pct < 1 || pct > 100) return;
+    setCreating(true);
+    try {
+      const res = await fetch(`/api/coupons/${merchant.uid}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: trimmedCode, discountPercent: pct, active: true }),
+      });
+      if (res.ok) {
+        setCode("");
+        setDiscountPercent("");
+        await fetchCoupons();
+      }
+    } catch {
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleToggle = async (coupon: Coupon) => {
+    setTogglingId(coupon.id);
+    try {
+      await fetch(`/api/coupons/${merchant.uid}/${coupon.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active: !coupon.active }),
+      });
+      await fetchCoupons();
+    } catch {
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
+  const handleDelete = async (couponId: string) => {
+    setDeletingId(couponId);
+    try {
+      await fetch(`/api/coupons/${merchant.uid}/${couponId}`, { method: "DELETE" });
+      await fetchCoupons();
+    } catch {
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  return (
+    <div className="space-y-6" data-testid="coupons-view">
+      <div className="flex items-center gap-3 flex-wrap">
+        <Ticket className="w-6 h-6 text-red-400" />
+        <h2 className="text-xl font-bold" data-testid="text-coupons-title">
+          {t("الكوبونات", "Coupons")}
+        </h2>
+      </div>
+
+      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
+        <CardContent className="p-6">
+          <h3 className="font-semibold mb-4" data-testid="text-create-coupon-title">
+            {t("إنشاء كوبون جديد", "Create New Coupon")}
+          </h3>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Input
+              placeholder={t("رمز الكوبون", "Coupon Code")}
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              className="bg-[#0a0a0a] border-white/10 rounded-xl"
+              data-testid="input-coupon-code"
+            />
+            <Input
+              type="number"
+              min={1}
+              max={100}
+              placeholder={t("نسبة الخصم %", "Discount %")}
+              value={discountPercent}
+              onChange={(e) => setDiscountPercent(e.target.value)}
+              className="bg-[#0a0a0a] border-white/10 rounded-xl sm:max-w-[160px]"
+              data-testid="input-coupon-discount"
+            />
+            <Button
+              onClick={handleCreate}
+              disabled={creating || !code.trim() || !discountPercent}
+              className="bg-red-600 hover:bg-red-700 text-white rounded-xl whitespace-nowrap"
+              data-testid="button-create-coupon"
+            >
+              {creating ? (
+                <Loader2 className="w-4 h-4 animate-spin me-2" />
+              ) : (
+                <Plus className="w-4 h-4 me-2" />
+              )}
+              {t("إنشاء كوبون", "Create Coupon")}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-12" data-testid="coupons-loading">
+          <Loader2 className="w-8 h-8 animate-spin text-red-400" />
+        </div>
+      ) : coupons.length === 0 ? (
+        <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
+          <CardContent className="p-12 text-center" data-testid="coupons-empty">
+            <Ticket className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-30" />
+            <p className="text-muted-foreground">
+              {t("لا توجد كوبونات بعد", "No coupons yet")}
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3" data-testid="coupons-list">
+          {coupons.map((coupon) => (
+            <Card
+              key={coupon.id}
+              className="border-white/[0.06] bg-[#111] rounded-2xl"
+              data-testid={`card-coupon-${coupon.id}`}
+            >
+              <CardContent className="p-4 flex items-center justify-between gap-4 flex-wrap">
+                <div className="flex items-center gap-4 flex-wrap">
+                  <span
+                    className="font-mono font-bold text-lg tracking-wider"
+                    data-testid={`text-coupon-code-${coupon.id}`}
+                  >
+                    {coupon.code}
+                  </span>
+                  <Badge
+                    className="bg-red-500/20 text-red-400 border-red-500/30"
+                    data-testid={`badge-coupon-discount-${coupon.id}`}
+                  >
+                    {coupon.discountPercent}%
+                  </Badge>
+                  <Badge
+                    className={
+                      coupon.active
+                        ? "bg-green-500/20 text-green-400 border-green-500/30"
+                        : "bg-gray-500/20 text-gray-400 border-gray-500/30"
+                    }
+                    data-testid={`badge-coupon-status-${coupon.id}`}
+                  >
+                    {coupon.active
+                      ? t("مفعّل", "Active")
+                      : t("معطّل", "Inactive")}
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleToggle(coupon)}
+                    disabled={togglingId === coupon.id}
+                    className="border-white/10 rounded-xl"
+                    data-testid={`button-toggle-coupon-${coupon.id}`}
+                  >
+                    {togglingId === coupon.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : coupon.active ? (
+                      <>{t("تعطيل", "Disable")}</>
+                    ) : (
+                      <>{t("تفعيل", "Enable")}</>
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => handleDelete(coupon.id)}
+                    disabled={deletingId === coupon.id}
+                    className="border-white/10 text-red-400 hover:text-red-300 rounded-xl"
+                    data-testid={`button-delete-coupon-${coupon.id}`}
+                  >
+                    {deletingId === coupon.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

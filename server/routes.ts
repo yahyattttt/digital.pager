@@ -1888,16 +1888,49 @@ export async function registerRoutes(
         },
       }));
 
+      let finalTotal = total || 0;
+      let discountAmount = 0;
+      let appliedCoupon = "";
+
+      const { couponCode } = req.body;
+      if (couponCode && typeof couponCode === "string") {
+        const couponsUrl = `${baseUrl}/merchants/${merchantId}/coupons`;
+        const cRes = await fetch(`${couponsUrl}?pageSize=200`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (cRes.ok) {
+          const cData = await cRes.json();
+          const docs = cData.documents || [];
+          const match = docs.find((d: any) => {
+            const cf = d.fields || {};
+            return cf.code?.stringValue?.toUpperCase() === couponCode.toUpperCase() && cf.active?.booleanValue === true;
+          });
+          if (match) {
+            const pct = match.fields.discountPercent?.integerValue || match.fields.discountPercent?.doubleValue || 0;
+            discountAmount = Math.round((finalTotal * Number(pct)) / 100 * 100) / 100;
+            finalTotal = Math.round((finalTotal - discountAmount) * 100) / 100;
+            if (finalTotal < 0) finalTotal = 0;
+            appliedCoupon = couponCode.toUpperCase();
+          }
+        }
+      }
+
       const fields: Record<string, any> = {
         merchantId: { stringValue: merchantId },
         customerName: { stringValue: customerName },
         customerPhone: { stringValue: customerPhone },
         items: { arrayValue: { values: itemsArray } },
-        total: { doubleValue: total || 0 },
+        total: { doubleValue: finalTotal },
         status: { stringValue: "pending_verification" },
         paymentMethod: { stringValue: "cod" },
         createdAt: { stringValue: new Date().toISOString() },
       };
+
+      if (appliedCoupon) {
+        fields.couponCode = { stringValue: appliedCoupon };
+        fields.discountAmount = { doubleValue: discountAmount };
+        fields.originalTotal = { doubleValue: total || 0 };
+      }
 
       const patchRes = await fetch(`${baseUrl}/merchants/${merchantId}/whatsappOrders/${docId}`, {
         method: "PATCH",
@@ -1906,6 +1939,32 @@ export async function registerRoutes(
       });
 
       if (!patchRes.ok) return res.status(500).json({ message: "Failed to create order" });
+
+      const custPhone = customerPhone.replace(/[^0-9+]/g, "");
+      const custId = custPhone.replace(/\+/g, "");
+      if (custId) {
+        const custUrl = `${baseUrl}/merchants/${merchantId}/customers/${custId}`;
+        const existRes = await fetch(custUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
+        let totalOrders = 1;
+        if (existRes.ok) {
+          const existDoc = await existRes.json();
+          const ef = existDoc.fields || {};
+          totalOrders = parseInt(ef.totalOrders?.integerValue || "0") + 1;
+        }
+        await fetch(custUrl, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+          body: JSON.stringify({
+            fields: {
+              name: { stringValue: customerName },
+              phone: { stringValue: customerPhone },
+              totalOrders: { integerValue: String(totalOrders) },
+              lastOrderDate: { stringValue: new Date().toISOString() },
+            },
+          }),
+        }).catch(() => {});
+      }
+
       return res.json({ success: true, orderId: docId });
     } catch (error) {
       console.error("Create WhatsApp order error:", error);
@@ -2060,6 +2119,174 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Track order error:", error);
       return res.status(500).json({ message: "Failed to load order" });
+    }
+  });
+
+  // ── Coupons CRUD ──
+  app.get("/api/coupons/:merchantId", async (req, res) => {
+    try {
+      const { merchantId } = req.params;
+      const accessToken = await getFirestoreAccessToken();
+      const baseUrl = getFirestoreBaseUrl();
+      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+
+      const url = `${baseUrl}/merchants/${merchantId}/coupons?pageSize=200`;
+      const r = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+      if (!r.ok) return res.json({ coupons: [] });
+      const data = await r.json();
+      const coupons = (data.documents || []).map((d: any) => {
+        const f = d.fields || {};
+        const parts = d.name.split("/");
+        return {
+          id: parts[parts.length - 1],
+          code: f.code?.stringValue || "",
+          discountPercent: parseInt(f.discountPercent?.integerValue || "0") || (f.discountPercent?.doubleValue ?? 0),
+          active: f.active?.booleanValue !== false,
+          createdAt: f.createdAt?.stringValue || "",
+        };
+      });
+      return res.json({ coupons });
+    } catch (error) {
+      console.error("List coupons error:", error);
+      return res.status(500).json({ message: "Failed to load coupons" });
+    }
+  });
+
+  app.post("/api/coupons/:merchantId", async (req, res) => {
+    try {
+      const { merchantId } = req.params;
+      const { code, discountPercent, active } = req.body;
+      if (!code || !discountPercent) return res.status(400).json({ message: "code and discountPercent are required" });
+
+      const accessToken = await getFirestoreAccessToken();
+      const baseUrl = getFirestoreBaseUrl();
+      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+
+      const docId = randomUUID();
+      const patchRes = await fetch(`${baseUrl}/merchants/${merchantId}/coupons/${docId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          fields: {
+            code: { stringValue: String(code).toUpperCase() },
+            discountPercent: { integerValue: String(Math.min(100, Math.max(1, parseInt(discountPercent) || 0))) },
+            active: { booleanValue: active !== false },
+            createdAt: { stringValue: new Date().toISOString() },
+          },
+        }),
+      });
+
+      if (!patchRes.ok) return res.status(500).json({ message: "Failed to create coupon" });
+      return res.json({ success: true, couponId: docId });
+    } catch (error) {
+      console.error("Create coupon error:", error);
+      return res.status(500).json({ message: "Failed to create coupon" });
+    }
+  });
+
+  app.delete("/api/coupons/:merchantId/:couponId", async (req, res) => {
+    try {
+      const { merchantId, couponId } = req.params;
+      const accessToken = await getFirestoreAccessToken();
+      const baseUrl = getFirestoreBaseUrl();
+      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+
+      const delRes = await fetch(`${baseUrl}/merchants/${merchantId}/coupons/${couponId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      if (!delRes.ok) return res.status(500).json({ message: "Failed to delete coupon" });
+      return res.json({ success: true });
+    } catch (error) {
+      console.error("Delete coupon error:", error);
+      return res.status(500).json({ message: "Failed to delete coupon" });
+    }
+  });
+
+  app.patch("/api/coupons/:merchantId/:couponId", async (req, res) => {
+    try {
+      const { merchantId, couponId } = req.params;
+      const { active } = req.body;
+      const accessToken = await getFirestoreAccessToken();
+      const baseUrl = getFirestoreBaseUrl();
+      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+
+      const patchRes = await fetch(`${baseUrl}/merchants/${merchantId}/coupons/${couponId}?updateMask.fieldPaths=active`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          fields: {
+            active: { booleanValue: !!active },
+          },
+        }),
+      });
+
+      if (!patchRes.ok) return res.status(500).json({ message: "Failed to update coupon" });
+      return res.json({ success: true });
+    } catch (error) {
+      console.error("Update coupon error:", error);
+      return res.status(500).json({ message: "Failed to update coupon" });
+    }
+  });
+
+  app.post("/api/coupons/:merchantId/validate", async (req, res) => {
+    try {
+      const { merchantId } = req.params;
+      const { code } = req.body;
+      if (!code) return res.status(400).json({ valid: false, message: "Code is required" });
+
+      const accessToken = await getFirestoreAccessToken();
+      const baseUrl = getFirestoreBaseUrl();
+      if (!accessToken || !baseUrl) return res.status(500).json({ valid: false, message: "Firestore not configured" });
+
+      const url = `${baseUrl}/merchants/${merchantId}/coupons?pageSize=200`;
+      const r = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+      if (!r.ok) return res.json({ valid: false });
+      const data = await r.json();
+      const docs = data.documents || [];
+      const match = docs.find((d: any) => {
+        const cf = d.fields || {};
+        return cf.code?.stringValue?.toUpperCase() === String(code).toUpperCase() && cf.active?.booleanValue === true;
+      });
+
+      if (!match) return res.json({ valid: false, message: "Invalid or expired coupon" });
+
+      const pct = parseInt(match.fields.discountPercent?.integerValue || "0") || (match.fields.discountPercent?.doubleValue ?? 0);
+      return res.json({ valid: true, discountPercent: pct, code: match.fields.code?.stringValue || code });
+    } catch (error) {
+      console.error("Validate coupon error:", error);
+      return res.status(500).json({ valid: false, message: "Failed to validate coupon" });
+    }
+  });
+
+  // ── Customers ──
+  app.get("/api/customers/:merchantId", async (req, res) => {
+    try {
+      const { merchantId } = req.params;
+      const accessToken = await getFirestoreAccessToken();
+      const baseUrl = getFirestoreBaseUrl();
+      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+
+      const url = `${baseUrl}/merchants/${merchantId}/customers?pageSize=500`;
+      const r = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+      if (!r.ok) return res.json({ customers: [] });
+      const data = await r.json();
+      const customers = (data.documents || []).map((d: any) => {
+        const f = d.fields || {};
+        const parts = d.name.split("/");
+        return {
+          id: parts[parts.length - 1],
+          name: f.name?.stringValue || "",
+          phone: f.phone?.stringValue || "",
+          totalOrders: parseInt(f.totalOrders?.integerValue || "0"),
+          lastOrderDate: f.lastOrderDate?.stringValue || "",
+        };
+      });
+      return res.json({ customers });
+    } catch (error) {
+      console.error("List customers error:", error);
+      return res.status(500).json({ message: "Failed to load customers" });
     }
   });
 

@@ -3,7 +3,7 @@ import { useParams } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Store, ShoppingCart, Plus, Minus, X, AlertTriangle, Loader2, Check, ArrowLeft, Clock, Banknote } from "lucide-react";
+import { Store, ShoppingCart, Plus, Minus, X, AlertTriangle, Loader2, Check, ArrowLeft, Clock, Banknote, Tag } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Product, ProductVariant, ProductAddon } from "@shared/schema";
 
@@ -49,6 +49,12 @@ export default function PublicMenuPage() {
   const [storeTermsAccepted, setStoreTermsAccepted] = useState(false);
   const [showStoreTermsModal, setShowStoreTermsModal] = useState<"terms" | "privacy" | null>(null);
 
+  const [couponCode, setCouponCode] = useState("");
+  const [couponValid, setCouponValid] = useState(false);
+  const [couponDiscount, setCouponDiscount] = useState(0);
+  const [couponLoading, setCouponLoading] = useState(false);
+  const [couponError, setCouponError] = useState("");
+
   const [modalProduct, setModalProduct] = useState<Product | null>(null);
   const [modalVariant, setModalVariant] = useState<ProductVariant | null>(null);
   const [modalAddons, setModalAddons] = useState<ProductAddon[]>([]);
@@ -91,6 +97,44 @@ export default function PublicMenuPage() {
 
   const cartTotal = cart.reduce((sum, item) => sum + getItemTotal(item), 0);
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+
+  const discountAmount = couponValid ? Math.round(cartTotal * couponDiscount / 100 * 100) / 100 : 0;
+  const finalTotal = Math.round((cartTotal - discountAmount) * 100) / 100;
+
+  async function handleApplyCoupon() {
+    if (!couponCode.trim() || !merchantId) return;
+    setCouponLoading(true);
+    setCouponError("");
+    setCouponValid(false);
+    try {
+      const res = await fetch(`/api/coupons/${merchantId}/validate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: couponCode.trim() }),
+      });
+      const data = await res.json();
+      if (data.valid) {
+        setCouponValid(true);
+        setCouponDiscount(data.discountPercent);
+        setCouponError("");
+      } else {
+        setCouponValid(false);
+        setCouponDiscount(0);
+        setCouponError("كود الخصم غير صالح أو منتهي");
+      }
+    } catch {
+      setCouponError("فشل التحقق من كود الخصم");
+    } finally {
+      setCouponLoading(false);
+    }
+  }
+
+  function handleRemoveCoupon() {
+    setCouponCode("");
+    setCouponValid(false);
+    setCouponDiscount(0);
+    setCouponError("");
+  }
 
   function getRiyadhTime(): { hours: number; minutes: number } {
     const now = new Date();
@@ -266,15 +310,20 @@ export default function PublicMenuPage() {
         quantity: item.quantity,
       }));
 
+      const orderBody: any = {
+        customerName: customerName.trim(),
+        customerPhone: customerPhone.trim(),
+        items: orderItems,
+        total: cartTotal,
+      };
+      if (couponValid && couponCode.trim()) {
+        orderBody.couponCode = couponCode.trim();
+      }
+
       const res = await fetch(`/api/whatsapp-orders/${merchantId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          customerName: customerName.trim(),
-          customerPhone: customerPhone.trim(),
-          items: orderItems,
-          total: cartTotal,
-        }),
+        body: JSON.stringify(orderBody),
       });
 
       if (!res.ok) {
@@ -395,9 +444,61 @@ export default function PublicMenuPage() {
             ))}
           </div>
 
-          <div className="flex items-center justify-between p-4 rounded-xl bg-red-600/5 border border-red-600/20 mb-6">
-            <span className="text-white/70 font-medium" dir="rtl">المجموع</span>
-            <span className="text-red-400 text-xl font-bold" data-testid="text-checkout-total">{cartTotal.toFixed(2)} SAR</span>
+          <div className="space-y-2 mb-4">
+            <div className="flex items-center justify-between p-4 rounded-xl bg-red-600/5 border border-red-600/20">
+              <span className="text-white/70 font-medium" dir="rtl">{couponValid ? "المجموع الأصلي" : "المجموع"}</span>
+              <span className={`text-xl font-bold ${couponValid ? "text-white/40 line-through" : "text-red-400"}`} data-testid="text-checkout-total">{cartTotal.toFixed(2)} SAR</span>
+            </div>
+
+            {couponValid && (
+              <>
+                <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-emerald-500/5 border border-emerald-500/15">
+                  <span className="text-emerald-400 text-sm font-medium" dir="rtl">الخصم ({couponDiscount}%)</span>
+                  <span className="text-emerald-400 text-sm font-bold" data-testid="text-discount-amount">-{discountAmount.toFixed(2)} SAR</span>
+                </div>
+                <div className="flex items-center justify-between p-4 rounded-xl bg-emerald-600/10 border border-emerald-500/20">
+                  <span className="text-white font-bold" dir="rtl">المجموع بعد الخصم</span>
+                  <span className="text-emerald-400 text-xl font-bold" data-testid="text-final-total">{finalTotal.toFixed(2)} SAR</span>
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="mb-6">
+            <label className="text-white/60 text-xs mb-1.5 block" dir="rtl">هل لديك كود خصم؟</label>
+            {!couponValid ? (
+              <div className="flex gap-2">
+                <Input
+                  value={couponCode}
+                  onChange={(e) => { setCouponCode(e.target.value.toUpperCase()); setCouponError(""); }}
+                  placeholder="مثال: SAVE20"
+                  className="flex-1 h-11 bg-zinc-900/80 border-zinc-700 text-white placeholder:text-white/20 focus:border-red-500 rounded-xl uppercase"
+                  dir="ltr"
+                  data-testid="input-coupon-code"
+                />
+                <Button
+                  onClick={handleApplyCoupon}
+                  disabled={!couponCode.trim() || couponLoading}
+                  className="h-11 px-4 bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-600/20 rounded-xl font-medium text-sm disabled:opacity-30"
+                  data-testid="button-apply-coupon"
+                >
+                  {couponLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Tag className="w-4 h-4" />}
+                  <span className="ms-1.5">تطبيق</span>
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/15">
+                <div className="flex items-center gap-2">
+                  <Check className="w-4 h-4 text-emerald-400" />
+                  <span className="text-emerald-400 text-sm font-bold" dir="ltr" data-testid="text-applied-coupon">{couponCode}</span>
+                  <span className="text-emerald-400/60 text-xs">({couponDiscount}% خصم)</span>
+                </div>
+                <button onClick={handleRemoveCoupon} className="text-white/40 hover:text-white/60 p-1" data-testid="button-remove-coupon">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+            {couponError && <p className="text-red-400/70 text-[11px] mt-1.5" dir="rtl" data-testid="text-coupon-error">{couponError}</p>}
           </div>
 
           <div className="space-y-4 mb-6">
