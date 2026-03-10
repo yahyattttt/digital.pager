@@ -59,6 +59,7 @@ export default function OrderTrackingPage() {
 
   const alertSoundRef = useRef<HTMLAudioElement | null>(null);
   const vibrationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
 
   const merchantId = new URLSearchParams(window.location.search).get("m") || "";
   const audioUnlockedRef = useRef(false);
@@ -78,41 +79,53 @@ export default function OrderTrackingPage() {
 
   const pendingAlertRef = useRef(false);
 
-  const cleanupListenersRef = useRef<(() => void) | null>(null);
-
-  function removeUnlockListeners() {
-    if (cleanupListenersRef.current) {
-      cleanupListenersRef.current();
-      cleanupListenersRef.current = null;
-    }
-  }
-
   const [bellFading, setBellFading] = useState(false);
 
   function unlockAudio(): Promise<boolean> {
     if (audioUnlockedRef.current) return Promise.resolve(true);
-    const audio = ensureAudioElement();
-    audio.muted = true;
-    return audio.play().then(() => {
-      audio.pause();
-      audio.muted = false;
-      audio.currentTime = 0;
-      audioUnlockedRef.current = true;
-      setSoundEnabled(true);
-      sessionStorage.setItem("pager_audio_unlocked", "true");
-      removeUnlockListeners();
-      console.log("[OrderTracking] Audio unlocked successfully");
-      if (pendingAlertRef.current) {
-        console.log("[OrderTracking] Deferred alert detected — playing now");
-        setPendingAlert(false);
-        pendingAlertRef.current = false;
-        playAlert();
+
+    try {
+      if (!audioContextRef.current) {
+        const AC = window.AudioContext || (window as any).webkitAudioContext;
+        audioContextRef.current = new AC();
       }
-      return true;
-    }).catch((e) => {
-      audio.muted = false;
-      return false;
-    });
+      const ctx = audioContextRef.current;
+
+      return (ctx.state === "suspended" ? ctx.resume() : Promise.resolve()).then(() => {
+        ensureAudioElement();
+        audioUnlockedRef.current = true;
+        setSoundEnabled(true);
+        sessionStorage.setItem("pager_audio_unlocked", "true");
+        console.log("[OrderTracking] AudioContext unlocked (state:", ctx.state, ") — bell preloaded, NO sound played");
+
+        if (pendingAlertRef.current) {
+          console.log("[OrderTracking] Deferred alert detected — playing now");
+          setPendingAlert(false);
+          pendingAlertRef.current = false;
+          playAlert();
+        }
+        return true;
+      });
+    } catch (e) {
+      console.warn("[OrderTracking] AudioContext unlock failed:", e);
+      const audio = ensureAudioElement();
+      audio.muted = true;
+      return audio.play().then(() => {
+        audio.pause();
+        audio.muted = false;
+        audio.currentTime = 0;
+        audioUnlockedRef.current = true;
+        setSoundEnabled(true);
+        sessionStorage.setItem("pager_audio_unlocked", "true");
+        console.log("[OrderTracking] Audio unlocked via muted-play fallback");
+        if (pendingAlertRef.current) {
+          setPendingAlert(false);
+          pendingAlertRef.current = false;
+          playAlert();
+        }
+        return true;
+      }).catch(() => false);
+    }
   }
 
   function handleActivateBell() {
@@ -131,15 +144,6 @@ export default function OrderTrackingPage() {
     if (sessionStorage.getItem("pager_audio_unlocked") === "true") {
       unlockAudio();
     }
-    const events = ["click", "touchstart", "touchmove", "scroll", "keydown", "pointerdown"];
-    function handleInteraction() {
-      unlockAudio();
-    }
-    events.forEach(e => document.addEventListener(e, handleInteraction, { passive: true }));
-    cleanupListenersRef.current = () => {
-      events.forEach(e => document.removeEventListener(e, handleInteraction));
-    };
-    return () => removeUnlockListeners();
   }, []);
 
   function playAlert() {
@@ -194,6 +198,9 @@ export default function OrderTrackingPage() {
       if (alertSoundRef.current) { alertSoundRef.current.pause(); alertSoundRef.current.currentTime = 0; }
       if (vibrationIntervalRef.current) clearInterval(vibrationIntervalRef.current);
       if ("vibrate" in navigator) navigator.vibrate(0);
+      if (audioContextRef.current && audioContextRef.current.state !== "closed") {
+        audioContextRef.current.close().catch(() => {});
+      }
     };
   }, []);
 
@@ -380,19 +387,19 @@ export default function OrderTrackingPage() {
               data-testid="button-activate-bell-pending"
             >
               <span className="text-lg">🔔</span>
-              <span className="text-red-400/90 text-[13px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>تفعيل تنبيهات الجرس عند جاهزية الطلب</span>
+              <span className="text-red-400/90 text-[13px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>هل تود تفعيل جرس التنبيه عند جاهزية الطلب؟</span>
             </button>
           )}
           {bellFading && (
             <div className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl animate-pulse">
               <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
-              <span className="text-white/40 text-xs">جارٍ التفعيل...</span>
+              <span className="text-white/40 text-xs" dir="rtl">جارٍ التفعيل...</span>
             </div>
           )}
           {soundEnabled && !bellFading && (
-            <div className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl border border-emerald-500/15 bg-emerald-500/5">
+            <div className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl border border-emerald-500/15 bg-emerald-500/5 animate-in fade-in duration-500">
               <span className="text-sm">✅</span>
-              <span className="text-emerald-400/80 text-xs font-medium" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>التنبيهات الصوتية مفعلة</span>
+              <span className="text-emerald-400/80 text-xs font-medium" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>تم تفعيل التنبيهات</span>
             </div>
           )}
           <div className="flex items-center justify-center gap-2 mt-1">
@@ -433,7 +440,7 @@ export default function OrderTrackingPage() {
             data-testid="chip-tap-for-sound"
           >
             <span className="text-base">🔔</span>
-            <span className="text-red-400/90 text-sm font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>المس لسماع التنبيه</span>
+            <span className="text-red-400/90 text-sm font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>هل تود تفعيل جرس التنبيه عند جاهزية الطلب؟</span>
           </button>
         )}
         {alertActive && (
@@ -534,21 +541,21 @@ export default function OrderTrackingPage() {
             data-testid="button-activate-bell"
           >
             <span className="text-lg">🔔</span>
-            <span className="text-red-400/90 text-[13px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>تفعيل تنبيهات الجرس عند جاهزية الطلب</span>
+            <span className="text-red-400/90 text-[13px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>هل تود تفعيل جرس التنبيه عند جاهزية الطلب؟</span>
           </button>
         )}
 
         {bellFading && (
           <div className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl animate-pulse">
             <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
-            <span className="text-white/40 text-xs">جارٍ التفعيل...</span>
+            <span className="text-white/40 text-xs" dir="rtl">جارٍ التفعيل...</span>
           </div>
         )}
 
         {soundEnabled && !bellFading && (
-          <div className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl border border-emerald-500/15 bg-emerald-500/5 transition-all duration-500">
+          <div className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl border border-emerald-500/15 bg-emerald-500/5 animate-in fade-in duration-500">
             <span className="text-sm">✅</span>
-            <span className="text-emerald-400/80 text-xs font-medium" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>التنبيهات الصوتية مفعلة</span>
+            <span className="text-emerald-400/80 text-xs font-medium" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>تم تفعيل التنبيهات</span>
           </div>
         )}
 
