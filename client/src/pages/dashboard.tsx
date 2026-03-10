@@ -96,6 +96,7 @@ import {
   AlertCircle,
   UserCheck,
   Sparkles,
+  Search,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { Progress } from "@/components/ui/progress";
@@ -413,6 +414,7 @@ export default function DashboardPage() {
           status: data.status || "pending_verification",
           paymentMethod: data.paymentMethod || "cod",
           orderNumber: data.orderNumber || "",
+          displayOrderId: data.displayOrderId || "",
           createdAt: data.createdAt || "",
         };
       });
@@ -452,6 +454,7 @@ export default function DashboardPage() {
           status: data.status || "preparing",
           paymentMethod: data.paymentMethod || "cod",
           orderNumber: data.orderNumber || "",
+          displayOrderId: data.displayOrderId || "",
           createdAt: data.createdAt || "",
         };
       });
@@ -673,25 +676,28 @@ export default function DashboardPage() {
       let orderNum = 1;
       await runTransaction(db, async (txn) => {
         const snap = await txn.get(counterRef);
-        const current = snap.exists() ? parseInt(String(snap.data().nextOrderNumber), 10) : 1;
+        const data = snap.exists() ? snap.data() : {};
+        const current = parseInt(String(data.manualCounter || data.nextOrderNumber || 1), 10);
         orderNum = isNaN(current) || current < 1 ? 1 : current;
-        txn.set(counterRef, { nextOrderNumber: orderNum + 1 }, { merge: true } as any);
+        txn.set(counterRef, { ...data, manualCounter: orderNum + 1 }, { merge: true } as any);
       });
 
+      const displayOrderId = `MA-${orderNum}`;
       const pagersRef = collection(db, "merchants", merchant.uid, "pagers");
       await addDoc(pagersRef, {
         storeId: merchant.uid,
         orderNumber: String(orderNum),
+        displayOrderId,
         status: "waiting",
         createdAt: new Date().toISOString(),
         notifiedAt: null,
       });
 
       toast({
-        title: t(`تم إضافة الطلب #${orderNum}`, `Order #${orderNum} added`),
+        title: t(`تم إضافة الطلب ${displayOrderId}`, `Order ${displayOrderId} added`),
         description: t(
-          `الرقم التالي تلقائياً سيكون #${orderNum + 1}`,
-          `Next auto-number will be #${orderNum + 1}`
+          `الرقم التالي تلقائياً سيكون MA-${orderNum + 1}`,
+          `Next auto-number will be MA-${orderNum + 1}`
         ),
       });
       setNewOrderNumber("");
@@ -725,24 +731,27 @@ export default function DashboardPage() {
     try {
       const counterRef = doc(db, "merchants", merchant.uid, "settings", "orderCounter");
       await runTransaction(db, async (txn) => {
-        await txn.get(counterRef);
-        txn.set(counterRef, { nextOrderNumber: parsed + 1 }, { merge: true } as any);
+        const snap = await txn.get(counterRef);
+        const data = snap.exists() ? snap.data() : {};
+        txn.set(counterRef, { ...data, manualCounter: parsed + 1 }, { merge: true } as any);
       });
 
+      const displayOrderId = `MA-${parsed}`;
       const pagersRef = collection(db, "merchants", merchant.uid, "pagers");
       await addDoc(pagersRef, {
         storeId: merchant.uid,
         orderNumber: String(parsed),
+        displayOrderId,
         status: "waiting",
         createdAt: new Date().toISOString(),
         notifiedAt: null,
       });
 
       toast({
-        title: t(`تم إضافة الطلب #${parsed}`, `Order #${parsed} added`),
+        title: t(`تم إضافة الطلب ${displayOrderId}`, `Order ${displayOrderId} added`),
         description: t(
-          `الرقم التالي تلقائياً سيكون #${parsed + 1}`,
-          `Next auto-number will be #${parsed + 1}`
+          `الرقم التالي تلقائياً سيكون MA-${parsed + 1}`,
+          `Next auto-number will be MA-${parsed + 1}`
         ),
       });
       setNewOrderNumber("");
@@ -770,25 +779,28 @@ export default function DashboardPage() {
       let orderNum = 1;
       await runTransaction(db, async (txn) => {
         const snap = await txn.get(counterRef);
-        const current = snap.exists() ? parseInt(String(snap.data().nextOrderNumber), 10) : 1;
+        const data = snap.exists() ? snap.data() : {};
+        const current = parseInt(String(data.onlineCounter || data.nextOrderNumber || 1), 10);
         orderNum = isNaN(current) || current < 1 ? 1 : current;
-        txn.set(counterRef, { nextOrderNumber: orderNum + 1 }, { merge: true } as any);
+        txn.set(counterRef, { ...data, onlineCounter: orderNum + 1 }, { merge: true } as any);
       });
 
+      const displayOrderId = `ON-${orderNum}`;
       const pagersRef = collection(db, "merchants", merchant.uid, "pagers");
       await addDoc(pagersRef, {
         storeId: merchant.uid,
         orderNumber: String(orderNum),
+        displayOrderId,
         status: "waiting",
         createdAt: new Date().toISOString(),
         notifiedAt: null,
       });
 
       const orderRef = doc(db, "merchants", merchant.uid, "whatsappOrders", order.id);
-      await updateDoc(orderRef, { status: "preparing", orderNumber: String(orderNum), preparingAt: new Date().toISOString() });
+      await updateDoc(orderRef, { status: "preparing", orderNumber: String(orderNum), displayOrderId, preparingAt: new Date().toISOString() });
 
       toast({
-        title: t(`تم قبول الطلب #${orderNum}`, `Order #${orderNum} Accepted`),
+        title: t(`تم قبول الطلب ${displayOrderId}`, `Order ${displayOrderId} Accepted`),
         description: t("تم إنشاء جهاز بيجر وتحديث حالة الطلب", "Pager created and order status updated"),
       });
     } catch {
@@ -813,7 +825,7 @@ export default function DashboardPage() {
       setFlyingOrderId(null);
       toast({
         title: t("تم إغلاق الطلب", "Order Closed"),
-        description: t(`تم إغلاق الطلب #${order.orderNumber}`, `Order #${order.orderNumber} has been closed`),
+        description: t(`تم إغلاق الطلب ${order.displayOrderId || "#" + order.orderNumber}`, `Order ${order.displayOrderId || "#" + order.orderNumber} has been closed`),
       });
     } catch {
       setFlyingOrderId(null);
@@ -892,14 +904,14 @@ export default function DashboardPage() {
     }
     try {
       const counterRef = doc(db, "merchants", merchant.uid, "settings", "orderCounter");
-      await setDoc(counterRef, { nextOrderNumber: num }, { merge: true });
+      await setDoc(counterRef, { onlineCounter: num, manualCounter: num }, { merge: true });
       setShowShiftStart(false);
       setShiftStartNumber("");
       toast({
         title: t("تم تعيين الرقم", "Counter Set"),
         description: t(
-          `الطلب التالي سيكون #${num}`,
-          `Next order will be #${num}`
+          `الطلب التالي: ON-${num} / MA-${num}`,
+          `Next orders: ON-${num} / MA-${num}`
         ),
       });
     } catch {
@@ -915,12 +927,12 @@ export default function DashboardPage() {
     if (!merchant?.uid) return;
     try {
       const counterRef = doc(db, "merchants", merchant.uid, "settings", "orderCounter");
-      await setDoc(counterRef, { nextOrderNumber: resetTo }, { merge: true });
+      await setDoc(counterRef, { onlineCounter: resetTo, manualCounter: resetTo }, { merge: true });
       toast({
         title: t("تم إعادة التعيين", "Counter Reset"),
         description: t(
-          `الطلب التالي سيكون #${resetTo}`,
-          `Next order will be #${resetTo}`
+          `الطلب التالي: ON-${resetTo} / MA-${resetTo}`,
+          `Next orders: ON-${resetTo} / MA-${resetTo}`
         ),
       });
     } catch {
@@ -974,8 +986,8 @@ export default function DashboardPage() {
       toast({
         title: t("تم التنبيه", "Notified"),
         description: t(
-          `تم تنبيه الطلب #${pager.orderNumber} بنجاح`,
-          `Order #${pager.orderNumber} has been notified`
+          `تم تنبيه الطلب ${pager.displayOrderId || "#" + pager.orderNumber} بنجاح`,
+          `Order ${pager.displayOrderId || "#" + pager.orderNumber} has been notified`
         ),
       });
     } catch {
@@ -1008,7 +1020,7 @@ export default function DashboardPage() {
       setFlyingOrderId(null);
       toast({
         title: t("تم الاستلام", "Order Picked Up"),
-        description: t(`تم إغلاق الطلب #${pager.orderNumber}`, `Order #${pager.orderNumber} completed`),
+        description: t(`تم إغلاق الطلب ${pager.displayOrderId || "#" + pager.orderNumber}`, `Order ${pager.displayOrderId || "#" + pager.orderNumber} completed`),
       });
     } catch {
       setFlyingOrderId(null);
@@ -1028,8 +1040,8 @@ export default function DashboardPage() {
       toast({
         title: t("تم الحذف", "Removed"),
         description: t(
-          `تم حذف الطلب #${pager.orderNumber}`,
-          `Order #${pager.orderNumber} removed`
+          `تم حذف الطلب ${pager.displayOrderId || "#" + pager.orderNumber}`,
+          `Order ${pager.displayOrderId || "#" + pager.orderNumber} removed`
         ),
       });
     } catch {
@@ -1736,12 +1748,23 @@ function OverviewView({
     return { baseName, variant, extras: extras || null };
   };
 
-  const allActiveOrders = [
-    ...waitingPagers.map(p => ({ type: "pager" as const, id: p.docId, orderNumber: p.orderNumber, status: p.status, createdAt: p.createdAt, pager: p })),
-    ...notifiedPagers.map(p => ({ type: "pager-notified" as const, id: p.docId, orderNumber: p.orderNumber, status: "notified" as const, createdAt: p.createdAt, pager: p })),
-    ...activeWhatsappOrders.map(o => ({ type: "wa" as const, id: o.id, orderNumber: o.orderNumber || "?", status: o.status, createdAt: o.createdAt, order: o })),
-    ...whatsappOrders.map(o => ({ type: "wa-new" as const, id: o.id, orderNumber: "NEW", status: "awaiting_confirmation" as const, createdAt: o.createdAt, order: o })),
+  const [orderSearchQuery, setOrderSearchQuery] = useState("");
+
+  const allActiveOrdersRaw = [
+    ...waitingPagers.map(p => ({ type: "pager" as const, id: p.docId, orderNumber: p.orderNumber, displayOrderId: p.displayOrderId || `#${p.orderNumber}`, status: p.status, createdAt: p.createdAt, pager: p })),
+    ...notifiedPagers.map(p => ({ type: "pager-notified" as const, id: p.docId, orderNumber: p.orderNumber, displayOrderId: p.displayOrderId || `#${p.orderNumber}`, status: "notified" as const, createdAt: p.createdAt, pager: p })),
+    ...activeWhatsappOrders.map(o => ({ type: "wa" as const, id: o.id, orderNumber: o.orderNumber || "?", displayOrderId: o.displayOrderId || (o.orderNumber ? `#${o.orderNumber}` : "?"), status: o.status, createdAt: o.createdAt, order: o })),
+    ...whatsappOrders.map(o => ({ type: "wa-new" as const, id: o.id, orderNumber: "NEW", displayOrderId: "", status: "awaiting_confirmation" as const, createdAt: o.createdAt, order: o })),
   ].sort((a, b) => safeTime(a.createdAt) - safeTime(b.createdAt));
+
+  const allActiveOrders = orderSearchQuery.trim()
+    ? allActiveOrdersRaw.filter(item => {
+        const q = orderSearchQuery.trim().toUpperCase();
+        const did = item.displayOrderId?.toUpperCase() || "";
+        const onum = item.orderNumber?.toUpperCase() || "";
+        return did.includes(q) || onum.includes(q) || `#${onum}`.includes(q);
+      })
+    : allActiveOrdersRaw;
 
   const totalActive = allActiveOrders.length;
 
@@ -1784,14 +1807,27 @@ function OverviewView({
       </div>
 
       <div className="flex-1 rounded-2xl bg-[#0d0d0d] border border-white/[0.06] p-4 relative" data-testid="workspace-active-orders">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-4 gap-3">
           <h3 className="text-xs font-bold uppercase tracking-wider text-white/50">{t("الطلبات النشطة", "Active Orders")}</h3>
-          {allActiveOrders.length > 0 && (
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search className="absolute start-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30 pointer-events-none" />
+              <Input
+                value={orderSearchQuery}
+                onChange={(e) => setOrderSearchQuery(e.target.value)}
+                placeholder={t("بحث ON-101, MA-5...", "Search ON-101, MA-5...")}
+                className="h-8 w-40 sm:w-48 ps-8 text-xs bg-white/[0.04] border-white/10 rounded-lg placeholder:text-white/20"
+                dir="ltr"
+                data-testid="input-order-search"
+              />
+            </div>
+            {allActiveOrders.length > 0 && (
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+            )}
+          </div>
         </div>
 
         {allActiveOrders.length === 0 ? (
@@ -1821,7 +1857,7 @@ function OverviewView({
                       <div className="flex items-center gap-2">
                         <Globe className="w-4 h-4 text-red-400" />
                         <span className="text-lg font-extrabold text-white" data-testid={`text-order-num-${item.id}`}>
-                          #{order.orderNumber || t("جديد", "NEW")}
+                          {order.displayOrderId || (order.orderNumber ? `#${order.orderNumber}` : t("جديد", "NEW"))}
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -1934,7 +1970,7 @@ function OverviewView({
                       <div className="flex items-center gap-2">
                         <QrCode className="w-4 h-4 text-white/40" />
                         <span className={`text-lg font-extrabold ${isNotified ? "text-emerald-400" : "text-white"}`} data-testid={`text-order-num-${item.id}`}>
-                          #{item.orderNumber}
+                          {pager.displayOrderId || `#${item.orderNumber}`}
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -2002,7 +2038,7 @@ function OverviewView({
                     <div className="flex items-center gap-2">
                       <Globe className="w-4 h-4 text-red-400" />
                       <span className="text-lg font-extrabold text-white" data-testid={`text-order-num-${item.id}`}>
-                        #{item.orderNumber}
+                        {waOrder.displayOrderId || `#${item.orderNumber}`}
                       </span>
                       {customerNoShowMap[waOrder.customerPhone] && (
                         <Badge className="rounded-full text-[9px] px-1.5 py-0.5 bg-red-500/20 text-red-400 border border-red-500/30 flex items-center gap-0.5" data-testid={`badge-noshow-${item.id}`}>
@@ -2325,11 +2361,11 @@ function WaitlistView({
               : "bg-violet-500/10 border-violet-500/15"
           }`}>
             <span className={`font-bold text-xl ${isNotified ? "text-emerald-400" : "text-violet-400"}`} data-testid={`text-order-num-${pager.docId}`}>
-              {pager.orderNumber}
+              {pager.displayOrderId || `#${pager.orderNumber}`}
             </span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-semibold text-sm">{t("طلب", "Order")} #{pager.orderNumber}</p>
+            <p className="font-semibold text-sm">{t("طلب", "Order")} {pager.displayOrderId || `#${pager.orderNumber}`}</p>
             <p className="text-xs text-muted-foreground mt-0.5">
               {pager.createdAt && new Date(pager.createdAt).toLocaleTimeString(lang === "ar" ? "ar-SA" : "en-US", { hour: "2-digit", minute: "2-digit" })}
             </p>
@@ -2437,11 +2473,11 @@ function WaitlistView({
                       <div className="flex items-center gap-4 mb-4">
                         <div className="w-14 h-14 rounded-2xl bg-violet-500/10 border border-violet-500/15 flex items-center justify-center">
                           <span className="text-violet-400 font-bold text-2xl" data-testid={`text-order-num-${pager.docId}`}>
-                            {pager.orderNumber}
+                            {pager.displayOrderId || `#${pager.orderNumber}`}
                           </span>
                         </div>
                         <div>
-                          <p className="font-semibold">{t("طلب", "Order")} #{pager.orderNumber}</p>
+                          <p className="font-semibold">{t("طلب", "Order")} {pager.displayOrderId || `#${pager.orderNumber}`}</p>
                           <p className="text-xs text-muted-foreground mt-0.5">
                             {pager.createdAt && new Date(pager.createdAt).toLocaleTimeString(lang === "ar" ? "ar-SA" : "en-US", { hour: "2-digit", minute: "2-digit" })}
                           </p>
@@ -2498,10 +2534,10 @@ function WaitlistView({
                         <div className="flex items-center justify-between mb-4">
                           <div className="flex items-center gap-3">
                             <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/15 flex items-center justify-center">
-                              <span className="text-emerald-400 font-bold text-xl">{pager.orderNumber}</span>
+                              <span className="text-emerald-400 font-bold text-xl">{pager.displayOrderId || `#${pager.orderNumber}`}</span>
                             </div>
                             <div>
-                              <p className="font-semibold">{t("طلب", "Order")} #{pager.orderNumber}</p>
+                              <p className="font-semibold">{t("طلب", "Order")} {pager.displayOrderId || `#${pager.orderNumber}`}</p>
                               <p className="text-xs text-emerald-400 mt-0.5">{t("تم التنبيه", "Notified")}</p>
                             </div>
                           </div>
@@ -2563,11 +2599,11 @@ function WaitlistView({
                     <span className={`font-bold text-3xl ${
                       selectedPager.status === "notified" ? "text-emerald-400" : "text-violet-400"
                     }`}>
-                      {selectedPager.orderNumber}
+                      {selectedPager.displayOrderId || `#${selectedPager.orderNumber}`}
                     </span>
                   </div>
                   <div>
-                    <p className="text-xl font-bold">{t("طلب", "Order")} #{selectedPager.orderNumber}</p>
+                    <p className="text-xl font-bold">{t("طلب", "Order")} {selectedPager.displayOrderId || `#${selectedPager.orderNumber}`}</p>
                     <Badge className={`mt-2 rounded-2xl ${
                       selectedPager.status === "notified"
                         ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20"

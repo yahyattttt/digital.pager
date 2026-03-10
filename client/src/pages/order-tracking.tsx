@@ -513,6 +513,7 @@ export default function OrderTrackingPage() {
         status: data.status || "pending_verification",
         paymentMethod: data.paymentMethod || "cod",
         orderNumber: data.orderNumber || "",
+        displayOrderId: data.displayOrderId || "",
         createdAt: data.createdAt || "",
       };
       setOrder(updatedOrder);
@@ -657,7 +658,7 @@ export default function OrderTrackingPage() {
         </div>
 
         <div className="flex-1 flex flex-col items-center justify-center -mt-4">
-          <PagerDevice orderNumber={order.orderNumber || "?"} isReady={true} />
+          <PagerDevice orderNumber={order.displayOrderId || order.orderNumber || "?"} isReady={true} />
           <div className="mt-8">
             <p className="text-white text-2xl font-black tracking-wide" data-testid="text-order-ready">ORDER READY!</p>
             <p className="text-red-400 text-xl font-bold mt-1" dir="rtl">طلبك جاهز!</p>
@@ -729,12 +730,12 @@ export default function OrderTrackingPage() {
       </div>
 
       <div className="flex-1 flex flex-col items-center justify-center min-h-0">
-        <PagerDevice orderNumber={order.orderNumber || "?"} isReady={false} />
+        <PagerDevice orderNumber={order.displayOrderId || order.orderNumber || "?"} isReady={false} />
         <div className="mt-6">
           <p className="text-red-400 text-lg font-bold" dir="rtl" data-testid="text-preparing-message">جاري التحضير...</p>
           <p className="text-white/50 text-sm mt-1.5">We'll buzz you when it's ready!</p>
-          {order.orderNumber && (
-            <p className="text-white/30 text-xs mt-3">Order #{order.orderNumber}</p>
+          {(order.displayOrderId || order.orderNumber) && (
+            <p className="text-white/30 text-xs mt-3">Order {order.displayOrderId || `#${order.orderNumber}`}</p>
           )}
         </div>
       </div>

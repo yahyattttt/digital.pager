@@ -85,6 +85,7 @@ export const whatsappOrderSchema = z.object({
   status: whatsappOrderStatusEnum.default("pending_verification"),
   paymentMethod: z.string().default("cod"),
   orderNumber: z.string().optional(),
+  displayOrderId: z.string().optional(),
   createdAt: z.string(),
 });
 
@@ -94,6 +95,7 @@ export const insertWhatsAppOrderSchema = whatsappOrderSchema.omit({
   id: true,
   status: true,
   orderNumber: true,
+  displayOrderId: true,
   createdAt: true,
 });
 
@@ -103,6 +105,7 @@ export const pagerSchema = z.object({
   id: z.string(),
   storeId: z.string(),
   orderNumber: z.string().min(1),
+  displayOrderId: z.string().optional(),
   status: pagerStatusEnum.default("waiting"),
   createdAt: z.string(),
   notifiedAt: z.string().nullable().optional(),

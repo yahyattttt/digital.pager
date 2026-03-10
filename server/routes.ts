@@ -2833,6 +2833,7 @@ export async function registerRoutes(
         status: f.status?.stringValue || "pending_verification",
         paymentMethod: f.paymentMethod?.stringValue || "cod",
         orderNumber: f.orderNumber?.stringValue || "",
+        displayOrderId: f.displayOrderId?.stringValue || "",
         createdAt: f.createdAt?.stringValue || "",
       };
 
