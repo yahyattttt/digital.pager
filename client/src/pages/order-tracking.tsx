@@ -598,29 +598,6 @@ export default function OrderTrackingPage() {
             </div>
           </div>
 
-          {!soundEnabled && !bellFading && (
-            <button
-              onClick={handleActivateBell}
-              className="w-full flex items-center justify-center gap-2.5 py-3 px-4 rounded-2xl border border-red-500/20 bg-gradient-to-r from-red-950/40 via-red-900/20 to-red-950/40 active:scale-[0.97] transition-all duration-200"
-              style={{ boxShadow: "0 0 20px rgba(255,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.03)" }}
-              data-testid="button-activate-bell-pending"
-            >
-              <span className="text-lg">🔔</span>
-              <span className="text-red-400/90 text-[13px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>هل تود تفعيل جرس التنبيه عند جاهزية الطلب؟</span>
-            </button>
-          )}
-          {bellFading && (
-            <div className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl animate-pulse">
-              <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
-              <span className="text-white/40 text-xs" dir="rtl">جارٍ التفعيل...</span>
-            </div>
-          )}
-          {soundEnabled && !bellFading && (
-            <div className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl border border-emerald-500/15 bg-emerald-500/5 animate-in fade-in duration-500">
-              <span className="text-sm">✅</span>
-              <span className="text-emerald-400/80 text-xs font-medium" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>تم تفعيل التنبيهات</span>
-            </div>
-          )}
           <div className="flex items-center justify-center gap-2 mt-1">
             <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
             <span className="text-white/20 text-[10px]" data-testid="text-live-status">Live</span>
@@ -654,12 +631,11 @@ export default function OrderTrackingPage() {
         {pendingAlert && !alertActive && (
           <button
             onClick={handleActivateBell}
-            className="flex items-center justify-center gap-2.5 px-5 py-3 rounded-2xl border border-red-500/20 bg-gradient-to-r from-red-950/40 via-red-900/20 to-red-950/40 active:scale-[0.97] transition-all duration-200 animate-pulse"
-            style={{ boxShadow: "0 0 20px rgba(255,0,0,0.08)" }}
+            className="flex items-center justify-center gap-2.5 px-5 py-3 rounded-2xl border border-white/10 bg-white/5 active:scale-[0.97] transition-all duration-200 animate-pulse"
             data-testid="chip-tap-for-sound"
           >
-            <span className="text-base">🔔</span>
-            <span className="text-red-400/90 text-sm font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>هل تود تفعيل جرس التنبيه عند جاهزية الطلب؟</span>
+            <span className="text-base">🔊</span>
+            <span className="text-white/70 text-sm font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>اضغط لتشغيل الصوت</span>
           </button>
         )}
         {alertActive && (
@@ -738,7 +714,7 @@ export default function OrderTrackingPage() {
             data-testid="button-activate-bell"
           >
             <span className="text-lg">🔔</span>
-            <span className="text-red-400/90 text-[13px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>هل تود تفعيل جرس التنبيه عند جاهزية الطلب؟</span>
+            <span className="text-red-400/90 text-[13px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>ودك نذكرك بالجرس؟</span>
           </button>
         )}
 
@@ -752,7 +728,7 @@ export default function OrderTrackingPage() {
         {soundEnabled && !bellFading && (
           <div className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl border border-emerald-500/15 bg-emerald-500/5 animate-in fade-in duration-500">
             <span className="text-sm">✅</span>
-            <span className="text-emerald-400/80 text-xs font-medium" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>تم تفعيل التنبيهات</span>
+            <span className="text-emerald-400/80 text-xs font-medium" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>سيتم تنبيهك فور الجاهزية</span>
           </div>
         )}
 
