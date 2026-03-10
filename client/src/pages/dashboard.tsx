@@ -7,6 +7,7 @@ import {
   deleteDoc,
   doc,
   getDoc,
+  getDocs,
   setDoc,
   onSnapshot,
   query,
@@ -798,6 +799,13 @@ export default function DashboardPage() {
         } catch {}
       }
 
+      const waOrdersRef = collection(db, "merchants", merchant.uid, "whatsappOrders");
+      const waQuery = query(waOrdersRef, where("orderNumber", "==", pager.orderNumber), where("status", "==", "preparing"));
+      const waSnap = await getDocs(waQuery);
+      if (!waSnap.empty) {
+        await updateDoc(waSnap.docs[0].ref, { status: "ready" });
+      }
+
       toast({
         title: t("تم التنبيه", "Notified"),
         description: t(
@@ -821,6 +829,18 @@ export default function DashboardPage() {
     try {
       const pagerRef = doc(db, "merchants", merchant.uid, "pagers", pager.docId);
       await updateDoc(pagerRef, { status: "completed" });
+
+      const waOrdersRef = collection(db, "merchants", merchant.uid, "whatsappOrders");
+      const waQuery = query(waOrdersRef, where("orderNumber", "==", pager.orderNumber), where("status", "in", ["preparing", "ready"]));
+      const waSnap = await getDocs(waQuery);
+      if (!waSnap.empty) {
+        await updateDoc(waSnap.docs[0].ref, { status: "completed" });
+      }
+
+      toast({
+        title: t("تم الاستلام", "Order Picked Up"),
+        description: t(`تم إغلاق الطلب #${pager.orderNumber}`, `Order #${pager.orderNumber} completed`),
+      });
     } catch {
       toast({
         title: t("خطأ", "Error"),
@@ -1612,13 +1632,12 @@ function OverviewView({
                   <div className="flex gap-2">
                     <Button
                       size="sm"
-                      variant="outline"
                       onClick={() => onComplete(pager)}
-                      className="flex-1 h-9 border-green-500/20 text-green-400 hover:bg-green-500/10"
+                      className="flex-1 h-9 bg-green-600 hover:bg-green-700 text-white font-semibold"
                       data-testid={`button-complete-${pager.docId}`}
                     >
                       <CheckCircle className="w-3 h-3 me-1" />
-                      {t("تم الاستلام", "Order Picked Up")}
+                      {t("تم الاستلام والأرشفة", "Received & Archive")}
                     </Button>
                     <Button
                       size="sm"
@@ -1729,14 +1748,12 @@ function OverviewView({
                   </div>
                   {order.status === "ready" && (
                     <Button
-                      size="sm"
-                      variant="outline"
                       onClick={() => onCompleteWhatsAppOrder(order)}
-                      className="w-full h-10 border-green-500/20 text-green-400 hover:bg-green-500/10 font-semibold"
+                      className="w-full h-11 bg-green-600 hover:bg-green-700 text-white font-bold text-sm"
                       data-testid={`button-complete-wa-order-${order.id}`}
                     >
                       <CheckCircle className="w-4 h-4 me-1.5" />
-                      {t("تم الاستلام / إغلاق الطلب", "Order Picked Up / Close Order")}
+                      {t("تم الاستلام والأرشفة", "Order Received & Archive")}
                     </Button>
                   )}
                 </CardContent>
@@ -2042,13 +2059,12 @@ function WaitlistView({
                         <div className="flex gap-2">
                           <Button
                             size="sm"
-                            variant="outline"
                             onClick={() => onComplete(pager)}
-                            className="flex-1 h-12 border-green-500/20 text-green-400 hover:bg-green-500/10 font-semibold"
+                            className="flex-1 h-12 bg-green-600 hover:bg-green-700 text-white font-semibold"
                             data-testid={`button-complete-${pager.docId}`}
                           >
                             <CheckCircle className="w-4 h-4 me-1.5" />
-                            {t("تم الاستلام", "Order Picked Up")}
+                            {t("تم الاستلام والأرشفة", "Received & Archive")}
                           </Button>
                           <Button
                             size="sm"
@@ -2151,13 +2167,12 @@ function WaitlistView({
                   )}
                   {selectedPager.status === "notified" && (
                     <Button
-                      variant="outline"
                       onClick={() => onComplete(selectedPager)}
-                      className="w-full h-14 border-green-500/20 text-green-400 hover:bg-green-500/10 font-bold text-lg"
+                      className="w-full h-14 bg-green-600 hover:bg-green-700 text-white font-bold text-lg"
                       data-testid={`button-complete-${selectedPager.docId}`}
                     >
                       <CheckCircle className="w-6 h-6 me-2" />
-                      {t("تم الاستلام", "Order Picked Up")}
+                      {t("تم الاستلام والأرشفة", "Received & Archive")}
                     </Button>
                   )}
                   <Button
