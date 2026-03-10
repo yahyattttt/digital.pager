@@ -217,22 +217,28 @@ export default function OrderTrackingPage() {
       setOrder(updatedOrder);
 
       const currentStatus = updatedOrder.status;
-      console.log("[OrderTracking] Current Status:", currentStatus);
-      console.log("[OrderTracking] Previous Status:", prevStatus);
+      console.log("[OrderTracking] Status update:", currentStatus, "prev:", prevStatus, "firstSnap:", isFirstSnapshot);
 
       if (isFirstSnapshot) {
         prevStatus = currentStatus;
         isFirstSnapshot = false;
+        if (currentStatus === "ready") {
+          console.log("[OrderTracking] Page loaded with ready status — playing alert");
+          playAlert();
+        }
         return;
       }
 
-      const shouldPlay = currentStatus === "ready" && prevStatus === "preparing";
-      console.log("[OrderTracking] shouldPlay:", shouldPlay);
-
-      if (shouldPlay) {
-        playAlert();
+      if (currentStatus === "ready") {
+        if (prevStatus !== "ready") {
+          console.log("[OrderTracking] Status changed to ready — playing alert");
+          hasPlayedAlert.current = false;
+          playAlert();
+        }
       } else if (currentStatus === "completed" || currentStatus === "archived") {
         stopAlert();
+      } else {
+        hasPlayedAlert.current = false;
       }
 
       prevStatus = currentStatus;

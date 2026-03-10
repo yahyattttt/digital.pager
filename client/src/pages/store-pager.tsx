@@ -1082,21 +1082,24 @@ export default function StorePagerPage() {
         isFirstSnapshot = false;
         if (currentStatus === "notified") {
           setPagerStatus("notified");
+          console.log("[StorePager] Page loaded with notified status — playing alert");
+          triggerAlert();
         } else {
           setPagerStatus("waiting");
         }
         return;
       }
 
-      const shouldPlay = currentStatus === "notified" && prevStatus === "waiting";
-      console.log("[StorePager] shouldPlay:", shouldPlay);
-
-      if (shouldPlay) {
-        triggerAlert();
-      } else if (currentStatus === "notified") {
+      if (currentStatus === "notified") {
         setPagerStatus("notified");
+        if (prevStatus !== "notified") {
+          console.log("[StorePager] Status changed to notified (ready) — playing alert");
+          hasPlayedNotification.current = false;
+          triggerAlert();
+        }
       } else if (currentStatus === "waiting") {
         setPagerStatus("waiting");
+        hasPlayedNotification.current = false;
       }
 
       prevStatus = currentStatus;
