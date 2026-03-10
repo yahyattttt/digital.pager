@@ -116,6 +116,8 @@ export default function OrderTrackingPage() {
   const [notFound, setNotFound] = useState(false);
   const [alertActive, setAlertActive] = useState(false);
   const hasPlayedAlert = useRef(false);
+  const isFirstSnapshot = useRef(true);
+  const prevStatusRef = useRef<string | null>(null);
 
   const { unlock, play, stop: stopSound } = useAlertSound();
   const { start: startVibration, stop: stopVibration } = useVibrationLoop();
@@ -167,7 +169,18 @@ export default function OrderTrackingPage() {
       };
       setOrder(updatedOrder);
 
-      if (updatedOrder.status === "ready" && !hasPlayedAlert.current) {
+      const prevStatus = prevStatusRef.current;
+      const currentStatus = updatedOrder.status;
+      const firstLoad = isFirstSnapshot.current;
+      isFirstSnapshot.current = false;
+      prevStatusRef.current = currentStatus;
+
+      if (
+        currentStatus === "ready" &&
+        !hasPlayedAlert.current &&
+        !firstLoad &&
+        prevStatus === "preparing"
+      ) {
         hasPlayedAlert.current = true;
         setAlertActive(true);
         play();

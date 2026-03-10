@@ -997,12 +997,13 @@ export default function StorePagerPage() {
         firstSnapshot = false;
         return;
       }
+      const wasFirstSnapshot = firstSnapshot;
       firstSnapshot = false;
 
       const pagerDoc = snapshot.docs[0];
       const pager = pagerDoc.data() as Pager;
 
-      if (pager.status === "notified" && !hasPlayedNotification.current) {
+      if (pager.status === "notified" && !hasPlayedNotification.current && !wasFirstSnapshot) {
         hasPlayedNotification.current = true;
         setPagerStatus("notified");
         setAlertActive(true);
@@ -1012,6 +1013,8 @@ export default function StorePagerPage() {
         reviewTimerRef.current = setTimeout(() => {
           setShowReview(true);
         }, 2 * 60 * 1000);
+      } else if (pager.status === "notified" && wasFirstSnapshot) {
+        setPagerStatus("notified");
       } else if (pager.status === "waiting") {
         setPagerStatus("waiting");
       }
