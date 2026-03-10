@@ -73,6 +73,13 @@ import {
   Filter,
   MessageSquare,
   Star,
+  DollarSign,
+  Wallet,
+  TrendingUp,
+  TrendingDown,
+  CalendarDays,
+  Plus,
+  Minus,
 } from "lucide-react";
 
 const SUPER_ADMIN_EMAIL = "yahiatohary@hotmail.com";
@@ -295,6 +302,24 @@ export default function SuperAdminPage() {
   const [globalMonitorData, setGlobalMonitorData] = useState<any>(null);
   const [globalMonitorLoading, setGlobalMonitorLoading] = useState(false);
 
+  const [subPaymentDialogOpen, setSubPaymentDialogOpen] = useState(false);
+  const [subPaymentMerchant, setSubPaymentMerchant] = useState<Merchant | null>(null);
+  const [subPaymentAmount, setSubPaymentAmount] = useState("");
+  const [subPaymentStartDate, setSubPaymentStartDate] = useState("");
+  const [subPaymentEndDate, setSubPaymentEndDate] = useState("");
+  const [subPaymentSaving, setSubPaymentSaving] = useState(false);
+  const [subPaymentHistory, setSubPaymentHistory] = useState<any[]>([]);
+  const [subPaymentHistoryLoading, setSubPaymentHistoryLoading] = useState(false);
+
+  const [platformFinanceData, setPlatformFinanceData] = useState<any>(null);
+  const [platformFinanceLoading, setPlatformFinanceLoading] = useState(false);
+  const [expenseName, setExpenseName] = useState("");
+  const [expenseAmount, setExpenseAmount] = useState("");
+  const [expenseDate, setExpenseDate] = useState("");
+  const [expenseSaving, setExpenseSaving] = useState(false);
+  const [renewalData, setRenewalData] = useState<any>(null);
+  const [renewalLoading, setRenewalLoading] = useState(false);
+
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("newest");
@@ -504,6 +529,96 @@ export default function SuperAdminPage() {
       toast({ title: t("خطأ", "Error"), description: t("فشل في تحميل البيانات", "Failed to load monitor data"), variant: "destructive" });
     } finally {
       setGlobalMonitorLoading(false);
+    }
+  }
+
+  async function handleOpenSubPayment(merchant: Merchant) {
+    setSubPaymentMerchant(merchant);
+    setSubPaymentDialogOpen(true);
+    setSubPaymentAmount("");
+    const today = new Date().toISOString().split("T")[0];
+    setSubPaymentStartDate(today);
+    const defaultEnd = new Date();
+    defaultEnd.setDate(defaultEnd.getDate() + 30);
+    setSubPaymentEndDate(defaultEnd.toISOString().split("T")[0]);
+    setSubPaymentHistoryLoading(true);
+    try {
+      const res = await fetch(`/api/admin/subscription-payments/${merchant.uid}`, {
+        headers: { "x-admin-email": user?.email || "" },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSubPaymentHistory(data.payments || []);
+      }
+    } catch {} finally { setSubPaymentHistoryLoading(false); }
+  }
+
+  async function handleSaveSubPayment() {
+    if (!subPaymentMerchant || !subPaymentAmount || !subPaymentStartDate || !subPaymentEndDate) return;
+    setSubPaymentSaving(true);
+    try {
+      const res = await fetch(`/api/admin/subscription-payment/${subPaymentMerchant.uid}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-admin-email": user?.email || "" },
+        body: JSON.stringify({ amountReceived: parseFloat(subPaymentAmount), startDate: subPaymentStartDate, endDate: subPaymentEndDate }),
+      });
+      if (res.ok) {
+        toast({ title: t("تم الحفظ", "Saved"), description: t("تم تسجيل الدفعة وتفعيل الاشتراك", "Payment recorded and subscription activated") });
+        setMerchants(prev => prev.map(m => m.uid === subPaymentMerchant.uid ? { ...m, subscriptionStatus: "active" as const, subscriptionStartAt: subPaymentStartDate, subscriptionExpiry: subPaymentEndDate } : m));
+        handleOpenSubPayment(subPaymentMerchant);
+      } else {
+        toast({ title: t("خطأ", "Error"), description: t("فشل في تسجيل الدفعة", "Failed to record payment"), variant: "destructive" });
+      }
+    } catch {
+      toast({ title: t("خطأ", "Error"), description: t("فشل في تسجيل الدفعة", "Failed to record payment"), variant: "destructive" });
+    } finally { setSubPaymentSaving(false); }
+  }
+
+  async function fetchPlatformFinance() {
+    setPlatformFinanceLoading(true);
+    try {
+      const [finRes, renRes] = await Promise.all([
+        fetch("/api/admin/platform-finance", { headers: { "x-admin-email": user?.email || "" } }),
+        fetch("/api/admin/renewal-analytics", { headers: { "x-admin-email": user?.email || "" } }),
+      ]);
+      if (finRes.ok) { const data = await finRes.json(); setPlatformFinanceData(data); }
+      if (renRes.ok) { const data = await renRes.json(); setRenewalData(data); }
+    } catch {
+      toast({ title: t("خطأ", "Error"), description: t("فشل في تحميل البيانات المالية", "Failed to load finance data"), variant: "destructive" });
+    } finally { setPlatformFinanceLoading(false); }
+  }
+
+  async function handleAddExpense() {
+    if (!expenseName || !expenseAmount || !expenseDate) return;
+    setExpenseSaving(true);
+    try {
+      const res = await fetch("/api/admin/platform-expense", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-admin-email": user?.email || "" },
+        body: JSON.stringify({ name: expenseName, amount: parseFloat(expenseAmount), date: expenseDate }),
+      });
+      if (res.ok) {
+        toast({ title: t("تم الإضافة", "Added"), description: t("تم إضافة المصروف", "Expense added") });
+        setExpenseName(""); setExpenseAmount(""); setExpenseDate("");
+        fetchPlatformFinance();
+      }
+    } catch {
+      toast({ title: t("خطأ", "Error"), description: t("فشل في إضافة المصروف", "Failed to add expense"), variant: "destructive" });
+    } finally { setExpenseSaving(false); }
+  }
+
+  async function handleDeleteExpense(expenseId: string) {
+    try {
+      const res = await fetch(`/api/admin/platform-expense/${expenseId}`, {
+        method: "DELETE",
+        headers: { "x-admin-email": user?.email || "" },
+      });
+      if (res.ok) {
+        toast({ title: t("تم الحذف", "Deleted"), description: t("تم حذف المصروف", "Expense deleted") });
+        fetchPlatformFinance();
+      }
+    } catch {
+      toast({ title: t("خطأ", "Error"), description: t("فشل في حذف المصروف", "Failed to delete expense"), variant: "destructive" });
     }
   }
 
@@ -958,6 +1073,10 @@ export default function SuperAdminPage() {
             <TabsTrigger value="monitor" data-testid="tab-monitor" onClick={() => { if (!globalMonitorData) fetchGlobalMonitor(); }}>
               <Activity className="w-4 h-4 me-1.5" />
               {t("المراقبة الشاملة", "Global Monitor")}
+            </TabsTrigger>
+            <TabsTrigger value="finance" data-testid="tab-finance" onClick={() => { if (!platformFinanceData) fetchPlatformFinance(); }}>
+              <DollarSign className="w-4 h-4 me-1.5" />
+              {t("المالية المركزية", "Central Finance")}
             </TabsTrigger>
             <TabsTrigger value="settings" data-testid="tab-settings">
               <Settings className="w-4 h-4 me-1.5" />
@@ -1483,6 +1602,15 @@ export default function SuperAdminPage() {
                                   <Button
                                     size="icon"
                                     variant="ghost"
+                                    onClick={() => handleOpenSubPayment(merchant)}
+                                    data-testid={`button-subscription-${merchant.uid}`}
+                                    title={t("الاشتراك والدفع", "Subscription & Payment")}
+                                  >
+                                    <Wallet className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
                                     onClick={() => setDeleteTarget(merchant)}
                                     disabled={actionLoading === merchant.uid}
                                     data-testid={`button-delete-${merchant.uid}`}
@@ -1645,6 +1773,173 @@ export default function SuperAdminPage() {
               </>
             ) : (
               <div className="text-center py-16 text-muted-foreground">{t("اضغط تحديث لتحميل البيانات", "Click refresh to load data")}</div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="finance" className="space-y-6">
+            {platformFinanceLoading ? (
+              <div className="flex items-center justify-center py-16"><Loader2 className="w-8 h-8 text-primary animate-spin" /></div>
+            ) : platformFinanceData ? (
+              <>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-bold flex items-center gap-2">
+                    <DollarSign className="w-5 h-5 text-primary" />
+                    {t("المالية المركزية", "Central Finance")}
+                  </h2>
+                  <Button variant="outline" size="sm" onClick={fetchPlatformFinance} data-testid="button-refresh-finance">
+                    <RefreshCw className="w-4 h-4 me-1.5" />{t("تحديث", "Refresh")}
+                  </Button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Card className="border-emerald-500/30">
+                    <CardContent className="p-5">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-muted-foreground">{t("إجمالي الإيرادات", "Total Revenue")}</p>
+                          <p className="text-3xl font-bold text-emerald-400" data-testid="text-total-revenue">
+                            {platformFinanceData.totalRevenue?.toLocaleString() || 0} <span className="text-base">{t("ر.س", "SAR")}</span>
+                          </p>
+                        </div>
+                        <div className="w-12 h-12 rounded-xl bg-emerald-500/20 flex items-center justify-center">
+                          <TrendingUp className="w-6 h-6 text-emerald-400" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card className="border-red-500/30">
+                    <CardContent className="p-5">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-muted-foreground">{t("إجمالي المصروفات", "Total Expenses")}</p>
+                          <p className="text-3xl font-bold text-red-400" data-testid="text-total-expenses">
+                            {platformFinanceData.totalExpenses?.toLocaleString() || 0} <span className="text-base">{t("ر.س", "SAR")}</span>
+                          </p>
+                        </div>
+                        <div className="w-12 h-12 rounded-xl bg-red-500/20 flex items-center justify-center">
+                          <TrendingDown className="w-6 h-6 text-red-400" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card className={(platformFinanceData.netProfit || 0) >= 0 ? "border-emerald-500/30" : "border-red-500/30"}>
+                    <CardContent className="p-5">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-muted-foreground">{t("صافي الربح", "Net Profit")}</p>
+                          <p className={`text-3xl font-bold ${(platformFinanceData.netProfit || 0) >= 0 ? "text-emerald-400" : "text-red-400"}`} data-testid="text-net-profit">
+                            {platformFinanceData.netProfit?.toLocaleString() || 0} <span className="text-base">{t("ر.س", "SAR")}</span>
+                          </p>
+                        </div>
+                        <div className={`w-12 h-12 rounded-xl ${(platformFinanceData.netProfit || 0) >= 0 ? "bg-emerald-500/20" : "bg-red-500/20"} flex items-center justify-center`}>
+                          <Wallet className={`w-6 h-6 ${(platformFinanceData.netProfit || 0) >= 0 ? "text-emerald-400" : "text-red-400"}`} />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <Card>
+                    <CardHeader className="flex flex-row items-center gap-2 pb-4">
+                      <TrendingUp className="w-5 h-5 text-emerald-400" />
+                      <h3 className="font-semibold">{t("إيرادات المتاجر", "Store Revenue")}</h3>
+                    </CardHeader>
+                    <CardContent>
+                      {(platformFinanceData.revenueByMerchant || []).length === 0 ? (
+                        <p className="text-muted-foreground text-center py-8">{t("لا توجد إيرادات بعد", "No revenue yet")}</p>
+                      ) : (
+                        <div className="space-y-3">
+                          {platformFinanceData.revenueByMerchant.map((m: any, i: number) => (
+                            <div key={m.merchantId} className="flex items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]" data-testid={`row-revenue-${i}`}>
+                              <div>
+                                <p className="font-medium text-sm">{m.storeName}</p>
+                                <p className="text-xs text-muted-foreground">{m.paymentCount} {t("دفعة", "payments")}</p>
+                              </div>
+                              <p className="font-bold text-emerald-400">{m.totalPaid?.toLocaleString()} {t("ر.س", "SAR")}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="flex flex-row items-center gap-2 pb-4">
+                      <Minus className="w-5 h-5 text-red-400" />
+                      <h3 className="font-semibold">{t("المصروفات", "Expenses")}</h3>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex gap-2">
+                        <Input placeholder={t("اسم المصروف", "Expense name")} value={expenseName} onChange={(e) => setExpenseName(e.target.value)} className="flex-1" data-testid="input-expense-name" />
+                        <Input type="number" placeholder={t("المبلغ", "Amount")} value={expenseAmount} onChange={(e) => setExpenseAmount(e.target.value)} className="w-28" data-testid="input-expense-amount" />
+                        <Input type="date" value={expenseDate} onChange={(e) => setExpenseDate(e.target.value)} className="w-36" data-testid="input-expense-date" />
+                        <Button onClick={handleAddExpense} disabled={expenseSaving || !expenseName || !expenseAmount || !expenseDate} data-testid="button-add-expense">
+                          {expenseSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                        </Button>
+                      </div>
+                      {(platformFinanceData.expenses || []).length === 0 ? (
+                        <p className="text-muted-foreground text-center py-4">{t("لا توجد مصروفات", "No expenses")}</p>
+                      ) : (
+                        <div className="space-y-2 max-h-64 overflow-y-auto">
+                          {platformFinanceData.expenses.map((exp: any) => (
+                            <div key={exp.id} className="flex items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]" data-testid={`row-expense-${exp.id}`}>
+                              <div>
+                                <p className="font-medium text-sm">{exp.name}</p>
+                                <p className="text-xs text-muted-foreground">{exp.date}</p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <p className="font-bold text-red-400">{exp.amount?.toLocaleString()} {t("ر.س", "SAR")}</p>
+                                <Button size="icon" variant="ghost" onClick={() => handleDeleteExpense(exp.id)} data-testid={`button-delete-expense-${exp.id}`}>
+                                  <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {renewalData && (renewalData.upcomingExpirations || []).length > 0 && (
+                  <Card className="border-amber-500/30">
+                    <CardHeader className="flex flex-row items-center gap-2 pb-4">
+                      <CalendarDays className="w-5 h-5 text-amber-400" />
+                      <h3 className="font-semibold">{t("اشتراكات تنتهي قريباً", "Upcoming Expirations")}</h3>
+                      <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 ms-auto">{renewalData.upcomingExpirations.length}</Badge>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        {renewalData.upcomingExpirations.map((m: any) => (
+                          <div key={m.merchantId} className="flex items-center justify-between p-3 rounded-xl bg-amber-500/5 border border-amber-500/20" data-testid={`row-expiring-${m.merchantId}`}>
+                            <div>
+                              <p className="font-medium text-sm">{m.storeName}</p>
+                              <p className="text-xs text-amber-400">
+                                {m.daysLeft === 0 ? t("ينتهي اليوم!", "Expires today!") : t(`ينتهي خلال ${m.daysLeft} يوم`, `Expires in ${m.daysLeft} days`)}
+                              </p>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
+                              onClick={() => {
+                                const merchant = merchants.find(m2 => m2.uid === m.merchantId);
+                                if (merchant) handleOpenSubPayment(merchant);
+                              }}
+                              data-testid={`button-renew-${m.merchantId}`}
+                            >
+                              <RefreshCw className="w-3.5 h-3.5 me-1.5" />{t("تجديد", "Renew")}
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </>
+            ) : (
+              <div className="text-center py-16 text-muted-foreground">{t("اضغط على التبويب لتحميل البيانات", "Click tab to load data")}</div>
             )}
           </TabsContent>
 
@@ -1882,6 +2177,75 @@ export default function SuperAdminPage() {
               </Button>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={subPaymentDialogOpen} onOpenChange={setSubPaymentDialogOpen}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto" data-testid="dialog-subscription-payment">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wallet className="w-5 h-5 text-primary" />
+              {t("الاشتراك والدفع", "Subscription & Payment")} — {subPaymentMerchant?.storeName}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-5">
+            <div className="space-y-3">
+              <Label>{t("المبلغ المستلم (ر.س)", "Amount Received (SAR)")}</Label>
+              <Input type="number" placeholder="0" value={subPaymentAmount} onChange={(e) => setSubPaymentAmount(e.target.value)} data-testid="input-payment-amount" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>{t("تاريخ البدء", "Start Date")}</Label>
+                <Input type="date" value={subPaymentStartDate} onChange={(e) => setSubPaymentStartDate(e.target.value)} data-testid="input-payment-start" />
+              </div>
+              <div className="space-y-2">
+                <Label>{t("تاريخ الانتهاء", "End Date")}</Label>
+                <Input type="date" value={subPaymentEndDate} onChange={(e) => setSubPaymentEndDate(e.target.value)} data-testid="input-payment-end" />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              {[30, 90, 180, 365].map(days => {
+                const endD = new Date(); endD.setDate(endD.getDate() + days);
+                return (
+                  <Button key={days} variant="outline" size="sm" onClick={() => {
+                    const today = new Date().toISOString().split("T")[0];
+                    setSubPaymentStartDate(today);
+                    setSubPaymentEndDate(endD.toISOString().split("T")[0]);
+                  }} data-testid={`button-preset-${days}`}>
+                    {days} {t("يوم", "days")}
+                  </Button>
+                );
+              })}
+            </div>
+            <Button onClick={handleSaveSubPayment} disabled={subPaymentSaving || !subPaymentAmount || !subPaymentStartDate || !subPaymentEndDate} className="w-full" data-testid="button-save-payment">
+              {subPaymentSaving ? <Loader2 className="w-4 h-4 animate-spin me-1.5" /> : <Save className="w-4 h-4 me-1.5" />}
+              {t("تسجيل الدفعة وتفعيل الاشتراك", "Record Payment & Activate")}
+            </Button>
+
+            <div className="border-t border-white/[0.06] pt-4">
+              <h4 className="font-semibold text-sm mb-3 flex items-center gap-2">
+                <Clock className="w-4 h-4 text-muted-foreground" />
+                {t("سجل الدفعات", "Payment History")}
+              </h4>
+              {subPaymentHistoryLoading ? (
+                <div className="flex items-center justify-center py-6"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+              ) : subPaymentHistory.length === 0 ? (
+                <p className="text-muted-foreground text-sm text-center py-4">{t("لا توجد دفعات سابقة", "No previous payments")}</p>
+              ) : (
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {subPaymentHistory.map((pmt, i) => (
+                    <div key={pmt.id || i} className="flex items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]" data-testid={`row-payment-${i}`}>
+                      <div>
+                        <p className="font-bold text-emerald-400 text-sm">{pmt.amountReceived?.toLocaleString()} {t("ر.س", "SAR")}</p>
+                        <p className="text-xs text-muted-foreground">{pmt.startDate} → {pmt.endDate}</p>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{pmt.createdAt ? new Date(pmt.createdAt).toLocaleDateString() : ""}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

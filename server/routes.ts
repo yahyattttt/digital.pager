@@ -1665,6 +1665,287 @@ export async function registerRoutes(
     }
   });
 
+  // ===== Subscription Payment Endpoints =====
+  app.post("/api/admin/subscription-payment/:merchantId", async (req, res) => {
+    try {
+      if (!(await isAdminRequest(req))) return res.status(403).json({ message: "Unauthorized" });
+      const { merchantId } = req.params;
+      const { amountReceived, startDate, endDate } = req.body;
+      if (!amountReceived || !startDate || !endDate) return res.status(400).json({ message: "amountReceived, startDate, and endDate are required" });
+
+      const accessToken = await getFirestoreAccessToken();
+      const baseUrl = getFirestoreBaseUrl();
+      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+
+      const docRes = await fetch(`${baseUrl}/merchants/${merchantId}`, { headers: { Authorization: `Bearer ${accessToken}` } });
+      if (!docRes.ok) return res.status(404).json({ message: "Merchant not found" });
+
+      const paymentId = randomUUID();
+      const paymentDoc = {
+        fields: {
+          merchantId: { stringValue: merchantId },
+          amountReceived: { doubleValue: parseFloat(amountReceived) },
+          startDate: { stringValue: startDate },
+          endDate: { stringValue: endDate },
+          createdAt: { stringValue: new Date().toISOString() },
+        },
+      };
+      const createRes = await fetch(`${baseUrl}/merchants/${merchantId}/subscriptionPayments/${paymentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify(paymentDoc),
+      });
+      if (!createRes.ok) {
+        const errText = await createRes.text();
+        console.error("Create payment failed:", errText);
+        return res.status(500).json({ message: "Failed to record payment" });
+      }
+
+      const merchantDoc = await docRes.json();
+      const existingFields = merchantDoc.fields || {};
+      const updateFields = {
+        ...existingFields,
+        subscriptionStatus: { stringValue: "active" },
+        subscriptionStartAt: { stringValue: startDate },
+        subscriptionExpiry: { stringValue: endDate },
+      };
+      const patchUrl = `${baseUrl}/merchants/${merchantId}?updateMask.fieldPaths=subscriptionStatus&updateMask.fieldPaths=subscriptionStartAt&updateMask.fieldPaths=subscriptionExpiry`;
+      const activationRes = await fetch(patchUrl, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ fields: updateFields }),
+      });
+      if (!activationRes.ok) {
+        console.error("Failed to activate subscription after payment:", await activationRes.text());
+        return res.status(500).json({ message: "Payment recorded but subscription activation failed" });
+      }
+
+      console.log(`[SUBSCRIPTION] Payment recorded for merchant ${merchantId}: ${amountReceived} SAR, ${startDate} to ${endDate}`);
+      return res.json({ success: true, paymentId });
+    } catch (error) {
+      console.error("Subscription payment error:", error);
+      return res.status(500).json({ message: "Failed to record payment" });
+    }
+  });
+
+  app.get("/api/admin/subscription-payments/:merchantId", async (req, res) => {
+    try {
+      if (!(await isAdminRequest(req))) return res.status(403).json({ message: "Unauthorized" });
+      const { merchantId } = req.params;
+      const accessToken = await getFirestoreAccessToken();
+      const baseUrl = getFirestoreBaseUrl();
+      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+
+      const paymentsRes = await fetch(`${baseUrl}/merchants/${merchantId}/subscriptionPayments`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!paymentsRes.ok) return res.json({ payments: [] });
+
+      const data = await paymentsRes.json();
+      const payments = (data.documents || []).map((doc: any) => {
+        const f = doc.fields || {};
+        return {
+          id: doc.name?.split("/").pop() || "",
+          amountReceived: f.amountReceived?.doubleValue ?? f.amountReceived?.integerValue ?? 0,
+          startDate: f.startDate?.stringValue || "",
+          endDate: f.endDate?.stringValue || "",
+          createdAt: f.createdAt?.stringValue || "",
+        };
+      }).sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+      return res.json({ payments });
+    } catch (error) {
+      console.error("Get subscription payments error:", error);
+      return res.status(500).json({ message: "Failed to get payments" });
+    }
+  });
+
+  // ===== Platform Finance Endpoints (Private: platform_admin_finance collection) =====
+  app.get("/api/admin/platform-finance", async (req, res) => {
+    try {
+      if (!(await isAdminRequest(req))) return res.status(403).json({ message: "Unauthorized" });
+      const accessToken = await getFirestoreAccessToken();
+      const baseUrl = getFirestoreBaseUrl();
+      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+
+      const expensesRes = await fetch(`${baseUrl}/platform_admin_finance/expenses/items`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      let expenses: any[] = [];
+      if (expensesRes.ok) {
+        const expData = await expensesRes.json();
+        expenses = (expData.documents || []).map((doc: any) => {
+          const f = doc.fields || {};
+          return {
+            id: doc.name?.split("/").pop() || "",
+            name: f.name?.stringValue || "",
+            amount: f.amount?.doubleValue ?? f.amount?.integerValue ?? 0,
+            date: f.date?.stringValue || "",
+            createdAt: f.createdAt?.stringValue || "",
+          };
+        }).sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      }
+
+      const merchantsRes = await fetch(`${baseUrl}/merchants`, { headers: { Authorization: `Bearer ${accessToken}` } });
+      let totalRevenue = 0;
+      const revenueByMerchant: any[] = [];
+
+      if (merchantsRes.ok) {
+        const merchData = await merchantsRes.json();
+        const merchantDocs = merchData.documents || [];
+
+        for (const mDoc of merchantDocs) {
+          const mFields = mDoc.fields || {};
+          const mId = mDoc.name?.split("/").pop() || "";
+          const storeName = mFields.storeName?.stringValue || mFields.email?.stringValue || mId;
+
+          const pmtRes = await fetch(`${baseUrl}/merchants/${mId}/subscriptionPayments`, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
+          let merchantTotal = 0;
+          let paymentCount = 0;
+          if (pmtRes.ok) {
+            const pmtData = await pmtRes.json();
+            const pmts = pmtData.documents || [];
+            for (const p of pmts) {
+              const pf = p.fields || {};
+              merchantTotal += Number(pf.amountReceived?.doubleValue ?? pf.amountReceived?.integerValue ?? 0);
+              paymentCount++;
+            }
+          }
+          if (paymentCount > 0) {
+            revenueByMerchant.push({ merchantId: mId, storeName, totalPaid: merchantTotal, paymentCount });
+            totalRevenue += merchantTotal;
+          }
+        }
+      }
+
+      const totalExpenses = expenses.reduce((sum: number, e: any) => sum + e.amount, 0);
+
+      return res.json({
+        totalRevenue,
+        totalExpenses,
+        netProfit: totalRevenue - totalExpenses,
+        expenses,
+        revenueByMerchant: revenueByMerchant.sort((a, b) => b.totalPaid - a.totalPaid),
+      });
+    } catch (error) {
+      console.error("Platform finance error:", error);
+      return res.status(500).json({ message: "Failed to get platform finance" });
+    }
+  });
+
+  app.post("/api/admin/platform-expense", async (req, res) => {
+    try {
+      if (!(await isAdminRequest(req))) return res.status(403).json({ message: "Unauthorized" });
+      const { name, amount, date } = req.body;
+      if (!name || amount === undefined || !date) return res.status(400).json({ message: "name, amount, and date are required" });
+
+      const accessToken = await getFirestoreAccessToken();
+      const baseUrl = getFirestoreBaseUrl();
+      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+
+      const parentDocUrl = `${baseUrl}/platform_admin_finance/expenses`;
+      const checkParent = await fetch(parentDocUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
+      if (!checkParent.ok || checkParent.status === 404) {
+        await fetch(parentDocUrl, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+          body: JSON.stringify({ fields: { _placeholder: { booleanValue: true } } }),
+        });
+      }
+
+      const expenseId = randomUUID();
+      const expenseDoc = {
+        fields: {
+          name: { stringValue: name },
+          amount: { doubleValue: parseFloat(amount) },
+          date: { stringValue: date },
+          createdAt: { stringValue: new Date().toISOString() },
+        },
+      };
+      const createRes = await fetch(`${baseUrl}/platform_admin_finance/expenses/items/${expenseId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify(expenseDoc),
+      });
+      if (!createRes.ok) {
+        const errText = await createRes.text();
+        console.error("Create expense failed:", errText);
+        return res.status(500).json({ message: "Failed to add expense" });
+      }
+
+      console.log(`[PLATFORM FINANCE] Expense added: ${name} - ${amount} SAR on ${date}`);
+      return res.json({ success: true, expenseId });
+    } catch (error) {
+      console.error("Add expense error:", error);
+      return res.status(500).json({ message: "Failed to add expense" });
+    }
+  });
+
+  app.delete("/api/admin/platform-expense/:expenseId", async (req, res) => {
+    try {
+      if (!(await isAdminRequest(req))) return res.status(403).json({ message: "Unauthorized" });
+      const { expenseId } = req.params;
+      const accessToken = await getFirestoreAccessToken();
+      const baseUrl = getFirestoreBaseUrl();
+      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+
+      const delRes = await fetch(`${baseUrl}/platform_admin_finance/expenses/items/${expenseId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!delRes.ok) return res.status(500).json({ message: "Failed to delete expense" });
+
+      console.log(`[PLATFORM FINANCE] Expense deleted: ${expenseId}`);
+      return res.json({ success: true });
+    } catch (error) {
+      console.error("Delete expense error:", error);
+      return res.status(500).json({ message: "Failed to delete expense" });
+    }
+  });
+
+  // ===== Renewal Analytics Endpoint =====
+  app.get("/api/admin/renewal-analytics", async (req, res) => {
+    try {
+      if (!(await isAdminRequest(req))) return res.status(403).json({ message: "Unauthorized" });
+      const accessToken = await getFirestoreAccessToken();
+      const baseUrl = getFirestoreBaseUrl();
+      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+
+      const merchantsRes = await fetch(`${baseUrl}/merchants`, { headers: { Authorization: `Bearer ${accessToken}` } });
+      if (!merchantsRes.ok) return res.status(500).json({ message: "Failed to fetch merchants" });
+      const merchData = await merchantsRes.json();
+      const merchantDocs = merchData.documents || [];
+
+      const now = new Date();
+      const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      const upcomingExpirations: any[] = [];
+
+      for (const doc of merchantDocs) {
+        const f = doc.fields || {};
+        const merchantId = doc.name?.split("/").pop() || "";
+        const storeName = f.storeName?.stringValue || f.email?.stringValue || merchantId;
+        const expiry = f.subscriptionExpiry?.stringValue;
+        const subStatus = f.subscriptionStatus?.stringValue || "pending";
+
+        if (expiry) {
+          const expiryDate = new Date(expiry);
+          const daysLeft = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          if (daysLeft <= 7 && daysLeft >= 0 && subStatus === "active") {
+            upcomingExpirations.push({ merchantId, storeName, expiryDate: expiry, daysLeft });
+          }
+        }
+      }
+
+      upcomingExpirations.sort((a, b) => a.daysLeft - b.daysLeft);
+      return res.json({ upcomingExpirations });
+    } catch (error) {
+      console.error("Renewal analytics error:", error);
+      return res.status(500).json({ message: "Failed to get renewal analytics" });
+    }
+  });
+
   // ===== Global Monitor Endpoint =====
   app.get("/api/admin/global-monitor", async (req, res) => {
     try {
