@@ -5,7 +5,8 @@ import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { Store, AlertTriangle, BellOff, Bell, Clock, CheckCircle, Loader2, Star, Banknote, Phone, MessageCircle, Send } from "lucide-react";
+import { Store, AlertTriangle, BellOff, Bell, Clock, CheckCircle, Loader2, Star, Banknote, Phone, MessageCircle, Send, Share2, Copy } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import type { WhatsAppOrder } from "@shared/schema";
 
 function PagerDevice({ orderNumber, isReady }: { orderNumber: string; isReady: boolean }) {
@@ -276,6 +277,7 @@ export default function OrderTrackingPage() {
   const [pendingAlert, setPendingAlert] = useState(false);
   const hasPlayedAlert = useRef(false);
 
+  const { toast } = useToast();
   const alertSoundRef = useRef<HTMLAudioElement | null>(null);
   const vibrationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -553,6 +555,29 @@ export default function OrderTrackingPage() {
     stopAlert();
   }
 
+  const isOnlineOrder = !!(order?.displayOrderId?.startsWith("ON-"));
+
+  async function handleShareTracking() {
+    const displayId = order?.displayOrderId || "";
+    const storeLabel = merchant?.storeName || "";
+    const shareTitle = `تتبع طلبي من ${storeLabel}`;
+    const shareText = `طلبي رقم ${displayId} جاري التحضير الآن! تابعه معي من هنا:`;
+    const shareUrl = window.location.href;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: shareTitle, text: shareText, url: shareUrl });
+      } catch {}
+    } else {
+      try {
+        await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
+        toast({ title: "تم نسخ الرابط", description: "تم نسخ رابط التتبع إلى الحافظة" });
+      } catch {
+        toast({ title: "خطأ", description: "تعذر نسخ الرابط", variant: "destructive" });
+      }
+    }
+  }
+
   if (loading) {
     return (
       <div className="h-[100dvh] flex items-center justify-center" style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }}>
@@ -636,6 +661,22 @@ export default function OrderTrackingPage() {
               <span>{order.total.toFixed(2)} SAR</span>
             </div>
           </div>
+
+          {isOnlineOrder && (
+            <button
+              onClick={handleShareTracking}
+              className="w-full flex items-center justify-center gap-2.5 py-3 px-4 rounded-2xl border border-red-500/20 bg-gradient-to-r from-red-950/30 via-red-900/15 to-red-950/30 active:scale-[0.97] transition-all duration-200"
+              style={{ boxShadow: "0 0 15px rgba(255,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.03)" }}
+              data-testid="button-share-tracking-pending"
+            >
+              {navigator.share ? (
+                <Share2 className="w-4 h-4 text-red-400/80" />
+              ) : (
+                <Copy className="w-4 h-4 text-red-400/80" />
+              )}
+              <span className="text-red-400/90 text-[13px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>شارك حالة الطلب مع أحبابك</span>
+            </button>
+          )}
 
           <div className="flex items-center justify-center gap-2 mt-1">
             <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
@@ -741,6 +782,22 @@ export default function OrderTrackingPage() {
       </div>
 
       <div className="w-full max-w-xs space-y-3">
+        {isOnlineOrder && (
+          <button
+            onClick={handleShareTracking}
+            className="w-full flex items-center justify-center gap-2.5 py-3 px-4 rounded-2xl border border-red-500/20 bg-gradient-to-r from-red-950/30 via-red-900/15 to-red-950/30 active:scale-[0.97] transition-all duration-200"
+            style={{ boxShadow: "0 0 15px rgba(255,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.03)" }}
+            data-testid="button-share-tracking"
+          >
+            {navigator.share ? (
+              <Share2 className="w-4 h-4 text-red-400/80" />
+            ) : (
+              <Copy className="w-4 h-4 text-red-400/80" />
+            )}
+            <span className="text-red-400/90 text-[13px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>شارك حالة الطلب مع أحبابك</span>
+          </button>
+        )}
+
         <div className="p-3 rounded-xl bg-zinc-900/30 border border-zinc-800/20">
           <p className="text-white/30 text-xs text-center" dir="rtl">{order.customerName} • {order.items.length} items • {order.total.toFixed(2)} SAR</p>
         </div>
