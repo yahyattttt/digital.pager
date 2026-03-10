@@ -1043,7 +1043,6 @@ export default function DashboardPage() {
   const waitingPagers = pagers.filter((p) => p.status === "waiting");
   const notifiedPagers = pagers.filter((p) => p.status === "notified");
   const unreadFeedbackCount = feedbacks.filter(f => !f.read).length;
-  const recentFeedbacks = feedbacks.slice(0, 3);
 
   const businessLabel =
     lang === "ar"
@@ -1285,7 +1284,6 @@ export default function DashboardPage() {
                 merchant={merchant}
                 waitingPagers={waitingPagers}
                 notifiedPagers={notifiedPagers}
-                recentFeedbacks={recentFeedbacks}
                 storeOpen={storeOpen}
                 onlineOrdersEnabled={onlineOrdersEnabled}
                 onToggleOnlineOrders={handleToggleOnlineOrders}
@@ -1293,7 +1291,6 @@ export default function DashboardPage() {
                 onNotify={handleNotify}
                 onComplete={handleComplete}
                 onRemove={handleRemove}
-                onNavigate={(v: DashboardView) => { setCurrentView(v); setSelectedPagerId(null); }}
                 onQuickAdd={handleQuickAdd}
                 onManualAdd={handleManualAdd}
                 quickAddLoading={quickAddLoading}
@@ -1352,7 +1349,16 @@ export default function DashboardPage() {
             )}
 
             {currentView === "analytics" && (
-              <AnalyticsView merchant={merchant} t={t} lang={lang} />
+              <AnalyticsView
+                merchant={merchant}
+                waitingPagers={waitingPagers}
+                notifiedPagers={notifiedPagers}
+                activeWhatsappOrders={activeWhatsappOrders}
+                whatsappOrders={whatsappOrders}
+                completedToday={completedToday}
+                t={t}
+                lang={lang}
+              />
             )}
 
             {currentView === "settings" && (
@@ -1538,7 +1544,6 @@ function OverviewView({
   merchant,
   waitingPagers,
   notifiedPagers,
-  recentFeedbacks,
   storeOpen,
   onlineOrdersEnabled,
   onToggleOnlineOrders,
@@ -1546,7 +1551,6 @@ function OverviewView({
   onNotify,
   onComplete,
   onRemove,
-  onNavigate,
   onQuickAdd,
   onManualAdd,
   quickAddLoading,
@@ -1567,7 +1571,6 @@ function OverviewView({
   merchant: any;
   waitingPagers: (Pager & { docId: string })[];
   notifiedPagers: (Pager & { docId: string })[];
-  recentFeedbacks: Array<{ id: string; stars: number; comment: string; timestamp: string; read: boolean }>;
   storeOpen: boolean;
   onlineOrdersEnabled: boolean;
   onToggleOnlineOrders: () => void;
@@ -1575,7 +1578,6 @@ function OverviewView({
   onNotify: (pager: Pager & { docId: string }) => void;
   onComplete: (pager: Pager & { docId: string }) => void;
   onRemove: (pager: Pager & { docId: string }) => void;
-  onNavigate: (view: DashboardView) => void;
   onQuickAdd: () => Promise<boolean | undefined>;
   onManualAdd: (num: string) => Promise<boolean | undefined>;
   quickAddLoading: boolean;
@@ -1594,17 +1596,8 @@ function OverviewView({
   lang: string;
 }) {
   const [overviewInput, setOverviewInput] = useState("");
-  const [completedPulse, setCompletedPulse] = useState(false);
+  const [showManualEntry, setShowManualEntry] = useState(false);
   const [printOrder, setPrintOrder] = useState<WhatsAppOrder | null>(null);
-  const prevCompleted = useState({ current: completedToday })[0];
-
-  useEffect(() => {
-    if (completedToday > prevCompleted.current) {
-      setCompletedPulse(true);
-      setTimeout(() => setCompletedPulse(false), 1000);
-    }
-    prevCompleted.current = completedToday;
-  }, [completedToday]);
 
   const handleManual = async () => {
     if (quickAddLoading || isPending || !overviewInput.trim()) return;
@@ -1646,17 +1639,7 @@ function OverviewView({
     ...whatsappOrders.map(o => ({ type: "wa-new" as const, id: o.id, orderNumber: "NEW", status: "awaiting_confirmation" as const, createdAt: o.createdAt, order: o })),
   ].sort((a, b) => safeTime(a.createdAt) - safeTime(b.createdAt));
 
-  const totalActive = waitingPagers.length + notifiedPagers.length + activeWhatsappOrders.length + whatsappOrders.length;
-
-  const avgWait = (() => {
-    const all = [...waitingPagers, ...notifiedPagers];
-    if (all.length === 0) return "0m";
-    const total = all.reduce((sum, p) => sum + Math.max(0, Date.now() - safeTime(p.createdAt)), 0);
-    const avg = Math.floor(total / all.length / 60000);
-    return avg < 1 ? "<1m" : `${avg}m`;
-  })();
-
-  const dailyScans = merchant?.qrScans ?? 0;
+  const totalActive = allActiveOrders.length;
 
   const statusColor = (status: string) => {
     if (status === "awaiting_confirmation" || status === "pending_verification") return { bg: "bg-red-500/10", text: "text-red-400", border: "border-red-500/30", label: t("طلب جديد", "New Order") };
@@ -1667,11 +1650,18 @@ function OverviewView({
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold text-white" data-testid="text-overview-title">
-          {t("لوحة التحكم", "Dashboard")}
-        </h2>
+    <div className="flex flex-col h-full min-h-[calc(100dvh-7rem)]">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-3">
+          <h2 className="text-lg font-bold text-white" data-testid="text-overview-title">
+            {t("لوحة التحكم", "Dashboard")}
+          </h2>
+          {totalActive > 0 && (
+            <Badge className="rounded-full text-[11px] px-2 py-0.5 bg-white/[0.06] text-white/60 border-white/10" data-testid="badge-active-count">
+              {totalActive} {t("نشط", "active")}
+            </Badge>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           <Badge
             className={`rounded-full text-[11px] px-2.5 py-0.5 ${storeOpen ? "bg-green-500/15 text-green-400 border-green-500/20" : "bg-red-500/15 text-red-400 border-red-500/20"}`}
@@ -1689,66 +1679,7 @@ function OverviewView({
         </div>
       </div>
 
-      <div className="grid grid-cols-4 gap-3" data-testid="stats-header">
-        <div className="bg-[#111] border border-white/[0.06] rounded-xl p-3 text-center" data-testid="stat-daily-scans">
-          <ScanLine className="w-4 h-4 text-violet-400 mx-auto mb-1" />
-          <p className="text-2xl sm:text-3xl font-extrabold text-white leading-none" data-testid="text-daily-scans">{dailyScans}</p>
-          <p className="text-[10px] text-white/40 mt-1 uppercase tracking-wider">{t("المسح اليومي", "Daily Scans")}</p>
-        </div>
-        <div className="bg-[#111] border border-white/[0.06] rounded-xl p-3 text-center" data-testid="stat-active-orders">
-          <Activity className="w-4 h-4 text-amber-400 mx-auto mb-1" />
-          <p className="text-2xl sm:text-3xl font-extrabold text-white leading-none" data-testid="text-active-orders">{totalActive}</p>
-          <p className="text-[10px] text-white/40 mt-1 uppercase tracking-wider">{t("طلبات نشطة", "Active Orders")}</p>
-        </div>
-        <div
-          className={`bg-[#111] border border-white/[0.06] rounded-xl p-3 text-center transition-all duration-500 ${completedPulse ? "ring-2 ring-emerald-400/50 scale-[1.03]" : ""}`}
-          data-testid="stat-completed-today"
-        >
-          <CheckCircle className="w-4 h-4 text-emerald-400 mx-auto mb-1" />
-          <p className="text-2xl sm:text-3xl font-extrabold text-white leading-none" data-testid="text-completed-today">{completedToday}</p>
-          <p className="text-[10px] text-white/40 mt-1 uppercase tracking-wider">{t("مكتمل اليوم", "Done Today")}</p>
-        </div>
-        <div className="bg-[#111] border border-white/[0.06] rounded-xl p-3 text-center" data-testid="stat-avg-wait">
-          <Timer className="w-4 h-4 text-blue-400 mx-auto mb-1" />
-          <p className="text-2xl sm:text-3xl font-extrabold text-white leading-none" data-testid="text-avg-wait">{avgWait}</p>
-          <p className="text-[10px] text-white/40 mt-1 uppercase tracking-wider">{t("متوسط الانتظار", "Avg. Wait")}</p>
-        </div>
-      </div>
-
-      {counterLoaded && (
-        <div className="flex gap-2 items-center" data-testid="overview-order-entry">
-          <Input
-            type="text"
-            inputMode="numeric"
-            placeholder={t("رقم مخصص", "Custom #")}
-            value={overviewInput}
-            onChange={(e) => setOverviewInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && overviewInput.trim()) handleManual(); }}
-            className="w-24 sm:w-32 h-12 text-center text-base font-bold border-white/10 focus:border-emerald-500 focus:ring-emerald-500/20 bg-white/[0.03] rounded-xl"
-            dir="ltr"
-            data-testid="input-order-overview"
-          />
-          <Button
-            onClick={handleManual}
-            disabled={quickAddLoading || isPending || !overviewInput.trim()}
-            className="h-12 px-3 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 font-bold rounded-xl"
-            data-testid="button-manual-add-overview"
-          >
-            {quickAddLoading && overviewInput.trim() ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-          </Button>
-          <Button
-            onClick={async () => { await onQuickAdd(); }}
-            disabled={quickAddLoading || isPending}
-            className="flex-1 h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-base rounded-xl shadow-lg shadow-emerald-900/20 active:scale-[0.98] transition-all"
-            data-testid="button-quick-add-overview"
-          >
-            {quickAddLoading && !overviewInput.trim() ? <Loader2 className="w-5 h-5 animate-spin me-2" /> : <Zap className="w-5 h-5 me-2" />}
-            {t("إضافة سريعة", "Quick Add")} #{nextOrderNumber}
-          </Button>
-        </div>
-      )}
-
-      <div className="rounded-2xl bg-[#0d0d0d] border border-white/[0.06] p-4" data-testid="workspace-active-orders">
+      <div className="flex-1 rounded-2xl bg-[#0d0d0d] border border-white/[0.06] p-4 relative" data-testid="workspace-active-orders">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-xs font-bold uppercase tracking-wider text-white/50">{t("الطلبات النشطة", "Active Orders")}</h3>
           {allActiveOrders.length > 0 && (
@@ -2041,37 +1972,65 @@ function OverviewView({
             })}
           </div>
         )}
-      </div>
 
-      {recentFeedbacks.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-xs font-bold text-white/50 uppercase tracking-wider">
-              {t("آخر التقييمات", "Recent Feedback")}
-            </h3>
-            <button
-              onClick={() => onNavigate("feedback")}
-              className="text-xs text-violet-400 hover:underline"
-              data-testid="link-view-all-feedback"
-            >
-              {t("عرض الكل", "View All")}
-            </button>
-          </div>
-          <div className="space-y-1">
-            {recentFeedbacks.slice(0, 3).map((fb) => (
-              <div key={fb.id} className="flex items-center gap-3 bg-[#111] border border-white/[0.04] rounded-lg px-3 py-2" data-testid={`recent-feedback-${fb.id}`}>
-                <div className="flex gap-0.5">
-                  {[1, 2, 3, 4, 5].map((s) => (
-                    <Star key={s} className={`w-3 h-3 ${s <= fb.stars ? "text-yellow-400 fill-yellow-400" : "text-white/10"}`} />
-                  ))}
-                </div>
-                <p className="flex-1 text-xs text-white/40 truncate">{fb.comment || t("بدون تعليق", "No comment")}</p>
-                {!fb.read && <span className="w-1.5 h-1.5 rounded-full bg-orange-500 flex-shrink-0" />}
+        {counterLoaded && (
+          <div className={`absolute bottom-4 ${lang === "ar" ? "left-4" : "right-4"} z-10`}>
+            {showManualEntry ? (
+              <div className="flex items-center gap-2 bg-[#1a1a1a] border border-white/10 rounded-xl p-2 shadow-xl shadow-black/50 animate-in slide-in-from-bottom-2 duration-200" data-testid="manual-entry-popover">
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder={t("رقم مخصص", "Custom #")}
+                  value={overviewInput}
+                  onChange={(e) => setOverviewInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && overviewInput.trim()) handleManual(); }}
+                  className="w-24 h-10 text-center text-sm font-bold border-white/10 focus:border-emerald-500 focus:ring-emerald-500/20 bg-white/[0.03] rounded-lg"
+                  dir="ltr"
+                  autoFocus
+                  data-testid="input-order-overview"
+                />
+                <Button
+                  onClick={handleManual}
+                  disabled={quickAddLoading || isPending || !overviewInput.trim()}
+                  size="sm"
+                  className="h-10 px-3 bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 rounded-lg"
+                  data-testid="button-manual-add-overview"
+                >
+                  {quickAddLoading && overviewInput.trim() ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                </Button>
+                <Button
+                  onClick={async () => { await onQuickAdd(); }}
+                  disabled={quickAddLoading || isPending}
+                  size="sm"
+                  className="h-10 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg active:scale-[0.98] transition-all"
+                  data-testid="button-quick-add-overview"
+                >
+                  {quickAddLoading && !overviewInput.trim() ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4 me-1" />}
+                  #{nextOrderNumber}
+                </Button>
+                <Button
+                  onClick={() => setShowManualEntry(false)}
+                  size="sm"
+                  variant="ghost"
+                  className="h-10 w-10 p-0 text-white/40 hover:text-white/80"
+                  data-testid="button-close-manual-entry"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
               </div>
-            ))}
+            ) : (
+              <Button
+                onClick={() => setShowManualEntry(true)}
+                className="h-12 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-900/30 active:scale-[0.96] transition-all"
+                data-testid="button-add-manual-order"
+              >
+                <Plus className="w-5 h-5 me-1.5" />
+                {t("إضافة طلب يدوي", "Add Manual Order")}
+              </Button>
+            )}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {printOrder && (
         <div id="print-receipt" dir={lang === "ar" ? "rtl" : "ltr"}>
@@ -3055,13 +3014,67 @@ function FeedbackView({
 
 function AnalyticsView({
   merchant,
+  waitingPagers,
+  notifiedPagers,
+  activeWhatsappOrders,
+  whatsappOrders,
+  completedToday,
   t,
   lang,
 }: {
   merchant: any;
+  waitingPagers: (Pager & { docId: string })[];
+  notifiedPagers: (Pager & { docId: string })[];
+  activeWhatsappOrders: WhatsAppOrder[];
+  whatsappOrders: WhatsAppOrder[];
+  completedToday: number;
   t: (ar: string, en: string) => string;
   lang: string;
 }) {
+  const totalActive = waitingPagers.length + notifiedPagers.length + activeWhatsappOrders.length + whatsappOrders.length;
+  const avgWait = (() => {
+    const all = [...waitingPagers, ...notifiedPagers];
+    if (all.length === 0) return "0m";
+    const total = all.reduce((sum, p) => { const t = new Date(p.createdAt).getTime(); return sum + Math.max(0, Date.now() - (isNaN(t) ? Date.now() : t)); }, 0);
+    const avg = Math.floor(total / all.length / 60000);
+    return avg < 1 ? "<1m" : `${avg}m`;
+  })();
+
+  const operationalStats = [
+    {
+      icon: ScanLine,
+      value: merchant.qrScans ?? 0,
+      label: t("المسح اليومي", "Daily Scans"),
+      color: "text-violet-400",
+      bg: "bg-violet-500/10",
+      border: "border-violet-500/15",
+    },
+    {
+      icon: Activity,
+      value: totalActive,
+      label: t("طلبات نشطة", "Active Orders"),
+      color: "text-amber-400",
+      bg: "bg-amber-500/10",
+      border: "border-amber-500/15",
+    },
+    {
+      icon: CheckCircle,
+      value: completedToday,
+      label: t("مكتمل اليوم", "Done Today"),
+      color: "text-emerald-400",
+      bg: "bg-emerald-500/10",
+      border: "border-emerald-500/15",
+    },
+    {
+      icon: Timer,
+      value: avgWait,
+      label: t("متوسط الانتظار", "Avg. Wait"),
+      color: "text-blue-400",
+      bg: "bg-blue-500/10",
+      border: "border-blue-500/15",
+    },
+  ];
+
   const stats = [
     {
       icon: QrCode,
@@ -3109,29 +3122,56 @@ function AnalyticsView({
       <div>
         <h2 className="text-xl font-bold">{t("التحليلات", "Analytics")}</h2>
         <p className="text-sm text-muted-foreground mt-0.5">
-          {t("إحصائيات التسويق والأداء", "Marketing and performance statistics")}
+          {t("إحصائيات التشغيل والتسويق", "Operations and marketing statistics")}
         </p>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {stats.map((stat, i) => {
-          const Icon = stat.icon;
-          return (
-            <Card key={i} className="border-white/[0.06] bg-[#111] rounded-2xl">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2.5">
-                  <div className={`w-9 h-9 rounded-xl ${stat.bg} border ${stat.border} flex items-center justify-center flex-shrink-0`}>
-                    <Icon className={`w-4 h-4 ${stat.color}`} />
+      <div>
+        <h3 className="text-xs font-bold uppercase tracking-wider text-white/50 mb-3">{t("إحصائيات التشغيل", "Operations")}</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {operationalStats.map((stat, i) => {
+            const Icon = stat.icon;
+            return (
+              <Card key={`op-${i}`} className="border-white/[0.06] bg-[#111] rounded-2xl">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className={`w-9 h-9 rounded-xl ${stat.bg} border ${stat.border} flex items-center justify-center flex-shrink-0`}>
+                      <Icon className={`w-4 h-4 ${stat.color}`} />
+                    </div>
+                    <div>
+                      <p className="text-xl font-bold leading-tight" data-testid={`text-op-stat-${i}`}>{stat.value}</p>
+                      <p className="text-[11px] text-muted-foreground">{stat.label}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xl font-bold leading-tight" data-testid={`text-stat-${i}`}>{stat.value}</p>
-                    <p className="text-[11px] text-muted-foreground">{stat.label}</p>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      </div>
+
+      <div>
+        <h3 className="text-xs font-bold uppercase tracking-wider text-white/50 mb-3">{t("إحصائيات التسويق", "Marketing")}</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {stats.map((stat, i) => {
+            const Icon = stat.icon;
+            return (
+              <Card key={`mk-${i}`} className="border-white/[0.06] bg-[#111] rounded-2xl">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className={`w-9 h-9 rounded-xl ${stat.bg} border ${stat.border} flex items-center justify-center flex-shrink-0`}>
+                      <Icon className={`w-4 h-4 ${stat.color}`} />
+                    </div>
+                    <div>
+                      <p className="text-xl font-bold leading-tight" data-testid={`text-stat-${i}`}>{stat.value}</p>
+                      <p className="text-[11px] text-muted-foreground">{stat.label}</p>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
       </div>
 
       <Card className="border-white/[0.06] bg-[#111] rounded-2xl">

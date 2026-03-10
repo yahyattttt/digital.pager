@@ -37,7 +37,7 @@ The platform is a multi-tenant SaaS application with isolated merchant data in F
     - **Preparing**: Digital Pager device with LED ring animation, "جاري التحضير" status.
     - **Ready**: Full pager alert with sound/vibration, "الطلب جاهز" / "ORDER READY!".
     - **Completed/Archived**: Thank You screen with "Rate us on Google Maps" button (uses merchant's `googleMapsReviewUrl`).
-  - **Merchant Dashboard Order Flow**: KDS-style order cards with full item details, extras, and action buttons. Accept → creates pager + status `preparing`. Ready → status `ready`. Deliver → status `archived`. Print generates 80mm thermal receipt.
+  - **Merchant Dashboard (KDS Layout)**: Clean order-focused view — no stat boxes or feedback on main dashboard. Full-height order card grid (1/2/3 cols). Floating "Add Manual Order" button (bottom-right LTR, bottom-left RTL) expands into compact entry popover. Stats (Daily Scans, Active Orders, Done Today, Avg Wait) migrated to Analytics view under "Operations" section. Feedback accessible only via "Comments" sidebar. Accept → creates pager + status `preparing`. Ready → status `ready`. Deliver → status `archived`. Print generates 80mm thermal receipt.
 - **Online Ordering Controls**: `storeOpen` toggle takes 100% priority — when manually set to Open, business hours are NOT checked. `onlineOrdersEnabled` toggle separately controls online ordering. All time checks use Asia/Riyadh timezone (UTC+3). During loading, no "closed" banner is shown. Debug `[StoreStatus]` logs printed in both client console and server for diagnostics.
 - **Dual-Layer Legal Compliance**:
   - **Platform Level**: Super Admin manages global terms/privacy, mandatory acceptance on registration.
