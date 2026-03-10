@@ -751,16 +751,16 @@ export default function OrderTrackingPage() {
           {isOnlineOrder && (
             <button
               onClick={handleShareTracking}
-              className="w-full flex items-center justify-center gap-2.5 py-3 px-4 rounded-2xl border border-red-500/20 bg-gradient-to-r from-red-950/30 via-red-900/15 to-red-950/30 active:scale-[0.97] transition-all duration-200"
-              style={{ boxShadow: "0 0 15px rgba(255,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.03)" }}
+              className="w-full flex items-center justify-center gap-3 rounded-2xl border border-red-500/20 bg-gradient-to-r from-red-950/30 via-red-900/15 to-red-950/30 active:scale-[0.97] transition-all duration-200"
+              style={{ padding: "18px 20px", boxShadow: "0 0 15px rgba(255,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.03)" }}
               data-testid="button-share-tracking-pending"
             >
               {navigator.share ? (
-                <Share2 className="w-4 h-4 text-red-400/80" />
+                <Share2 className="w-5 h-5 text-red-400/80 flex-shrink-0" />
               ) : (
-                <Copy className="w-4 h-4 text-red-400/80" />
+                <Copy className="w-5 h-5 text-red-400/80 flex-shrink-0" />
               )}
-              <span className="text-red-400/90 text-[13px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>شارك حالة الطلب مع أحبابك</span>
+              <span className="text-red-400/90 text-[18px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>شارك حالة الطلب مع أحبابك</span>
             </button>
           )}
 
@@ -794,27 +794,27 @@ export default function OrderTrackingPage() {
           </div>
         </div>
 
-        <div className="w-full max-w-xs space-y-3">
+        <div className="w-full max-w-xs space-y-4">
           {bellAutoPlayed && (
             <button
               onClick={stopAlert}
-              className="w-full flex items-center justify-center gap-2.5 py-3.5 px-4 rounded-2xl border-2 border-red-600/40 bg-transparent active:scale-[0.95] transition-all duration-200"
-              style={{ boxShadow: "0 0 20px rgba(255,0,0,0.2)" }}
+              className="w-full flex items-center justify-center gap-3 rounded-2xl border-2 border-red-500/30 bg-transparent active:scale-[0.95] transition-all duration-200"
+              style={{ padding: "18px 20px", boxShadow: "0 0 25px rgba(255,0,0,0.15)" }}
               data-testid="button-stop-alert"
             >
-              <span className="text-lg">🔇</span>
-              <span className="text-white text-sm font-bold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>إيقاف التنبيه</span>
+              <span className="text-xl">🔇</span>
+              <span className="text-white text-[18px] font-bold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>إيقاف التنبيه</span>
             </button>
           )}
           {!bellAutoPlayed && (
             <button
               onClick={handlePlayAlertNow}
-              className="w-full flex items-center justify-center gap-3 py-4 px-6 rounded-2xl border-2 border-red-500/40 bg-gradient-to-r from-red-950/60 via-red-900/30 to-red-950/60 active:scale-[0.95] transition-all duration-200 animate-pulse"
-              style={{ boxShadow: "0 0 30px rgba(255,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.05)" }}
+              className="w-full flex items-center justify-center gap-3 rounded-2xl border-2 border-red-500/30 bg-gradient-to-r from-red-950/60 via-red-900/30 to-red-950/60 active:scale-[0.95] transition-all duration-200 animate-pulse"
+              style={{ padding: "18px 20px", boxShadow: "0 0 25px rgba(255,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.05)" }}
               data-testid="button-bell-prompt"
             >
               <span className="text-2xl">🔔</span>
-              <span className="text-red-400 text-base font-bold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>الطلب صار جاهز ودك تفعل الجرس ؟</span>
+              <span className="text-red-400 text-[18px] font-bold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>الطلب صار جاهز ودك تفعل الجرس ؟</span>
             </button>
           )}
         </div>
@@ -888,23 +888,23 @@ export default function OrderTrackingPage() {
           </div>
         </div>
 
-        <div className="w-full max-w-xs space-y-3">
+        <div className="w-full max-w-xs space-y-4">
           {!bellPrimed && (
             <button
               onClick={handlePrimeBell}
-              className="w-full flex items-center justify-center gap-3 py-4 px-5 rounded-2xl border border-red-500/20 bg-gradient-to-r from-red-950/40 via-red-900/20 to-red-950/40 active:scale-[0.97] transition-all duration-200 animate-pulse"
-              style={{ boxShadow: "0 0 20px rgba(255,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.03)" }}
+              className="w-full flex items-center justify-center gap-3 rounded-2xl border-2 border-red-500/30 bg-gradient-to-r from-red-950/40 via-red-900/20 to-red-950/40 active:scale-[0.97] transition-all duration-200 animate-pulse"
+              style={{ padding: "18px 20px", boxShadow: "0 0 25px rgba(255,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.03)" }}
               data-testid="button-prime-bell"
             >
-              <span className="text-lg">🔔</span>
-              <span className="text-red-400/90 text-[14px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>ودك ننبهك بالجرس ؟</span>
+              <span className="text-xl">🔔</span>
+              <span className="text-red-400/90 text-[18px] font-bold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>ودك ننبهك بالجرس ؟</span>
             </button>
           )}
 
           {bellPrimed && (
-            <div className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl border border-emerald-500/15 bg-emerald-500/5 animate-in fade-in duration-500">
-              <span className="text-sm">✅</span>
-              <span className="text-emerald-400/80 text-xs font-medium" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>تم تفعيل التنبيه</span>
+            <div className="w-full flex items-center justify-center gap-2 rounded-2xl border border-emerald-500/15 bg-emerald-500/5 animate-in fade-in duration-500" style={{ padding: "18px 20px" }}>
+              <span className="text-base">✅</span>
+              <span className="text-emerald-400/80 text-sm font-medium" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>تم تفعيل التنبيه</span>
             </div>
           )}
 
@@ -935,37 +935,37 @@ export default function OrderTrackingPage() {
         </div>
       </div>
 
-      <div className="w-full max-w-xs space-y-3">
+      <div className="w-full max-w-xs space-y-4">
         <button
           onClick={handleShareTracking}
-          className="w-full flex items-center justify-center gap-2.5 py-3 px-4 rounded-2xl border border-red-500/20 bg-gradient-to-r from-red-950/30 via-red-900/15 to-red-950/30 active:scale-[0.97] transition-all duration-200"
-          style={{ boxShadow: "0 0 15px rgba(255,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.03)" }}
+          className="w-full flex items-center justify-center gap-3 rounded-2xl border border-red-500/20 bg-gradient-to-r from-red-950/30 via-red-900/15 to-red-950/30 active:scale-[0.97] transition-all duration-200"
+          style={{ padding: "18px 20px", boxShadow: "0 0 15px rgba(255,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.03)" }}
           data-testid="button-share-tracking"
         >
           {navigator.share ? (
-            <Share2 className="w-4 h-4 text-red-400/80" />
+            <Share2 className="w-5 h-5 text-red-400/80 flex-shrink-0" />
           ) : (
-            <Copy className="w-4 h-4 text-red-400/80" />
+            <Copy className="w-5 h-5 text-red-400/80 flex-shrink-0" />
           )}
-          <span className="text-red-400/90 text-[13px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>شارك حالة الطلب مع أحبابك</span>
+          <span className="text-red-400/90 text-[18px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>شارك حالة الطلب مع أحبابك</span>
         </button>
 
         {!bellPrimed && (
           <button
             onClick={handlePrimeBell}
-            className="w-full flex items-center justify-center gap-3 py-4 px-5 rounded-2xl border border-red-500/20 bg-gradient-to-r from-red-950/40 via-red-900/20 to-red-950/40 active:scale-[0.97] transition-all duration-200 animate-pulse"
-            style={{ boxShadow: "0 0 20px rgba(255,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.03)" }}
+            className="w-full flex items-center justify-center gap-3 rounded-2xl border-2 border-red-500/30 bg-gradient-to-r from-red-950/40 via-red-900/20 to-red-950/40 active:scale-[0.97] transition-all duration-200 animate-pulse"
+            style={{ padding: "18px 20px", boxShadow: "0 0 25px rgba(255,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.03)" }}
             data-testid="button-prime-bell"
           >
-            <span className="text-lg">🔔</span>
-            <span className="text-red-400/90 text-[14px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>ودك ننبهك بصوت الجرس ؟</span>
+            <span className="text-xl">🔔</span>
+            <span className="text-red-400/90 text-[18px] font-bold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>ودك ننبهك بصوت الجرس ؟</span>
           </button>
         )}
 
         {bellPrimed && (
-          <div className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl border border-emerald-500/15 bg-emerald-500/5 animate-in fade-in duration-500">
-            <span className="text-sm">✅</span>
-            <span className="text-emerald-400/80 text-xs font-medium" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>تم تفعيل التنبيه</span>
+          <div className="w-full flex items-center justify-center gap-2 rounded-2xl border border-emerald-500/15 bg-emerald-500/5 animate-in fade-in duration-500" style={{ padding: "18px 20px" }}>
+            <span className="text-base">✅</span>
+            <span className="text-emerald-400/80 text-sm font-medium" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>تم تفعيل التنبيه</span>
           </div>
         )}
 
