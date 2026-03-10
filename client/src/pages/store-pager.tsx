@@ -51,97 +51,6 @@ function usePullToRefresh(onRefresh: () => Promise<void>) {
   return { pullDistance, refreshing, pulling, handleTouchStart, handleTouchMove, handleTouchEnd };
 }
 
-function useAlertSound() {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const audioUnlockedRef = useRef(false);
-
-  const unlock = useCallback(() => {
-    if (audioUnlockedRef.current) return;
-    try {
-      const audio = new Audio("/alert.mp3");
-      audio.loop = true;
-      audio.volume = 0;
-      audio.load();
-      audio.play().then(() => {
-        audio.pause();
-        audio.currentTime = 0;
-        audio.volume = 1.0;
-      }).catch(() => {});
-      audioRef.current = audio;
-      audioUnlockedRef.current = true;
-    } catch (e) {
-      console.warn("Audio unlock failed:", e);
-    }
-  }, []);
-
-  const play = useCallback(() => {
-    try {
-      if (!audioRef.current) {
-        audioRef.current = new Audio("/alert.mp3");
-        audioRef.current.loop = true;
-        audioRef.current.volume = 1.0;
-      }
-      audioRef.current.currentTime = 0;
-      audioRef.current.play().catch((e) => {
-        console.warn("Audio play failed:", e);
-      });
-    } catch (e) {
-      console.warn("Audio playback error:", e);
-    }
-  }, []);
-
-  const stop = useCallback(() => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-    }
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
-      }
-    };
-  }, []);
-
-  return { unlock, play, stop };
-}
-
-function useVibrationLoop() {
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const start = useCallback(() => {
-    if (!("vibrate" in navigator)) return;
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-    }
-    navigator.vibrate([500, 200, 500, 200, 800]);
-    intervalRef.current = setInterval(() => {
-      navigator.vibrate([500, 200, 500, 200, 800]);
-    }, 2200);
-  }, []);
-
-  const stop = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-    if ("vibrate" in navigator) {
-      navigator.vibrate(0);
-    }
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      if ("vibrate" in navigator) navigator.vibrate(0);
-    };
-  }, []);
-
-  return { start, stop };
-}
 
 function StarRatingWidget({
   storeId,
@@ -869,11 +778,56 @@ export default function StorePagerPage() {
   const [alertActive, setAlertActive] = useState(false);
   const [showReview, setShowReview] = useState(false);
   const hasPlayedNotification = useRef(false);
-  const prevPagerStatusRef = useRef<string | null>(null);
   const reviewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { unlock, play, stop: stopSound } = useAlertSound();
-  const { start: startVibration, stop: stopVibration } = useVibrationLoop();
+  const alertSoundRef = useRef<HTMLAudioElement | null>(null);
+  const alertVibrationRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const { isActive: wakeLockActive, isSupported: wakeLockSupported, requestWakeLock, releaseWakeLock } = useWakeLock(false);
+
+  function triggerAlert() {
+    if (hasPlayedNotification.current) return;
+    hasPlayedNotification.current = true;
+    setAlertActive(true);
+    setPagerStatus("notified");
+    try {
+      if (!alertSoundRef.current) {
+        alertSoundRef.current = new Audio("/alert.mp3");
+        alertSoundRef.current.loop = true;
+        alertSoundRef.current.volume = 1.0;
+      }
+      alertSoundRef.current.currentTime = 0;
+      alertSoundRef.current.play().catch(() => {});
+    } catch {}
+    if ("vibrate" in navigator) {
+      navigator.vibrate([500, 200, 500, 200, 800]);
+      alertVibrationRef.current = setInterval(() => {
+        navigator.vibrate([500, 200, 500, 200, 800]);
+      }, 2200);
+    }
+    reviewTimerRef.current = setTimeout(() => {
+      setShowReview(true);
+    }, 2 * 60 * 1000);
+  }
+
+  function stopAlert() {
+    if (alertSoundRef.current) {
+      alertSoundRef.current.pause();
+      alertSoundRef.current.currentTime = 0;
+    }
+    if (alertVibrationRef.current) {
+      clearInterval(alertVibrationRef.current);
+      alertVibrationRef.current = null;
+    }
+    if ("vibrate" in navigator) navigator.vibrate(0);
+    setAlertActive(false);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (alertSoundRef.current) { alertSoundRef.current.pause(); alertSoundRef.current.currentTime = 0; }
+      if (alertVibrationRef.current) clearInterval(alertVibrationRef.current);
+      if ("vibrate" in navigator) navigator.vibrate(0);
+    };
+  }, []);
 
   const sessionKey = storeId ? `dp-session-${storeId}` : "";
 
@@ -926,26 +880,11 @@ export default function StorePagerPage() {
     const snap = await getDocs(q);
     if (!snap.empty) {
       const pager = snap.docs[0].data() as Pager;
-      const prevStatus = prevPagerStatusRef.current;
-      prevPagerStatusRef.current = pager.status;
-      if (
-        pager.status === "notified" &&
-        !hasPlayedNotification.current &&
-        prevStatus === "waiting"
-      ) {
-        hasPlayedNotification.current = true;
-        setPagerStatus("notified");
-        setAlertActive(true);
-        play();
-        startVibration();
-        reviewTimerRef.current = setTimeout(() => {
-          setShowReview(true);
-        }, 2 * 60 * 1000);
-      } else if (pager.status === "notified") {
+      if (pager.status === "notified") {
         setPagerStatus("notified");
       }
     }
-  }, [storeId, orderNumber, submitted, play, startVibration]);
+  }, [storeId, orderNumber, submitted]);
 
   const pullProps = usePullToRefresh(handlePullRefresh);
 
@@ -995,53 +934,51 @@ export default function StorePagerPage() {
       where("status", "in", ["waiting", "notified"])
     );
 
-    let firstSnapshot = true;
+    let prevStatus: string | null = null;
+    let isFirstSnapshot = true;
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (snapshot.empty) {
-        if (!firstSnapshot) {
+        if (!isFirstSnapshot) {
           setSubmitted(false);
           setOrderNumber("");
           setPagerStatus("waiting");
-          prevPagerStatusRef.current = null;
           if (sessionKey) localStorage.removeItem(sessionKey);
         }
-        firstSnapshot = false;
+        isFirstSnapshot = false;
         return;
       }
-      const wasFirstSnapshot = firstSnapshot;
-      firstSnapshot = false;
 
       const pagerDoc = snapshot.docs[0];
       const pager = pagerDoc.data() as Pager;
-      const prevStatus = prevPagerStatusRef.current;
-      prevPagerStatusRef.current = pager.status;
+      const currentStatus = pager.status;
 
-      if (
-        pager.status === "notified" &&
-        !hasPlayedNotification.current &&
-        !wasFirstSnapshot &&
-        prevStatus === "waiting"
-      ) {
-        hasPlayedNotification.current = true;
-        setPagerStatus("notified");
-        setAlertActive(true);
-        play();
-        startVibration();
+      if (isFirstSnapshot) {
+        prevStatus = currentStatus;
+        isFirstSnapshot = false;
+        if (currentStatus === "notified") {
+          setPagerStatus("notified");
+        } else {
+          setPagerStatus("waiting");
+        }
+        return;
+      }
 
-        reviewTimerRef.current = setTimeout(() => {
-          setShowReview(true);
-        }, 2 * 60 * 1000);
-      } else if (pager.status === "notified") {
+      if (currentStatus === "notified" && prevStatus === "waiting") {
+        triggerAlert();
+      } else if (currentStatus === "notified") {
         setPagerStatus("notified");
-      } else if (pager.status === "waiting") {
+      } else if (currentStatus === "waiting") {
         setPagerStatus("waiting");
       }
+
+      prevStatus = currentStatus;
     }, (error) => {
       console.error("Pager listener error:", error);
     });
 
     return () => unsubscribe();
-  }, [submitted, storeId, orderNumber, play, startVibration, sessionKey]);
+  }, [submitted, storeId, orderNumber, sessionKey]);
 
   useEffect(() => {
     return () => {
@@ -1054,10 +991,8 @@ export default function StorePagerPage() {
     setSubmitted(true);
     setPagerStatus("waiting");
     hasPlayedNotification.current = false;
-    prevPagerStatusRef.current = "waiting";
     setShowReview(false);
     setAlertActive(false);
-    unlock();
     requestWakeLock();
 
     if (sessionKey) {
@@ -1101,9 +1036,7 @@ export default function StorePagerPage() {
   }
 
   function handleStopAlert() {
-    stopSound();
-    stopVibration();
-    setAlertActive(false);
+    stopAlert();
     releaseWakeLock();
     if (sessionKey) {
       localStorage.removeItem(sessionKey);

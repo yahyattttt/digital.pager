@@ -1,73 +1,11 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams } from "wouter";
-import { doc, onSnapshot, collection, query, where } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Store, AlertTriangle, BellOff, Clock, CheckCircle, Loader2 } from "lucide-react";
-import type { WhatsAppOrder, Merchant } from "@shared/schema";
-
-function useAlertSound() {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const audioUnlockedRef = useRef(false);
-
-  const unlock = useCallback(() => {
-    if (audioUnlockedRef.current) return;
-    try {
-      const audio = new Audio("/alert.mp3");
-      audio.loop = true;
-      audio.volume = 0;
-      audio.load();
-      audio.play().then(() => { audio.pause(); audio.currentTime = 0; audio.volume = 1.0; }).catch(() => {});
-      audioRef.current = audio;
-      audioUnlockedRef.current = true;
-    } catch {}
-  }, []);
-
-  const play = useCallback(() => {
-    try {
-      if (!audioRef.current) {
-        audioRef.current = new Audio("/alert.mp3");
-        audioRef.current.loop = true;
-        audioRef.current.volume = 1.0;
-      }
-      audioRef.current.currentTime = 0;
-      audioRef.current.play().catch(() => {});
-    } catch {}
-  }, []);
-
-  const stop = useCallback(() => {
-    if (audioRef.current) { audioRef.current.pause(); audioRef.current.currentTime = 0; }
-  }, []);
-
-  useEffect(() => {
-    return () => { if (audioRef.current) { audioRef.current.pause(); audioRef.current.currentTime = 0; } };
-  }, []);
-
-  return { unlock, play, stop };
-}
-
-function useVibrationLoop() {
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const start = useCallback(() => {
-    if (!("vibrate" in navigator)) return;
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    navigator.vibrate([500, 200, 500, 200, 800]);
-    intervalRef.current = setInterval(() => { navigator.vibrate([500, 200, 500, 200, 800]); }, 2200);
-  }, []);
-
-  const stop = useCallback(() => {
-    if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
-    if ("vibrate" in navigator) navigator.vibrate(0);
-  }, []);
-
-  useEffect(() => {
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); if ("vibrate" in navigator) navigator.vibrate(0); };
-  }, []);
-
-  return { start, stop };
-}
+import type { WhatsAppOrder } from "@shared/schema";
 
 function PagerDevice({ orderNumber, isReady }: { orderNumber: string; isReady: boolean }) {
   const leds = Array.from({ length: 12 }, (_, i) => {
@@ -116,13 +54,53 @@ export default function OrderTrackingPage() {
   const [notFound, setNotFound] = useState(false);
   const [alertActive, setAlertActive] = useState(false);
   const hasPlayedAlert = useRef(false);
-  const isFirstSnapshot = useRef(true);
-  const prevStatusRef = useRef<string | null>(null);
 
-  const { unlock, play, stop: stopSound } = useAlertSound();
-  const { start: startVibration, stop: stopVibration } = useVibrationLoop();
+  const alertSoundRef = useRef<HTMLAudioElement | null>(null);
+  const vibrationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const merchantId = new URLSearchParams(window.location.search).get("m") || "";
+
+  function playAlert() {
+    if (hasPlayedAlert.current) return;
+    hasPlayedAlert.current = true;
+    setAlertActive(true);
+    try {
+      if (!alertSoundRef.current) {
+        alertSoundRef.current = new Audio("/alert.mp3");
+        alertSoundRef.current.loop = true;
+        alertSoundRef.current.volume = 1.0;
+      }
+      alertSoundRef.current.currentTime = 0;
+      alertSoundRef.current.play().catch(() => {});
+    } catch {}
+    if ("vibrate" in navigator) {
+      navigator.vibrate([500, 200, 500, 200, 800]);
+      vibrationIntervalRef.current = setInterval(() => {
+        navigator.vibrate([500, 200, 500, 200, 800]);
+      }, 2200);
+    }
+  }
+
+  function stopAlert() {
+    if (alertSoundRef.current) {
+      alertSoundRef.current.pause();
+      alertSoundRef.current.currentTime = 0;
+    }
+    if (vibrationIntervalRef.current) {
+      clearInterval(vibrationIntervalRef.current);
+      vibrationIntervalRef.current = null;
+    }
+    if ("vibrate" in navigator) navigator.vibrate(0);
+    setAlertActive(false);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (alertSoundRef.current) { alertSoundRef.current.pause(); alertSoundRef.current.currentTime = 0; }
+      if (vibrationIntervalRef.current) clearInterval(vibrationIntervalRef.current);
+      if ("vibrate" in navigator) navigator.vibrate(0);
+    };
+  }, []);
 
   useEffect(() => {
     if (!orderId || !merchantId) { setNotFound(true); setLoading(false); return; }
@@ -145,7 +123,9 @@ export default function OrderTrackingPage() {
 
   useEffect(() => {
     if (!orderId || !merchantId) return;
-    unlock();
+
+    let prevStatus: string | null = null;
+    let isFirstSnapshot = true;
 
     const docRef = doc(db, "merchants", merchantId, "whatsappOrders", orderId);
     const unsub = onSnapshot(docRef, (snap) => {
@@ -169,32 +149,26 @@ export default function OrderTrackingPage() {
       };
       setOrder(updatedOrder);
 
-      const prevStatus = prevStatusRef.current;
       const currentStatus = updatedOrder.status;
-      const firstLoad = isFirstSnapshot.current;
-      isFirstSnapshot.current = false;
-      prevStatusRef.current = currentStatus;
 
-      if (
-        currentStatus === "ready" &&
-        !hasPlayedAlert.current &&
-        !firstLoad &&
-        prevStatus === "preparing"
-      ) {
-        hasPlayedAlert.current = true;
-        setAlertActive(true);
-        play();
-        startVibration();
+      if (isFirstSnapshot) {
+        prevStatus = currentStatus;
+        isFirstSnapshot = false;
+        return;
       }
+
+      if (currentStatus === "ready" && prevStatus === "preparing") {
+        playAlert();
+      }
+
+      prevStatus = currentStatus;
     });
 
     return () => unsub();
-  }, [orderId, merchantId, unlock, play, startVibration]);
+  }, [orderId, merchantId]);
 
   function handleStopAlert() {
-    stopSound();
-    stopVibration();
-    setAlertActive(false);
+    stopAlert();
   }
 
   if (loading) {
