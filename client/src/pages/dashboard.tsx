@@ -81,6 +81,7 @@ import {
   Timer,
   ScanLine,
   Activity,
+  Banknote,
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
@@ -382,7 +383,7 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!merchant?.uid) return;
     const ordersRef = collection(db, "merchants", merchant.uid, "whatsappOrders");
-    const q = query(ordersRef, where("status", "==", "awaiting_confirmation"));
+    const q = query(ordersRef, where("status", "in", ["pending_verification", "awaiting_confirmation"]));
     const unsub = onSnapshot(q, (snap) => {
       const orders: WhatsAppOrder[] = snap.docs.map(d => {
         const data = d.data();
@@ -393,7 +394,8 @@ export default function DashboardPage() {
           customerPhone: data.customerPhone || "",
           items: (data.items || []).map((item: any) => ({ productId: item.productId || "", name: item.name || "", price: item.price || 0, quantity: item.quantity || 1 })),
           total: data.total || 0,
-          status: data.status || "awaiting_confirmation",
+          status: data.status || "pending_verification",
+          paymentMethod: data.paymentMethod || "cod",
           orderNumber: data.orderNumber || "",
           createdAt: data.createdAt || "",
         };
@@ -409,7 +411,7 @@ export default function DashboardPage() {
           waOrderAudioRef.current.play().catch(() => {});
           setTimeout(() => { waOrderAudioRef.current?.pause(); }, 3000);
         } catch {}
-        toast({ title: t("طلب جديد!", "New Order!"), description: t("وصل طلب واتساب جديد", "New WhatsApp order received") });
+        toast({ title: t("طلب جديد!", "New Order!"), description: t("وصل طلب أونلاين جديد", "New online order received") });
       }
       prevWhatsappCountRef.current = orders.length;
       setWhatsappOrders(orders);
@@ -432,6 +434,7 @@ export default function DashboardPage() {
           items: (data.items || []).map((item: any) => ({ productId: item.productId || "", name: item.name || "", price: item.price || 0, quantity: item.quantity || 1 })),
           total: data.total || 0,
           status: data.status || "preparing",
+          paymentMethod: data.paymentMethod || "cod",
           orderNumber: data.orderNumber || "",
           createdAt: data.createdAt || "",
         };
@@ -1715,13 +1718,39 @@ function OverviewView({
                 return (
                   <div
                     key={`wa-new-${item.id}`}
-                    className="bg-[#111] border border-emerald-500/20 rounded-xl p-4 flex flex-col items-center justify-between gap-2"
+                    className="bg-[#111] border border-emerald-500/20 rounded-xl p-4 flex flex-col gap-2"
                     data-testid={`card-wa-order-${item.id}`}
                   >
                     <div className="text-center">
                       <p className="text-[10px] text-emerald-400 font-bold uppercase mb-1">{t("طلب جديد", "NEW")}</p>
-                      <p className="text-xs text-white/60 truncate max-w-[100px]">{order.customerName}</p>
+                      <p className="text-xs text-white/80 font-medium truncate max-w-[120px] mx-auto" data-testid={`text-customer-name-${item.id}`}>{order.customerName}</p>
+                      <p className="text-[10px] text-white/40 mt-0.5 font-mono" dir="ltr" data-testid={`text-customer-phone-${item.id}`}>{order.customerPhone}</p>
                       <p className="text-[10px] text-white/30 mt-0.5">{order.items.length} {t("عناصر", "items")} · {order.total.toFixed(0)} SAR</p>
+                      <div className="flex items-center justify-center gap-1 mt-1">
+                        <Banknote className="w-3 h-3 text-amber-400" />
+                        <span className="text-[9px] text-amber-400 font-medium">{t("دفع عند الاستلام", "COD")}</span>
+                      </div>
+                    </div>
+                    <div className="flex gap-1.5">
+                      <Button
+                        size="sm"
+                        onClick={() => window.open(`tel:${order.customerPhone}`, "_self")}
+                        className="flex-1 h-8 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 text-[10px] font-bold rounded-lg border border-blue-500/20"
+                        data-testid={`button-call-${item.id}`}
+                      >
+                        <Phone className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          const phone = order.customerPhone.replace(/[^0-9]/g, "");
+                          window.open(`https://wa.me/${phone}`, "_blank");
+                        }}
+                        className="flex-1 h-8 bg-green-600/20 hover:bg-green-600/30 text-green-400 text-[10px] font-bold rounded-lg border border-green-500/20"
+                        data-testid={`button-whatsapp-${item.id}`}
+                      >
+                        <MessageCircle className="w-3 h-3" />
+                      </Button>
                     </div>
                     <Button
                       onClick={() => onAcceptWhatsAppOrder(order)}
@@ -1729,7 +1758,7 @@ function OverviewView({
                       className="w-full h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg"
                       data-testid={`button-accept-order-${item.id}`}
                     >
-                      {acceptingOrderId === order.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : t("قبول", "Accept")}
+                      {acceptingOrderId === order.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : t("قبول الطلب", "Accept Order")}
                     </Button>
                   </div>
                 );

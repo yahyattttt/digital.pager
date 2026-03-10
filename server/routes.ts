@@ -1904,7 +1904,8 @@ export async function registerRoutes(
         customerPhone: { stringValue: customerPhone },
         items: { arrayValue: { values: itemsArray } },
         total: { doubleValue: total || 0 },
-        status: { stringValue: "awaiting_confirmation" },
+        status: { stringValue: "pending_verification" },
+        paymentMethod: { stringValue: "cod" },
         createdAt: { stringValue: new Date().toISOString() },
       };
 
@@ -1954,7 +1955,8 @@ export async function registerRoutes(
           customerPhone: f.customerPhone?.stringValue || "",
           items,
           total: f.total?.doubleValue ?? parseFloat(f.total?.integerValue || "0"),
-          status: f.status?.stringValue || "awaiting_confirmation",
+          status: f.status?.stringValue || "pending_verification",
+          paymentMethod: f.paymentMethod?.stringValue || "cod",
           orderNumber: f.orderNumber?.stringValue || "",
           createdAt: f.createdAt?.stringValue || "",
         };
@@ -2043,7 +2045,8 @@ export async function registerRoutes(
         customerPhone: f.customerPhone?.stringValue || "",
         items,
         total: f.total?.doubleValue ?? parseFloat(f.total?.integerValue || "0"),
-        status: f.status?.stringValue || "awaiting_confirmation",
+        status: f.status?.stringValue || "pending_verification",
+        paymentMethod: f.paymentMethod?.stringValue || "cod",
         orderNumber: f.orderNumber?.stringValue || "",
         createdAt: f.createdAt?.stringValue || "",
       };
@@ -2059,6 +2062,7 @@ export async function registerRoutes(
         merchant = {
           storeName: mf.storeName?.stringValue || "",
           logoUrl: mf.logoUrl?.stringValue || "",
+          googleMapsReviewUrl: mf.googleMapsReviewUrl?.stringValue || "",
         };
       }
 

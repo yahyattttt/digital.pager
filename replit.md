@@ -28,11 +28,16 @@ The platform is a multi-tenant SaaS application with isolated merchant data in F
   - **OrderSelectionScreen**: Real-time grid of active waiting orders. Tapping confirms order, saves to `localStorage` (4-hour TTL). Notified state shows "ORDER READY!", neon pulse, "Get Directions" button, and vibration/sound alerts. Review/share UI appears post-notification.
   - All screens use `h-[100dvh]` and pull-to-refresh.
 - **Product Management Form**: RTL-aligned form with dynamic Variant/Sizes and Add-ons/Extras management.
-- **Direct Ordering System (WhatsApp)**: Merchants manage products in a "Digital Menu." Public menu displays products.
+- **Direct Ordering System (Cash on Delivery)**: Merchants manage products in a "Digital Menu." Public menu displays products.
   - **Product Selection Modal**: Allows selection of variants, add-ons, and quantity with real-time price calculation.
-  - **Checkout**: Shows cart items with variant/add-on details, quantity controls.
-  - **WhatsApp message**: Formatted order sent via WhatsApp, order tracked in Firestore.
-  - **Tracking Page**: Shows real-time order status (awaiting, preparing, ready).
+  - **Checkout**: Shows cart items with variant/add-on details, quantity controls, payment method display ("الدفع عند الاستلام" / Cash on Delivery), store legal terms acceptance.
+  - **Order submission**: Creates order directly in Firestore with `status: pending_verification`, `paymentMethod: "cod"`. Redirects to tracking page (no WhatsApp redirect).
+  - **Tracking Page**: Shows real-time order status flow: `pending_verification` → `preparing` → `ready` → `archived`.
+    - **Pending Verification**: Shows success message, "wait for call/WhatsApp from store" notice, Order ID, payment method badge, order details.
+    - **Preparing**: Digital Pager device with LED ring animation, "جاري التحضير" status.
+    - **Ready**: Full pager alert with sound/vibration, "الطلب جاهز" / "ORDER READY!".
+    - **Completed/Archived**: Thank You screen with "Rate us on Google Maps" button (uses merchant's `googleMapsReviewUrl`).
+  - **Merchant Dashboard**: New order cards show customer name, phone, "COD" badge, Call/WhatsApp buttons, and Accept button. Accept triggers pager creation + status → `preparing`.
 - **Online Ordering Controls**: Merchants control order availability via a master toggle (`onlineOrdersEnabled`) and business hours (`businessOpenTime`/`businessCloseTime`). Client and server-side enforcement.
 - **Dual-Layer Legal Compliance**:
   - **Platform Level**: Super Admin manages global terms/privacy, mandatory acceptance on registration.

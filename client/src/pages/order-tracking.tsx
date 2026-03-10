@@ -4,7 +4,7 @@ import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Store, AlertTriangle, BellOff, Clock, CheckCircle, Loader2 } from "lucide-react";
+import { Store, AlertTriangle, BellOff, Clock, CheckCircle, Loader2, Star, Banknote, Phone, MessageCircle } from "lucide-react";
 import type { WhatsAppOrder } from "@shared/schema";
 
 function PagerDevice({ orderNumber, isReady }: { orderNumber: string; isReady: boolean }) {
@@ -49,7 +49,7 @@ export default function OrderTrackingPage() {
   const params = useParams<{ orderId: string }>();
   const orderId = params.orderId;
   const [order, setOrder] = useState<WhatsAppOrder | null>(null);
-  const [merchant, setMerchant] = useState<{ storeName: string; logoUrl: string } | null>(null);
+  const [merchant, setMerchant] = useState<{ storeName: string; logoUrl: string; googleMapsReviewUrl?: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [alertActive, setAlertActive] = useState(false);
@@ -209,7 +209,8 @@ export default function OrderTrackingPage() {
           quantity: item.quantity || 1,
         })),
         total: data.total || 0,
-        status: data.status || "awaiting_confirmation",
+        status: data.status || "pending_verification",
+        paymentMethod: data.paymentMethod || "cod",
         orderNumber: data.orderNumber || "",
         createdAt: data.createdAt || "",
       };
@@ -271,24 +272,50 @@ export default function OrderTrackingPage() {
     );
   }
 
-  if (order.status === "awaiting_confirmation") {
+  if (order.status === "pending_verification" || order.status === "awaiting_confirmation") {
     return (
       <div className="h-[100dvh] flex flex-col items-center justify-center px-5 text-center" style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }} data-testid="tracking-awaiting-screen">
-        <div className="w-full flex-shrink-0 mb-4">
+        <div className="w-full flex-shrink-0 mb-6">
           <h2 className="text-white/90 text-sm font-bold tracking-[0.3em] uppercase mb-1" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>DIGITAL PAGER</h2>
           {merchant && <p className="text-red-500/60 text-xs tracking-widest uppercase">{merchant.storeName}</p>}
         </div>
 
-        <div className="flex flex-col items-center gap-6">
-          <div className="w-20 h-20 rounded-full border-2 border-amber-500/30 bg-amber-500/5 flex items-center justify-center" style={{ boxShadow: "0 0 30px rgba(245,158,11,0.08)" }}>
-            <Clock className="w-10 h-10 text-amber-500/60 animate-pulse" />
-          </div>
-          <div>
-            <p className="text-amber-400 text-lg font-bold" dir="rtl" data-testid="text-awaiting-message">في انتظار تأكيد المتجر...</p>
-            <p className="text-white/50 text-sm mt-1.5" data-testid="text-awaiting-hint">Waiting for Merchant to Confirm...</p>
+        <div className="flex flex-col items-center gap-5 w-full max-w-sm">
+          <div className="w-20 h-20 rounded-full border-2 border-emerald-500/30 bg-emerald-500/5 flex items-center justify-center" style={{ boxShadow: "0 0 30px rgba(16,185,129,0.08)" }}>
+            <CheckCircle className="w-10 h-10 text-emerald-500/70 animate-pulse" />
           </div>
 
-          <div className="mt-4 p-4 rounded-xl bg-zinc-900/40 border border-zinc-800/30 w-full max-w-xs text-left">
+          <div>
+            <p className="text-emerald-400 text-lg font-bold" dir="rtl" data-testid="text-awaiting-message">تم إرسال طلبك بنجاح!</p>
+            <p className="text-white/50 text-sm mt-1.5" data-testid="text-awaiting-hint">Your order has been submitted successfully!</p>
+          </div>
+
+          <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/15 w-full" data-testid="verification-message">
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <Phone className="w-4 h-4 text-amber-400" />
+              <MessageCircle className="w-4 h-4 text-amber-400" />
+            </div>
+            <p className="text-amber-400/90 text-sm leading-relaxed" dir="rtl">
+              يرجى انتظار اتصال أو رسالة واتساب من المتجر للتحقق من هويتك وقبول الطلب.
+            </p>
+            <p className="text-white/40 text-[11px] mt-2">
+              Please wait for a call or WhatsApp message from the store to verify your identity and accept the order.
+            </p>
+          </div>
+
+          <div className="p-3 rounded-xl bg-zinc-900/40 border border-zinc-800/30 w-full">
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <span className="text-white/30 text-[10px] uppercase tracking-wider">Order ID</span>
+            </div>
+            <p className="text-white/70 text-sm font-mono text-center" data-testid="text-order-id">{orderId}</p>
+          </div>
+
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
+            <Banknote className="w-4 h-4 text-emerald-400" />
+            <span className="text-emerald-400 text-xs font-medium" dir="rtl">الدفع عند الاستلام</span>
+          </div>
+
+          <div className="p-4 rounded-xl bg-zinc-900/40 border border-zinc-800/30 w-full text-left">
             <p className="text-white/50 text-xs mb-2" dir="rtl">تفاصيل الطلب:</p>
             {order.items.map((item, i) => (
               <div key={i} className="flex justify-between text-white/40 text-xs py-0.5">
@@ -300,6 +327,11 @@ export default function OrderTrackingPage() {
               <span dir="rtl">المجموع</span>
               <span>{order.total.toFixed(2)} SAR</span>
             </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+            <span className="text-white/30 text-xs" data-testid="text-live-status">Live Status</span>
           </div>
         </div>
       </div>
@@ -354,6 +386,16 @@ export default function OrderTrackingPage() {
             <p className="text-white/50 text-sm mt-4">We hope to see you again soon!</p>
             <p className="text-white/40 text-sm mt-0.5" dir="rtl">نراك قريباً!</p>
           </div>
+          {merchant?.googleMapsReviewUrl && (
+            <Button
+              onClick={() => window.open(merchant.googleMapsReviewUrl, "_blank")}
+              className="mt-2 h-12 px-6 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 rounded-xl font-bold text-sm gap-2"
+              data-testid="button-rate-google-maps"
+            >
+              <Star className="w-5 h-5" />
+              <span dir="rtl">قيّمنا على جوجل ماب</span>
+            </Button>
+          )}
           {merchant && (
             <p className="text-white/20 text-xs mt-2">{merchant.storeName}</p>
           )}

@@ -3,8 +3,7 @@ import { useParams } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Store, ShoppingCart, Plus, Minus, X, AlertTriangle, Loader2, Check, ArrowLeft, Clock } from "lucide-react";
-import { SiWhatsapp } from "react-icons/si";
+import { Store, ShoppingCart, Plus, Minus, X, AlertTriangle, Loader2, Check, ArrowLeft, Clock, Banknote } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Product, ProductVariant, ProductAddon } from "@shared/schema";
 
@@ -44,7 +43,6 @@ export default function PublicMenuPage() {
   const [showCheckout, setShowCheckout] = useState(false);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
-  const [pledgeAccepted, setPledgeAccepted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [, setTimeTick] = useState(0);
 
@@ -227,7 +225,7 @@ export default function PublicMenuPage() {
   }
 
   async function handleConfirmOrder() {
-    if (!merchantId || !customerName.trim() || !customerPhone.trim() || !pledgeAccepted || cart.length === 0) return;
+    if (!merchantId || !customerName.trim() || !customerPhone.trim() || cart.length === 0) return;
     if (merchant?.storeTermsEnabled && !storeTermsAccepted) return;
     if (orderingDisabled) {
       toast({ title: "عذراً", description: closedInfo.messageAr || "Online ordering unavailable", variant: "destructive" });
@@ -258,29 +256,7 @@ export default function PublicMenuPage() {
       const data = await res.json();
       const orderId = data.orderId;
 
-      const trackingUrl = `${window.location.origin}/track/${orderId}?m=${merchantId}`;
-      let whatsappMsg = `🛒 *طلب جديد - New Order*\n\n`;
-      whatsappMsg += `👤 ${customerName.trim()}\n📱 ${customerPhone.trim()}\n\n`;
-      whatsappMsg += `📋 *تفاصيل الطلب:*\n`;
-      cart.forEach(item => {
-        let line = `• ${item.product.name}`;
-        if (item.selectedVariant) line += ` (${item.selectedVariant.name})`;
-        if (item.selectedAddons.length > 0) line += ` + ${item.selectedAddons.map(a => a.name).join(", ")}`;
-        line += ` × ${item.quantity} = ${(item.itemPrice * item.quantity).toFixed(2)} SAR`;
-        whatsappMsg += line + `\n`;
-      });
-      whatsappMsg += `\n💰 *المجموع: ${cartTotal.toFixed(2)} SAR*\n\n`;
-      whatsappMsg += `🔗 *رابط التتبع:*\n${trackingUrl}\n\n`;
-      whatsappMsg += `⚠️ تم التعهد بالاستلام من الفرع`;
-
-      const whatsappNumber = merchant?.whatsappNumber?.replace(/[^0-9]/g, "") || "";
-      const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(whatsappMsg)}`;
-
-      window.open(whatsappUrl, "_blank");
-
-      setTimeout(() => {
-        window.location.href = `/track/${orderId}?m=${merchantId}`;
-      }, 1000);
+      window.location.href = `/track/${orderId}?m=${merchantId}`;
     } catch {
       toast({ title: "خطأ", description: "Failed to create order", variant: "destructive" });
       setSubmitting(false);
@@ -412,23 +388,18 @@ export default function PublicMenuPage() {
             </div>
           </div>
 
-          <label className="flex items-start gap-3 p-4 rounded-xl bg-zinc-900/40 border border-zinc-800/30 cursor-pointer mb-4" data-testid="label-pledge">
-            <input
-              type="checkbox"
-              checked={pledgeAccepted}
-              onChange={(e) => setPledgeAccepted(e.target.checked)}
-              className="mt-1 w-5 h-5 rounded border-red-600/50 text-red-600 focus:ring-red-500 bg-transparent accent-red-600"
-              data-testid="checkbox-pledge"
-            />
-            <div>
-              <p className="text-white/80 text-sm leading-relaxed" dir="rtl">
-                أتعهد باستلام طلبي من الفرع لكونه غير مدفوع إلكترونياً
-              </p>
-              <p className="text-white/30 text-[11px] mt-1">
-                I pledge to pick up my order from the branch as it is not paid online
-              </p>
+          <div className="p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/15 mb-4" data-testid="payment-method-display">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center flex-shrink-0">
+                <Banknote className="w-5 h-5 text-emerald-400" />
+              </div>
+              <div>
+                <p className="text-emerald-400 text-sm font-bold" dir="rtl">طريقة الدفع</p>
+                <p className="text-white/80 text-base font-bold mt-0.5" dir="rtl" data-testid="text-payment-method">الدفع عند الاستلام</p>
+                <p className="text-white/30 text-[11px] mt-0.5">Cash on Delivery</p>
+              </div>
             </div>
-          </label>
+          </div>
 
           {merchant.storeTermsEnabled && (
             <label className="flex items-start gap-3 p-4 rounded-xl bg-zinc-900/40 border border-zinc-800/30 cursor-pointer mb-6" data-testid="label-store-terms">
@@ -470,17 +441,17 @@ export default function PublicMenuPage() {
 
           <Button
             onClick={handleConfirmOrder}
-            disabled={!customerName.trim() || !customerPhone.trim() || !pledgeAccepted || (merchant.storeTermsEnabled && !storeTermsAccepted) || submitting}
-            className="w-full h-14 text-base font-bold bg-green-600 hover:bg-green-700 text-white disabled:opacity-30 rounded-xl gap-2"
-            style={{ boxShadow: "0 0 25px rgba(34,197,94,0.15)" }}
-            data-testid="button-confirm-whatsapp"
+            disabled={!customerName.trim() || !customerPhone.trim() || (merchant.storeTermsEnabled && !storeTermsAccepted) || submitting}
+            className="w-full h-14 text-base font-bold bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-30 rounded-xl gap-2"
+            style={{ boxShadow: "0 0 25px rgba(16,185,129,0.15)" }}
+            data-testid="button-confirm-order"
           >
             {submitting ? (
               <Loader2 className="w-5 h-5 animate-spin" />
             ) : (
-              <SiWhatsapp className="w-5 h-5" />
+              <Check className="w-5 h-5" />
             )}
-            <span dir="rtl">{submitting ? "جاري الإرسال..." : "تأكيد وإرسال عبر واتساب"}</span>
+            <span dir="rtl">{submitting ? "جاري إرسال الطلب..." : "تأكيد الطلب"}</span>
           </Button>
         </div>
 

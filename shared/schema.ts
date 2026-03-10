@@ -29,7 +29,7 @@ export const businessTypeLabels: Record<string, string> = {
 export const pagerStatusEnum = z.enum(["waiting", "notified", "completed"]);
 export type PagerStatus = z.infer<typeof pagerStatusEnum>;
 
-export const whatsappOrderStatusEnum = z.enum(["awaiting_confirmation", "preparing", "ready", "completed"]);
+export const whatsappOrderStatusEnum = z.enum(["pending_verification", "awaiting_confirmation", "preparing", "ready", "completed", "archived"]);
 export type WhatsAppOrderStatus = z.infer<typeof whatsappOrderStatusEnum>;
 
 export const productVariantSchema = z.object({
@@ -82,7 +82,8 @@ export const whatsappOrderSchema = z.object({
   customerPhone: z.string().min(5),
   items: z.array(whatsappOrderItemSchema).min(1),
   total: z.number().min(0),
-  status: whatsappOrderStatusEnum.default("awaiting_confirmation"),
+  status: whatsappOrderStatusEnum.default("pending_verification"),
+  paymentMethod: z.string().default("cod"),
   orderNumber: z.string().optional(),
   createdAt: z.string(),
 });
