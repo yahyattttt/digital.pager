@@ -195,6 +195,7 @@ function Router() {
       <Route path="/s/:storeId" component={StorePagerPage} />
       <Route path="/menu/:merchantId" component={PublicMenuPage} />
       <Route path="/track/:orderId" component={OrderTrackingPage} />
+      <Route path="/track" component={OrderTrackingPage} />
       <Route component={NotFound} />
     </Switch>
   );
