@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, TouchEvent as ReactTouchEvent } from "react";
 import { useParams } from "wouter";
-import { doc, getDoc, getDocs, setDoc, updateDoc, collection, query, where, onSnapshot } from "firebase/firestore";
+import { doc, getDoc, getDocs, setDoc, updateDoc, collection, query, where, onSnapshot, orderBy, limit } from "firebase/firestore";
 import { db, requestFCMToken } from "@/lib/firebase";
 import type { Merchant, Pager } from "@shared/schema";
 import { Button } from "@/components/ui/button";
@@ -830,7 +830,19 @@ export default function StorePagerPage() {
   const sessionKey = storeId ? `dp-session-${storeId}` : "";
 
   useEffect(() => {
+    if (!storeId) return;
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get("new") === "true") {
+      if (sessionKey) localStorage.removeItem(sessionKey);
+      window.history.replaceState({}, "", window.location.pathname);
+      return;
+    }
+  }, [storeId, sessionKey]);
+
+  useEffect(() => {
     if (!sessionKey || !storeId) return;
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get("new") === "true") return;
     const saved = localStorage.getItem(sessionKey);
     if (!saved) return;
     try {
@@ -845,20 +857,20 @@ export default function StorePagerPage() {
         return;
       }
       const pagersRef = collection(db, "merchants", storeId, "pagers");
-      const q = query(
-        pagersRef,
-        where("orderNumber", "==", parsed.orderNumber),
-        where("status", "in", ["waiting", "notified"])
-      );
+      const q = query(pagersRef, where("orderNumber", "==", parsed.orderNumber), orderBy("createdAt", "desc"), limit(1));
       getDocs(q).then((snap) => {
-        if (!snap.empty) {
-          setOrderNumber(parsed.orderNumber);
-          setSubmitted(true);
-          const pager = snap.docs[0].data() as Pager;
-          setPagerStatus(pager.status === "notified" ? "notified" : "waiting");
-        } else {
+        if (snap.empty) {
           localStorage.removeItem(sessionKey);
+          return;
         }
+        const pager = snap.docs[0].data() as Pager;
+        if (pager.status === "completed" || pager.status === "cancelled") {
+          localStorage.removeItem(sessionKey);
+          return;
+        }
+        setOrderNumber(parsed.orderNumber);
+        setSubmitted(true);
+        setPagerStatus(pager.status === "notified" ? "notified" : "waiting");
       }).catch(() => {
         localStorage.removeItem(sessionKey);
       });
