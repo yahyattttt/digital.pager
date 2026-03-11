@@ -362,7 +362,6 @@ function SubscriptionProgress({
 }
 
 export default function DashboardPage() {
-  console.log("[Dashboard] Loaded");
   const [, setLocation] = useLocation();
   const { merchant, logout } = useAuth();
   const { t, toggleLanguage, lang, isRTL } = useLanguage();

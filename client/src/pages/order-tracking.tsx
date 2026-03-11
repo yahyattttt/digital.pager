@@ -803,10 +803,8 @@ export default function OrderTrackingPage() {
 
     const collectionName = trackingType === "pager" ? "pagers" : "whatsappOrders";
     const docRef = doc(db, "merchants", merchantId, collectionName, orderId);
-    console.log("[OrderTracking] Setting up Firestore listener for:", `merchants/${merchantId}/${collectionName}/${orderId}`);
     const unsub = onSnapshot(docRef, (snap) => {
       if (!snap.exists()) {
-        console.log("[OrderTracking] Document does not exist in snapshot");
         if (initialFetchDoneRef.current) {
           setOrder(null);
           setNotFound(true);
@@ -864,8 +862,6 @@ export default function OrderTrackingPage() {
       setOrder(updatedOrder);
 
       const currentStatus = updatedOrder.status;
-      console.log("[OrderTracking] Firestore snapshot — status:", currentStatus, "prev:", prevStatus, "firstSnap:", isFirstSnapshot);
-
       if (!isFirstSnapshot && currentStatus === "ready" && prevStatus !== "ready") {
         if (bellPrimedRef.current) {
           playFullAlert();
@@ -882,7 +878,7 @@ export default function OrderTrackingPage() {
 
       prevStatus = currentStatus;
     }, (error) => {
-      console.error("[OrderTracking] Firestore listener error:", error.message);
+      void error;
     });
 
     return () => unsub();

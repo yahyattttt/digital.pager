@@ -45,14 +45,11 @@ function ProtectedRoute({ component: Component }: { component: () => JSX.Element
 
   useEffect(() => {
     if (user && !merchant && !loading) {
-      console.log("[ProtectedRoute] User exists but no merchant data, starting 5s timeout");
       const timer = setTimeout(() => setMerchantTimeout(true), 5000);
       return () => clearTimeout(timer);
     }
     setMerchantTimeout(false);
   }, [user, merchant, loading]);
-
-  console.log("[ProtectedRoute] State:", { loading, hasUser: !!user, hasMerchant: !!merchant, merchantTimeout, status: merchant?.status });
 
   if (loading) {
     return (
@@ -63,12 +60,10 @@ function ProtectedRoute({ component: Component }: { component: () => JSX.Element
   }
 
   if (!user) {
-    console.log("[ProtectedRoute] No user → redirecting to /login");
     return <Redirect to="/login" />;
   }
 
   if (!merchant && !merchantTimeout) {
-    console.log("[ProtectedRoute] Waiting for merchant data...");
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -77,16 +72,13 @@ function ProtectedRoute({ component: Component }: { component: () => JSX.Element
   }
 
   if (!merchant && merchantTimeout) {
-    console.log("[ProtectedRoute] Merchant timeout → redirecting to /pending");
     return <Redirect to="/pending" />;
   }
 
   if (merchant?.status === "rejected" || merchant?.status === "suspended") {
-    console.log("[ProtectedRoute] Merchant status:", merchant.status, "→ redirecting to /login");
     return <Redirect to="/login" />;
   }
 
-  console.log("[ProtectedRoute] Rendering dashboard, merchant status:", merchant?.status, "subscription:", merchant?.subscriptionStatus);
   return <Component />;
 }
 
@@ -135,14 +127,11 @@ function GuestRoute({ component: Component }: { component: () => JSX.Element | n
 
   useEffect(() => {
     if (user && !merchant && !loading) {
-      console.log("[GuestRoute] User exists but no merchant, starting 5s timeout");
       const timer = setTimeout(() => setGuestTimeout(true), 5000);
       return () => clearTimeout(timer);
     }
     setGuestTimeout(false);
   }, [user, merchant, loading]);
-
-  console.log("[GuestRoute] State:", { loading, hasUser: !!user, hasMerchant: !!merchant, guestTimeout, status: merchant?.status });
 
   if (loading) {
     return (
@@ -154,11 +143,9 @@ function GuestRoute({ component: Component }: { component: () => JSX.Element | n
 
   if (user) {
     if (user.email === SUPER_ADMIN_EMAIL) {
-      console.log("[GuestRoute] Admin user → redirecting to /super-admin");
       return <Redirect to="/super-admin" />;
     }
     if (!merchant && !guestTimeout) {
-      console.log("[GuestRoute] Waiting for merchant data...");
       return (
         <div className="min-h-screen bg-background flex items-center justify-center">
           <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -166,10 +153,8 @@ function GuestRoute({ component: Component }: { component: () => JSX.Element | n
       );
     }
     if (merchant && (merchant.status === "approved" || merchant.status === "pending")) {
-      console.log("[GuestRoute] Merchant found, status:", merchant.status, "→ redirecting to /dashboard");
       return <Redirect to="/dashboard" />;
     }
-    console.log("[GuestRoute] User has no merchant or merchant status prevents redirect, showing guest component");
   }
 
   return <Component />;

@@ -1,0 +1,52 @@
+"STRICT ARCHITECTURAL MANDATE - SCALABILITY & ZERO-BREAKAGE POLICY:
+
+The system is currently working perfectly. Your mission is to prepare the platform for High-Scale Expansion (SaaS Ready) without changing a SINGLE visual element or breaking any existing logic.
+
+I. THE GOLDEN RULE: > - DO NOT modify, delete, or 'refactor' the Buzzer UI, the 3-digit number logic, the sound alerts, or the Manual Order Bar.
+
+ZERO COLLATERAL DAMAGE is the only acceptable outcome.
+
+II. SCALABILITY REQUIREMENTS (The 5 Pillars):
+
+1. Database Optimization (Firestore Performance):
+
+Implement Firestore Indexes suggestions and ensure queries are optimized for speed.
+
+Ensure all data fetching uses Limit() and Pagination where necessary to prevent loading massive datasets as the store grows.
+
+2. Multi-Store Isolation (Security & Multi-tenancy):
+
+Review the code to ensure strict Tenant Isolation. A merchant from Store A must NEVER be able to even attempt to access data from Store B.
+
+Strengthen the logic that filters data by storeID at the global level.
+
+3. Code Modularity (The 'Lego' Structure):
+
+Move repetitive logic (like status updates or date formatting) into Reusable Custom Hooks or Utility functions.
+
+This makes the app lighter, faster to load, and easier to update for 1000+ stores simultaneously.
+
+4. Error Handling & Resilience (The Crash Shield):
+
+Add Global Error Boundaries to ensure that if one component fails, the entire Dashboard doesn't go black.
+
+Implement robust 'Try-Catch' blocks around all Firestore writes to handle network flakiness gracefully.
+
+5. State Management & Performance:
+
+Use React.memo or optimization techniques on the Order Cards to prevent unnecessary re-renders during high-traffic periods (Peak Hours).
+
+Ensure the 'Online/Offline' store toggle is highly responsive and synced across all instances.
+
+III. FINAL VERIFICATION:
+Before saving, you must verify that:
+
+The Circular Buzzer still flashes exactly as before.
+
+The 3-digit order numbers (e.g., 501) are intact.
+
+The Sound Toggle is visible and working.
+
+The QR routing still points to the correct 'Preparing' state.
+
+If any of these are compromised, REVERT immediately. Execute with extreme precision."

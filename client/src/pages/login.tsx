@@ -105,7 +105,6 @@ export default function LoginPage() {
     }
 
     setIsVerifying(true);
-    console.log("[Login] Verifying OTP for:", email.trim());
     try {
       const res = await fetch("/api/verify-otp", {
         method: "POST",
@@ -113,7 +112,6 @@ export default function LoginPage() {
         body: JSON.stringify({ email: email.trim(), code: otpCode }),
       });
       const data = await res.json();
-      console.log("[Login] Verify response:", { ok: res.ok, verified: data.verified, uid: data.uid, isNewUser: data.isNewUser, isAdmin: data.isAdmin });
 
       if (!res.ok || !data.verified) {
         let description = data.message || t("فشل التحقق.", "Verification failed.");
@@ -150,10 +148,8 @@ export default function LoginPage() {
         return;
       }
 
-      console.log("[Login] Fetching merchant doc for uid:", data.uid);
       const merchantDoc = await getDoc(doc(db, "merchants", data.uid));
       if (!merchantDoc.exists()) {
-        console.log("[Login] Merchant doc NOT found, redirecting to register");
         toast({
           title: t("حساب غير مسجل", "Not Registered"),
           description: t("لم يتم العثور على متجر مرتبط بهذا البريد. يرجى التسجيل.", "No store found for this email. Please register."),
@@ -164,7 +160,6 @@ export default function LoginPage() {
       }
 
       const merchantData = merchantDoc.data();
-      console.log("[Login] Merchant doc found:", { status: merchantData.status, subscriptionStatus: merchantData.subscriptionStatus || "none", role: merchantData.role || "none" });
       if (merchantData.status === "rejected") {
         toast({
           title: t("تم رفض الحساب", "Account Rejected"),
@@ -182,11 +177,9 @@ export default function LoginPage() {
         return;
       }
 
-      console.log("[Login] Calling login() and navigating to /dashboard");
       login(data.uid, emailLower);
       setLocation("/dashboard");
     } catch (error: any) {
-      console.error("[Login] Login error:", error);
       toast({
         title: t("خطأ في تسجيل الدخول", "Login Error"),
         description: error?.message || t("فشل تسجيل الدخول. يرجى المحاولة مرة أخرى.", "Login failed. Please try again."),

@@ -35,81 +35,66 @@ export function useAuthProvider() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    console.log("[Auth] Initializing - checking localStorage session");
     try {
       const stored = localStorage.getItem(SESSION_KEY);
       if (stored) {
         const session: SessionData = JSON.parse(stored);
         if (session.uid && session.email) {
-          console.log("[Auth] Found stored session:", session.email, "uid:", session.uid);
           setUser(session);
           return;
         }
       }
     } catch (e) {
-      console.error("[Auth] Error reading session from localStorage:", e);
+      void e;
     }
-    console.log("[Auth] No valid session found, setting loading=false");
     setUser(null);
     setLoading(false);
   }, []);
 
   useEffect(() => {
     if (!user?.uid) {
-      console.log("[Auth] No user UID, clearing merchant");
       setMerchant(null);
       setLoading(false);
       return;
     }
 
     if (user.email === SUPER_ADMIN_EMAIL) {
-      console.log("[Auth] Super admin detected, skipping merchant fetch");
       setMerchant(null);
       setLoading(false);
       return;
     }
 
-    console.log("[Auth] Setting up Firestore listener for merchant:", user.uid);
     const merchantDocRef = doc(db, "merchants", user.uid);
     const unsub = onSnapshot(
       merchantDocRef,
       async (snap) => {
         if (snap.exists()) {
           const data = snap.data() as Merchant;
-          console.log("[Auth] Merchant data received:", {
-            uid: data.uid,
-            status: data.status,
-            subscriptionStatus: data.subscriptionStatus || "none",
-            subscriptionExpiry: data.subscriptionExpiry || "none",
-          });
 
           if (
             data.subscriptionStatus === "active" &&
             data.subscriptionExpiry &&
             new Date(data.subscriptionExpiry) < new Date()
           ) {
-            console.log("[Auth] Auto-expiring subscription (past expiry date)");
             const expiredData = { ...data, subscriptionStatus: "expired" as const };
             setMerchant(expiredData);
             setLoading(false);
             try {
               await updateDoc(merchantDocRef, { subscriptionStatus: "expired" });
-              console.log("[Auth] Auto-expire Firestore update successful");
             } catch (e) {
-              console.error("[Auth] Auto-expire update failed:", e);
+              void e;
             }
             return;
           }
 
           setMerchant(data);
         } else {
-          console.log("[Auth] Merchant document not found for uid:", user.uid);
           setMerchant(null);
         }
         setLoading(false);
       },
       (error) => {
-        console.error("[Auth] Merchant snapshot error:", error);
+        void error;
         setMerchant(null);
         setLoading(false);
       }
@@ -119,12 +104,10 @@ export function useAuthProvider() {
   }, [user?.uid, user?.email]);
 
   const login = useCallback((uid: string, email: string) => {
-    console.log("[Auth] login() called - uid:", uid, "email:", email);
     const session: SessionData = { uid, email };
     localStorage.setItem(SESSION_KEY, JSON.stringify(session));
     setLoading(true);
     setUser(session);
-    console.log("[Auth] Session stored, loading=true, user set");
   }, []);
 
   const logout = useCallback(() => {
