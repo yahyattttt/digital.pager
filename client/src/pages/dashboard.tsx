@@ -731,7 +731,7 @@ export default function DashboardPage() {
   const handleShiftConfigSave = useCallback(async () => {
     if (!merchant?.uid) return;
     const num = parseInt(shiftConfigInput.trim(), 10);
-    if (isNaN(num) || num < 0) {
+    if (isNaN(num) || num < 1) {
       toast({ title: t("رقم غير صالح", "Invalid Number"), variant: "destructive" });
       return;
     }
@@ -1406,6 +1406,19 @@ export default function DashboardPage() {
                 onNavigateToArchive={() => setCurrentView("archive")}
                 t={t}
                 lang={lang}
+                handleShiftAdd={handleShiftAdd}
+                handleManualDigitAdd={handleManualDigitAdd}
+                handleShiftConfigSave={handleShiftConfigSave}
+                manualAddLoading={manualAddLoading}
+                manualDigitInput={manualDigitInput}
+                setManualDigitInput={setManualDigitInput}
+                showShiftConfig={showShiftConfig}
+                setShowShiftConfig={setShowShiftConfig}
+                shiftConfigInput={shiftConfigInput}
+                setShiftConfigInput={setShiftConfigInput}
+                lastShiftNumber={lastShiftNumber}
+                manualInputRef={manualInputRef}
+                isApproved={isApproved}
               />
             )}
 
@@ -1601,6 +1614,19 @@ function OverviewView({
   onNavigateToArchive,
   t,
   lang,
+  handleShiftAdd,
+  handleManualDigitAdd,
+  handleShiftConfigSave,
+  manualAddLoading,
+  manualDigitInput,
+  setManualDigitInput,
+  showShiftConfig,
+  setShowShiftConfig,
+  shiftConfigInput,
+  setShiftConfigInput,
+  lastShiftNumber,
+  manualInputRef,
+  isApproved,
 }: {
   merchant: any;
   waitingPagers: (Pager & { docId: string })[];
@@ -1628,6 +1654,19 @@ function OverviewView({
   onNavigateToArchive: () => void;
   t: (ar: string, en: string) => string;
   lang: string;
+  handleShiftAdd: () => void;
+  handleManualDigitAdd: () => void;
+  handleShiftConfigSave: () => void;
+  manualAddLoading: boolean;
+  manualDigitInput: string;
+  setManualDigitInput: (v: string) => void;
+  showShiftConfig: boolean;
+  setShowShiftConfig: (v: boolean) => void;
+  shiftConfigInput: string;
+  setShiftConfigInput: (v: string) => void;
+  lastShiftNumber: number;
+  manualInputRef: React.RefObject<HTMLInputElement>;
+  isApproved: boolean;
 }) {
   const [printOrder, setPrintOrder] = useState<WhatsAppOrder | null>(null);
   const [uncollectedConfirmOrder, setUncollectedConfirmOrder] = useState<WhatsAppOrder | null>(null);
