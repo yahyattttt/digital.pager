@@ -1,13 +1,29 @@
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useLanguage } from "@/hooks/use-language";
-import { Bell, Users, Zap, Shield, ArrowLeft, ArrowRight, Star, Globe } from "lucide-react";
+import { Bell, Users, Zap, Shield, ArrowLeft, ArrowRight, Star, Globe, Maximize, Minimize } from "lucide-react";
 import neonBellLogo from "@assets/image0_(1)_1773118136698.png";
 
 export default function LandingPage() {
   const [, setLocation] = useLocation();
   const { t, toggleLanguage, isRTL } = useLanguage();
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const onChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen?.().catch(() => {});
+    } else {
+      document.exitFullscreen?.().catch(() => {});
+    }
+  }
 
   const features = [
     {
@@ -64,6 +80,15 @@ export default function LandingPage() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={toggleFullscreen}
+              className="border-primary/30 hover:border-primary/60"
+              data-testid="button-toggle-fullscreen"
+            >
+              {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+            </Button>
             <Button
               variant="outline"
               size="icon"
