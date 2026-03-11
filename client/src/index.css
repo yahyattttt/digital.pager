@@ -230,7 +230,7 @@
 }
 
 .led-ring-spinning {
-  animation: led-ring-spin 0.8s linear infinite;
+  animation: led-ring-spin 1.6s linear infinite;
   transform-origin: center center;
 }
 
@@ -241,27 +241,27 @@
 }
 
 .led-dot-idle {
-  animation: led-idle-pulse 3.5s ease-in-out infinite;
+  animation: led-idle-pulse 2.5s ease-in-out infinite;
 }
 
 .led-glow-idle {
-  animation: led-idle-glow 3.5s ease-in-out infinite;
+  animation: led-idle-glow 2.5s ease-in-out infinite;
 }
 
 .led-dot-active {
-  animation: led-strobe 0.3s linear infinite;
+  animation: led-strobe 0.65s linear infinite;
 }
 
 .led-glow-active {
-  animation: led-glow-strobe 0.3s linear infinite;
+  animation: led-glow-strobe 0.65s linear infinite;
 }
 
 .buzzer-ring-active {
-  animation: buzzer-outer-strobe 0.3s linear infinite;
+  animation: buzzer-outer-strobe 0.65s linear infinite;
 }
 
 .buzzer-number-blink {
-  animation: number-blink 0.3s linear infinite;
+  animation: number-blink 0.65s linear infinite;
 }
 
 @layer base {

@@ -687,11 +687,72 @@ export default function OrderTrackingPage() {
   const [merchant, setMerchant] = useState<{ storeName: string; logoUrl: string; googleMapsReviewUrl?: string; driverPhone?: string } | null>(null);
   const [loading, setLoading] = useState(!!orderId);
   const [notFound, setNotFound] = useState(false);
+  const [bellPrimed, setBellPrimed] = useState(false);
+  const [bellPlaying, setBellPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const bellPrimedRef = useRef(false);
 
   const { toast } = useToast();
 
   const merchantId = new URLSearchParams(window.location.search).get("m") || "";
   const trackingType = new URLSearchParams(window.location.search).get("type") || "";
+
+  function ensureAudio() {
+    if (!audioRef.current) {
+      audioRef.current = new Audio("/alert.mp3");
+      audioRef.current.volume = 1.0;
+      audioRef.current.preload = "auto";
+    }
+    return audioRef.current;
+  }
+
+  function handlePrimeBell() {
+    if (bellPrimedRef.current) return;
+    const audio = ensureAudio();
+    audio.loop = false;
+    audio.currentTime = 0;
+    audio.volume = 1.0;
+    try {
+      if (!audioContextRef.current) {
+        const AC = window.AudioContext || (window as any).webkitAudioContext;
+        audioContextRef.current = new AC();
+      }
+      if (audioContextRef.current.state === "suspended") {
+        audioContextRef.current.resume().catch(() => {});
+      }
+    } catch {}
+    audio.play().then(() => {
+      setTimeout(() => { audio.pause(); audio.currentTime = 0; }, 500);
+      bellPrimedRef.current = true;
+      setBellPrimed(true);
+      toast({ title: "تم تفعيل التنبيه ✅", description: "سيتم تنبيهك عند جاهزية طلبك" });
+    }).catch(() => {
+      toast({ title: "خطأ", description: "تعذر تشغيل الصوت", variant: "destructive" });
+    });
+  }
+
+  function playFullAlert() {
+    const audio = ensureAudio();
+    audio.loop = true;
+    audio.currentTime = 0;
+    audio.volume = 1.0;
+    audio.play().then(() => {
+      setBellPlaying(true);
+      if ("vibrate" in navigator) {
+        navigator.vibrate([500, 200, 500, 200, 800]);
+      }
+    }).catch(() => {});
+  }
+
+  function stopAlert() {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    if ("vibrate" in navigator) navigator.vibrate(0);
+    setBellPlaying(false);
+  }
 
   useEffect(() => {
     if (!orderId || !merchantId) {
@@ -776,6 +837,12 @@ export default function OrderTrackingPage() {
 
       const currentStatus = updatedOrder.status;
       console.log("[OrderTracking] Firestore snapshot — status:", currentStatus, "prev:", prevStatus, "firstSnap:", isFirstSnapshot);
+
+      if (!isFirstSnapshot && currentStatus === "ready" && prevStatus !== "ready") {
+        if (bellPrimedRef.current) {
+          playFullAlert();
+        }
+      }
 
       if (isFirstSnapshot) {
         isFirstSnapshot = false;
@@ -959,6 +1026,30 @@ export default function OrderTrackingPage() {
         </div>
 
         <div className="w-full max-w-xs space-y-3">
+          {bellPlaying && (
+            <button
+              onClick={stopAlert}
+              className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl border-2 border-red-500/30 bg-red-500/10 active:scale-[0.95] transition-all duration-200"
+              style={{ boxShadow: "0 0 25px rgba(255,0,0,0.15)" }}
+              data-testid="button-stop-alert"
+            >
+              <span className="text-xl">🔇</span>
+              <span className="text-white text-base font-bold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>إيقاف التنبيه</span>
+            </button>
+          )}
+
+          {!bellPlaying && !bellPrimed && (
+            <button
+              onClick={() => { handlePrimeBell(); setTimeout(playFullAlert, 600); }}
+              className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl border-2 border-emerald-500/30 bg-emerald-500/10 active:scale-[0.95] transition-all duration-200 animate-pulse"
+              style={{ boxShadow: "0 0 25px rgba(16,185,129,0.1)" }}
+              data-testid="button-play-alert"
+            >
+              <span className="text-2xl">🔔</span>
+              <span className="text-emerald-400 text-base font-bold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>تشغيل صوت التنبيه</span>
+            </button>
+          )}
+
           {isOnlineOrder && (
             <button
               onClick={() => { window.location.href = `/receipt/${orderId}?m=${merchantId}`; }}
@@ -1090,6 +1181,27 @@ export default function OrderTrackingPage() {
           )}
           <span className="text-red-400/90 text-base font-bold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>مشاركة مع الأحباب 🔗</span>
         </button>
+
+        {!bellPrimed ? (
+          <button
+            onClick={handlePrimeBell}
+            className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl border-2 border-amber-500/30 bg-gradient-to-r from-amber-950/30 via-amber-900/15 to-amber-950/30 active:scale-[0.97] transition-all duration-200 animate-pulse"
+            style={{ boxShadow: "0 0 20px rgba(245,158,11,0.08), inset 0 1px 0 rgba(255,255,255,0.03)" }}
+            data-testid="button-prime-bell"
+          >
+            <span className="text-2xl">🔔</span>
+            <span className="text-amber-400 text-base font-bold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
+              ودك ننبهك بصوت الجرس؟ 🔔
+            </span>
+          </button>
+        ) : (
+          <div className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl border border-emerald-500/15 bg-emerald-500/5 animate-in fade-in duration-500">
+            <span className="text-base">✅</span>
+            <span className="text-emerald-400/80 text-sm font-medium" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
+              تم تفعيل التنبيه — سنرسل لك صوت عند الجاهزية
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );
