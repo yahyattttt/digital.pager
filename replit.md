@@ -26,7 +26,7 @@ The platform is a multi-tenant SaaS application. The frontend uses React, Vite, 
 - **Direct Ordering System**: Supports a "Digital Menu" for product selection, real-time price calculation, and checkout with coupon application. Orders can be submitted with "Cash on Delivery" (COD) or online payment via Moyasar gateway (credit card, Apple Pay, STC Pay).
 - **Order Type Selection**: Customers can select "Dine-in," "Takeaway," or "Delivery" during checkout. `diningType` is stored in Firestore and reflected in the merchant dashboard and receipts.
 - **Customer Notes**: An optional `customerNotes` field is available during checkout, displayed prominently on merchant dashboard order cards and thermal receipts.
-- **Delivery Feature**: Merchants can enable a delivery option with a configurable fee. Delivery orders include a triple-method Leaflet.js map picker (search autocomplete via Nominatim, interactive draggable pin, GPS button) with Esri satellite imagery, real-time reverse geocoding, "تثبيت الموقع" confirm button, and a "Share with Driver" WhatsApp integration with a pre-filled message including order details and a Google Maps link.
+- **Delivery Feature**: Merchants can enable a delivery option with a configurable fee. Delivery orders include a Mapbox GL JS map picker (satellite-streets-v12 style) with triple-method location selection: search autocomplete via Mapbox Geocoding API (Arabic, Saudi Arabia scoped), interactive draggable pin, and GPS button. Features real-time reverse geocoding, "تثبيت الموقع" confirm button, WebGL fallback UI, and a "Share with Driver" WhatsApp integration with a pre-filled message including order details and a Google Maps link.
 - **Order Tracking Page**: Distinct tracking flows for delivery orders (dedicated `DeliveryTrackingView` with live status updates and WhatsApp driver CTA) and dine-in/takeaway orders (standard Digital Pager flow with LED animation and bell priming).
 - **Bell Notification System**: A two-phase system allowing users to "prime" audio context for automatic sound alerts when an order is ready.
 - **Smart Rating Screen**: Post-completion rating system for both delivery (with optional WhatsApp driver interaction) and dine-in/takeaway orders, leading to Google Maps reviews for high ratings or a feedback form for lower ratings.
@@ -63,3 +63,4 @@ The platform is a multi-tenant SaaS application. The frontend uses React, Vite, 
 - `google-auth-library`
 - recharts
 - Moyasar Payment SDK (CDN-loaded)
+- Mapbox GL JS (map rendering + geocoding)
