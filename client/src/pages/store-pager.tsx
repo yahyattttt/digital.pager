@@ -24,16 +24,16 @@ type MerchantInfo = {
 
 type Phase = "selection" | "preparing" | "ready" | "rating" | "done";
 
-const LED_COUNT = 16;
+const LED_COUNT = 10;
 
 function BuzzerCircle({ orderNumber, active }: { orderNumber: string; active: boolean }) {
   const leds = Array.from({ length: LED_COUNT }, (_, i) => {
     const angle = (i / LED_COUNT) * 360 - 90;
     const rad = (angle * Math.PI) / 180;
-    const r = 46;
+    const r = 44;
     const cx = 50 + r * Math.cos(rad);
     const cy = 50 + r * Math.sin(rad);
-    const delay = active ? `${(i * 0.015).toFixed(3)}s` : `${(i * 0.25).toFixed(2)}s`;
+    const delay = active ? `${(i * 0.03).toFixed(3)}s` : `${(i * 0.35).toFixed(2)}s`;
     return { cx, cy, delay, i };
   });
 
@@ -42,76 +42,87 @@ function BuzzerCircle({ orderNumber, active }: { orderNumber: string; active: bo
       <div
         className={`absolute inset-0 rounded-full ${active ? "buzzer-ring-active" : ""}`}
         style={{
-          background: "radial-gradient(circle at 40% 35%, #1a1a1a 0%, #0d0d0d 45%, #050505 70%, #000 100%)",
+          background: "radial-gradient(circle at 38% 32%, #222 0%, #151515 30%, #0a0a0a 55%, #050505 80%, #000 100%)",
           boxShadow: active
-            ? "0 0 60px 15px rgba(255,20,0,0.35), inset 0 0 30px rgba(255,20,0,0.1)"
-            : "0 0 30px 5px rgba(0,0,0,0.5), inset 0 0 20px rgba(0,0,0,0.3)",
+            ? undefined
+            : "0 0 40px 8px rgba(0,0,0,0.6), inset 0 0 25px rgba(0,0,0,0.4)",
         }}
       />
 
       <div
         className="absolute rounded-full"
         style={{
-          inset: "6px",
-          background: "linear-gradient(145deg, rgba(60,60,60,0.15) 0%, transparent 40%)",
-          border: "1px solid rgba(255,255,255,0.04)",
+          inset: "3px",
+          background: "linear-gradient(135deg, rgba(80,80,80,0.12) 0%, transparent 35%, transparent 65%, rgba(30,30,30,0.08) 100%)",
+          border: "1px solid rgba(255,255,255,0.06)",
         }}
       />
 
       <div
         className="absolute rounded-full"
         style={{
-          inset: "18px",
-          border: active ? "1px solid rgba(255,30,0,0.15)" : "1px solid rgba(255,255,255,0.03)",
-          background: "radial-gradient(circle, rgba(10,10,10,0.9) 0%, transparent 70%)",
+          inset: "8px",
+          border: "1px solid rgba(255,255,255,0.03)",
+          background: "radial-gradient(circle at 42% 38%, rgba(40,40,40,0.1) 0%, transparent 50%)",
         }}
       />
 
       <div
         className="absolute rounded-full"
         style={{
-          inset: "28px",
-          border: active ? "1px solid rgba(255,30,0,0.08)" : "1px solid rgba(255,255,255,0.02)",
+          inset: "22px",
+          border: active ? "1px solid rgba(255,25,0,0.1)" : "1px solid rgba(255,255,255,0.025)",
         }}
       />
 
-      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100">
+      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" style={{ overflow: "visible" }}>
+        <defs>
+          <radialGradient id="led-glow-grad">
+            <stop offset="0%" stopColor="#ff2200" stopOpacity="0.6" />
+            <stop offset="60%" stopColor="#ff1100" stopOpacity="0.15" />
+            <stop offset="100%" stopColor="#ff0000" stopOpacity="0" />
+          </radialGradient>
+        </defs>
         {leds.map((led) => (
           <g key={led.i}>
             <circle
               cx={led.cx}
               cy={led.cy}
-              r={active ? 2.2 : 1.8}
-              fill={active ? "#ff1e00" : "#ff2a00"}
+              r={6}
+              fill="url(#led-glow-grad)"
+              className={active ? "led-glow-active" : "led-glow-idle"}
+              style={{ animationDelay: led.delay }}
+            />
+            <circle
+              cx={led.cx}
+              cy={led.cy}
+              r={2.6}
+              fill="#ff2000"
               className={active ? "led-dot-active" : "led-dot-idle"}
               style={{ animationDelay: led.delay }}
             />
-            {active && (
-              <circle
-                cx={led.cx}
-                cy={led.cy}
-                r={4.5}
-                fill="none"
-                stroke="rgba(255,30,0,0.3)"
-                strokeWidth={0.3}
-                className="led-dot-active"
-                style={{ animationDelay: led.delay }}
-              />
-            )}
+            <circle
+              cx={led.cx}
+              cy={led.cy}
+              r={1.2}
+              fill="#ff6644"
+              opacity={active ? 0.9 : 0.25}
+              className={active ? "led-dot-active" : "led-dot-idle"}
+              style={{ animationDelay: led.delay }}
+            />
           </g>
         ))}
       </svg>
 
       <div className="absolute inset-0 flex items-center justify-center z-10">
         <span
-          className="font-dseg7 tracking-wider"
+          className={`font-dseg7 tracking-wider ${active ? "buzzer-number-blink" : ""}`}
           style={{
-            fontSize: "clamp(48px, 12vw, 72px)",
-            color: active ? "#ff3a00" : "#cc2200",
+            fontSize: "clamp(52px, 14vw, 76px)",
+            color: active ? "#ff3000" : "#aa1800",
             textShadow: active
-              ? "0 0 30px rgba(255,40,0,0.8), 0 0 60px rgba(255,20,0,0.4), 0 0 10px rgba(255,60,0,0.6)"
-              : "0 0 15px rgba(200,30,0,0.3), 0 0 5px rgba(200,30,0,0.2)",
-            opacity: active ? 1 : 0.7,
+              ? "0 0 25px rgba(255,40,0,0.9), 0 0 50px rgba(255,20,0,0.5), 0 0 80px rgba(255,10,0,0.25)"
+              : "0 0 12px rgba(170,24,0,0.35), 0 0 4px rgba(170,24,0,0.2)",
             lineHeight: 1,
           }}
           data-testid="text-buzzer-number"
