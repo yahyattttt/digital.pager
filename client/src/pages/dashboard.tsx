@@ -417,6 +417,7 @@ export default function DashboardPage() {
           orderNumber: data.orderNumber || "",
           displayOrderId: data.displayOrderId || "",
           orderType: data.orderType || undefined,
+          diningType: data.diningType || undefined,
           createdAt: data.createdAt || "",
         };
       });
@@ -458,6 +459,7 @@ export default function DashboardPage() {
           orderNumber: data.orderNumber || "",
           displayOrderId: data.displayOrderId || "",
           orderType: data.orderType || undefined,
+          diningType: data.diningType || undefined,
           createdAt: data.createdAt || "",
         };
       });
@@ -1715,6 +1717,12 @@ function OverviewView({
     return method;
   };
 
+  const diningTypeLabel = (dtype: string | undefined) => {
+    if (dtype === "dine_in") return t("محلي", "Dine-in");
+    if (dtype === "takeaway") return t("سفري", "Takeaway");
+    return null;
+  };
+
   const parseItemExtras = (name: string) => {
     const parts = name.split(" + ");
     const mainPart = parts[0];
@@ -1889,9 +1897,14 @@ function OverviewView({
                       </div>
 
                       <div className="flex items-center justify-between pt-1 border-t border-white/[0.06]">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <Banknote className="w-3.5 h-3.5 text-amber-400" />
                           <span className="text-[11px] text-amber-400 font-medium">{paymentLabel(order.paymentMethod)}</span>
+                          {diningTypeLabel(order.diningType) && (
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${order.diningType === "takeaway" ? "bg-orange-500/15 text-orange-400 border border-orange-500/20" : "bg-sky-500/15 text-sky-400 border border-sky-500/20"}`} data-testid={`badge-dining-type-${item.id}`}>
+                              {diningTypeLabel(order.diningType)}
+                            </span>
+                          )}
                         </div>
                         <p className="text-base font-extrabold text-white" data-testid={`text-order-total-${item.id}`}>
                           {order.total.toFixed(0)} <span className="text-xs text-white/40">SAR</span>
@@ -2086,9 +2099,14 @@ function OverviewView({
                     </div>
 
                     <div className="flex items-center justify-between pt-1 border-t border-white/[0.06]">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <Banknote className="w-3.5 h-3.5 text-amber-400" />
                         <span className="text-[11px] text-amber-400 font-medium">{paymentLabel(waOrder.paymentMethod)}</span>
+                        {diningTypeLabel(waOrder.diningType) && (
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${waOrder.diningType === "takeaway" ? "bg-orange-500/15 text-orange-400 border border-orange-500/20" : "bg-sky-500/15 text-sky-400 border border-sky-500/20"}`} data-testid={`badge-dining-type-${item.id}`}>
+                            {diningTypeLabel(waOrder.diningType)}
+                          </span>
+                        )}
                       </div>
                       <p className="text-base font-extrabold text-white" data-testid={`text-order-total-${item.id}`}>
                         {waOrder.total.toFixed(0)} <span className="text-xs text-white/40">SAR</span>
@@ -2172,6 +2190,9 @@ function OverviewView({
           </div>
           <div className="receipt-total">{t("الإجمالي", "Total")}: {printOrder.total.toFixed(2)} SAR</div>
           <div className="receipt-payment">{paymentLabel(printOrder.paymentMethod)}</div>
+          {diningTypeLabel(printOrder.diningType) && (
+            <div className="receipt-payment">{t("نوع الطلب", "Order Type")}: {diningTypeLabel(printOrder.diningType)}</div>
+          )}
           <div className="receipt-footer">{t("شكراً لطلبكم", "Thank you for your order")}</div>
         </div>
       )}

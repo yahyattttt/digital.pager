@@ -3,8 +3,9 @@ import { useParams } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Store, ShoppingCart, Plus, Minus, X, AlertTriangle, Loader2, Check, ArrowLeft, Clock, Banknote, Tag, CreditCard, Wallet } from "lucide-react";
+import { Store, ShoppingCart, Plus, Minus, X, AlertTriangle, Loader2, Check, ArrowLeft, Clock, Banknote, Tag, CreditCard, Wallet, UtensilsCrossed, ShoppingBag, Globe } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/hooks/use-language";
 import type { Product, ProductVariant, ProductAddon } from "@shared/schema";
 
 interface CartItem {
@@ -37,6 +38,7 @@ export default function PublicMenuPage() {
   const params = useParams<{ merchantId: string }>();
   const merchantId = params.merchantId;
   const { toast } = useToast();
+  const { lang, isRTL, toggleLanguage, t } = useLanguage();
 
   const [products, setProducts] = useState<Product[]>([]);
   const [merchant, setMerchant] = useState<MerchantInfo | null>(null);
@@ -48,6 +50,7 @@ export default function PublicMenuPage() {
   const [customerPhone, setCustomerPhone] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [, setTimeTick] = useState(0);
+  const [diningType, setDiningType] = useState<"dine_in" | "takeaway" | null>(null);
 
   const [storeTermsAccepted, setStoreTermsAccepted] = useState(false);
   const [showStoreTermsModal, setShowStoreTermsModal] = useState<"terms" | "privacy" | null>(null);
@@ -141,6 +144,7 @@ export default function PublicMenuPage() {
   useEffect(() => {
     if (selectedPaymentMethod !== "online" || !moyasarLoaded || moyasarInitialized) return;
     if (!merchant?.moyasarPublishableKey || !finalTotal || finalTotal <= 0) return;
+    if (!diningType) return;
 
     const container = document.getElementById("moyasar-payment-form");
     if (!container) return;
@@ -178,7 +182,7 @@ export default function PublicMenuPage() {
     }, 100);
 
     return () => clearTimeout(timer);
-  }, [selectedPaymentMethod, moyasarLoaded, moyasarInitialized, merchant, finalTotal]);
+  }, [selectedPaymentMethod, moyasarLoaded, moyasarInitialized, merchant, finalTotal, diningType]);
 
   useEffect(() => {
     if (!merchant) return;
@@ -208,10 +212,10 @@ export default function PublicMenuPage() {
       } else {
         setCouponValid(false);
         setCouponDiscount(0);
-        setCouponError("كود الخصم غير صالح أو منتهي");
+        setCouponError(t("كود الخصم غير صالح أو منتهي", "Coupon code is invalid or expired"));
       }
     } catch {
-      setCouponError("فشل التحقق من كود الخصم");
+      setCouponError(t("فشل التحقق من كود الخصم", "Failed to verify coupon code"));
     } finally {
       setCouponLoading(false);
     }
@@ -373,19 +377,23 @@ export default function PublicMenuPage() {
   async function handleConfirmOrder(overridePaymentMethod?: string, overrideTransactionId?: string) {
     if (!merchantId || cart.length === 0) return;
     if (!customerName.trim()) {
-      toast({ title: "مطلوب", description: "يرجى إدخال الاسم الكامل", variant: "destructive" });
+      toast({ title: t("مطلوب", "Required"), description: t("يرجى إدخال الاسم الكامل", "Please enter your full name"), variant: "destructive" });
       return;
     }
     if (customerPhone.length !== 10) {
-      toast({ title: "مطلوب", description: "يرجى إدخال رقم جوال صحيح من 10 أرقام", variant: "destructive" });
+      toast({ title: t("مطلوب", "Required"), description: t("يرجى إدخال رقم جوال صحيح من 10 أرقام", "Please enter a valid 10-digit phone number"), variant: "destructive" });
+      return;
+    }
+    if (!diningType) {
+      toast({ title: t("مطلوب", "Required"), description: t("يرجى اختيار نوع الطلب", "Please select order type"), variant: "destructive" });
       return;
     }
     if (merchant?.storeTermsEnabled && !storeTermsAccepted) {
-      toast({ title: "مطلوب", description: "يرجى الموافقة على الشروط والأحكام", variant: "destructive" });
+      toast({ title: t("مطلوب", "Required"), description: t("يرجى الموافقة على الشروط والأحكام", "Please accept the terms and conditions"), variant: "destructive" });
       return;
     }
     if (orderingDisabled) {
-      toast({ title: "عذراً", description: closedInfo.messageAr || "Online ordering unavailable", variant: "destructive" });
+      toast({ title: t("عذراً", "Sorry"), description: t(closedInfo.messageAr || "الطلب غير متاح حالياً", closedInfo.messageEn || "Online ordering unavailable"), variant: "destructive" });
       return;
     }
     setSubmitting(true);
@@ -410,6 +418,7 @@ export default function PublicMenuPage() {
         items: orderItems,
         total: cartTotal,
         paymentMethod: finalPaymentMethod,
+        diningType: diningType,
       };
       if (finalTransactionId) {
         orderBody.transactionId = finalTransactionId;
@@ -437,15 +446,15 @@ export default function PublicMenuPage() {
       window.location.href = `/track/${orderId}?m=${merchantId}`;
     } catch (err: any) {
       const msg = (err?.message || "").toLowerCase();
-      let description = "فشل في إرسال الطلب. يرجى المحاولة مرة أخرى";
+      let description = t("فشل في إرسال الطلب. يرجى المحاولة مرة أخرى", "Failed to submit order. Please try again");
       if (msg.includes("closed") || msg.includes("business hours")) {
-        description = "المتجر مغلق حالياً";
+        description = t("المتجر مغلق حالياً", "Store is currently closed");
       } else if (msg.includes("not available") || msg.includes("not found")) {
-        description = "المتجر غير متاح حالياً";
+        description = t("المتجر غير متاح حالياً", "Store is currently unavailable");
       } else if (msg.includes("online order")) {
-        description = "الطلب أونلاين غير مفعّل حالياً";
+        description = t("الطلب أونلاين غير مفعّل حالياً", "Online ordering is currently disabled");
       }
-      toast({ title: "عذراً", description, variant: "destructive" });
+      toast({ title: t("عذراً", "Sorry"), description, variant: "destructive" });
       setSubmitting(false);
     }
   }
@@ -461,7 +470,7 @@ export default function PublicMenuPage() {
       <div className="min-h-[100dvh] flex items-center justify-center" style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }}>
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
-          <span className="text-white/30 text-xs tracking-[0.3em] uppercase">LOADING MENU</span>
+          <span className="text-white/30 text-xs tracking-[0.3em] uppercase">{t("جاري التحميل", "LOADING MENU")}</span>
         </div>
       </div>
     );
@@ -475,8 +484,8 @@ export default function PublicMenuPage() {
             <div className="mx-auto w-16 h-16 rounded-full bg-red-600/10 flex items-center justify-center mb-4">
               <AlertTriangle className="w-8 h-8 text-red-500" />
             </div>
-            <h2 className="text-white text-xl font-bold mb-2" dir="rtl" data-testid="text-menu-not-found">القائمة غير متاحة</h2>
-            <p className="text-gray-400 text-sm" data-testid="text-menu-not-found-en">Menu not available or store not found.</p>
+            <h2 className="text-white text-xl font-bold mb-2" data-testid="text-menu-not-found">{t("القائمة غير متاحة", "Menu Not Available")}</h2>
+            <p className="text-gray-400 text-sm" data-testid="text-menu-not-found-en">{t("المتجر غير موجود أو القائمة غير متاحة", "Store not found or menu not available")}</p>
           </CardContent>
         </Card>
       </div>
@@ -488,22 +497,30 @@ export default function PublicMenuPage() {
       setTimeout(() => setShowCheckout(false), 0);
       return (
         <div className="min-h-[100dvh] flex items-center justify-center" style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }}>
-          <p className="text-white/40 text-sm">No items in cart</p>
+          <p className="text-white/40 text-sm">{t("لا توجد عناصر في السلة", "No items in cart")}</p>
         </div>
       );
     }
     return (
-      <div className="min-h-[100dvh] flex flex-col" style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }}>
-        <div className="flex-shrink-0 p-4 border-b border-red-600/10">
+      <div className="min-h-[100dvh] flex flex-col" style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }} dir={isRTL ? "rtl" : "ltr"}>
+        <div className="flex-shrink-0 p-4 border-b border-red-600/10 flex items-center justify-between">
           <button onClick={() => setShowCheckout(false)} className="flex items-center gap-2 text-white/60 hover:text-white transition-colors" data-testid="button-back-to-menu">
-            <ArrowLeft className="w-5 h-5" />
-            <span className="text-sm">Back to Menu</span>
+            <ArrowLeft className={`w-5 h-5 ${isRTL ? "rotate-180" : ""}`} />
+            <span className="text-sm">{t("العودة للقائمة", "Back to Menu")}</span>
+          </button>
+          <button
+            onClick={toggleLanguage}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-700/50 bg-zinc-900/60 hover:bg-zinc-800/60 transition-colors"
+            data-testid="button-lang-toggle-checkout"
+          >
+            <Globe className="w-3.5 h-3.5 text-white/50" />
+            <span className="text-white/70 text-xs font-bold">{lang === "ar" ? "EN" : "AR"}</span>
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-5">
-          <h2 className="text-white text-xl font-bold mb-1 text-center" dir="rtl" data-testid="text-checkout-title">ملخص الطلب</h2>
-          <p className="text-white/40 text-sm text-center mb-6">Order Summary</p>
+          <h2 className="text-white text-xl font-bold mb-1 text-center" data-testid="text-checkout-title">{t("ملخص الطلب", "Order Summary")}</h2>
+          <p className="text-white/40 text-sm text-center mb-6">{t("راجع طلبك قبل الإرسال", "Review your order before submitting")}</p>
 
           <div className="space-y-3 mb-6">
             {cart.map((item, idx) => (
@@ -553,18 +570,18 @@ export default function PublicMenuPage() {
 
           <div className="space-y-2 mb-4">
             <div className="flex items-center justify-between p-4 rounded-xl bg-red-600/5 border border-red-600/20">
-              <span className="text-white/70 font-medium" dir="rtl">{couponValid ? "المجموع الأصلي" : "المجموع"}</span>
+              <span className="text-white/70 font-medium">{couponValid ? t("المجموع الأصلي", "Subtotal") : t("المجموع", "Total")}</span>
               <span className={`text-xl font-bold ${couponValid ? "text-white/40 line-through" : "text-red-400"}`} data-testid="text-checkout-total">{cartTotal.toFixed(2)} SAR</span>
             </div>
 
             {couponValid && (
               <>
                 <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-emerald-500/5 border border-emerald-500/15">
-                  <span className="text-emerald-400 text-sm font-medium" dir="rtl">الخصم ({couponDiscount}%)</span>
+                  <span className="text-emerald-400 text-sm font-medium">{t("الخصم", "Discount")} ({couponDiscount}%)</span>
                   <span className="text-emerald-400 text-sm font-bold" data-testid="text-discount-amount">-{discountAmount.toFixed(2)} SAR</span>
                 </div>
                 <div className="flex items-center justify-between p-4 rounded-xl bg-emerald-600/10 border border-emerald-500/20">
-                  <span className="text-white font-bold" dir="rtl">المجموع بعد الخصم</span>
+                  <span className="text-white font-bold">{t("المجموع بعد الخصم", "Total after discount")}</span>
                   <span className="text-emerald-400 text-xl font-bold" data-testid="text-final-total">{finalTotal.toFixed(2)} SAR</span>
                 </div>
               </>
@@ -572,13 +589,13 @@ export default function PublicMenuPage() {
           </div>
 
           <div className="mb-6">
-            <label className="text-white/60 text-xs mb-1.5 block" dir="rtl">هل لديك كود خصم؟</label>
+            <label className="text-white/60 text-xs mb-1.5 block">{t("هل لديك كود خصم؟", "Have a coupon code?")}</label>
             {!couponValid ? (
               <div className="flex gap-2">
                 <Input
                   value={couponCode}
                   onChange={(e) => { setCouponCode(e.target.value.toUpperCase()); setCouponError(""); }}
-                  placeholder="مثال: SAVE20"
+                  placeholder={t("مثال: SAVE20", "e.g. SAVE20")}
                   className="flex-1 h-11 bg-zinc-900/80 border-zinc-700 text-white placeholder:text-white/20 focus:border-red-500 rounded-xl uppercase"
                   dir="ltr"
                   data-testid="input-coupon-code"
@@ -590,7 +607,7 @@ export default function PublicMenuPage() {
                   data-testid="button-apply-coupon"
                 >
                   {couponLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Tag className="w-4 h-4" />}
-                  <span className="ms-1.5">تطبيق</span>
+                  <span className="ms-1.5">{t("تطبيق", "Apply")}</span>
                 </Button>
               </div>
             ) : (
@@ -598,29 +615,29 @@ export default function PublicMenuPage() {
                 <div className="flex items-center gap-2">
                   <Check className="w-4 h-4 text-emerald-400" />
                   <span className="text-emerald-400 text-sm font-bold" dir="ltr" data-testid="text-applied-coupon">{couponCode}</span>
-                  <span className="text-emerald-400/60 text-xs">({couponDiscount}% خصم)</span>
+                  <span className="text-emerald-400/60 text-xs">({couponDiscount}% {t("خصم", "off")})</span>
                 </div>
                 <button onClick={handleRemoveCoupon} className="text-white/40 hover:text-white/60 p-1" data-testid="button-remove-coupon">
                   <X className="w-4 h-4" />
                 </button>
               </div>
             )}
-            {couponError && <p className="text-red-400/70 text-[11px] mt-1.5" dir="rtl" data-testid="text-coupon-error">{couponError}</p>}
+            {couponError && <p className="text-red-400/70 text-[11px] mt-1.5" data-testid="text-coupon-error">{couponError}</p>}
           </div>
 
           <div className="space-y-4 mb-6">
             <div>
-              <label className="text-white/60 text-xs mb-1.5 block" dir="rtl">الاسم / Name</label>
+              <label className="text-white/60 text-xs mb-1.5 block">{t("الاسم", "Name")}</label>
               <Input
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
-                placeholder="اسمك / Your Name"
+                placeholder={t("اسمك", "Your Name")}
                 className="h-12 bg-zinc-900/80 border-zinc-700 text-white placeholder:text-white/20 focus:border-red-500 rounded-xl"
                 data-testid="input-customer-name"
               />
             </div>
             <div>
-              <label className="text-white/60 text-xs mb-1.5 block" dir="rtl">رقم الجوال / Phone</label>
+              <label className="text-white/60 text-xs mb-1.5 block">{t("رقم الجوال", "Phone Number")}</label>
               <Input
                 value={customerPhone}
                 onChange={(e) => {
@@ -637,21 +654,65 @@ export default function PublicMenuPage() {
                 data-testid="input-customer-phone"
               />
               {customerPhone.length > 0 && customerPhone.length < 10 && (
-                <p className="text-red-400/60 text-[10px] mt-1" dir="rtl">يجب إدخال 10 أرقام</p>
+                <p className="text-red-400/60 text-[10px] mt-1">{t("يجب إدخال 10 أرقام", "Must be 10 digits")}</p>
               )}
             </div>
           </div>
 
+          <div className="mb-6" data-testid="section-order-type">
+            <p className="text-white/50 text-xs font-medium mb-3">{t("نوع الطلب", "Order Type")}</p>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setDiningType("dine_in")}
+                className={`p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2.5 ${diningType === "dine_in" ? "bg-sky-500/10 border-sky-500/40" : "bg-zinc-900/40 border-zinc-800/30 hover:border-zinc-700/50"}`}
+                style={diningType === "dine_in" ? { boxShadow: "0 0 20px rgba(14,165,233,0.08)" } : undefined}
+                data-testid="button-dining-dine-in"
+              >
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${diningType === "dine_in" ? "bg-sky-500/20" : "bg-zinc-800/50"}`}>
+                  <UtensilsCrossed className={`w-6 h-6 ${diningType === "dine_in" ? "text-sky-400" : "text-white/40"}`} />
+                </div>
+                <div className="text-center">
+                  <p className={`text-sm font-bold ${diningType === "dine_in" ? "text-white" : "text-white/70"}`}>{t("محلي", "Dine-in")}</p>
+                  <p className="text-white/30 text-[11px] mt-0.5">{t("تناول في المتجر", "Eat at the store")}</p>
+                </div>
+                {diningType === "dine_in" && <Check className="w-5 h-5 text-sky-400" />}
+              </button>
+              <button
+                type="button"
+                onClick={() => setDiningType("takeaway")}
+                className={`p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2.5 ${diningType === "takeaway" ? "bg-orange-500/10 border-orange-500/40" : "bg-zinc-900/40 border-zinc-800/30 hover:border-zinc-700/50"}`}
+                style={diningType === "takeaway" ? { boxShadow: "0 0 20px rgba(249,115,22,0.08)" } : undefined}
+                data-testid="button-dining-takeaway"
+              >
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${diningType === "takeaway" ? "bg-orange-500/20" : "bg-zinc-800/50"}`}>
+                  <ShoppingBag className={`w-6 h-6 ${diningType === "takeaway" ? "text-orange-400" : "text-white/40"}`} />
+                </div>
+                <div className="text-center">
+                  <p className={`text-sm font-bold ${diningType === "takeaway" ? "text-white" : "text-white/70"}`}>{t("سفري", "Takeaway")}</p>
+                  <p className="text-white/30 text-[11px] mt-0.5">{t("طلب للخارج", "Take it to go")}</p>
+                </div>
+                {diningType === "takeaway" && <Check className="w-5 h-5 text-orange-400" />}
+              </button>
+            </div>
+            {diningType && (
+              <div className="mt-3 p-3 rounded-xl bg-zinc-900/40 border border-zinc-800/20">
+                <p className="text-white/50 text-xs text-center">
+                  {t("نوع الطلب:", "Order Type:")} <span className={`font-bold ${diningType === "takeaway" ? "text-orange-400" : "text-sky-400"}`}>{diningType === "dine_in" ? t("محلي", "Dine-in") : t("سفري", "Takeaway")}</span>
+                </p>
+              </div>
+            )}
+          </div>
+
           {!merchant.onlinePaymentEnabled && !merchant.codEnabled && (
             <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 mb-4" data-testid="text-no-payment-methods">
-              <p className="text-red-400 text-sm font-bold text-center" dir="rtl">لا توجد طرق دفع متاحة</p>
-              <p className="text-white/30 text-[11px] text-center mt-1">No payment methods available</p>
+              <p className="text-red-400 text-sm font-bold text-center">{t("لا توجد طرق دفع متاحة", "No payment methods available")}</p>
             </div>
           )}
 
           {merchant.onlinePaymentEnabled && merchant.codEnabled && (
             <div className="mb-4 space-y-2" data-testid="payment-method-selection">
-              <p className="text-white/50 text-xs font-medium mb-2" dir="rtl">اختر طريقة الدفع</p>
+              <p className="text-white/50 text-xs font-medium mb-2">{t("اختر طريقة الدفع", "Choose payment method")}</p>
               <button
                 type="button"
                 onClick={() => { setSelectedPaymentMethod("online"); setMoyasarInitialized(false); setMoyasarPaymentCompleted(false); setTransactionId(""); setPaymentSourceType(""); }}
@@ -661,9 +722,9 @@ export default function PublicMenuPage() {
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${selectedPaymentMethod === "online" ? "bg-red-500/20" : "bg-zinc-800/50"}`}>
                   <CreditCard className={`w-5 h-5 ${selectedPaymentMethod === "online" ? "text-red-400" : "text-white/40"}`} />
                 </div>
-                <div className="text-right flex-1">
-                  <p className={`text-sm font-bold ${selectedPaymentMethod === "online" ? "text-white" : "text-white/70"}`} dir="rtl">الدفع إلكترونياً</p>
-                  <p className="text-white/30 text-[11px] mt-0.5">Online Payment (Card / Apple Pay / STC Pay)</p>
+                <div className={`${isRTL ? "text-right" : "text-left"} flex-1`}>
+                  <p className={`text-sm font-bold ${selectedPaymentMethod === "online" ? "text-white" : "text-white/70"}`}>{t("الدفع إلكترونياً", "Online Payment")}</p>
+                  <p className="text-white/30 text-[11px] mt-0.5">{t("بطاقة / Apple Pay / STC Pay", "Card / Apple Pay / STC Pay")}</p>
                 </div>
                 {selectedPaymentMethod === "online" && <Check className="w-5 h-5 text-red-400 flex-shrink-0" />}
               </button>
@@ -676,9 +737,9 @@ export default function PublicMenuPage() {
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${selectedPaymentMethod === "cod" ? "bg-emerald-500/20" : "bg-zinc-800/50"}`}>
                   <Banknote className={`w-5 h-5 ${selectedPaymentMethod === "cod" ? "text-emerald-400" : "text-white/40"}`} />
                 </div>
-                <div className="text-right flex-1">
-                  <p className={`text-sm font-bold ${selectedPaymentMethod === "cod" ? "text-white" : "text-white/70"}`} dir="rtl">الدفع عند الاستلام (كاش)</p>
-                  <p className="text-white/30 text-[11px] mt-0.5">Cash on Delivery</p>
+                <div className={`${isRTL ? "text-right" : "text-left"} flex-1`}>
+                  <p className={`text-sm font-bold ${selectedPaymentMethod === "cod" ? "text-white" : "text-white/70"}`}>{t("الدفع عند الاستلام (كاش)", "Cash on Delivery")}</p>
+                  <p className="text-white/30 text-[11px] mt-0.5">{t("الدفع نقداً عند الاستلام", "Pay cash when you collect")}</p>
                 </div>
                 {selectedPaymentMethod === "cod" && <Check className="w-5 h-5 text-emerald-400 flex-shrink-0" />}
               </button>
@@ -692,8 +753,7 @@ export default function PublicMenuPage() {
                   <Banknote className="w-5 h-5 text-emerald-400" />
                 </div>
                 <div>
-                  <p className="text-white/80 text-base font-bold" dir="rtl" data-testid="text-payment-method">طريقة الدفع: الدفع عند الاستلام (كاش)</p>
-                  <p className="text-white/30 text-[11px] mt-0.5">Payment Method: Cash on Delivery</p>
+                  <p className="text-white/80 text-base font-bold" data-testid="text-payment-method">{t("طريقة الدفع: الدفع عند الاستلام (كاش)", "Payment: Cash on Delivery")}</p>
                 </div>
               </div>
             </div>
@@ -701,15 +761,20 @@ export default function PublicMenuPage() {
 
           {selectedPaymentMethod === "online" && merchant.onlinePaymentEnabled && (
             <div className="mb-4 p-4 rounded-xl bg-zinc-900/60 border border-zinc-800/40" data-testid="moyasar-form-container">
-              {!moyasarLoaded ? (
+              {!diningType ? (
+                <div className="flex items-center justify-center gap-2 py-6">
+                  <AlertTriangle className="w-5 h-5 text-amber-400" />
+                  <span className="text-amber-400/80 text-sm">{t("يرجى اختيار نوع الطلب أولاً", "Please select order type first")}</span>
+                </div>
+              ) : !moyasarLoaded ? (
                 <div className="flex items-center justify-center gap-2 py-6">
                   <Loader2 className="w-5 h-5 animate-spin text-red-400" />
-                  <span className="text-white/50 text-sm">جاري تحميل بوابة الدفع...</span>
+                  <span className="text-white/50 text-sm">{t("جاري تحميل بوابة الدفع...", "Loading payment gateway...")}</span>
                 </div>
               ) : moyasarPaymentCompleted ? (
                 <div className="flex items-center justify-center gap-2 py-6">
                   <Check className="w-5 h-5 text-emerald-400" />
-                  <span className="text-emerald-400 text-sm font-bold" dir="rtl">تم الدفع بنجاح</span>
+                  <span className="text-emerald-400 text-sm font-bold">{t("تم الدفع بنجاح", "Payment successful")}</span>
                 </div>
               ) : (
                 <div id="moyasar-payment-form" />
@@ -718,7 +783,7 @@ export default function PublicMenuPage() {
           )}
 
           {merchant.storeTermsEnabled && (
-            <label className="flex items-center gap-3 p-4 rounded-xl bg-zinc-900/40 border border-zinc-800/30 cursor-pointer mb-6" dir="rtl" data-testid="label-store-terms">
+            <label className="flex items-center gap-3 p-4 rounded-xl bg-zinc-900/40 border border-zinc-800/30 cursor-pointer mb-6" data-testid="label-store-terms">
               <input
                 type="checkbox"
                 checked={storeTermsAccepted}
@@ -726,29 +791,26 @@ export default function PublicMenuPage() {
                 className="w-5 h-5 rounded border-red-600/50 text-red-600 focus:ring-red-500 bg-transparent accent-red-600 flex-shrink-0"
                 data-testid="checkbox-store-terms"
               />
-              <div className="text-sm leading-relaxed" dir="rtl">
-                <span className="text-white/80">أوافق على </span>
+              <div className="text-sm leading-relaxed">
+                <span className="text-white/80">{t("أوافق على ", "I agree to the ")}</span>
                 <button
                   type="button"
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowStoreTermsModal("terms"); }}
                   className="text-red-400 font-medium hover:underline"
                   data-testid="link-store-terms"
                 >
-                  الشروط والأحكام
+                  {t("الشروط والأحكام", "Terms & Conditions")}
                 </button>
-                <span className="text-white/80"> و</span>
+                <span className="text-white/80">{t(" و", " and ")}</span>
                 <button
                   type="button"
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowStoreTermsModal("privacy"); }}
                   className="text-red-400 font-medium hover:underline"
                   data-testid="link-store-privacy"
                 >
-                  سياسة الخصوصية
+                  {t("سياسة الخصوصية", "Privacy Policy")}
                 </button>
-                <span className="text-white/80"> الخاصة بالمتجر</span>
-                <p className="text-white/30 text-[11px] mt-1">
-                  I agree to the store's Terms & Conditions and Privacy Policy
-                </p>
+                <span className="text-white/80">{t(" الخاصة بالمتجر", "")}</span>
               </div>
             </label>
           )}
@@ -758,7 +820,7 @@ export default function PublicMenuPage() {
           {(selectedPaymentMethod === "cod" || (!merchant.onlinePaymentEnabled && merchant.codEnabled)) && (
             <Button
               onClick={() => handleConfirmOrder()}
-              disabled={!customerName.trim() || customerPhone.length !== 10 || (merchant.storeTermsEnabled && !storeTermsAccepted) || submitting || (!merchant.onlinePaymentEnabled && !merchant.codEnabled) || (merchant.onlinePaymentEnabled && merchant.codEnabled && !selectedPaymentMethod)}
+              disabled={!customerName.trim() || customerPhone.length !== 10 || !diningType || (merchant.storeTermsEnabled && !storeTermsAccepted) || submitting || (!merchant.onlinePaymentEnabled && !merchant.codEnabled) || (merchant.onlinePaymentEnabled && merchant.codEnabled && !selectedPaymentMethod)}
               className="w-full h-14 text-base font-bold bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-30 rounded-xl gap-2"
               style={{ boxShadow: "0 0 25px rgba(16,185,129,0.15)" }}
               data-testid="button-confirm-order"
@@ -768,18 +830,18 @@ export default function PublicMenuPage() {
               ) : (
                 <Check className="w-5 h-5" />
               )}
-              <span dir="rtl">{submitting ? "جاري إرسال الطلب..." : "إرسال الطلب وبدء التتبع"}</span>
+              <span>{submitting ? t("جاري إرسال الطلب...", "Submitting order...") : t("إرسال الطلب وبدء التتبع", "Submit Order & Start Tracking")}</span>
             </Button>
           )}
 
           {selectedPaymentMethod === "online" && !moyasarPaymentCompleted && (
-            <p className="text-white/30 text-[11px] text-center mt-2" dir="rtl">أكمل الدفع أعلاه لإرسال الطلب تلقائياً</p>
+            <p className="text-white/30 text-[11px] text-center mt-2">{t("أكمل الدفع أعلاه لإرسال الطلب تلقائياً", "Complete payment above to submit order automatically")}</p>
           )}
 
           {submitting && selectedPaymentMethod === "online" && (
             <div className="flex items-center justify-center gap-2 mt-4">
               <Loader2 className="w-5 h-5 animate-spin text-emerald-400" />
-              <span className="text-emerald-400 text-sm" dir="rtl">جاري إرسال الطلب...</span>
+              <span className="text-emerald-400 text-sm">{t("جاري إرسال الطلب...", "Submitting order...")}</span>
             </div>
           )}
         </div>
@@ -789,15 +851,15 @@ export default function PublicMenuPage() {
             <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowStoreTermsModal(null)} />
             <div className="relative w-full max-w-lg max-h-[80dvh] bg-[#111] border border-zinc-800 rounded-2xl flex flex-col overflow-hidden mx-4">
               <div className="flex items-center justify-between p-4 border-b border-zinc-800/50">
-                <h3 className="text-white font-bold text-base" dir="rtl" data-testid="modal-store-legal-title">
-                  {showStoreTermsModal === "terms" ? "شروط وأحكام المتجر" : "سياسة الخصوصية"}
+                <h3 className="text-white font-bold text-base" data-testid="modal-store-legal-title">
+                  {showStoreTermsModal === "terms" ? t("شروط وأحكام المتجر", "Store Terms & Conditions") : t("سياسة الخصوصية", "Privacy Policy")}
                 </h3>
                 <button onClick={() => setShowStoreTermsModal(null)} className="p-1 text-white/40 hover:text-white" data-testid="button-close-store-legal">
                   <X className="w-5 h-5" />
                 </button>
               </div>
               <div className="flex-1 overflow-y-auto p-5">
-                <div className="text-sm text-white/60 leading-relaxed whitespace-pre-wrap" dir="rtl" data-testid="text-store-legal-content">
+                <div className="text-sm text-white/60 leading-relaxed whitespace-pre-wrap" dir={isRTL ? "rtl" : "ltr"} data-testid="text-store-legal-content">
                   {showStoreTermsModal === "terms" ? (merchant.storeTermsText || "") : (merchant.storePrivacyText || "")}
                 </div>
               </div>
@@ -807,7 +869,7 @@ export default function PublicMenuPage() {
                   className="w-full h-12 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white font-bold transition-colors"
                   data-testid="button-close-store-legal-bottom"
                 >
-                  إغلاق / Close
+                  {t("إغلاق", "Close")}
                 </button>
               </div>
             </div>
@@ -818,24 +880,35 @@ export default function PublicMenuPage() {
   }
 
   return (
-    <div className="min-h-[100dvh] flex flex-col" style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }} data-testid="public-menu-page">
-      <div className="flex-shrink-0 pt-8 pb-4 px-5 text-center">
-        {merchant.logoUrl ? (
-          <img
-            src={merchant.logoUrl}
-            alt={merchant.storeName}
-            className="w-16 h-16 rounded-full object-cover border-2 border-red-600/30 mx-auto mb-3"
-            style={{ boxShadow: "0 0 20px rgba(255,0,0,0.15)" }}
-            data-testid="img-menu-logo"
-          />
-        ) : (
-          <div className="w-16 h-16 rounded-full bg-black border-2 border-red-600/30 flex items-center justify-center mx-auto mb-3" style={{ boxShadow: "0 0 20px rgba(255,0,0,0.15)" }}>
-            <Store className="w-8 h-8 text-red-500" />
-          </div>
-        )}
-        <h1 className="text-white text-xl font-bold" data-testid="text-menu-store-name">{merchant.storeName}</h1>
-        <p className="text-white/40 text-sm mt-1" dir="rtl">القائمة الرقمية</p>
-        <p className="text-white/30 text-xs">Digital Menu</p>
+    <div className="min-h-[100dvh] flex flex-col" style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }} dir={isRTL ? "rtl" : "ltr"} data-testid="public-menu-page">
+      <div className="flex-shrink-0 pt-6 pb-4 px-5">
+        <div className="flex justify-end mb-3">
+          <button
+            onClick={toggleLanguage}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-700/50 bg-zinc-900/60 hover:bg-zinc-800/60 transition-colors"
+            data-testid="button-lang-toggle"
+          >
+            <Globe className="w-3.5 h-3.5 text-white/50" />
+            <span className="text-white/70 text-xs font-bold">{lang === "ar" ? "EN" : "AR"}</span>
+          </button>
+        </div>
+        <div className="text-center">
+          {merchant.logoUrl ? (
+            <img
+              src={merchant.logoUrl}
+              alt={merchant.storeName}
+              className="w-16 h-16 rounded-full object-cover border-2 border-red-600/30 mx-auto mb-3"
+              style={{ boxShadow: "0 0 20px rgba(255,0,0,0.15)" }}
+              data-testid="img-menu-logo"
+            />
+          ) : (
+            <div className="w-16 h-16 rounded-full bg-black border-2 border-red-600/30 flex items-center justify-center mx-auto mb-3" style={{ boxShadow: "0 0 20px rgba(255,0,0,0.15)" }}>
+              <Store className="w-8 h-8 text-red-500" />
+            </div>
+          )}
+          <h1 className="text-white text-xl font-bold" data-testid="text-menu-store-name">{merchant.storeName}</h1>
+          <p className="text-white/40 text-sm mt-1">{t("القائمة الرقمية", "Digital Menu")}</p>
+        </div>
       </div>
 
       {orderingDisabled && (
@@ -843,11 +916,10 @@ export default function PublicMenuPage() {
           <div className="flex items-center gap-3 justify-center">
             <Clock className="w-5 h-5 text-orange-400 flex-shrink-0" />
             <div className="text-center">
-              <p className="text-orange-300 text-sm font-semibold" dir="rtl" data-testid="text-closed-message-ar">{closedInfo.messageAr}</p>
-              <p className="text-orange-300/60 text-xs mt-0.5" data-testid="text-closed-message-en">{closedInfo.messageEn}</p>
+              <p className="text-orange-300 text-sm font-semibold" data-testid="text-closed-message">{t(closedInfo.messageAr, closedInfo.messageEn)}</p>
               {closedInfo.reopenTime && (
                 <p className="text-orange-400 text-xs mt-1.5 font-mono" data-testid="text-reopen-time">
-                  <span dir="rtl">يفتح الساعة</span> {closedInfo.reopenTime} <span className="text-orange-400/50">• Reopening at {closedInfo.reopenTime}</span>
+                  {t("يفتح الساعة", "Reopening at")} {closedInfo.reopenTime}
                 </p>
               )}
             </div>
@@ -858,8 +930,7 @@ export default function PublicMenuPage() {
       <div className="flex-1 overflow-y-auto px-4 pb-28">
         {products.length === 0 ? (
           <div className="text-center py-16" data-testid="empty-menu-state">
-            <p className="text-white/40 text-sm" dir="rtl">لا توجد منتجات متاحة حالياً</p>
-            <p className="text-white/25 text-xs mt-1">No products available at the moment</p>
+            <p className="text-white/40 text-sm">{t("لا توجد منتجات متاحة حالياً", "No products available at the moment")}</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3" data-testid="menu-product-grid">
@@ -950,7 +1021,7 @@ export default function PublicMenuPage() {
 
               {modalProduct.variants && modalProduct.variants.length > 0 && (
                 <div data-testid="section-variants">
-                  <p className="text-white/70 text-xs font-bold uppercase tracking-wider mb-2" dir="rtl">الحجم / Size</p>
+                  <p className="text-white/70 text-xs font-bold uppercase tracking-wider mb-2">{t("الحجم", "Size")}</p>
                   <div className="space-y-2">
                     {modalProduct.variants.map((variant, idx) => (
                       <div
@@ -982,7 +1053,7 @@ export default function PublicMenuPage() {
 
               {modalProduct.addons && modalProduct.addons.length > 0 && (
                 <div data-testid="section-addons">
-                  <p className="text-white/70 text-xs font-bold uppercase tracking-wider mb-2" dir="rtl">إضافات / Extras</p>
+                  <p className="text-white/70 text-xs font-bold uppercase tracking-wider mb-2">{t("إضافات", "Extras")}</p>
                   <div className="space-y-2">
                     {modalProduct.addons.map((addon, idx) => {
                       const selected = modalAddons.some(a => a.name === addon.name);
@@ -1005,7 +1076,7 @@ export default function PublicMenuPage() {
                             </div>
                             <span className="text-white text-sm">{addon.name}</span>
                           </div>
-                          <span className="text-white/50 text-sm">{addon.price > 0 ? `+${addon.price.toFixed(2)}` : "Free"}</span>
+                          <span className="text-white/50 text-sm">{addon.price > 0 ? `+${addon.price.toFixed(2)}` : t("مجاني", "Free")}</span>
                         </div>
                       );
                     })}
@@ -1014,7 +1085,7 @@ export default function PublicMenuPage() {
               )}
 
               <div data-testid="section-quantity">
-                <p className="text-white/70 text-xs font-bold uppercase tracking-wider mb-2" dir="rtl">الكمية / Quantity</p>
+                <p className="text-white/70 text-xs font-bold uppercase tracking-wider mb-2">{t("الكمية", "Quantity")}</p>
                 <div className="flex items-center gap-3 justify-center">
                   <button
                     onClick={() => setModalQty(q => Math.max(1, q - 1))}
@@ -1043,7 +1114,7 @@ export default function PublicMenuPage() {
                 data-testid="button-modal-add-to-cart"
               >
                 <ShoppingCart className="w-5 h-5" />
-                <span dir="rtl">أضف للسلة</span>
+                <span>{t("أضف للسلة", "Add to Cart")}</span>
                 <span className="text-white/80">·</span>
                 <span>{(getModalPrice() * modalQty).toFixed(2)} SAR</span>
               </Button>
@@ -1062,7 +1133,7 @@ export default function PublicMenuPage() {
           >
             <div className="flex items-center gap-2">
               <ShoppingCart className="w-5 h-5" />
-              <span className="text-sm" dir="rtl">عرض السلة</span>
+              <span className="text-sm">{t("عرض السلة", "View Cart")}</span>
               <span className="bg-white/20 rounded-full px-2 py-0.5 text-xs">{cartCount}</span>
             </div>
             <span className="text-sm font-bold">{cartTotal.toFixed(2)} SAR</span>
