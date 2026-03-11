@@ -83,35 +83,37 @@ function BuzzerCircle({ orderNumber, active }: { orderNumber: string; active: bo
             <stop offset="100%" stopColor="#ff0000" stopOpacity="0" />
           </radialGradient>
         </defs>
-        {leds.map((led) => (
-          <g key={led.i}>
-            <circle
-              cx={led.cx}
-              cy={led.cy}
-              r={6}
-              fill="url(#led-glow-grad)"
-              className={active ? "led-glow-active" : "led-glow-idle"}
-              style={{ animationDelay: led.delay }}
-            />
-            <circle
-              cx={led.cx}
-              cy={led.cy}
-              r={2.6}
-              fill="#ff2000"
-              className={active ? "led-dot-active" : "led-dot-idle"}
-              style={{ animationDelay: led.delay }}
-            />
-            <circle
-              cx={led.cx}
-              cy={led.cy}
-              r={1.2}
-              fill="#ff6644"
-              opacity={active ? 0.9 : 0.25}
-              className={active ? "led-dot-active" : "led-dot-idle"}
-              style={{ animationDelay: led.delay }}
-            />
-          </g>
-        ))}
+        <g className={active ? "led-ring-spinning" : ""} style={{ transformOrigin: "50px 50px" }}>
+          {leds.map((led) => (
+            <g key={led.i}>
+              <circle
+                cx={led.cx}
+                cy={led.cy}
+                r={6}
+                fill="url(#led-glow-grad)"
+                className={active ? "led-glow-active" : "led-glow-idle"}
+                style={{ animationDelay: led.delay }}
+              />
+              <circle
+                cx={led.cx}
+                cy={led.cy}
+                r={2.6}
+                fill="#ff2000"
+                className={active ? "led-dot-active" : "led-dot-idle"}
+                style={{ animationDelay: led.delay }}
+              />
+              <circle
+                cx={led.cx}
+                cy={led.cy}
+                r={1.2}
+                fill="#ff6644"
+                opacity={active ? 0.9 : 0.25}
+                className={active ? "led-dot-active" : "led-dot-idle"}
+                style={{ animationDelay: led.delay }}
+              />
+            </g>
+          ))}
+        </g>
       </svg>
 
       <div className="absolute inset-0 flex items-center justify-center z-10">
