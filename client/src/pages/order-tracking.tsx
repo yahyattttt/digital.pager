@@ -692,11 +692,27 @@ export default function OrderTrackingPage() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const bellPrimedRef = useRef(false);
+  const initialFetchDoneRef = useRef(false);
 
   const { toast } = useToast();
 
   const merchantId = new URLSearchParams(window.location.search).get("m") || "";
   const trackingType = new URLSearchParams(window.location.search).get("type") || "";
+
+  useEffect(() => {
+    setOrder(null);
+    setMerchant(null);
+    setNotFound(false);
+    setLoading(!!orderId);
+    initialFetchDoneRef.current = false;
+    setBellPrimed(false);
+    setBellPlaying(false);
+    bellPrimedRef.current = false;
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+  }, [orderId]);
 
   function ensureAudio() {
     if (!audioRef.current) {
@@ -760,6 +776,8 @@ export default function OrderTrackingPage() {
       return;
     }
 
+    initialFetchDoneRef.current = false;
+
     async function fetchInitial() {
       try {
         const res = await fetch(`/api/track/${orderId}?merchantId=${merchantId}${trackingType ? `&type=${trackingType}` : ""}`);
@@ -770,6 +788,7 @@ export default function OrderTrackingPage() {
       } catch {
         setNotFound(true);
       } finally {
+        initialFetchDoneRef.current = true;
         setLoading(false);
       }
     }
@@ -788,8 +807,10 @@ export default function OrderTrackingPage() {
     const unsub = onSnapshot(docRef, (snap) => {
       if (!snap.exists()) {
         console.log("[OrderTracking] Document does not exist in snapshot");
-        setOrder(null);
-        setNotFound(true);
+        if (initialFetchDoneRef.current) {
+          setOrder(null);
+          setNotFound(true);
+        }
         return;
       }
       const data = snap.data();
@@ -833,6 +854,13 @@ export default function OrderTrackingPage() {
           createdAt: data.createdAt || "",
         };
       }
+
+      if (!initialFetchDoneRef.current) {
+        prevStatus = updatedOrder.status;
+        isFirstSnapshot = false;
+        return;
+      }
+
       setOrder(updatedOrder);
 
       const currentStatus = updatedOrder.status;
