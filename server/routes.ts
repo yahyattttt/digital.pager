@@ -3009,6 +3009,100 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/merchant-public/:merchantId", async (req, res) => {
+    try {
+      const { merchantId } = req.params;
+      if (!merchantId) return res.status(400).json({ message: "merchantId required" });
+
+      const accessToken = await getFirestoreAccessToken();
+      const baseUrl = getFirestoreBaseUrl();
+      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+
+      const mRes = await fetch(`${baseUrl}/merchants/${merchantId}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!mRes.ok) return res.status(404).json({ message: "Merchant not found" });
+      const mDoc = await mRes.json();
+      const mf = mDoc.fields || {};
+
+      return res.json({
+        storeName: mf.storeName?.stringValue || "",
+        logoUrl: mf.logoUrl?.stringValue || "",
+        googleMapsReviewUrl: mf.googleMapsReviewUrl?.stringValue || "",
+      });
+    } catch (error) {
+      console.error("Merchant public fetch error:", error);
+      return res.status(500).json({ message: "Failed to fetch merchant" });
+    }
+  });
+
+  app.patch("/api/pager-feedback", async (req, res) => {
+    try {
+      const { merchantId, pagerId, rating, feedback } = req.body;
+      if (!merchantId || !pagerId || !rating) {
+        return res.status(400).json({ message: "merchantId, pagerId, and rating required" });
+      }
+      const ratingNum = Number(rating);
+      if (!Number.isInteger(ratingNum) || ratingNum < 1 || ratingNum > 5) {
+        return res.status(400).json({ message: "Rating must be an integer between 1 and 5" });
+      }
+
+      const accessToken = await getFirestoreAccessToken();
+      const baseUrl = getFirestoreBaseUrl();
+      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+
+      const docUrl = `${baseUrl}/merchants/${merchantId}/pagers/${pagerId}`;
+
+      const getRes = await fetch(docUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
+      if (!getRes.ok) return res.status(404).json({ message: "Pager not found" });
+      const pagerDoc = await getRes.json();
+      const pagerStatus = pagerDoc?.fields?.status?.stringValue;
+      if (!["completed", "archived", "notified"].includes(pagerStatus || "")) {
+        return res.status(400).json({ message: "Feedback can only be submitted for completed orders" });
+      }
+      if (pagerDoc?.fields?.customerFeedback?.mapValue?.fields?.rating) {
+        return res.status(400).json({ message: "Feedback already submitted" });
+      }
+
+      const updateFields: Record<string, any> = {
+        "customerFeedback.rating": { integerValue: String(rating) },
+        "customerFeedback.submittedAt": { stringValue: new Date().toISOString() },
+      };
+      if (feedback && typeof feedback === "string" && feedback.trim()) {
+        updateFields["customerFeedback.text"] = { stringValue: feedback.trim() };
+      }
+
+      const patchRes = await fetch(`${docUrl}?updateMask.fieldPaths=customerFeedback`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fields: {
+            customerFeedback: {
+              mapValue: {
+                fields: {
+                  rating: { integerValue: String(rating) },
+                  text: { stringValue: (feedback || "").trim() },
+                  submittedAt: { stringValue: new Date().toISOString() },
+                },
+              },
+            },
+          },
+        }),
+      });
+
+      if (!patchRes.ok) {
+        const errText = await patchRes.text();
+        console.error("Pager feedback update failed:", errText);
+        return res.status(500).json({ message: "Failed to save feedback" });
+      }
+
+      return res.json({ success: true });
+    } catch (error) {
+      console.error("Pager feedback error:", error);
+      return res.status(500).json({ message: "Failed to save feedback" });
+    }
+  });
+
   app.get("/api/track/:orderId", async (req, res) => {
     try {
       const { orderId } = req.params;

@@ -51,6 +51,7 @@ interface ArchiveOrder {
   createdAt: string;
   archivedAt: string;
   customerNotes: string;
+  customerFeedback?: { rating: number; text: string; submittedAt: string };
 }
 
 interface ArchiveViewProps {
@@ -179,6 +180,7 @@ export default function ArchiveView({ merchant, t, lang, onViewReceipt, onNaviga
       const pagerSnap = await getDocs(pagerQ);
       pagerSnap.forEach((d) => {
         const data = d.data();
+        const cf = data.customerFeedback;
         allDocs.push({
           id: d.id,
           displayOrderId: data.displayOrderId || "",
@@ -195,6 +197,7 @@ export default function ArchiveView({ merchant, t, lang, onViewReceipt, onNaviga
           createdAt: data.createdAt || "",
           archivedAt: data.archivedAt || "",
           customerNotes: "",
+          customerFeedback: cf ? { rating: Number(cf.rating) || 0, text: cf.text || "", submittedAt: cf.submittedAt || "" } : undefined,
         });
       });
 
@@ -542,7 +545,12 @@ export default function ArchiveView({ merchant, t, lang, onViewReceipt, onNaviga
                       <p className="text-white font-mono font-bold text-base" data-testid={`text-archive-mobile-id-${order.id}`}>
                         {order.displayOrderId || order.orderNumber || order.id.slice(0, 6)}
                       </p>
-                      <p className="text-white/30 text-[10px]">{formatDate(order.createdAt)} • {formatTime(order.createdAt)}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-white/30 text-[10px]">{formatDate(order.createdAt)} • {formatTime(order.createdAt)}</p>
+                        {order.customerFeedback && (
+                          <span className="text-amber-400 text-[10px]" data-testid={`badge-feedback-${order.id}`}>⭐{order.customerFeedback.rating}</span>
+                        )}
+                      </div>
                     </div>
                     <div className="flex flex-col items-end gap-1">
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border ${getDiningColor(order.diningType || (order.orderType === "manual" ? "manual" : ""))}`}>
@@ -613,6 +621,17 @@ export default function ArchiveView({ merchant, t, lang, onViewReceipt, onNaviga
                       {order.customerNotes && (
                         <p className="text-white/30 text-[10px]">📝 {order.customerNotes}</p>
                       )}
+                      {order.customerFeedback && (
+                        <div className="p-2 rounded-lg bg-amber-500/5 border border-amber-500/10 space-y-1" data-testid={`feedback-${order.id}`}>
+                          <div className="flex items-center gap-1">
+                            <span className="text-amber-400 text-[10px]">{"⭐".repeat(order.customerFeedback.rating)}</span>
+                            <span className="text-white/30 text-[9px]">({order.customerFeedback.rating}/5)</span>
+                          </div>
+                          {order.customerFeedback.text && (
+                            <p className="text-white/40 text-[10px]" dir="rtl">💬 {order.customerFeedback.text}</p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
                 </CardContent>
@@ -644,6 +663,17 @@ export default function ArchiveView({ merchant, t, lang, onViewReceipt, onNaviga
                     )}
                     {order.customerNotes && (
                       <p className="text-white/30 text-[10px] mt-1">📝 {order.customerNotes}</p>
+                    )}
+                    {order.customerFeedback && (
+                      <div className="p-2.5 rounded-lg bg-amber-500/5 border border-amber-500/10 space-y-1 mt-1" data-testid={`feedback-desktop-${order.id}`}>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-amber-400 text-xs">{"⭐".repeat(order.customerFeedback.rating)}</span>
+                          <span className="text-white/30 text-[10px]">({order.customerFeedback.rating}/5)</span>
+                        </div>
+                        {order.customerFeedback.text && (
+                          <p className="text-white/40 text-xs" dir="rtl">💬 {order.customerFeedback.text}</p>
+                        )}
+                      </div>
                     )}
                   </CardContent>
                 </Card>
