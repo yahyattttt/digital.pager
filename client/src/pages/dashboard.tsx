@@ -99,6 +99,8 @@ import {
   Search,
   Navigation,
   Truck,
+  ShoppingBag,
+  Filter,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { Progress } from "@/components/ui/progress";
@@ -1805,22 +1807,51 @@ function OverviewView({
   };
 
   const [orderSearchQuery, setOrderSearchQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState<"all" | "dine_in" | "takeaway" | "delivery" | "manual">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "new" | "preparing" | "ready">("all");
 
-  const allActiveOrdersRaw = [
-    ...waitingPagers.map(p => ({ type: "pager" as const, id: p.docId, orderNumber: p.orderNumber, displayOrderId: p.displayOrderId || `#${p.orderNumber}`, status: p.status, createdAt: p.createdAt, pager: p })),
-    ...notifiedPagers.map(p => ({ type: "pager-notified" as const, id: p.docId, orderNumber: p.orderNumber, displayOrderId: p.displayOrderId || `#${p.orderNumber}`, status: "notified" as const, createdAt: p.createdAt, pager: p })),
-    ...activeWhatsappOrders.map(o => ({ type: "wa" as const, id: o.id, orderNumber: o.orderNumber || "?", displayOrderId: o.displayOrderId || (o.orderNumber ? `#${o.orderNumber}` : "?"), status: o.status, createdAt: o.createdAt, order: o })),
-    ...whatsappOrders.map(o => ({ type: "wa-new" as const, id: o.id, orderNumber: "NEW", displayOrderId: "", status: "awaiting_confirmation" as const, createdAt: o.createdAt, order: o })),
+  type ActiveOrderItem = {
+    type: "pager" | "pager-notified" | "wa" | "wa-new";
+    id: string;
+    orderNumber: string;
+    displayOrderId: string;
+    status: string;
+    createdAt: any;
+    pager?: Pager & { docId: string };
+    order?: WhatsAppOrder;
+    orderCategory: "dine_in" | "takeaway" | "delivery" | "manual";
+  };
+
+  const getOrderCategory = (item: { type: string; pager?: any; order?: any }): "dine_in" | "takeaway" | "delivery" | "manual" => {
+    if (item.type === "pager" || item.type === "pager-notified") return "manual";
+    const o = item.order;
+    if (o?.diningType === "delivery") return "delivery";
+    if (o?.diningType === "takeaway") return "takeaway";
+    return "dine_in";
+  };
+
+  const allActiveOrdersRaw: ActiveOrderItem[] = [
+    ...waitingPagers.map(p => ({ type: "pager" as const, id: p.docId, orderNumber: p.orderNumber, displayOrderId: p.displayOrderId || `#${p.orderNumber}`, status: p.status, createdAt: p.createdAt, pager: p, order: undefined, orderCategory: "manual" as const })),
+    ...notifiedPagers.map(p => ({ type: "pager-notified" as const, id: p.docId, orderNumber: p.orderNumber, displayOrderId: p.displayOrderId || `#${p.orderNumber}`, status: "notified" as const, createdAt: p.createdAt, pager: p, order: undefined, orderCategory: "manual" as const })),
+    ...activeWhatsappOrders.map(o => ({ type: "wa" as const, id: o.id, orderNumber: o.orderNumber || "?", displayOrderId: o.displayOrderId || (o.orderNumber ? `#${o.orderNumber}` : "?"), status: o.status, createdAt: o.createdAt, pager: undefined, order: o, orderCategory: getOrderCategory({ type: "wa", order: o }) })),
+    ...whatsappOrders.map(o => ({ type: "wa-new" as const, id: o.id, orderNumber: "NEW", displayOrderId: "", status: "awaiting_confirmation" as const, createdAt: o.createdAt, pager: undefined, order: o, orderCategory: getOrderCategory({ type: "wa-new", order: o }) })),
   ].sort((a, b) => safeTime(a.createdAt) - safeTime(b.createdAt));
 
-  const allActiveOrders = orderSearchQuery.trim()
-    ? allActiveOrdersRaw.filter(item => {
-        const q = orderSearchQuery.trim().toUpperCase();
-        const did = item.displayOrderId?.toUpperCase() || "";
-        const onum = item.orderNumber?.toUpperCase() || "";
-        return did.includes(q) || onum.includes(q) || `#${onum}`.includes(q);
-      })
-    : allActiveOrdersRaw;
+  const allActiveOrders = allActiveOrdersRaw.filter(item => {
+    if (typeFilter !== "all" && item.orderCategory !== typeFilter) return false;
+    if (statusFilter !== "all") {
+      if (statusFilter === "new" && item.status !== "awaiting_confirmation" && item.status !== "pending_verification") return false;
+      if (statusFilter === "preparing" && item.status !== "preparing" && item.status !== "waiting") return false;
+      if (statusFilter === "ready" && item.status !== "ready" && item.status !== "notified") return false;
+    }
+    if (orderSearchQuery.trim()) {
+      const q = orderSearchQuery.trim().toUpperCase();
+      const did = item.displayOrderId?.toUpperCase() || "";
+      const onum = item.orderNumber?.toUpperCase() || "";
+      if (!did.includes(q) && !onum.includes(q) && !`#${onum}`.includes(q)) return false;
+    }
+    return true;
+  });
 
   const totalActive = allActiveOrders.length;
 
@@ -1831,6 +1862,45 @@ function OverviewView({
     if (status === "notified") return { bg: "bg-violet-500/10", text: "text-violet-400", border: "border-violet-500/20", label: t("تم التنبيه", "Notified") };
     return { bg: "bg-white/5", text: "text-white/60", border: "border-white/10", label: t("في الانتظار", "Waiting") };
   };
+
+  const typeBadgeConfig = (cat: "dine_in" | "takeaway" | "delivery" | "manual") => {
+    if (cat === "dine_in") return { bg: "bg-sky-500/20", text: "text-sky-300", border: "border-sky-500/30", label: t("محلي", "Dine-in"), glow: "border-s-sky-500/60", icon: UtensilsCrossed };
+    if (cat === "takeaway") return { bg: "bg-orange-500/20", text: "text-orange-300", border: "border-orange-500/30", label: t("سفري", "Takeaway"), glow: "border-s-orange-500/60", icon: ShoppingBag };
+    if (cat === "delivery") return { bg: "bg-emerald-500/20", text: "text-emerald-300", border: "border-emerald-500/30", label: t("توصيل", "Delivery"), glow: "border-s-emerald-500/60", icon: Truck };
+    return { bg: "bg-violet-500/20", text: "text-violet-300", border: "border-violet-500/30", label: t("يدوي", "Manual"), glow: "border-s-violet-500/60", icon: Pencil };
+  };
+
+  const TypeBadge = ({ category }: { category: "dine_in" | "takeaway" | "delivery" | "manual" }) => {
+    const cfg = typeBadgeConfig(category);
+    const Icon = cfg.icon;
+    return (
+      <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md ${cfg.bg} ${cfg.text} border ${cfg.border}`} data-testid={`badge-type-${category}`}>
+        <Icon className="w-3 h-3" />
+        {cfg.label}
+      </span>
+    );
+  };
+
+  const typeFilterChips: { key: "all" | "dine_in" | "takeaway" | "delivery" | "manual"; label: string; icon?: any }[] = [
+    { key: "all", label: t("الكل", "All") },
+    { key: "dine_in", label: t("محلي", "Dine-in"), icon: UtensilsCrossed },
+    { key: "takeaway", label: t("سفري", "Takeaway"), icon: ShoppingBag },
+    { key: "delivery", label: t("توصيل", "Delivery"), icon: Truck },
+    { key: "manual", label: t("يدوي", "Manual"), icon: Pencil },
+  ];
+
+  const statusFilterChips: { key: "all" | "new" | "preparing" | "ready"; label: string }[] = [
+    { key: "all", label: t("الكل", "All") },
+    { key: "new", label: t("جديد", "New") },
+    { key: "preparing", label: t("قيد التحضير", "Preparing") },
+    { key: "ready", label: t("جاهز", "Ready") },
+  ];
+
+  const cardGlowClass = (cat: "dine_in" | "takeaway" | "delivery" | "manual") => {
+    return `border-s-[3px] ${typeBadgeConfig(cat).glow}`;
+  };
+
+  const isManualCard = (cat: "dine_in" | "takeaway" | "delivery" | "manual") => cat === "manual";
 
   return (
     <div className="flex flex-col h-full min-h-[calc(100dvh-3.5rem)]">
@@ -1863,9 +1933,17 @@ function OverviewView({
       </div>
 
       <div className="flex-1 rounded-2xl bg-[#0d0d0d] border border-white/[0.06] p-4 relative" data-testid="workspace-active-orders">
-        <div className="flex items-center justify-between mb-4 gap-3">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-white/50">{t("الطلبات النشطة", "Active Orders")}</h3>
-          <div className="flex items-center gap-2">
+        <div className="sticky top-0 z-10 bg-[#0d0d0d] pb-3 -mt-1 pt-1 space-y-3" data-testid="filter-bar">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-white/50">{t("الطلبات النشطة", "Active Orders")}</h3>
+              {allActiveOrders.length > 0 && (
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+              )}
+            </div>
             <div className="relative">
               <Search className="absolute start-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30 pointer-events-none" />
               <Input
@@ -1877,11 +1955,56 @@ function OverviewView({
                 data-testid="input-order-search"
               />
             </div>
-            {allActiveOrders.length > 0 && (
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1 me-1">
+              <Filter className="w-3 h-3 text-white/30" />
+              <span className="text-[10px] text-white/30 font-medium">{t("النوع", "Type")}</span>
+            </div>
+            {typeFilterChips.map(chip => {
+              const isActive = typeFilter === chip.key;
+              const ChipIcon = chip.icon;
+              return (
+                <button
+                  key={chip.key}
+                  onClick={() => setTypeFilter(chip.key)}
+                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${isActive ? "bg-white/[0.12] text-white border border-white/20 shadow-sm" : "bg-white/[0.04] text-white/40 border border-white/[0.06] hover:bg-white/[0.08] hover:text-white/60"}`}
+                  data-testid={`filter-type-${chip.key}`}
+                >
+                  {ChipIcon && <ChipIcon className="w-3 h-3" />}
+                  {chip.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1 me-1">
+              <Clock className="w-3 h-3 text-white/30" />
+              <span className="text-[10px] text-white/30 font-medium">{t("الحالة", "Status")}</span>
+            </div>
+            {statusFilterChips.map(chip => {
+              const isActive = statusFilter === chip.key;
+              return (
+                <button
+                  key={chip.key}
+                  onClick={() => setStatusFilter(chip.key)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${isActive ? "bg-white/[0.12] text-white border border-white/20 shadow-sm" : "bg-white/[0.04] text-white/40 border border-white/[0.06] hover:bg-white/[0.08] hover:text-white/60"}`}
+                  data-testid={`filter-status-${chip.key}`}
+                >
+                  {chip.label}
+                </button>
+              );
+            })}
+            {(typeFilter !== "all" || statusFilter !== "all") && (
+              <button
+                onClick={() => { setTypeFilter("all"); setStatusFilter("all"); }}
+                className="px-2 py-1 rounded-lg text-[10px] font-medium text-red-400/60 hover:text-red-400 bg-red-500/5 hover:bg-red-500/10 border border-red-500/10 transition-all"
+                data-testid="filter-clear-all"
+              >
+                {t("مسح الفلاتر", "Clear")}
+              </button>
             )}
           </div>
         </div>
@@ -1906,7 +2029,7 @@ function OverviewView({
                 return (
                   <Card
                     key={`wa-new-${item.id}`}
-                    className={`bg-[#111] rounded-2xl overflow-hidden transition-all duration-500 border-2 border-red-500/40 shadow-[0_0_15px_rgba(239,0,0,0.08)] ${isFlying ? "opacity-0 -translate-y-20 scale-75" : ""}`}
+                    className={`${isManualCard(item.orderCategory) ? "bg-[#0a0a0a]" : "bg-[#111]"} rounded-2xl overflow-hidden transition-all duration-500 border-2 border-red-500/40 shadow-[0_0_15px_rgba(239,0,0,0.08)] ${cardGlowClass(item.orderCategory)} ${isFlying ? "opacity-0 -translate-y-20 scale-75" : ""}`}
                     data-testid={`card-wa-order-${item.id}`}
                   >
                     <div className="flex items-center justify-between px-4 pt-4 pb-2">
@@ -1917,6 +2040,7 @@ function OverviewView({
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
+                        <TypeBadge category={item.orderCategory} />
                         <Badge className={`rounded-full text-[10px] px-2 py-0.5 ${sc.bg} ${sc.text} border ${sc.border}`}>
                           {sc.label}
                         </Badge>
@@ -2057,7 +2181,7 @@ function OverviewView({
                 return (
                   <Card
                     key={`${item.type}-${item.id}`}
-                    className={`bg-[#111] rounded-2xl overflow-hidden transition-all duration-500 border border-white/[0.08] ${isFlying ? "opacity-0 -translate-y-20 scale-75" : ""}`}
+                    className={`bg-[#0a0a0a] rounded-2xl overflow-hidden transition-all duration-500 border border-white/[0.08] ${cardGlowClass("manual")} ${isFlying ? "opacity-0 -translate-y-20 scale-75" : ""}`}
                     data-testid={`card-${isNotified ? "notified" : "waiting"}-${item.id}`}
                   >
                     <div className="flex items-center justify-between px-4 pt-4 pb-2">
@@ -2068,6 +2192,7 @@ function OverviewView({
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
+                        <TypeBadge category="manual" />
                         <Badge className={`rounded-full text-[10px] px-2 py-0.5 ${sc.bg} ${sc.text} border ${sc.border}`}>
                           {isNotified ? t("تم التنبيه", "Notified") : t("في الانتظار", "Waiting")}
                         </Badge>
@@ -2079,9 +2204,6 @@ function OverviewView({
                     </div>
 
                     <CardContent className="px-4 pb-4 pt-0 space-y-3">
-                      <div className="flex items-center gap-2 text-xs text-white/40">
-                        <Badge className="rounded-full text-[10px] bg-orange-500/10 text-orange-400 border-orange-500/20">{(pager as any).orderSource === "Manual" ? t("يدوي", "Manual") : t("طلب يدوي", "QR / Manual")}</Badge>
-                      </div>
 
                       <div className="flex gap-2">
                         {!isNotified ? (
@@ -2125,7 +2247,7 @@ function OverviewView({
               return (
                 <Card
                   key={`wa-${item.id}`}
-                  className={`bg-[#111] rounded-2xl overflow-hidden transition-all duration-500 border-2 border-red-500/40 shadow-[0_0_15px_rgba(239,0,0,0.08)] ${isFlying ? "opacity-0 -translate-y-20 scale-75" : ""}`}
+                  className={`${isManualCard(item.orderCategory) ? "bg-[#0a0a0a]" : "bg-[#111]"} rounded-2xl overflow-hidden transition-all duration-500 border-2 border-red-500/40 shadow-[0_0_15px_rgba(239,0,0,0.08)] ${cardGlowClass(item.orderCategory)} ${isFlying ? "opacity-0 -translate-y-20 scale-75" : ""}`}
                   data-testid={`card-active-order-${item.id}`}
                 >
                   <div className="flex items-center justify-between px-4 pt-4 pb-2">
@@ -2142,6 +2264,7 @@ function OverviewView({
                       )}
                     </div>
                     <div className="flex items-center gap-2">
+                      <TypeBadge category={item.orderCategory} />
                       <Badge className={`rounded-full text-[10px] px-2 py-0.5 ${sc.bg} ${sc.text} border ${sc.border}`}>
                         {sc.label}
                       </Badge>
