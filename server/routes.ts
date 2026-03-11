@@ -437,6 +437,25 @@ export async function registerRoutes(
     return res.json({ url });
   });
 
+  app.post("/api/receipt-qr", async (req, res) => {
+    try {
+      const { content } = req.body;
+      if (!content || typeof content !== "string" || content.length > 500) {
+        return res.status(400).json({ message: "Invalid or missing content (max 500 chars)" });
+      }
+      const dataUrl = await QRCode.toDataURL(content, {
+        width: 200,
+        margin: 2,
+        color: { dark: "#000000", light: "#FFFFFF" },
+        errorCorrectionLevel: "M",
+      });
+      res.json({ dataUrl });
+    } catch (error) {
+      console.error("Receipt QR generation error:", error);
+      res.status(500).json({ message: "Failed to generate QR" });
+    }
+  });
+
   app.get("/api/qr/:storeId", async (req, res) => {
     try {
       const { storeId } = req.params;
@@ -3071,6 +3090,8 @@ export async function registerRoutes(
           deliveryLat: f.deliveryLat?.doubleValue ?? undefined,
           deliveryLng: f.deliveryLng?.doubleValue ?? undefined,
           deliveryMapLink: f.deliveryMapLink?.stringValue || undefined,
+          deliveryFee: f.deliveryFee?.doubleValue ?? (f.deliveryFee?.integerValue ? parseFloat(f.deliveryFee.integerValue) : undefined),
+          customerNotes: f.customerNotes?.stringValue || undefined,
           createdAt: f.createdAt?.stringValue || "",
         };
       }

@@ -531,6 +531,18 @@ function DeliveryTrackingView({
           </Button>
         )}
 
+        {!isRejected && (
+          <button
+            onClick={() => { window.location.href = `/receipt/${order.id}?m=${merchantId}`; }}
+            className="w-full flex items-center justify-center gap-2.5 rounded-xl border border-emerald-500/20 bg-gradient-to-r from-emerald-950/30 via-emerald-900/15 to-emerald-950/30 active:scale-[0.97] transition-all duration-200"
+            style={{ padding: "14px 20px", boxShadow: "0 0 15px rgba(16,185,129,0.05), inset 0 1px 0 rgba(255,255,255,0.03)" }}
+            data-testid="button-view-receipt-delivery"
+          >
+            <span className="text-lg flex-shrink-0">📄</span>
+            <span className="text-emerald-400/90 text-[14px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>عرض إيصال الطلب</span>
+          </button>
+        )}
+
         {showRating && !isRejected && ratingPhase === "stars" && (
           <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
             <Card className="w-full bg-[#111] border-white/[0.06] rounded-2xl">
@@ -1128,19 +1140,31 @@ export default function OrderTrackingPage() {
           </div>
 
           {isOnlineOrder && (
-            <button
-              onClick={handleShareTracking}
-              className="w-full flex items-center justify-center gap-3 rounded-2xl border border-red-500/20 bg-gradient-to-r from-red-950/30 via-red-900/15 to-red-950/30 active:scale-[0.97] transition-all duration-200"
-              style={{ padding: "18px 20px", boxShadow: "0 0 15px rgba(255,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.03)" }}
-              data-testid="button-share-tracking-pending"
-            >
-              {navigator.share ? (
-                <Share2 className="w-5 h-5 text-red-400/80 flex-shrink-0" />
-              ) : (
-                <Copy className="w-5 h-5 text-red-400/80 flex-shrink-0" />
-              )}
-              <span className="text-red-400/90 text-[18px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>شارك حالة الطلب مع أحبابك</span>
-            </button>
+            <>
+              <button
+                onClick={() => { window.location.href = `/receipt/${orderId}?m=${merchantId}`; }}
+                className="w-full flex items-center justify-center gap-3 rounded-2xl border border-emerald-500/20 bg-gradient-to-r from-emerald-950/30 via-emerald-900/15 to-emerald-950/30 active:scale-[0.97] transition-all duration-200"
+                style={{ padding: "16px 20px", boxShadow: "0 0 15px rgba(16,185,129,0.05), inset 0 1px 0 rgba(255,255,255,0.03)" }}
+                data-testid="button-view-receipt"
+              >
+                <span className="text-2xl flex-shrink-0">📄</span>
+                <span className="text-emerald-400/90 text-[17px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>عرض إيصال الطلب</span>
+              </button>
+
+              <button
+                onClick={handleShareTracking}
+                className="w-full flex items-center justify-center gap-3 rounded-2xl border border-red-500/20 bg-gradient-to-r from-red-950/30 via-red-900/15 to-red-950/30 active:scale-[0.97] transition-all duration-200"
+                style={{ padding: "18px 20px", boxShadow: "0 0 15px rgba(255,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.03)" }}
+                data-testid="button-share-tracking-pending"
+              >
+                {navigator.share ? (
+                  <Share2 className="w-5 h-5 text-red-400/80 flex-shrink-0" />
+                ) : (
+                  <Copy className="w-5 h-5 text-red-400/80 flex-shrink-0" />
+                )}
+                <span className="text-red-400/90 text-[18px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>شارك حالة الطلب مع أحبابك</span>
+              </button>
+            </>
           )}
 
           <div className="flex items-center justify-center gap-2 mt-1">
@@ -1319,6 +1343,18 @@ export default function OrderTrackingPage() {
       </div>
 
       <div className="w-full max-w-xs space-y-4">
+        {isOnlineOrder && (
+          <button
+            onClick={() => { window.location.href = `/receipt/${orderId}?m=${merchantId}`; }}
+            className="w-full flex items-center justify-center gap-2.5 rounded-2xl border border-emerald-500/20 bg-gradient-to-r from-emerald-950/30 via-emerald-900/15 to-emerald-950/30 active:scale-[0.97] transition-all duration-200"
+            style={{ padding: "14px 20px", boxShadow: "0 0 15px rgba(16,185,129,0.05), inset 0 1px 0 rgba(255,255,255,0.03)" }}
+            data-testid="button-view-receipt-preparing"
+          >
+            <span className="text-xl flex-shrink-0">📄</span>
+            <span className="text-emerald-400/90 text-[15px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>عرض إيصال الطلب</span>
+          </button>
+        )}
+
         <button
           onClick={handleShareTracking}
           className="w-full flex items-center justify-center gap-3 rounded-2xl border border-red-500/20 bg-gradient-to-r from-red-950/30 via-red-900/15 to-red-950/30 active:scale-[0.97] transition-all duration-200"
