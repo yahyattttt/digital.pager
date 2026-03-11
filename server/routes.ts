@@ -716,10 +716,10 @@ export async function registerRoutes(
       const { Resend } = await import("resend");
       const resend = new Resend(resendApiKey);
 
-      console.log(`[OTP] Sending OTP email to: ${emailLower}, from: onboarding@resend.dev`);
+      console.log(`[OTP] Sending OTP email to: ${emailLower}, from: onboarding@digitalpager.net`);
 
-      const sendResult = await resend.emails.send({
-        from: "Digital Pager <onboarding@resend.dev>",
+    const sendResult = await resend.emails.send({
+      from: "Digital Pager <onboarding@digitalpager.net>",
         to: emailLower,
         subject: "رمز التحقق - Digital Pager Verification Code",
         html: `
