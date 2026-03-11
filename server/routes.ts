@@ -2602,7 +2602,7 @@ export async function registerRoutes(
   app.post("/api/whatsapp-orders/:merchantId", async (req, res) => {
     try {
       const { merchantId } = req.params;
-      const { customerName, customerPhone, items, total, paymentMethod, transactionId, diningType, customerNotes } = req.body;
+      const { customerName, customerPhone, items, total, paymentMethod, transactionId, diningType, customerNotes, deliveryAddress, deliveryLat, deliveryLng } = req.body;
 
       if (!customerName || !customerPhone || !items || !Array.isArray(items) || items.length === 0) {
         return res.status(400).json({ message: "customerName, customerPhone, and items are required" });
@@ -2728,6 +2728,21 @@ export async function registerRoutes(
 
       if (customerNotes && typeof customerNotes === "string" && customerNotes.trim()) {
         fields.customerNotes = { stringValue: customerNotes.trim() };
+      }
+
+      if (diningType === "delivery") {
+        if (!deliveryAddress || typeof deliveryAddress !== "string" || !deliveryAddress.trim()) {
+          return res.status(400).json({ message: "Delivery address is required for delivery orders" });
+        }
+        const trimmedAddress = deliveryAddress.trim().slice(0, 300);
+        fields.deliveryAddress = { stringValue: trimmedAddress };
+        if (typeof deliveryLat === "number" && typeof deliveryLng === "number" &&
+            Number.isFinite(deliveryLat) && Number.isFinite(deliveryLng) &&
+            deliveryLat >= -90 && deliveryLat <= 90 &&
+            deliveryLng >= -180 && deliveryLng <= 180) {
+          fields.deliveryLat = { doubleValue: deliveryLat };
+          fields.deliveryLng = { doubleValue: deliveryLng };
+        }
       }
 
       const { source } = req.body;
@@ -3052,6 +3067,9 @@ export async function registerRoutes(
           displayOrderId: f.displayOrderId?.stringValue || "",
           orderType: f.orderType?.stringValue || undefined,
           diningType: f.diningType?.stringValue || undefined,
+          deliveryAddress: f.deliveryAddress?.stringValue || undefined,
+          deliveryLat: f.deliveryLat?.doubleValue ?? undefined,
+          deliveryLng: f.deliveryLng?.doubleValue ?? undefined,
           createdAt: f.createdAt?.stringValue || "",
         };
       }

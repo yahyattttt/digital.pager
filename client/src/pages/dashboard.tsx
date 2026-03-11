@@ -97,6 +97,7 @@ import {
   UserCheck,
   Sparkles,
   Search,
+  Navigation,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { Progress } from "@/components/ui/progress";
@@ -419,6 +420,9 @@ export default function DashboardPage() {
           orderType: data.orderType || undefined,
           diningType: data.diningType || undefined,
           deliveryFee: data.deliveryFee || undefined,
+          deliveryAddress: data.deliveryAddress || undefined,
+          deliveryLat: data.deliveryLat || undefined,
+          deliveryLng: data.deliveryLng || undefined,
           customerNotes: data.customerNotes || undefined,
           createdAt: data.createdAt || "",
         };
@@ -463,6 +467,9 @@ export default function DashboardPage() {
           orderType: data.orderType || undefined,
           diningType: data.diningType || undefined,
           deliveryFee: data.deliveryFee || undefined,
+          deliveryAddress: data.deliveryAddress || undefined,
+          deliveryLat: data.deliveryLat || undefined,
+          deliveryLng: data.deliveryLng || undefined,
           customerNotes: data.customerNotes || undefined,
           createdAt: data.createdAt || "",
         };
@@ -1901,6 +1908,22 @@ function OverviewView({
                         })}
                       </div>
 
+                      {order.deliveryAddress && order.diningType === "delivery" && (
+                        <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20" data-testid={`text-delivery-address-${item.id}`}>
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <MapPin className="w-3.5 h-3.5 text-emerald-400" />
+                            <p className="text-[11px] text-emerald-300 font-bold">{t("عنوان التوصيل", "Delivery Address")}</p>
+                          </div>
+                          <p className="text-xs text-white/80 leading-relaxed">{order.deliveryAddress}</p>
+                          {order.deliveryLat != null && order.deliveryLng != null && (
+                            <a href={`https://www.google.com/maps?q=${order.deliveryLat},${order.deliveryLng}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 mt-1.5 text-[10px] text-emerald-400 hover:text-emerald-300 underline" data-testid={`link-maps-${item.id}`}>
+                              <Navigation className="w-3 h-3" />
+                              {t("فتح في خرائط قوقل", "Open in Google Maps")}
+                            </a>
+                          )}
+                        </div>
+                      )}
+
                       {order.customerNotes && (
                         <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20" data-testid={`text-customer-notes-${item.id}`}>
                           <p className="text-[11px] text-amber-300 font-bold mb-0.5">{t("ملاحظة العميل", "Customer Note")}</p>
@@ -2110,6 +2133,22 @@ function OverviewView({
                       })}
                     </div>
 
+                    {waOrder.deliveryAddress && waOrder.diningType === "delivery" && (
+                      <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20" data-testid={`text-delivery-address-${item.id}`}>
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <MapPin className="w-3.5 h-3.5 text-emerald-400" />
+                          <p className="text-[11px] text-emerald-300 font-bold">{t("عنوان التوصيل", "Delivery Address")}</p>
+                        </div>
+                        <p className="text-xs text-white/80 leading-relaxed">{waOrder.deliveryAddress}</p>
+                        {waOrder.deliveryLat != null && waOrder.deliveryLng != null && (
+                          <a href={`https://www.google.com/maps?q=${waOrder.deliveryLat},${waOrder.deliveryLng}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 mt-1.5 text-[10px] text-emerald-400 hover:text-emerald-300 underline" data-testid={`link-maps-${item.id}`}>
+                            <Navigation className="w-3 h-3" />
+                            {t("فتح في خرائط قوقل", "Open in Google Maps")}
+                          </a>
+                        )}
+                      </div>
+                    )}
+
                     {waOrder.customerNotes && (
                       <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20" data-testid={`text-customer-notes-${item.id}`}>
                         <p className="text-[11px] text-amber-300 font-bold mb-0.5">{t("ملاحظة العميل", "Customer Note")}</p>
@@ -2214,6 +2253,12 @@ function OverviewView({
           <div className="receipt-payment">{paymentLabel(printOrder.paymentMethod)}</div>
           {diningTypeLabel(printOrder.diningType) && (
             <div className="receipt-payment">{t("نوع الطلب", "Order Type")}: {diningTypeLabel(printOrder.diningType)}</div>
+          )}
+          {printOrder.deliveryAddress && printOrder.diningType === "delivery" && (
+            <div className="receipt-customer-notes">
+              <div className="receipt-customer-notes-label">{t("عنوان التوصيل", "Delivery Address")}</div>
+              <div className="receipt-customer-notes-text">{printOrder.deliveryAddress}</div>
+            </div>
           )}
           {printOrder.customerNotes && (
             <div className="receipt-customer-notes">

@@ -3,7 +3,7 @@ import { useParams } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Store, ShoppingCart, Plus, Minus, X, AlertTriangle, Loader2, Check, ArrowLeft, Clock, Banknote, Tag, CreditCard, Wallet, UtensilsCrossed, ShoppingBag, Globe, Truck } from "lucide-react";
+import { Store, ShoppingCart, Plus, Minus, X, AlertTriangle, Loader2, Check, ArrowLeft, Clock, Banknote, Tag, CreditCard, Wallet, UtensilsCrossed, ShoppingBag, Globe, Truck, MapPin, Navigation } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
 import type { Product, ProductVariant, ProductAddon } from "@shared/schema";
@@ -51,6 +51,10 @@ export default function PublicMenuPage() {
   const [submitting, setSubmitting] = useState(false);
   const [, setTimeTick] = useState(0);
   const [diningType, setDiningType] = useState<"dine_in" | "takeaway" | "delivery" | null>(null);
+  const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [deliveryLat, setDeliveryLat] = useState<number | null>(null);
+  const [deliveryLng, setDeliveryLng] = useState<number | null>(null);
+  const [geoLoading, setGeoLoading] = useState(false);
   const [customerNotes, setCustomerNotes] = useState("");
 
   const [storeTermsAccepted, setStoreTermsAccepted] = useState(false);
@@ -390,6 +394,10 @@ export default function PublicMenuPage() {
       toast({ title: t("مطلوب", "Required"), description: t("يرجى اختيار نوع الطلب", "Please select order type"), variant: "destructive" });
       return;
     }
+    if (diningType === "delivery" && !deliveryAddress.trim()) {
+      toast({ title: t("مطلوب", "Required"), description: t("يرجى إدخال عنوان التوصيل", "Please enter delivery address"), variant: "destructive" });
+      return;
+    }
     if (merchant?.storeTermsEnabled && !storeTermsAccepted) {
       toast({ title: t("مطلوب", "Required"), description: t("يرجى الموافقة على الشروط والأحكام", "Please accept the terms and conditions"), variant: "destructive" });
       return;
@@ -424,6 +432,13 @@ export default function PublicMenuPage() {
       };
       if (customerNotes.trim()) {
         orderBody.customerNotes = customerNotes.trim();
+      }
+      if (diningType === "delivery" && deliveryAddress.trim()) {
+        orderBody.deliveryAddress = deliveryAddress.trim();
+        if (deliveryLat !== null && deliveryLng !== null) {
+          orderBody.deliveryLat = deliveryLat;
+          orderBody.deliveryLng = deliveryLng;
+        }
       }
       if (finalTransactionId) {
         orderBody.transactionId = finalTransactionId;
@@ -743,6 +758,63 @@ export default function PublicMenuPage() {
             )}
           </div>
 
+          {diningType === "delivery" && (
+            <div className="mb-4 p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/20 space-y-3" data-testid="delivery-address-section">
+              <div className="flex items-center gap-2 mb-1">
+                <MapPin className="w-4 h-4 text-emerald-400" />
+                <label className="text-emerald-400 text-xs font-bold">{t("عنوان التوصيل", "Delivery Address")} <span className="text-red-400">*</span></label>
+              </div>
+              <Input
+                value={deliveryAddress}
+                onChange={(e) => setDeliveryAddress(e.target.value)}
+                placeholder={t("وصف العنوان (الحي، الشارع، رقم المنزل)", "Address (neighborhood, street, house number)")}
+                maxLength={300}
+                className="h-12 bg-white/[0.03] border-white/10 text-white placeholder:text-white/25"
+                dir={isRTL ? "rtl" : "ltr"}
+                data-testid="input-delivery-address"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  if (!navigator.geolocation) {
+                    toast({ title: t("غير مدعوم", "Not Supported"), description: t("المتصفح لا يدعم تحديد الموقع", "Browser does not support geolocation"), variant: "destructive" });
+                    return;
+                  }
+                  setGeoLoading(true);
+                  navigator.geolocation.getCurrentPosition(
+                    (pos) => {
+                      setDeliveryLat(pos.coords.latitude);
+                      setDeliveryLng(pos.coords.longitude);
+                      setGeoLoading(false);
+                      toast({ title: t("تم التحديد", "Location Set"), description: t("تم تحديد موقعك بنجاح", "Your location has been set successfully") });
+                    },
+                    () => {
+                      setGeoLoading(false);
+                      toast({ title: t("خطأ", "Error"), description: t("فشل في تحديد الموقع، يرجى السماح بالوصول للموقع", "Failed to get location, please allow location access"), variant: "destructive" });
+                    },
+                    { enableHighAccuracy: true, timeout: 10000 }
+                  );
+                }}
+                disabled={geoLoading}
+                className="w-full flex items-center justify-center gap-2 p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/15 transition-all active:scale-[0.98] disabled:opacity-50"
+                data-testid="button-get-location"
+              >
+                {geoLoading ? (
+                  <Loader2 className="w-4 h-4 text-emerald-400 animate-spin" />
+                ) : (
+                  <Navigation className="w-4 h-4 text-emerald-400" />
+                )}
+                <span className="text-emerald-400 text-sm font-bold">{geoLoading ? t("جاري التحديد...", "Getting location...") : t("تحديد موقعي الحالي 📍", "Get My Current Location 📍")}</span>
+              </button>
+              {deliveryLat !== null && deliveryLng !== null && (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/15" data-testid="text-location-confirmed">
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="text-emerald-400/80 text-[11px] font-medium">{t("تم تحديد الموقع", "Location confirmed")}</span>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="mb-4">
             <label className="text-white/50 text-xs font-medium mb-2 block">{t("ملاحظات إضافية", "Special Instructions")}</label>
             <textarea
@@ -873,7 +945,7 @@ export default function PublicMenuPage() {
           {(selectedPaymentMethod === "cod" || (!merchant.onlinePaymentEnabled && merchant.codEnabled)) && (
             <Button
               onClick={() => handleConfirmOrder()}
-              disabled={!customerName.trim() || customerPhone.length !== 10 || !diningType || (merchant.storeTermsEnabled && !storeTermsAccepted) || submitting || (!merchant.onlinePaymentEnabled && !merchant.codEnabled) || (merchant.onlinePaymentEnabled && merchant.codEnabled && !selectedPaymentMethod)}
+              disabled={!customerName.trim() || customerPhone.length !== 10 || !diningType || (diningType === "delivery" && !deliveryAddress.trim()) || (merchant.storeTermsEnabled && !storeTermsAccepted) || submitting || (!merchant.onlinePaymentEnabled && !merchant.codEnabled) || (merchant.onlinePaymentEnabled && merchant.codEnabled && !selectedPaymentMethod)}
               className="w-full h-14 text-base font-bold bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-30 rounded-xl gap-2"
               style={{ boxShadow: "0 0 25px rgba(16,185,129,0.15)" }}
               data-testid="button-confirm-order"

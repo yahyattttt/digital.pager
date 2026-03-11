@@ -89,6 +89,9 @@ export const whatsappOrderSchema = z.object({
   orderType: z.enum(["online", "manual"]).optional(),
   diningType: z.enum(["dine_in", "takeaway", "delivery"]).optional(),
   deliveryFee: z.number().optional(),
+  deliveryAddress: z.string().optional(),
+  deliveryLat: z.number().optional(),
+  deliveryLng: z.number().optional(),
   customerNotes: z.string().optional(),
   createdAt: z.string(),
 });
