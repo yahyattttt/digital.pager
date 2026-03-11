@@ -101,8 +101,10 @@ import {
   Truck,
   ShoppingBag,
   Filter,
+  FolderArchive,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import ArchiveView from "@/pages/order-archive";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -117,7 +119,7 @@ const businessTypeLabelsEn: Record<string, string> = {
 
 const ADMIN_WHATSAPP = "https://wa.me/966500000000";
 
-type DashboardView = "overview" | "menu" | "feedback" | "analytics" | "customers" | "coupons" | "financial" | "settings";
+type DashboardView = "overview" | "menu" | "feedback" | "analytics" | "customers" | "coupons" | "financial" | "settings" | "archive";
 
 function SubscriptionRequiredScreen({
   storeName,
@@ -849,6 +851,15 @@ export default function DashboardPage() {
       toast({
         title: t("تم إغلاق الطلب", "Order Closed"),
         description: t(`تم إغلاق الطلب ${order.displayOrderId || "#" + order.orderNumber}`, `Order ${order.displayOrderId || "#" + order.orderNumber} has been closed`),
+        action: (
+          <button
+            onClick={() => setCurrentView("archive")}
+            className="text-primary text-xs font-medium underline underline-offset-2 hover:text-primary/80 whitespace-nowrap"
+            data-testid="link-view-in-archive"
+          >
+            {t("عرض في الأرشيف", "View in Archive")}
+          </button>
+        ),
       });
     } catch {
       setFlyingOrderId(null);
@@ -1153,6 +1164,7 @@ export default function DashboardPage() {
     { id: "customers", icon: Users2, label: t("عملائي", "My Customers") },
     { id: "coupons", icon: Ticket, label: t("الكوبونات", "Coupons") },
     { id: "financial", icon: DollarSign, label: t("الإدارة المالية", "Financial") },
+    { id: "archive", icon: FolderArchive, label: t("أرشيف الطلبات", "Order Archive") },
     { id: "settings", icon: Settings, label: t("الإعدادات", "Settings") },
   ];
 
@@ -1397,6 +1409,7 @@ export default function DashboardPage() {
                 completedToday={completedToday}
                 flyingOrderId={flyingOrderId}
                 printReceiptsEnabled={merchantFeatures.printReceiptsEnabled}
+                onNavigateToArchive={() => setCurrentView("archive")}
                 t={t}
                 lang={lang}
               />
@@ -1441,6 +1454,18 @@ export default function DashboardPage() {
 
             {currentView === "financial" && (
               <FinancialView merchant={merchant} t={t} lang={lang} />
+            )}
+
+            {currentView === "archive" && (
+              <ArchiveView
+                merchant={merchant}
+                t={t}
+                lang={lang}
+                onViewReceipt={(orderId) => {
+                  window.open(`/receipt/${orderId}?m=${merchant.uid}`, "_blank");
+                }}
+                onNavigateToActive={() => setCurrentView("overview")}
+              />
             )}
 
             {currentView === "settings" && (
@@ -1665,6 +1690,7 @@ function OverviewView({
   completedToday,
   flyingOrderId,
   printReceiptsEnabled,
+  onNavigateToArchive,
   t,
   lang,
 }: {
@@ -1691,6 +1717,7 @@ function OverviewView({
   completedToday: number;
   flyingOrderId: string | null;
   printReceiptsEnabled: boolean;
+  onNavigateToArchive: () => void;
   t: (ar: string, en: string) => string;
   lang: string;
 }) {
@@ -1956,14 +1983,27 @@ function OverviewView({
       <div className="flex-1 rounded-2xl bg-[#0d0d0d] border border-white/[0.06] p-4 relative" data-testid="workspace-active-orders">
         <div className="sticky top-0 z-10 bg-[#0d0d0d] pb-3 -mt-1 pt-1 space-y-3" data-testid="filter-bar">
           <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-white/50">{t("الطلبات النشطة", "Active Orders")}</h3>
-              {allActiveOrders.length > 0 && (
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                </span>
-              )}
+            <div className="flex items-center gap-3">
+              <button
+                className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-primary/15 text-primary border border-primary/30"
+                data-testid="tab-active-orders"
+              >
+                {t("الطلبات النشطة", "Active Orders")}
+                {allActiveOrders.length > 0 && (
+                  <span className="relative flex h-2 w-2 ms-0.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={onNavigateToArchive}
+                className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium text-white/40 border border-white/[0.06] hover:text-white/60 hover:border-white/[0.12] transition-all"
+                data-testid="tab-archive-orders"
+              >
+                <FolderArchive className="w-3 h-3" />
+                {t("الأرشيف", "Archive")}
+              </button>
             </div>
             <div className="relative">
               <Search className="absolute start-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30 pointer-events-none" />
