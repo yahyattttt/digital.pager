@@ -2602,7 +2602,7 @@ export async function registerRoutes(
   app.post("/api/whatsapp-orders/:merchantId", async (req, res) => {
     try {
       const { merchantId } = req.params;
-      const { customerName, customerPhone, items, total, paymentMethod, transactionId, diningType, customerNotes, deliveryAddress, deliveryLat, deliveryLng } = req.body;
+      const { customerName, customerPhone, items, total, paymentMethod, transactionId, diningType, customerNotes, deliveryAddress, deliveryLat, deliveryLng, deliveryMapLink } = req.body;
 
       if (!customerName || !customerPhone || !items || !Array.isArray(items) || items.length === 0) {
         return res.status(400).json({ message: "customerName, customerPhone, and items are required" });
@@ -2731,17 +2731,16 @@ export async function registerRoutes(
       }
 
       if (diningType === "delivery") {
-        if (!deliveryAddress || typeof deliveryAddress !== "string" || !deliveryAddress.trim()) {
-          return res.status(400).json({ message: "Delivery address is required for delivery orders" });
+        if (typeof deliveryLat !== "number" || typeof deliveryLng !== "number" ||
+            !Number.isFinite(deliveryLat) || !Number.isFinite(deliveryLng) ||
+            deliveryLat < -90 || deliveryLat > 90 || deliveryLng < -180 || deliveryLng > 180) {
+          return res.status(400).json({ message: "Valid delivery location coordinates are required for delivery orders" });
         }
-        const trimmedAddress = deliveryAddress.trim().slice(0, 300);
-        fields.deliveryAddress = { stringValue: trimmedAddress };
-        if (typeof deliveryLat === "number" && typeof deliveryLng === "number" &&
-            Number.isFinite(deliveryLat) && Number.isFinite(deliveryLng) &&
-            deliveryLat >= -90 && deliveryLat <= 90 &&
-            deliveryLng >= -180 && deliveryLng <= 180) {
-          fields.deliveryLat = { doubleValue: deliveryLat };
-          fields.deliveryLng = { doubleValue: deliveryLng };
+        fields.deliveryLat = { doubleValue: deliveryLat };
+        fields.deliveryLng = { doubleValue: deliveryLng };
+        fields.deliveryMapLink = { stringValue: `https://www.google.com/maps?q=${deliveryLat.toFixed(6)},${deliveryLng.toFixed(6)}` };
+        if (deliveryAddress && typeof deliveryAddress === "string" && deliveryAddress.trim()) {
+          fields.deliveryAddress = { stringValue: deliveryAddress.trim().slice(0, 300) };
         }
       }
 
@@ -3070,6 +3069,7 @@ export async function registerRoutes(
           deliveryAddress: f.deliveryAddress?.stringValue || undefined,
           deliveryLat: f.deliveryLat?.doubleValue ?? undefined,
           deliveryLng: f.deliveryLng?.doubleValue ?? undefined,
+          deliveryMapLink: f.deliveryMapLink?.stringValue || undefined,
           createdAt: f.createdAt?.stringValue || "",
         };
       }

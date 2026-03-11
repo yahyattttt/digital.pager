@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Store, ShoppingCart, Plus, Minus, X, AlertTriangle, Loader2, Check, ArrowLeft, Clock, Banknote, Tag, CreditCard, Wallet, UtensilsCrossed, ShoppingBag, Globe, Truck, MapPin, Navigation } from "lucide-react";
+import { lazy, Suspense } from "react";
+const DeliveryMapPicker = lazy(() => import("@/components/delivery-map-picker"));
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
 import type { Product, ProductVariant, ProductAddon } from "@shared/schema";
@@ -394,8 +396,8 @@ export default function PublicMenuPage() {
       toast({ title: t("مطلوب", "Required"), description: t("يرجى اختيار نوع الطلب", "Please select order type"), variant: "destructive" });
       return;
     }
-    if (diningType === "delivery" && !deliveryAddress.trim()) {
-      toast({ title: t("مطلوب", "Required"), description: t("يرجى إدخال عنوان التوصيل", "Please enter delivery address"), variant: "destructive" });
+    if (diningType === "delivery" && (deliveryLat === null || deliveryLng === null)) {
+      toast({ title: t("مطلوب", "Required"), description: t("يرجى تحديد موقع التوصيل على الخريطة", "Please set delivery location on the map"), variant: "destructive" });
       return;
     }
     if (merchant?.storeTermsEnabled && !storeTermsAccepted) {
@@ -433,11 +435,11 @@ export default function PublicMenuPage() {
       if (customerNotes.trim()) {
         orderBody.customerNotes = customerNotes.trim();
       }
-      if (diningType === "delivery" && deliveryAddress.trim()) {
-        orderBody.deliveryAddress = deliveryAddress.trim();
-        if (deliveryLat !== null && deliveryLng !== null) {
-          orderBody.deliveryLat = deliveryLat;
-          orderBody.deliveryLng = deliveryLng;
+      if (diningType === "delivery" && deliveryLat !== null && deliveryLng !== null) {
+        orderBody.deliveryLat = deliveryLat;
+        orderBody.deliveryLng = deliveryLng;
+        if (deliveryAddress.trim()) {
+          orderBody.deliveryAddress = deliveryAddress.trim();
         }
       }
       if (finalTransactionId) {
@@ -762,56 +764,36 @@ export default function PublicMenuPage() {
             <div className="mb-4 p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/20 space-y-3" data-testid="delivery-address-section">
               <div className="flex items-center gap-2 mb-1">
                 <MapPin className="w-4 h-4 text-emerald-400" />
-                <label className="text-emerald-400 text-xs font-bold">{t("عنوان التوصيل", "Delivery Address")} <span className="text-red-400">*</span></label>
+                <label className="text-emerald-400 text-xs font-bold">{t("حدد موقع التوصيل", "Set Delivery Location")} <span className="text-red-400">*</span></label>
               </div>
+              <Suspense fallback={<div className="w-full h-[220px] rounded-xl bg-white/[0.03] flex items-center justify-center"><Loader2 className="w-6 h-6 text-emerald-400 animate-spin" /></div>}>
+                <DeliveryMapPicker
+                  lat={deliveryLat}
+                  lng={deliveryLng}
+                  onLocationChange={(lat, lng) => {
+                    setDeliveryLat(lat);
+                    setDeliveryLng(lng);
+                  }}
+                  onGeoError={(type) => {
+                    if (type === "unsupported") {
+                      toast({ title: t("غير مدعوم", "Not Supported"), description: t("المتصفح لا يدعم تحديد الموقع، حدد الموقع يدوياً على الخريطة", "Browser does not support geolocation, please set location manually on map"), variant: "destructive" });
+                    } else {
+                      toast({ title: t("خطأ", "Error"), description: t("فشل في تحديد الموقع، يرجى السماح بالوصول أو حدد الموقع يدوياً", "Failed to get location, please allow access or set manually"), variant: "destructive" });
+                    }
+                  }}
+                  isRTL={isRTL}
+                  t={t}
+                />
+              </Suspense>
               <Input
                 value={deliveryAddress}
                 onChange={(e) => setDeliveryAddress(e.target.value)}
-                placeholder={t("وصف العنوان (الحي، الشارع، رقم المنزل)", "Address (neighborhood, street, house number)")}
+                placeholder={t("وصف إضافي للعنوان (اختياري)", "Additional address description (optional)")}
                 maxLength={300}
-                className="h-12 bg-white/[0.03] border-white/10 text-white placeholder:text-white/25"
+                className="h-10 bg-white/[0.03] border-white/10 text-white placeholder:text-white/25 text-xs"
                 dir={isRTL ? "rtl" : "ltr"}
                 data-testid="input-delivery-address"
               />
-              <button
-                type="button"
-                onClick={() => {
-                  if (!navigator.geolocation) {
-                    toast({ title: t("غير مدعوم", "Not Supported"), description: t("المتصفح لا يدعم تحديد الموقع", "Browser does not support geolocation"), variant: "destructive" });
-                    return;
-                  }
-                  setGeoLoading(true);
-                  navigator.geolocation.getCurrentPosition(
-                    (pos) => {
-                      setDeliveryLat(pos.coords.latitude);
-                      setDeliveryLng(pos.coords.longitude);
-                      setGeoLoading(false);
-                      toast({ title: t("تم التحديد", "Location Set"), description: t("تم تحديد موقعك بنجاح", "Your location has been set successfully") });
-                    },
-                    () => {
-                      setGeoLoading(false);
-                      toast({ title: t("خطأ", "Error"), description: t("فشل في تحديد الموقع، يرجى السماح بالوصول للموقع", "Failed to get location, please allow location access"), variant: "destructive" });
-                    },
-                    { enableHighAccuracy: true, timeout: 10000 }
-                  );
-                }}
-                disabled={geoLoading}
-                className="w-full flex items-center justify-center gap-2 p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/15 transition-all active:scale-[0.98] disabled:opacity-50"
-                data-testid="button-get-location"
-              >
-                {geoLoading ? (
-                  <Loader2 className="w-4 h-4 text-emerald-400 animate-spin" />
-                ) : (
-                  <Navigation className="w-4 h-4 text-emerald-400" />
-                )}
-                <span className="text-emerald-400 text-sm font-bold">{geoLoading ? t("جاري التحديد...", "Getting location...") : t("تحديد موقعي الحالي 📍", "Get My Current Location 📍")}</span>
-              </button>
-              {deliveryLat !== null && deliveryLng !== null && (
-                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/15" data-testid="text-location-confirmed">
-                  <Check className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="text-emerald-400/80 text-[11px] font-medium">{t("تم تحديد الموقع", "Location confirmed")}</span>
-                </div>
-              )}
             </div>
           )}
 
@@ -945,7 +927,7 @@ export default function PublicMenuPage() {
           {(selectedPaymentMethod === "cod" || (!merchant.onlinePaymentEnabled && merchant.codEnabled)) && (
             <Button
               onClick={() => handleConfirmOrder()}
-              disabled={!customerName.trim() || customerPhone.length !== 10 || !diningType || (diningType === "delivery" && !deliveryAddress.trim()) || (merchant.storeTermsEnabled && !storeTermsAccepted) || submitting || (!merchant.onlinePaymentEnabled && !merchant.codEnabled) || (merchant.onlinePaymentEnabled && merchant.codEnabled && !selectedPaymentMethod)}
+              disabled={!customerName.trim() || customerPhone.length !== 10 || !diningType || (diningType === "delivery" && (deliveryLat === null || deliveryLng === null)) || (merchant.storeTermsEnabled && !storeTermsAccepted) || submitting || (!merchant.onlinePaymentEnabled && !merchant.codEnabled) || (merchant.onlinePaymentEnabled && merchant.codEnabled && !selectedPaymentMethod)}
               className="w-full h-14 text-base font-bold bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-30 rounded-xl gap-2"
               style={{ boxShadow: "0 0 25px rgba(16,185,129,0.15)" }}
               data-testid="button-confirm-order"

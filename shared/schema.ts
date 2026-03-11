@@ -92,6 +92,7 @@ export const whatsappOrderSchema = z.object({
   deliveryAddress: z.string().optional(),
   deliveryLat: z.number().optional(),
   deliveryLng: z.number().optional(),
+  deliveryMapLink: z.string().optional(),
   customerNotes: z.string().optional(),
   createdAt: z.string(),
 });

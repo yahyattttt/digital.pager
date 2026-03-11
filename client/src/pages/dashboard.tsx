@@ -424,6 +424,7 @@ export default function DashboardPage() {
           deliveryAddress: data.deliveryAddress || undefined,
           deliveryLat: data.deliveryLat || undefined,
           deliveryLng: data.deliveryLng || undefined,
+          deliveryMapLink: data.deliveryMapLink || undefined,
           customerNotes: data.customerNotes || undefined,
           createdAt: data.createdAt || "",
         };
@@ -471,6 +472,7 @@ export default function DashboardPage() {
           deliveryAddress: data.deliveryAddress || undefined,
           deliveryLat: data.deliveryLat || undefined,
           deliveryLng: data.deliveryLng || undefined,
+          deliveryMapLink: data.deliveryMapLink || undefined,
           customerNotes: data.customerNotes || undefined,
           createdAt: data.createdAt || "",
         };
@@ -1752,13 +1754,14 @@ function OverviewView({
       return `${i + 1}. ${item.name} × ${qty} — ${price} SAR`;
     }).join("\n");
 
-    const locationLine = order.deliveryLat != null && order.deliveryLng != null
-      ? `📍 ${t("الموقع على الخريطة", "Location on Map")}:\nhttps://www.google.com/maps?q=${order.deliveryLat},${order.deliveryLng}`
-      : order.deliveryAddress
-        ? `📍 ${t("العنوان", "Address")}: ${order.deliveryAddress}`
-        : "";
+    const mapLink = order.deliveryMapLink
+      || (order.deliveryLat != null && order.deliveryLng != null ? `https://www.google.com/maps?q=${order.deliveryLat},${order.deliveryLng}` : "");
 
-    const addressText = order.deliveryAddress && order.deliveryLat != null
+    const locationLine = mapLink
+      ? `📍 ${t("موقع التوصيل", "Delivery Location")}:\n${mapLink}`
+      : "";
+
+    const addressText = order.deliveryAddress
       ? `🏠 ${t("العنوان", "Address")}: ${order.deliveryAddress}`
       : "";
 
@@ -1964,19 +1967,17 @@ function OverviewView({
                         })}
                       </div>
 
-                      {order.deliveryAddress && order.diningType === "delivery" && (
+                      {order.diningType === "delivery" && (order.deliveryMapLink || order.deliveryLat != null) && (
                         <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20" data-testid={`text-delivery-address-${item.id}`}>
                           <div className="flex items-center gap-1.5 mb-1">
                             <MapPin className="w-3.5 h-3.5 text-emerald-400" />
-                            <p className="text-[11px] text-emerald-300 font-bold">{t("عنوان التوصيل", "Delivery Address")}</p>
+                            <p className="text-[11px] text-emerald-300 font-bold">{t("موقع التوصيل", "Delivery Location")}</p>
                           </div>
-                          <p className="text-xs text-white/80 leading-relaxed">{order.deliveryAddress}</p>
-                          {order.deliveryLat != null && order.deliveryLng != null && (
-                            <a href={`https://www.google.com/maps?q=${order.deliveryLat},${order.deliveryLng}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 mt-1.5 text-[10px] text-emerald-400 hover:text-emerald-300 underline" data-testid={`link-maps-${item.id}`}>
-                              <Navigation className="w-3 h-3" />
-                              {t("فتح في خرائط قوقل", "Open in Google Maps")}
-                            </a>
-                          )}
+                          {order.deliveryAddress && <p className="text-xs text-white/80 leading-relaxed mb-1">{order.deliveryAddress}</p>}
+                          <a href={order.deliveryMapLink || `https://www.google.com/maps?q=${order.deliveryLat},${order.deliveryLng}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 transition-colors text-[11px] text-emerald-400 hover:text-emerald-300 font-bold" data-testid={`link-maps-${item.id}`}>
+                            <Navigation className="w-3 h-3" />
+                            {t("فتح الموقع في خرائط قوقل 📍", "Open Location in Google Maps 📍")}
+                          </a>
                         </div>
                       )}
 
@@ -2200,19 +2201,17 @@ function OverviewView({
                       })}
                     </div>
 
-                    {waOrder.deliveryAddress && waOrder.diningType === "delivery" && (
+                    {waOrder.diningType === "delivery" && (waOrder.deliveryMapLink || waOrder.deliveryLat != null) && (
                       <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20" data-testid={`text-delivery-address-${item.id}`}>
                         <div className="flex items-center gap-1.5 mb-1">
                           <MapPin className="w-3.5 h-3.5 text-emerald-400" />
-                          <p className="text-[11px] text-emerald-300 font-bold">{t("عنوان التوصيل", "Delivery Address")}</p>
+                          <p className="text-[11px] text-emerald-300 font-bold">{t("موقع التوصيل", "Delivery Location")}</p>
                         </div>
-                        <p className="text-xs text-white/80 leading-relaxed">{waOrder.deliveryAddress}</p>
-                        {waOrder.deliveryLat != null && waOrder.deliveryLng != null && (
-                          <a href={`https://www.google.com/maps?q=${waOrder.deliveryLat},${waOrder.deliveryLng}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 mt-1.5 text-[10px] text-emerald-400 hover:text-emerald-300 underline" data-testid={`link-maps-${item.id}`}>
+                        {waOrder.deliveryAddress && <p className="text-xs text-white/80 leading-relaxed mb-1">{waOrder.deliveryAddress}</p>}
+                        <a href={waOrder.deliveryMapLink || `https://www.google.com/maps?q=${waOrder.deliveryLat},${waOrder.deliveryLng}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 transition-colors text-[11px] text-emerald-400 hover:text-emerald-300 font-bold" data-testid={`link-maps-${item.id}`}>
                             <Navigation className="w-3 h-3" />
-                            {t("فتح في خرائط قوقل", "Open in Google Maps")}
+                            {t("فتح الموقع في خرائط قوقل 📍", "Open Location in Google Maps 📍")}
                           </a>
-                        )}
                       </div>
                     )}
 
@@ -2332,10 +2331,13 @@ function OverviewView({
           {diningTypeLabel(printOrder.diningType) && (
             <div className="receipt-payment">{t("نوع الطلب", "Order Type")}: {diningTypeLabel(printOrder.diningType)}</div>
           )}
-          {printOrder.deliveryAddress && printOrder.diningType === "delivery" && (
+          {printOrder.diningType === "delivery" && (printOrder.deliveryMapLink || printOrder.deliveryAddress) && (
             <div className="receipt-customer-notes">
-              <div className="receipt-customer-notes-label">{t("عنوان التوصيل", "Delivery Address")}</div>
-              <div className="receipt-customer-notes-text">{printOrder.deliveryAddress}</div>
+              <div className="receipt-customer-notes-label">{t("موقع التوصيل", "Delivery Location")}</div>
+              <div className="receipt-customer-notes-text">
+                {printOrder.deliveryAddress && <div>{printOrder.deliveryAddress}</div>}
+                {printOrder.deliveryMapLink && <div style={{fontSize: "12px", wordBreak: "break-all"}}>{printOrder.deliveryMapLink}</div>}
+              </div>
             </div>
           )}
           {printOrder.customerNotes && (
