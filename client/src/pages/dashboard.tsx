@@ -1928,22 +1928,43 @@ function OverviewView({
                     </div>
 
                     <CardContent className="px-4 pb-4 pt-0 space-y-3">
-                      <div className="flex items-center gap-2 text-xs text-white/50">
-                        <span className="font-semibold text-white/80" data-testid={`text-customer-name-${item.id}`}>{order.customerName}</span>
-                        <span className="text-white/20">|</span>
-                        <span className="font-mono text-white/50" dir="ltr" data-testid={`text-customer-phone-${item.id}`}>{order.customerPhone}</span>
-                        {(() => {
-                          const cnt = customerOrderCounts[order.customerPhone] || 0;
-                          return cnt <= 1 ? (
-                            <Badge className="rounded-full text-[9px] px-1.5 py-0 bg-violet-500/15 text-violet-400 border-violet-500/20" data-testid={`badge-new-customer-${item.id}`}>
-                              <Sparkles className="w-2.5 h-2.5 me-0.5" />{t("جديد", "New")}
-                            </Badge>
-                          ) : (
-                            <Badge className="rounded-full text-[9px] px-1.5 py-0 bg-emerald-500/15 text-emerald-400 border-emerald-500/20" data-testid={`badge-loyal-customer-${item.id}`}>
-                              <UserCheck className="w-2.5 h-2.5 me-0.5" />{t("عميل مخلص", "Loyal")}
-                            </Badge>
-                          );
-                        })()}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-xs text-white/50 flex-wrap min-w-0 flex-1">
+                          <span className="font-semibold text-white/80" data-testid={`text-customer-name-${item.id}`}>{order.customerName}</span>
+                          <span className="text-white/20">|</span>
+                          <span className="font-mono text-white/50" dir="ltr" data-testid={`text-customer-phone-${item.id}`}>{order.customerPhone}</span>
+                          {(() => {
+                            const cnt = customerOrderCounts[order.customerPhone] || 0;
+                            return cnt <= 1 ? (
+                              <Badge className="rounded-full text-[9px] px-1.5 py-0 bg-violet-500/15 text-violet-400 border-violet-500/20" data-testid={`badge-new-customer-${item.id}`}>
+                                <Sparkles className="w-2.5 h-2.5 me-0.5" />{t("جديد", "New")}
+                              </Badge>
+                            ) : (
+                              <Badge className="rounded-full text-[9px] px-1.5 py-0 bg-emerald-500/15 text-emerald-400 border-emerald-500/20" data-testid={`badge-loyal-customer-${item.id}`}>
+                                <UserCheck className="w-2.5 h-2.5 me-0.5" />{t("عميل مخلص", "Loyal")}
+                              </Badge>
+                            );
+                          })()}
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0 ms-2">
+                          <button
+                            onClick={() => {
+                              const phone = order.customerPhone.replace(/[^0-9]/g, "");
+                              window.open(`https://wa.me/${phone}`, "_blank");
+                            }}
+                            className="w-7 h-7 flex items-center justify-center rounded-lg bg-green-600/15 hover:bg-green-600/25 text-green-400 transition-colors"
+                            data-testid={`button-whatsapp-${item.id}`}
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => window.open(`tel:${order.customerPhone}`, "_self")}
+                            className="w-7 h-7 flex items-center justify-center rounded-lg bg-blue-600/15 hover:bg-blue-600/25 text-blue-400 transition-colors"
+                            data-testid={`button-call-${item.id}`}
+                          >
+                            <Phone className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
 
                       <div className="space-y-1.5 bg-white/[0.02] rounded-xl p-3 border border-white/[0.04]">
@@ -2003,41 +2024,11 @@ function OverviewView({
                         </p>
                       </div>
 
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          onClick={() => window.open(`tel:${order.customerPhone}`, "_self")}
-                          className="h-9 px-3 bg-blue-600/15 hover:bg-blue-600/25 text-blue-400 text-xs font-bold rounded-xl border border-blue-500/20"
-                          data-testid={`button-call-${item.id}`}
-                        >
-                          <Phone className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            const phone = order.customerPhone.replace(/[^0-9]/g, "");
-                            window.open(`https://wa.me/${phone}`, "_blank");
-                          }}
-                          className="h-9 px-3 bg-green-600/15 hover:bg-green-600/25 text-green-400 text-xs font-bold rounded-xl border border-green-500/20"
-                          data-testid={`button-whatsapp-${item.id}`}
-                        >
-                          <MessageCircle className="w-3.5 h-3.5" />
-                        </Button>
-                        {order.diningType === "delivery" && (
-                          <Button
-                            size="sm"
-                            onClick={() => shareDeliveryWithDriver(order)}
-                            className="h-9 px-3 bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-400 text-xs font-bold rounded-xl border border-emerald-500/20 gap-1"
-                            data-testid={`button-share-driver-${item.id}`}
-                          >
-                            <Truck className="w-3.5 h-3.5" />
-                            <span className="hidden sm:inline text-[10px]">{t("المندوب", "Driver")}</span>
-                          </Button>
-                        )}
+                      <div className="space-y-2 pt-1">
                         <Button
                           onClick={() => onRejectWhatsAppOrder(order)}
                           disabled={rejectingOrderId === order.id || acceptingOrderId === order.id}
-                          className="h-9 px-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold rounded-xl border border-red-500/20"
+                          className="w-full h-9 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold rounded-xl border border-red-500/20"
                           data-testid={`button-reject-order-${item.id}`}
                         >
                           {rejectingOrderId === order.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : (
@@ -2047,11 +2038,11 @@ function OverviewView({
                         <Button
                           onClick={() => onAcceptWhatsAppOrder(order)}
                           disabled={acceptingOrderId === order.id || rejectingOrderId === order.id}
-                          className="flex-1 h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl"
+                          className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl shadow-lg shadow-emerald-600/20"
                           data-testid={`button-accept-order-${item.id}`}
                         >
-                          {acceptingOrderId === order.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : (
-                            <><CheckCircle className="w-3.5 h-3.5 me-1" />{t("قبول", "Accept")}</>
+                          {acceptingOrderId === order.id ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+                            <><CheckCircle className="w-4 h-4 me-1.5" />{t("قبول ✅", "Accept ✅")}</>
                           )}
                         </Button>
                       </div>
@@ -2162,22 +2153,43 @@ function OverviewView({
                   </div>
 
                   <CardContent className="px-4 pb-4 pt-0 space-y-3">
-                    <div className="flex items-center gap-2 text-xs text-white/50 flex-wrap">
-                      <span className="font-semibold text-white/80">{waOrder.customerName}</span>
-                      <span className="text-white/20">|</span>
-                      <span className="font-mono text-white/50" dir="ltr">{waOrder.customerPhone}</span>
-                      {(() => {
-                        const cnt = customerOrderCounts[waOrder.customerPhone] || 0;
-                        return cnt <= 1 ? (
-                          <Badge className="rounded-full text-[9px] px-1.5 py-0 bg-violet-500/15 text-violet-400 border-violet-500/20" data-testid={`badge-new-active-${item.id}`}>
-                            <Sparkles className="w-2.5 h-2.5 me-0.5" />{t("جديد", "New")}
-                          </Badge>
-                        ) : (
-                          <Badge className="rounded-full text-[9px] px-1.5 py-0 bg-emerald-500/15 text-emerald-400 border-emerald-500/20" data-testid={`badge-loyal-active-${item.id}`}>
-                            <UserCheck className="w-2.5 h-2.5 me-0.5" />{t("عميل مخلص", "Loyal")}
-                          </Badge>
-                        );
-                      })()}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-xs text-white/50 flex-wrap min-w-0 flex-1">
+                        <span className="font-semibold text-white/80">{waOrder.customerName}</span>
+                        <span className="text-white/20">|</span>
+                        <span className="font-mono text-white/50" dir="ltr">{waOrder.customerPhone}</span>
+                        {(() => {
+                          const cnt = customerOrderCounts[waOrder.customerPhone] || 0;
+                          return cnt <= 1 ? (
+                            <Badge className="rounded-full text-[9px] px-1.5 py-0 bg-violet-500/15 text-violet-400 border-violet-500/20" data-testid={`badge-new-active-${item.id}`}>
+                              <Sparkles className="w-2.5 h-2.5 me-0.5" />{t("جديد", "New")}
+                            </Badge>
+                          ) : (
+                            <Badge className="rounded-full text-[9px] px-1.5 py-0 bg-emerald-500/15 text-emerald-400 border-emerald-500/20" data-testid={`badge-loyal-active-${item.id}`}>
+                              <UserCheck className="w-2.5 h-2.5 me-0.5" />{t("عميل مخلص", "Loyal")}
+                            </Badge>
+                          );
+                        })()}
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0 ms-2">
+                        <button
+                          onClick={() => {
+                            const phone = waOrder.customerPhone.replace(/[^0-9]/g, "");
+                            window.open(`https://wa.me/${phone}`, "_blank");
+                          }}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg bg-green-600/15 hover:bg-green-600/25 text-green-400 transition-colors"
+                          data-testid={`button-whatsapp-active-${item.id}`}
+                        >
+                          <MessageCircle className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => window.open(`tel:${waOrder.customerPhone}`, "_self")}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg bg-blue-600/15 hover:bg-blue-600/25 text-blue-400 transition-colors"
+                          data-testid={`button-call-active-${item.id}`}
+                        >
+                          <Phone className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
 
                     <div className="space-y-1.5 bg-white/[0.02] rounded-xl p-3 border border-white/[0.04]">
