@@ -2991,6 +2991,7 @@ export async function registerRoutes(
           storeName: mf.storeName?.stringValue || "",
           logoUrl: mf.logoUrl?.stringValue || "",
           googleMapsReviewUrl: mf.googleMapsReviewUrl?.stringValue || "",
+          driverPhone: mf.driverPhone?.stringValue || "",
         };
       }
 
@@ -3085,6 +3086,7 @@ export async function registerRoutes(
           storeName: mf.storeName?.stringValue || "",
           logoUrl: mf.logoUrl?.stringValue || "",
           googleMapsReviewUrl: mf.googleMapsReviewUrl?.stringValue || "",
+          driverPhone: mf.driverPhone?.stringValue || "",
         };
       }
 

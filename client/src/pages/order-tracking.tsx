@@ -77,18 +77,36 @@ function SmartRatingScreen({
   googleMapsReviewUrl,
   orderNumber,
   diningType,
+  customerName,
+  driverPhone,
+  orderId,
 }: {
   merchantId: string;
   storeName: string;
   googleMapsReviewUrl?: string;
   orderNumber: string;
   diningType?: string;
+  customerName?: string;
+  driverPhone?: string;
+  orderId?: string;
 }) {
+  const isDelivery = diningType === "delivery";
   const [selectedStars, setSelectedStars] = useState(0);
   const [hoveredStar, setHoveredStar] = useState(0);
-  const [phase, setPhase] = useState<"rating" | "feedback" | "thankyou" | "redirecting" | "done">("rating");
+  const [phase, setPhase] = useState<"driver" | "rating" | "feedback" | "thankyou" | "redirecting" | "done">(isDelivery ? "driver" : "rating");
   const [comment, setComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  function handleWhatsAppDriver() {
+    const phone = (driverPhone || "").replace(/[^\d+]/g, "");
+    const name = customerName || "";
+    const orderNum = orderNumber || "";
+    const msg = encodeURIComponent(`مرحباً، أنا العميل ${name}، أود تتبع طلبي رقم ${orderNum}.`);
+    const url = phone
+      ? `https://wa.me/${phone.startsWith("+") ? phone.slice(1) : phone}?text=${msg}`
+      : `https://wa.me/?text=${msg}`;
+    window.open(url, "_blank");
+  }
 
   function handleStarClick(star: number) {
     setSelectedStars(star);
@@ -119,19 +137,6 @@ function SmartRatingScreen({
   }
 
   async function handleSubmitFeedback() {
-    if (!comment.trim() && selectedStars <= 3) {
-      setSubmitting(true);
-      try {
-        await fetch("/api/store-internal-review", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ merchantId, stars: selectedStars, comment: comment.trim(), orderNumber }),
-        });
-      } catch {}
-      setSubmitting(false);
-      setPhase("done");
-      return;
-    }
     setSubmitting(true);
     try {
       await fetch("/api/store-internal-review", {
@@ -139,23 +144,30 @@ function SmartRatingScreen({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ merchantId, stars: selectedStars, comment: comment.trim(), orderNumber }),
       });
-      setPhase("done");
-    } catch {
-      setPhase("done");
-    } finally {
-      setSubmitting(false);
+    } catch {}
+    setSubmitting(false);
+    setPhase("done");
+  }
+
+  function handleCloseAndReturn() {
+    if (orderId) {
+      sessionStorage.removeItem(`order_${orderId}`);
+      localStorage.removeItem(`order_${orderId}`);
     }
+    sessionStorage.removeItem("pager_bell_primed");
+    const menuPath = `/menu/${merchantId}`;
+    window.location.href = menuPath;
   }
 
   return (
     <div
-      className="h-[100dvh] flex flex-col items-center justify-center px-5 text-center overflow-hidden"
+      className="h-[100dvh] flex flex-col items-center justify-between py-8 px-5 text-center overflow-y-auto"
       style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }}
       data-testid="tracking-completed-screen"
     >
-      <div className="flex flex-col items-center gap-6 w-full max-w-sm animate-in fade-in duration-700">
-        <div className={`w-20 h-20 rounded-full border-2 flex items-center justify-center ${diningType === "delivery" ? "border-emerald-500/30 bg-emerald-500/5" : "border-green-500/30 bg-green-500/5"}`} style={{ boxShadow: diningType === "delivery" ? "0 0 40px rgba(16,185,129,0.15)" : "0 0 40px rgba(34,197,94,0.12)" }}>
-          {diningType === "delivery" ? (
+      <div className="flex flex-col items-center gap-5 w-full max-w-sm animate-in fade-in duration-700 flex-1">
+        <div className={`w-20 h-20 rounded-full border-2 flex items-center justify-center ${isDelivery ? "border-emerald-500/30 bg-emerald-500/5" : "border-green-500/30 bg-green-500/5"}`} style={{ boxShadow: isDelivery ? "0 0 40px rgba(16,185,129,0.15)" : "0 0 40px rgba(34,197,94,0.12)" }}>
+          {isDelivery ? (
             <Truck className="w-10 h-10 text-emerald-400/80" />
           ) : (
             <CheckCircle className="w-10 h-10 text-green-500/80" />
@@ -163,11 +175,11 @@ function SmartRatingScreen({
         </div>
 
         <div>
-          {diningType === "delivery" ? (
+          {isDelivery ? (
             <>
               <p className="text-emerald-400 text-xl font-bold" data-testid="text-completed-message" dir="rtl">شكراً لطلبك</p>
               <p className="text-emerald-400/70 text-sm font-medium mt-2 leading-relaxed max-w-xs" dir="rtl" data-testid="text-delivery-message">
-                سوف يتواصل معك مندوب المتجر في أقرب وقت لتزويده بموقعك.
+                طلبك الآن في عهدة المندوب.
               </p>
             </>
           ) : (
@@ -180,11 +192,45 @@ function SmartRatingScreen({
           )}
         </div>
 
+        {isDelivery && phase === "driver" && (
+          <div className="flex flex-col items-center gap-4 w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <Button
+              onClick={handleWhatsAppDriver}
+              className="w-full h-14 font-bold text-base rounded-xl gap-3"
+              style={{ background: "linear-gradient(135deg, #25d366 0%, #128c7e 100%)" }}
+              data-testid="button-whatsapp-driver"
+            >
+              <MessageCircle className="w-6 h-6" />
+              <span dir="rtl">تواصل مع المندوب لتتبع طلبك 🟢</span>
+            </Button>
+
+            <button
+              onClick={() => setPhase("rating")}
+              className="text-white/40 text-xs underline underline-offset-4 hover:text-white/60 transition-colors mt-1"
+              data-testid="button-skip-to-rating"
+              dir="rtl"
+            >
+              تقييم الخدمة ⭐
+            </button>
+          </div>
+        )}
+
         {phase === "rating" && (
           <div className="flex flex-col items-center gap-4 w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {isDelivery && (
+              <Button
+                onClick={handleWhatsAppDriver}
+                variant="outline"
+                className="w-full h-12 font-bold text-sm rounded-xl gap-2 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300 bg-transparent"
+                data-testid="button-whatsapp-driver-small"
+              >
+                <MessageCircle className="w-5 h-5" />
+                <span dir="rtl">تواصل مع المندوب 🟢</span>
+              </Button>
+            )}
             <Card className="w-full bg-[#111] border-white/[0.06] rounded-2xl">
               <CardContent className="p-6 flex flex-col items-center gap-4">
-                <p className="text-white/80 text-sm font-medium" dir="rtl" data-testid="text-rate-prompt">قيم تجربتك معنا</p>
+                <p className="text-white/80 text-sm font-medium" dir="rtl" data-testid="text-rate-prompt">تقييم الخدمة</p>
                 <p className="text-white/40 text-xs" data-testid="text-rate-prompt-en">Rate your experience</p>
                 <div className="flex items-center justify-center gap-3" data-testid="star-rating-widget">
                   {[1, 2, 3, 4, 5].map((star) => (
@@ -302,6 +348,17 @@ function SmartRatingScreen({
           <p className="text-white/20 text-xs mt-2">{storeName}</p>
         )}
       </div>
+
+      <div className="w-full max-w-sm mt-6 flex-shrink-0">
+        <button
+          onClick={handleCloseAndReturn}
+          className="w-full py-3 text-white/30 text-sm font-medium hover:text-white/50 transition-colors underline underline-offset-4"
+          data-testid="button-close-return"
+          dir="rtl"
+        >
+          إغلاق والعودة للرئيسية
+        </button>
+      </div>
     </div>
   );
 }
@@ -314,7 +371,7 @@ export default function OrderTrackingPage() {
   const [manualLookupLoading, setManualLookupLoading] = useState(false);
   const [manualLookupError, setManualLookupError] = useState("");
   const [order, setOrder] = useState<WhatsAppOrder | null>(null);
-  const [merchant, setMerchant] = useState<{ storeName: string; logoUrl: string; googleMapsReviewUrl?: string } | null>(null);
+  const [merchant, setMerchant] = useState<{ storeName: string; logoUrl: string; googleMapsReviewUrl?: string; driverPhone?: string } | null>(null);
   const [loading, setLoading] = useState(!!urlOrderId);
   const [notFound, setNotFound] = useState(false);
   const [bellPrimed, setBellPrimed] = useState(false);
@@ -884,6 +941,9 @@ export default function OrderTrackingPage() {
         googleMapsReviewUrl={merchant?.googleMapsReviewUrl}
         orderNumber={order.orderNumber}
         diningType={order.diningType}
+        customerName={order.customerName}
+        driverPhone={merchant?.driverPhone}
+        orderId={order.id}
       />
     );
   }
