@@ -5,71 +5,9 @@ import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
-import { AlertTriangle, CheckCircle, Loader2, Star, Banknote, Phone, MessageCircle, Send, Share2, Copy, XCircle, Search, Truck, MapPin, Package, Clock } from "lucide-react";
+import { AlertTriangle, CheckCircle, Loader2, Star, Banknote, Phone, MessageCircle, Send, Share2, Copy, XCircle, Truck, MapPin, Package, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { WhatsAppOrder } from "@shared/schema";
-
-function PagerDevice({ orderNumber, isReady }: { orderNumber: string; isReady: boolean }) {
-  const leds = Array.from({ length: 12 }, (_, i) => {
-    const angle = (i * 360) / 12 - 90;
-    const rad = (angle * Math.PI) / 180;
-    const r = 47;
-    return { cx: 50 + r * Math.cos(rad), cy: 50 + r * Math.sin(rad), delay: `${(i * 0.2).toFixed(1)}s` };
-  });
-
-  const isLongId = orderNumber.length > 3;
-  const prefix = isLongId ? orderNumber.slice(0, -3) : "";
-  const lastDigits = isLongId ? orderNumber.slice(-3) : orderNumber;
-
-  const digitFontSize = lastDigits.length > 2
-    ? "clamp(2.2rem, 10vw, 3rem)"
-    : "clamp(2.8rem, 12vw, 3.5rem)";
-
-  return (
-    <div className="relative w-64 h-64 sm:w-72 sm:h-72 mx-auto" data-testid="pager-device">
-      <div className={`absolute inset-0 rounded-full ${isReady ? "pager-neon-pulse" : ""}`} style={{ background: "radial-gradient(circle at center, rgba(30,0,0,0.6) 30%, rgba(0,0,0,0.9) 70%)" }} />
-      <div className="absolute rounded-full" style={{ inset: "8%", background: "radial-gradient(circle at 40% 35%, #1a1a1a 0%, #0a0a0a 50%, #000 100%)", boxShadow: "inset 0 2px 20px rgba(0,0,0,0.8), 0 0 30px rgba(0,0,0,0.5)", border: "1px solid rgba(255,255,255,0.04)" }} />
-      <div className="absolute rounded-full" style={{ inset: "15%", background: "radial-gradient(circle at 45% 40%, #141414 0%, #080808 60%, #000 100%)", boxShadow: "inset 0 3px 15px rgba(0,0,0,0.9)", border: "1px solid rgba(255,255,255,0.02)" }} />
-      <svg viewBox="0 0 100 100" className="absolute inset-0 w-full h-full" style={{ filter: isReady ? "url(#led-glow-ready-t)" : "url(#led-glow-t)" }}>
-        <defs>
-          <filter id="led-glow-t" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.2" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
-          <filter id="led-glow-ready-t" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
-        </defs>
-        {leds.map((led, i) => (
-          <circle key={i} cx={led.cx} cy={led.cy} r={isReady ? "2.2" : "1.8"} fill="#ff0000" className={isReady ? "pager-led-ready" : "pager-led-waiting"} style={{ animationDelay: led.delay }} />
-        ))}
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        {prefix && (
-          <span
-            className="text-red-500/40 tracking-[0.15em] select-none"
-            style={{
-              fontSize: "clamp(0.65rem, 2.5vw, 0.8rem)",
-              fontFamily: "'DSEG7Modern', monospace",
-              textShadow: "0 0 8px rgba(255,0,0,0.3)",
-              marginBottom: "2px",
-            }}
-            data-testid="text-tracking-order-prefix"
-          >
-            {prefix}
-          </span>
-        )}
-        <span
-          className="font-dseg7 text-red-500 tracking-wider select-none"
-          style={{
-            fontSize: digitFontSize,
-            textShadow: "0 0 20px rgba(255,0,0,0.6), 0 0 40px rgba(255,0,0,0.3)",
-            lineHeight: 1,
-          }}
-          data-testid="text-tracking-order-number"
-        >
-          {lastDigits}
-        </span>
-      </div>
-    </div>
-  );
-}
 
 function SmartRatingScreen({
   merchantId,
@@ -663,179 +601,20 @@ function DeliveryTrackingView({
 
 export default function OrderTrackingPage() {
   const params = useParams<{ orderId: string }>();
-  const urlOrderId = params.orderId;
-  const [resolvedOrderId, setResolvedOrderId] = useState<string | undefined>(urlOrderId);
-  const [manualInput, setManualInput] = useState("");
-  const [manualLookupLoading, setManualLookupLoading] = useState(false);
-  const [manualLookupError, setManualLookupError] = useState("");
+  const orderId = params.orderId;
   const [order, setOrder] = useState<WhatsAppOrder | null>(null);
   const [merchant, setMerchant] = useState<{ storeName: string; logoUrl: string; googleMapsReviewUrl?: string; driverPhone?: string } | null>(null);
-  const [loading, setLoading] = useState(!!urlOrderId);
+  const [loading, setLoading] = useState(!!orderId);
   const [notFound, setNotFound] = useState(false);
-  const [bellPrimed, setBellPrimed] = useState(false);
-  const [bellAutoPlayed, setBellAutoPlayed] = useState(false);
 
   const { toast } = useToast();
-  const alertSoundRef = useRef<HTMLAudioElement | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const bellPrimedRef = useRef(false);
-  const hasAutoPlayedRef = useRef(false);
 
   const merchantId = new URLSearchParams(window.location.search).get("m") || "";
-  const urlTrackingType = new URLSearchParams(window.location.search).get("type") || "";
-  const [resolvedTrackingType, setResolvedTrackingType] = useState(urlTrackingType);
-  const trackingType = resolvedTrackingType;
-  const orderId = resolvedOrderId;
-
-  function ensureAudioElement() {
-    if (!alertSoundRef.current) {
-      alertSoundRef.current = new Audio("/bell.mp3");
-      alertSoundRef.current.volume = 1.0;
-      alertSoundRef.current.preload = "auto";
-    }
-    return alertSoundRef.current;
-  }
-
-  function handlePrimeBell() {
-    if (bellPrimedRef.current) return;
-    const audio = ensureAudioElement();
-    audio.loop = false;
-    audio.currentTime = 0;
-    audio.volume = 1.0;
-
-    try {
-      if (!audioContextRef.current) {
-        const AC = window.AudioContext || (window as any).webkitAudioContext;
-        audioContextRef.current = new AC();
-      }
-      if (audioContextRef.current.state === "suspended") {
-        audioContextRef.current.resume().catch(() => {});
-      }
-    } catch {}
-
-    audio.play().then(() => {
-      console.log("[OrderTracking] Bell primed — playing 0.5s preview");
-      setTimeout(() => {
-        audio.pause();
-        audio.currentTime = 0;
-        console.log("[OrderTracking] Bell preview stopped after 0.5s");
-      }, 500);
-      bellPrimedRef.current = true;
-      setBellPrimed(true);
-      sessionStorage.setItem("pager_bell_primed", "true");
-    }).catch(() => {
-      toast({ title: "خطأ", description: "تعذر تشغيل الصوت", variant: "destructive" });
-    });
-  }
-
-  function playFullAlert() {
-    if (hasAutoPlayedRef.current) return;
-    hasAutoPlayedRef.current = true;
-    const audio = ensureAudioElement();
-    audio.loop = true;
-    audio.currentTime = 0;
-    audio.volume = 1.0;
-    audio.play().then(() => {
-      console.log("[OrderTracking] Full alert playing automatically");
-      setBellAutoPlayed(true);
-      if ("vibrate" in navigator) {
-        navigator.vibrate([500, 200, 500, 200, 800]);
-      }
-    }).catch((err) => {
-      console.warn("[OrderTracking] Auto-play failed:", err.message);
-      hasAutoPlayedRef.current = false;
-    });
-  }
-
-  function handlePlayAlertNow() {
-    hasAutoPlayedRef.current = false;
-    try {
-      if (!audioContextRef.current) {
-        const AC = window.AudioContext || (window as any).webkitAudioContext;
-        audioContextRef.current = new AC();
-      }
-      if (audioContextRef.current.state === "suspended") {
-        audioContextRef.current.resume().catch(() => {});
-      }
-    } catch {}
-    bellPrimedRef.current = true;
-    setBellPrimed(true);
-    sessionStorage.setItem("pager_bell_primed", "true");
-    playFullAlert();
-  }
-
-  function stopAlert() {
-    if (alertSoundRef.current) {
-      alertSoundRef.current.pause();
-      alertSoundRef.current.currentTime = 0;
-    }
-    if ("vibrate" in navigator) navigator.vibrate(0);
-    setBellAutoPlayed(false);
-  }
-
-  function cleanupAudioSession() {
-    console.log("[OrderTracking] Cleaning up audio session fully");
-    if (alertSoundRef.current) {
-      alertSoundRef.current.pause();
-      alertSoundRef.current.currentTime = 0;
-      alertSoundRef.current.src = "";
-      alertSoundRef.current.load();
-      alertSoundRef.current = null;
-    }
-    if (audioContextRef.current && audioContextRef.current.state !== "closed") {
-      audioContextRef.current.close().catch(() => {});
-      audioContextRef.current = null;
-    }
-    if ("mediaSession" in navigator) {
-      navigator.mediaSession.playbackState = "none";
-      navigator.mediaSession.metadata = null;
-    }
-    if ("vibrate" in navigator) navigator.vibrate(0);
-    setBellAutoPlayed(false);
-    hasAutoPlayedRef.current = false;
-  }
-
-  useEffect(() => {
-    ensureAudioElement();
-    if (sessionStorage.getItem("pager_bell_primed") === "true") {
-      bellPrimedRef.current = true;
-      setBellPrimed(true);
-    }
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      cleanupAudioSession();
-    };
-  }, []);
-
-  async function handleManualLookup() {
-    const trimmed = manualInput.trim();
-    if (!trimmed || !merchantId) return;
-    setManualLookupLoading(true);
-    setManualLookupError("");
-    try {
-      const res = await fetch(`/api/track/lookup?merchantId=${merchantId}&orderNumber=${encodeURIComponent(trimmed)}`);
-      if (!res.ok) {
-        setManualLookupError("الطلب غير موجود");
-        return;
-      }
-      const data = await res.json();
-      setOrder(data.order);
-      setMerchant(data.merchant);
-      setResolvedOrderId(data.pagerId);
-      setResolvedTrackingType("pager");
-      setLoading(false);
-    } catch {
-      setManualLookupError("حدث خطأ، حاول مرة أخرى");
-    } finally {
-      setManualLookupLoading(false);
-    }
-  }
+  const trackingType = new URLSearchParams(window.location.search).get("type") || "";
 
   useEffect(() => {
     if (!orderId || !merchantId) {
-      if (urlOrderId) { setNotFound(true); setLoading(false); }
+      if (orderId) { setNotFound(true); setLoading(false); }
       return;
     }
 
@@ -917,36 +696,8 @@ export default function OrderTrackingPage() {
       const currentStatus = updatedOrder.status;
       console.log("[OrderTracking] Firestore snapshot — status:", currentStatus, "prev:", prevStatus, "firstSnap:", isFirstSnapshot);
 
-      const isDelivery = updatedOrder.diningType === "delivery";
-
       if (isFirstSnapshot) {
-        prevStatus = currentStatus;
         isFirstSnapshot = false;
-        if (currentStatus === "completed" || currentStatus === "archived") {
-          cleanupAudioSession();
-        } else if (currentStatus === "ready" && bellPrimedRef.current && !isDelivery) {
-          console.log("[OrderTracking] Page loaded with ready status + bell primed — auto-playing");
-          playFullAlert();
-        }
-        return;
-      }
-
-      if (isDelivery) {
-        stopAlert();
-        prevStatus = currentStatus;
-        return;
-      }
-
-      if (currentStatus === "ready" && prevStatus !== "ready") {
-        console.log("[OrderTracking] Status changed to ready — bellPrimed:", bellPrimedRef.current);
-        if (bellPrimedRef.current) {
-          playFullAlert();
-        }
-      } else if (currentStatus === "completed" || currentStatus === "archived") {
-        cleanupAudioSession();
-      } else if (currentStatus !== "ready") {
-        stopAlert();
-        hasAutoPlayedRef.current = false;
       }
 
       prevStatus = currentStatus;
@@ -978,78 +729,6 @@ export default function OrderTrackingPage() {
         toast({ title: "خطأ", description: "تعذر نسخ الرابط", variant: "destructive" });
       }
     }
-  }
-
-  const isManualOrder = !isOnlineOrder;
-
-  if (!urlOrderId && !resolvedOrderId) {
-    return (
-      <div className="h-[100dvh] flex flex-col items-center justify-center px-5 text-center"
-        style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }}
-        data-testid="manual-id-input-screen"
-      >
-        <div className="flex flex-col items-center gap-6 w-full max-w-xs animate-in fade-in duration-500">
-          <p className="text-white/40 text-[14px] font-medium tracking-[0.3em] uppercase mb-0.5">DIGITAL PAGER</p>
-          {merchant && <h2 className="text-white text-[26px] font-bold" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>{merchant.storeName}</h2>}
-
-          <PagerDevice orderNumber={manualInput || "---"} isReady={false} />
-
-          <div className="w-full space-y-4 mt-4">
-            <p className="text-white/70 text-base font-bold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
-              أدخل رقم طلبك
-            </p>
-            <p className="text-white/40 text-xs">Enter your order number</p>
-
-            <Input
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              maxLength={3}
-              value={manualInput}
-              onChange={(e) => {
-                const val = e.target.value.replace(/[^0-9]/g, "");
-                if (val.length <= 3) setManualInput(val);
-                setManualLookupError("");
-              }}
-              onKeyDown={(e) => { if (e.key === "Enter") handleManualLookup(); }}
-              placeholder="001"
-              className="w-full h-16 text-center text-3xl font-dseg7 tracking-[0.5em] bg-black border-red-500/30 text-red-400 placeholder:text-red-900/40 rounded-xl focus:border-red-500/60 focus:ring-red-500/20"
-              dir="ltr"
-              data-testid="input-manual-order-id"
-            />
-
-            {manualLookupError && (
-              <p className="text-red-400 text-sm font-medium animate-in fade-in duration-300" dir="rtl" data-testid="text-lookup-error">
-                {manualLookupError}
-              </p>
-            )}
-
-            <button
-              onClick={handleManualLookup}
-              disabled={manualInput.length === 0 || manualLookupLoading || !merchantId}
-              className="w-full flex items-center justify-center gap-2.5 py-3.5 px-4 rounded-2xl border border-red-500/30 bg-gradient-to-r from-red-950/50 via-red-900/25 to-red-950/50 active:scale-[0.97] transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
-              style={{ boxShadow: "0 0 20px rgba(255,0,0,0.08)" }}
-              data-testid="button-lookup-order"
-            >
-              {manualLookupLoading ? (
-                <Loader2 className="w-5 h-5 text-red-400 animate-spin" />
-              ) : (
-                <Search className="w-5 h-5 text-red-400/80" />
-              )}
-              <span className="text-red-400/90 text-sm font-bold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
-                {manualLookupLoading ? "جاري البحث..." : "تتبع الطلب"}
-              </span>
-            </button>
-
-            {!merchantId && (
-              <p className="text-amber-400/60 text-xs" dir="rtl">
-                يرجى مسح رمز QR الخاص بالمتجر
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
-    );
   }
 
   if (loading) {
@@ -1178,8 +857,8 @@ export default function OrderTrackingPage() {
 
   if (order.status === "ready") {
     return (
-      <div className={`h-[100dvh] flex flex-col items-center justify-between py-8 px-5 text-center overflow-hidden ${bellAutoPlayed ? "pager-neon-pulse" : ""}`}
-        style={{ background: bellAutoPlayed ? "linear-gradient(180deg, #0a0000 0%, #1a0000 30%, #0d0000 70%, #000 100%)" : "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }}
+      <div className="h-[100dvh] flex flex-col items-center justify-between py-8 px-5 text-center overflow-hidden"
+        style={{ background: "linear-gradient(180deg, #0a0000 0%, #1a0000 30%, #0d0000 70%, #000 100%)" }}
         data-testid="tracking-ready-screen"
       >
         <div className="w-full">
@@ -1188,8 +867,13 @@ export default function OrderTrackingPage() {
         </div>
 
         <div className="flex-1 flex flex-col items-center justify-center -mt-4">
-          <PagerDevice orderNumber={order.displayOrderId || order.orderNumber || "?"} isReady={true} />
-          <div className="mt-8">
+          <div className="w-28 h-28 rounded-full border-2 border-emerald-500/40 bg-emerald-500/10 flex items-center justify-center mb-6 animate-pulse" style={{ boxShadow: "0 0 50px rgba(16,185,129,0.2)" }}>
+            <CheckCircle className="w-14 h-14 text-emerald-400" />
+          </div>
+          <p className="text-white/30 text-xl font-bold font-dseg7 tracking-wider mb-4" style={{ textShadow: "0 0 15px rgba(255,0,0,0.4)" }} data-testid="text-tracking-order-number">
+            {order.displayOrderId || order.orderNumber || "?"}
+          </p>
+          <div>
             <p className="text-white text-2xl font-black tracking-wide" data-testid="text-order-ready">ORDER READY!</p>
             <p className="text-red-400 text-xl font-bold mt-1" dir="rtl">طلبك جاهز!</p>
             <p className="text-white/50 text-sm mt-3">Please proceed to the counter</p>
@@ -1198,28 +882,30 @@ export default function OrderTrackingPage() {
         </div>
 
         <div className="w-full max-w-xs space-y-4">
-          {bellAutoPlayed && (
+          {isOnlineOrder && (
             <button
-              onClick={stopAlert}
-              className="w-full flex items-center justify-center gap-3 rounded-2xl border-2 border-red-500/30 bg-transparent active:scale-[0.95] transition-all duration-200"
-              style={{ padding: "18px 20px", boxShadow: "0 0 25px rgba(255,0,0,0.15)" }}
-              data-testid="button-stop-alert"
+              onClick={() => { window.location.href = `/receipt/${orderId}?m=${merchantId}`; }}
+              className="w-full flex items-center justify-center gap-2.5 rounded-2xl border border-emerald-500/20 bg-gradient-to-r from-emerald-950/30 via-emerald-900/15 to-emerald-950/30 active:scale-[0.97] transition-all duration-200"
+              style={{ padding: "14px 20px", boxShadow: "0 0 15px rgba(16,185,129,0.05), inset 0 1px 0 rgba(255,255,255,0.03)" }}
+              data-testid="button-view-receipt-ready"
             >
-              <span className="text-xl">🔇</span>
-              <span className="text-white text-[18px] font-bold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>إيقاف التنبيه</span>
+              <span className="text-xl flex-shrink-0">📄</span>
+              <span className="text-emerald-400/90 text-[15px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>عرض إيصال الطلب</span>
             </button>
           )}
-          {!bellAutoPlayed && (
-            <button
-              onClick={handlePlayAlertNow}
-              className="w-full flex items-center justify-center gap-3 rounded-2xl border-2 border-red-500/30 bg-gradient-to-r from-red-950/60 via-red-900/30 to-red-950/60 active:scale-[0.95] transition-all duration-200 animate-pulse"
-              style={{ padding: "18px 20px", boxShadow: "0 0 25px rgba(255,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.05)" }}
-              data-testid="button-bell-prompt"
-            >
-              <span className="text-2xl">🔔</span>
-              <span className="text-red-400 text-[18px] font-bold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>الطلب صار جاهز ودك تفعل الجرس ؟</span>
-            </button>
-          )}
+          <button
+            onClick={handleShareTracking}
+            className="w-full flex items-center justify-center gap-3 rounded-2xl border border-red-500/20 bg-gradient-to-r from-red-950/30 via-red-900/15 to-red-950/30 active:scale-[0.97] transition-all duration-200"
+            style={{ padding: "18px 20px", boxShadow: "0 0 15px rgba(255,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.03)" }}
+            data-testid="button-share-tracking-ready"
+          >
+            {navigator.share ? (
+              <Share2 className="w-5 h-5 text-red-400/80 flex-shrink-0" />
+            ) : (
+              <Copy className="w-5 h-5 text-red-400/80 flex-shrink-0" />
+            )}
+            <span className="text-red-400/90 text-[18px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>شارك حالة الطلب مع أحبابك</span>
+          </button>
         </div>
       </div>
     );
@@ -1276,54 +962,6 @@ export default function OrderTrackingPage() {
     );
   }
 
-  if (isManualOrder) {
-    return (
-      <div className="h-[100dvh] flex flex-col items-center justify-between py-8 px-5 text-center overflow-hidden"
-        style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }}
-        data-testid="tracking-preparing-screen"
-      >
-        <div className="w-full flex-shrink-0">
-          <p className="text-white/40 text-[14px] font-medium tracking-[0.3em] uppercase mb-0.5">DIGITAL PAGER</p>
-          {merchant && <h2 className="text-white text-[26px] font-bold" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>{merchant.storeName}</h2>}
-        </div>
-
-        <div className="flex-1 flex flex-col items-center justify-center min-h-0">
-          <PagerDevice orderNumber={order.displayOrderId || order.orderNumber || "?"} isReady={false} />
-          <div className="mt-6">
-            <p className="text-red-400 text-lg font-bold" dir="rtl" data-testid="text-preparing-message">جاري التحضير...</p>
-            <p className="text-white/50 text-sm mt-1.5">We'll buzz you when it's ready!</p>
-          </div>
-        </div>
-
-        <div className="w-full max-w-xs space-y-4">
-          {!bellPrimed && (
-            <button
-              onClick={handlePrimeBell}
-              className="w-full flex items-center justify-center gap-3 rounded-2xl border-2 border-red-500/30 bg-gradient-to-r from-red-950/40 via-red-900/20 to-red-950/40 active:scale-[0.97] transition-all duration-200 animate-pulse"
-              style={{ padding: "18px 20px", boxShadow: "0 0 25px rgba(255,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.03)" }}
-              data-testid="button-prime-bell"
-            >
-              <span className="text-xl">🔔</span>
-              <span className="text-red-400/90 text-[18px] font-bold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>ودك ننبهك بالجرس ؟</span>
-            </button>
-          )}
-
-          {bellPrimed && (
-            <div className="w-full flex items-center justify-center gap-2 rounded-2xl border border-emerald-500/15 bg-emerald-500/5 animate-in fade-in duration-500" style={{ padding: "18px 20px" }}>
-              <span className="text-base">✅</span>
-              <span className="text-emerald-400/80 text-sm font-medium" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>تم تفعيل التنبيه</span>
-            </div>
-          )}
-
-          <div className="flex items-center justify-center gap-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-            <span className="text-white/20 text-[10px]">Live</span>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="h-[100dvh] flex flex-col items-center justify-between py-8 px-5 text-center overflow-hidden"
       style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }}
@@ -1335,11 +973,14 @@ export default function OrderTrackingPage() {
       </div>
 
       <div className="flex-1 flex flex-col items-center justify-center min-h-0">
-        <PagerDevice orderNumber={order.displayOrderId || order.orderNumber || "?"} isReady={false} />
-        <div className="mt-6">
-          <p className="text-red-400 text-lg font-bold" dir="rtl" data-testid="text-preparing-message">جاري التحضير...</p>
-          <p className="text-white/50 text-sm mt-1.5">We'll buzz you when it's ready!</p>
+        <div className="w-24 h-24 rounded-full border-2 border-red-500/30 bg-red-500/5 flex items-center justify-center mb-6" style={{ boxShadow: "0 0 40px rgba(239,68,68,0.12)" }}>
+          <Clock className="w-12 h-12 text-red-400 animate-pulse" />
         </div>
+        <p className="text-red-400 text-lg font-bold" dir="rtl" data-testid="text-preparing-message">جاري التحضير...</p>
+        <p className="text-white/50 text-sm mt-1.5">Your order is being prepared</p>
+        <p className="text-white/30 text-xl font-bold mt-4 font-dseg7 tracking-wider" style={{ textShadow: "0 0 15px rgba(255,0,0,0.4)" }} data-testid="text-tracking-order-number">
+          {order.displayOrderId || order.orderNumber || "?"}
+        </p>
       </div>
 
       <div className="w-full max-w-xs space-y-4">
@@ -1368,25 +1009,6 @@ export default function OrderTrackingPage() {
           )}
           <span className="text-red-400/90 text-[18px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>شارك حالة الطلب مع أحبابك</span>
         </button>
-
-        {!bellPrimed && (
-          <button
-            onClick={handlePrimeBell}
-            className="w-full flex items-center justify-center gap-3 rounded-2xl border-2 border-red-500/30 bg-gradient-to-r from-red-950/40 via-red-900/20 to-red-950/40 active:scale-[0.97] transition-all duration-200 animate-pulse"
-            style={{ padding: "18px 20px", boxShadow: "0 0 25px rgba(255,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.03)" }}
-            data-testid="button-prime-bell"
-          >
-            <span className="text-xl">🔔</span>
-            <span className="text-red-400/90 text-[18px] font-bold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>ودك ننبهك بصوت الجرس ؟</span>
-          </button>
-        )}
-
-        {bellPrimed && (
-          <div className="w-full flex items-center justify-center gap-2 rounded-2xl border border-emerald-500/15 bg-emerald-500/5 animate-in fade-in duration-500" style={{ padding: "18px 20px" }}>
-            <span className="text-base">✅</span>
-            <span className="text-emerald-400/80 text-sm font-medium" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>تم تفعيل التنبيه</span>
-          </div>
-        )}
 
         <div className="p-3 rounded-xl bg-zinc-900/30 border border-zinc-800/20">
           <p className="text-white/30 text-xs text-center" dir="rtl">{order.customerName} • {order.items.length} items • {order.total.toFixed(2)} SAR</p>
