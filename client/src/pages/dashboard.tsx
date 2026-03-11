@@ -68,8 +68,6 @@ import {
   Menu,
   X,
   Plus,
-  Power,
-  PowerOff,
   Image,
   EyeOff,
   Pencil,
@@ -1109,86 +1107,97 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <header className="h-14 border-b border-white/[0.06] bg-[#111111] flex items-center justify-between px-4 flex-shrink-0 z-20">
-        <div className="flex items-center gap-3">
+      <header className="h-12 border-b border-white/[0.06] bg-[#0d0d0d]/95 backdrop-blur-md flex items-center justify-between px-3 flex-shrink-0 z-50" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
+        <div className="flex items-center gap-2 min-w-0">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
             aria-label={sidebarOpen ? t("إغلاق القائمة", "Close menu") : t("فتح القائمة", "Open menu")}
-            className="md:hidden p-1.5 rounded-md hover:bg-white/[0.06] text-muted-foreground"
+            className="md:hidden p-1 rounded-md hover:bg-white/[0.06] text-muted-foreground"
             data-testid="button-toggle-sidebar"
           >
-            {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            {sidebarOpen ? <X className="w-4.5 h-4.5" /> : <Menu className="w-4.5 h-4.5" />}
           </button>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2">
             {merchant.logoUrl ? (
               <img
                 src={merchant.logoUrl}
                 alt={t("الشعار", "Logo")}
-                className="w-8 h-8 rounded-lg object-cover border border-white/10"
+                className="w-7 h-7 rounded-lg object-cover border border-white/10"
                 data-testid="img-dashboard-logo"
               />
             ) : (
-              <div className="w-8 h-8 rounded-xl bg-violet-500/10 flex items-center justify-center border border-violet-500/20">
-                <Store className="w-4 h-4 text-violet-400" />
+              <div className="w-7 h-7 rounded-lg bg-violet-500/10 flex items-center justify-center border border-violet-500/20">
+                <Store className="w-3.5 h-3.5 text-violet-400" />
               </div>
             )}
-            <div className="hidden sm:block">
-              <p className="text-[9px] text-muted-foreground/60 tracking-[0.2em] uppercase leading-tight">DIGITAL PAGER</p>
-              <h1 className="font-bold text-base leading-tight" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }} data-testid="text-dashboard-store">
-                {merchant.storeName}
-              </h1>
-            </div>
+            <h1 className="font-bold text-sm leading-tight hidden sm:block truncate max-w-[120px]" data-testid="text-dashboard-store">
+              {merchant.storeName}
+            </h1>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2">
+          <div className="h-5 w-px bg-white/[0.06] hidden sm:block" />
+
           <button
             onClick={handleToggleStoreOpen}
-            aria-label={storeOpen ? t("إغلاق المتجر", "Close store") : t("فتح المتجر", "Open store")}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+            aria-label={storeOpen ? t("إيقاف استقبال الطلبات", "Stop receiving orders") : t("بدء استقبال الطلبات", "Start receiving orders")}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold transition-all active:scale-[0.96] ${
               storeOpen
-                ? "bg-green-500/10 text-green-400 border border-green-500/20"
-                : "bg-red-500/10 text-red-400 border border-red-500/20"
+                ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 shadow-[0_0_8px_rgba(16,185,129,0.1)]"
+                : "bg-red-500/15 text-red-400 border border-red-500/25 shadow-[0_0_8px_rgba(239,68,68,0.1)]"
             }`}
             data-testid="button-store-status-toggle"
           >
-            {storeOpen ? <Power className="w-3.5 h-3.5" /> : <PowerOff className="w-3.5 h-3.5" />}
-            {storeOpen ? t("مفتوح", "Open") : t("مغلق", "Closed")}
+            <span className={`w-1.5 h-1.5 rounded-full ${storeOpen ? "bg-emerald-400 animate-pulse" : "bg-red-400"}`} />
+            {storeOpen
+              ? t("استقبال الطلبات: متاح ✅", "Receiving Orders: ON ✅")
+              : t("استقبال الطلبات: متوقف ❌", "Receiving Orders: OFF ❌")}
           </button>
 
+          {businessCloseTime && (
+            <span className="text-[10px] text-white/25 hidden lg:inline truncate" data-testid="text-closing-time">
+              {t(`يغلق ${businessCloseTime}`, `Closes ${businessCloseTime}`)}
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1.5">
           {wakeLockSupported && (
             <div
-              className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/[0.04] border border-white/[0.06] text-[10px]"
+              className="hidden xl:flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/[0.03] border border-white/[0.05] text-[9px]"
               data-testid="indicator-wake-lock"
             >
-              <span className={`w-1.5 h-1.5 rounded-full ${wakeLockActive ? "bg-green-500 animate-pulse" : "bg-muted-foreground/50"}`} />
-              <span className="text-muted-foreground">
-                {wakeLockActive ? t("الشاشة نشطة", "Screen Active") : t("الشاشة عادية", "Normal")}
+              <span className={`w-1 h-1 rounded-full ${wakeLockActive ? "bg-green-500 animate-pulse" : "bg-muted-foreground/40"}`} />
+              <span className="text-muted-foreground/60">
+                {wakeLockActive ? t("نشط", "Active") : t("عادي", "Normal")}
               </span>
             </div>
           )}
+
+          <LiveClock lang={lang} t={t} />
+
+          <div className="h-4 w-px bg-white/[0.06]" />
 
           <Button
             variant="ghost"
             size="icon"
             onClick={handleDownloadQR}
             disabled={qrLoading}
-            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            className="h-7 w-7 text-muted-foreground hover:text-foreground"
             data-testid="button-download-qr"
             title={t("تحميل QR", "Download QR")}
           >
-            {qrLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <QrCode className="w-4 h-4" />}
+            {qrLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <QrCode className="w-3.5 h-3.5" />}
           </Button>
 
           <Button
             variant="ghost"
             size="icon"
             onClick={toggleLanguage}
-            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            className="h-7 w-7 text-muted-foreground hover:text-foreground"
             data-testid="button-toggle-language"
           >
-            <Globe className="w-4 h-4" />
+            <Globe className="w-3.5 h-3.5" />
           </Button>
 
           {isSupported && (
@@ -1196,13 +1205,12 @@ export default function DashboardPage() {
               variant="ghost"
               size="icon"
               onClick={toggleFullscreen}
-              className="h-8 w-8 text-muted-foreground hover:text-foreground hidden sm:flex"
+              className="h-7 w-7 text-muted-foreground hover:text-foreground hidden sm:flex"
               data-testid="button-toggle-fullscreen"
             >
-              {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+              {isFullscreen ? <Minimize className="w-3.5 h-3.5" /> : <Maximize className="w-3.5 h-3.5" />}
             </Button>
           )}
-
         </div>
       </header>
 
@@ -1417,6 +1425,37 @@ export default function DashboardPage() {
         </main>
       </div>
 
+    </div>
+  );
+}
+
+function LiveClock({ lang, t }: { lang: string; t: (ar: string, en: string) => string }) {
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 30000);
+    return () => clearInterval(id);
+  }, []);
+
+  const arDays = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+  const enDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const arMonths = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
+
+  const hours24 = now.getHours();
+  const hours12 = hours24 % 12 || 12;
+  const mins = String(now.getMinutes()).padStart(2, "0");
+  const ampm = lang === "ar" ? (hours24 >= 12 ? "م" : "ص") : (hours24 >= 12 ? "PM" : "AM");
+  const dayName = lang === "ar" ? arDays[now.getDay()] : enDays[now.getDay()];
+  const dateStr = lang === "ar"
+    ? `${dayName}، ${now.getDate()} ${arMonths[now.getMonth()]}`
+    : `${dayName}, ${now.getDate()} ${now.toLocaleString("en", { month: "short" })}`;
+
+  return (
+    <div className="hidden md:flex items-center gap-2 px-2.5 py-0.5 rounded-lg bg-white/[0.03] border border-white/[0.05]" data-testid="live-clock">
+      <span className="text-[11px] font-bold text-white/80 font-mono tabular-nums tracking-tight" dir="ltr">
+        {hours12}:{mins} <span className="text-[9px] text-white/40 font-normal">{ampm}</span>
+      </span>
+      <span className="w-px h-3 bg-white/[0.08]" />
+      <span className="text-[10px] text-white/30">{dateStr}</span>
     </div>
   );
 }

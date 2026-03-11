@@ -270,6 +270,9 @@ export default function PublicMenuPage() {
     } else if (merchant.onlineOrdersEnabled === false) {
       disabled = true;
       reason = "online_orders_disabled";
+    } else if (merchant.businessOpenTime && merchant.businessCloseTime && !withinHours) {
+      disabled = true;
+      reason = "outside_business_hours";
     }
     console.log(`[StoreStatus] storeOpen=${merchant.storeOpen}, onlineEnabled=${merchant.onlineOrdersEnabled}, withinHours=${withinHours}, riyadhTime=${hours}:${String(minutes).padStart(2, "0")}, open=${merchant.businessOpenTime}, close=${merchant.businessCloseTime}, orderingDisabled=${disabled}, reason=${reason}`);
     return disabled;
@@ -287,6 +290,13 @@ export default function PublicMenuPage() {
       return {
         messageAr: "المعذرة، المتجر لا يستقبل طلبات أونلاين حالياً",
         messageEn: "Sorry, the store is not accepting online orders at the moment",
+      };
+    }
+    if (merchant.businessOpenTime && merchant.businessCloseTime && !isWithinBusinessHours()) {
+      return {
+        messageAr: "المعذرة، المتجر خارج أوقات العمل",
+        messageEn: "Sorry, the store is outside business hours",
+        reopenTime: merchant.businessOpenTime,
       };
     }
     return { messageAr: "", messageEn: "" };
