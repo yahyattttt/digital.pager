@@ -51,6 +51,7 @@ export default function PublicMenuPage() {
   const [submitting, setSubmitting] = useState(false);
   const [, setTimeTick] = useState(0);
   const [diningType, setDiningType] = useState<"dine_in" | "takeaway" | null>(null);
+  const [customerNotes, setCustomerNotes] = useState("");
 
   const [storeTermsAccepted, setStoreTermsAccepted] = useState(false);
   const [showStoreTermsModal, setShowStoreTermsModal] = useState<"terms" | "privacy" | null>(null);
@@ -420,6 +421,9 @@ export default function PublicMenuPage() {
         paymentMethod: finalPaymentMethod,
         diningType: diningType,
       };
+      if (customerNotes.trim()) {
+        orderBody.customerNotes = customerNotes.trim();
+      }
       if (finalTransactionId) {
         orderBody.transactionId = finalTransactionId;
       }
@@ -702,6 +706,20 @@ export default function PublicMenuPage() {
                 </p>
               </div>
             )}
+          </div>
+
+          <div className="mb-4">
+            <label className="text-white/50 text-xs font-medium mb-2 block">{t("ملاحظات إضافية", "Special Instructions")}</label>
+            <textarea
+              value={customerNotes}
+              onChange={(e) => setCustomerNotes(e.target.value)}
+              placeholder={t("مثلاً: بدون بصل، الصوص جانبي...", "e.g., No onions, sauce on the side...")}
+              maxLength={500}
+              rows={3}
+              className="w-full p-3 rounded-xl bg-zinc-900/60 border border-zinc-800/30 text-white text-sm placeholder:text-white/25 focus:outline-none focus:border-red-500/40 resize-none"
+              dir={isRTL ? "rtl" : "ltr"}
+              data-testid="textarea-customer-notes"
+            />
           </div>
 
           {!merchant.onlinePaymentEnabled && !merchant.codEnabled && (

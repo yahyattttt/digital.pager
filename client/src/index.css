@@ -425,6 +425,24 @@
     color: #444;
     margin-top: 4px;
   }
+  #print-receipt .receipt-customer-notes {
+    margin-top: 8px;
+    padding: 8px;
+    border: 2px solid #000;
+    border-radius: 4px;
+  }
+  #print-receipt .receipt-customer-notes-label {
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    text-decoration: underline;
+  }
+  #print-receipt .receipt-customer-notes-text {
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1.4;
+    word-break: break-word;
+  }
   #print-receipt .receipt-footer {
     text-align: center;
     font-size: 10px;

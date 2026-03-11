@@ -418,6 +418,7 @@ export default function DashboardPage() {
           displayOrderId: data.displayOrderId || "",
           orderType: data.orderType || undefined,
           diningType: data.diningType || undefined,
+          customerNotes: data.customerNotes || undefined,
           createdAt: data.createdAt || "",
         };
       });
@@ -460,6 +461,7 @@ export default function DashboardPage() {
           displayOrderId: data.displayOrderId || "",
           orderType: data.orderType || undefined,
           diningType: data.diningType || undefined,
+          customerNotes: data.customerNotes || undefined,
           createdAt: data.createdAt || "",
         };
       });
@@ -1896,6 +1898,13 @@ function OverviewView({
                         })}
                       </div>
 
+                      {order.customerNotes && (
+                        <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20" data-testid={`text-customer-notes-${item.id}`}>
+                          <p className="text-[11px] text-amber-300 font-bold mb-0.5">{t("ملاحظة العميل", "Customer Note")}</p>
+                          <p className="text-xs text-white/80 leading-relaxed">{order.customerNotes}</p>
+                        </div>
+                      )}
+
                       <div className="flex items-center justify-between pt-1 border-t border-white/[0.06]">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <Banknote className="w-3.5 h-3.5 text-amber-400" />
@@ -2098,6 +2107,13 @@ function OverviewView({
                       })}
                     </div>
 
+                    {waOrder.customerNotes && (
+                      <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20" data-testid={`text-customer-notes-${item.id}`}>
+                        <p className="text-[11px] text-amber-300 font-bold mb-0.5">{t("ملاحظة العميل", "Customer Note")}</p>
+                        <p className="text-xs text-white/80 leading-relaxed">{waOrder.customerNotes}</p>
+                      </div>
+                    )}
+
                     <div className="flex items-center justify-between pt-1 border-t border-white/[0.06]">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <Banknote className="w-3.5 h-3.5 text-amber-400" />
@@ -2192,6 +2208,12 @@ function OverviewView({
           <div className="receipt-payment">{paymentLabel(printOrder.paymentMethod)}</div>
           {diningTypeLabel(printOrder.diningType) && (
             <div className="receipt-payment">{t("نوع الطلب", "Order Type")}: {diningTypeLabel(printOrder.diningType)}</div>
+          )}
+          {printOrder.customerNotes && (
+            <div className="receipt-customer-notes">
+              <div className="receipt-customer-notes-label">{t("ملاحظة العميل", "Customer Note")}</div>
+              <div className="receipt-customer-notes-text">{printOrder.customerNotes}</div>
+            </div>
           )}
           <div className="receipt-footer">{t("شكراً لطلبكم", "Thank you for your order")}</div>
         </div>

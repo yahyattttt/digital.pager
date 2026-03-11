@@ -2600,7 +2600,7 @@ export async function registerRoutes(
   app.post("/api/whatsapp-orders/:merchantId", async (req, res) => {
     try {
       const { merchantId } = req.params;
-      const { customerName, customerPhone, items, total, paymentMethod, transactionId, diningType } = req.body;
+      const { customerName, customerPhone, items, total, paymentMethod, transactionId, diningType, customerNotes } = req.body;
 
       if (!customerName || !customerPhone || !items || !Array.isArray(items) || items.length === 0) {
         return res.status(400).json({ message: "customerName, customerPhone, and items are required" });
@@ -2710,6 +2710,10 @@ export async function registerRoutes(
 
       if (diningType && typeof diningType === "string" && ["dine_in", "takeaway"].includes(diningType)) {
         fields.diningType = { stringValue: diningType };
+      }
+
+      if (customerNotes && typeof customerNotes === "string" && customerNotes.trim()) {
+        fields.customerNotes = { stringValue: customerNotes.trim() };
       }
 
       const { source } = req.body;
