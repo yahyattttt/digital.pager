@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { AlertTriangle, CheckCircle, Loader2, Star, Banknote, Phone, MessageCircle, Send, Share2, Copy, XCircle, Search, Truck } from "lucide-react";
+import { AlertTriangle, CheckCircle, Loader2, Star, Banknote, Phone, MessageCircle, Send, Share2, Copy, XCircle, Search, Truck, MapPin, Package, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { WhatsAppOrder } from "@shared/schema";
 
@@ -363,6 +363,292 @@ function SmartRatingScreen({
   );
 }
 
+function DeliveryTrackingView({
+  order,
+  merchant,
+  merchantId,
+}: {
+  order: WhatsAppOrder;
+  merchant: { storeName: string; logoUrl: string; googleMapsReviewUrl?: string; driverPhone?: string } | null;
+  merchantId: string;
+}) {
+  const driverPhone = merchant?.driverPhone || "";
+  const isCompleted = order.status === "completed" || order.status === "archived";
+  const isReady = order.status === "ready";
+  const isRejected = order.status === "rejected";
+  const [showRating, setShowRating] = useState(false);
+  const [selectedStars, setSelectedStars] = useState(0);
+  const [hoveredStar, setHoveredStar] = useState(0);
+  const [ratingPhase, setRatingPhase] = useState<"stars" | "feedback" | "redirecting" | "done">("stars");
+  const [comment, setComment] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const prevStatusRef = useRef(order.status);
+
+  useEffect(() => {
+    if ((isReady || isCompleted) && !showRating) {
+      const timer = setTimeout(() => setShowRating(true), 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [isReady, isCompleted]);
+
+  useEffect(() => {
+    if (prevStatusRef.current !== order.status) {
+      if ((order.status === "ready" || order.status === "completed" || order.status === "archived") && !showRating) {
+        const timer = setTimeout(() => setShowRating(true), 1500);
+        return () => clearTimeout(timer);
+      }
+    }
+    prevStatusRef.current = order.status;
+  }, [order.status]);
+
+  function handleWhatsAppDriver() {
+    const phone = driverPhone.replace(/[^\d+]/g, "");
+    const name = order.customerName || "";
+    const orderNum = order.orderNumber || "";
+    const msg = encodeURIComponent(`مرحباً، أنا العميل ${name}، أود تتبع طلبي رقم ${orderNum}.`);
+    const url = phone
+      ? `https://wa.me/${phone.startsWith("+") ? phone.slice(1) : phone}?text=${msg}`
+      : `https://wa.me/?text=${msg}`;
+    window.open(url, "_blank");
+  }
+
+  function handleStarClick(star: number) {
+    setSelectedStars(star);
+    if (star >= 4 && merchant?.googleMapsReviewUrl) {
+      setRatingPhase("redirecting");
+      fetch("/api/store-internal-review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ merchantId, stars: star, comment: "", orderNumber: order.orderNumber }),
+      }).catch(() => {});
+      setTimeout(() => {
+        try { fetch(`/api/track/gmaps/${merchantId}`, { method: "POST" }); } catch {}
+        window.open(merchant!.googleMapsReviewUrl!, "_blank");
+        setRatingPhase("done");
+      }, 1500);
+    } else if (star >= 4) {
+      fetch("/api/store-internal-review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ merchantId, stars: star, comment: "", orderNumber: order.orderNumber }),
+      }).catch(() => {});
+      setRatingPhase("done");
+    } else {
+      setRatingPhase("feedback");
+    }
+  }
+
+  async function handleSubmitFeedback() {
+    setSubmitting(true);
+    try {
+      await fetch("/api/store-internal-review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ merchantId, stars: selectedStars, comment: comment.trim(), orderNumber: order.orderNumber }),
+      });
+    } catch {}
+    setSubmitting(false);
+    setRatingPhase("done");
+  }
+
+  function handleCloseAndReturn() {
+    if (order.id) {
+      sessionStorage.removeItem(`order_${order.id}`);
+      localStorage.removeItem(`order_${order.id}`);
+    }
+    sessionStorage.removeItem("pager_bell_primed");
+    window.location.href = `/menu/${merchantId}`;
+  }
+
+  function getStatusConfig() {
+    switch (order.status) {
+      case "pending_verification":
+      case "awaiting_confirmation":
+        return { label: "بانتظار تأكيد المتجر", labelEn: "Awaiting store confirmation", color: "text-amber-400", bgColor: "bg-amber-500/10", borderColor: "border-amber-500/20", icon: <Clock className="w-6 h-6 text-amber-400" />, pulse: true };
+      case "preparing":
+        return { label: "جاري التحضير", labelEn: "Preparing your order", color: "text-amber-400", bgColor: "bg-amber-500/10", borderColor: "border-amber-500/20", icon: <Package className="w-6 h-6 text-amber-400" />, pulse: true };
+      case "ready":
+        return { label: "جاهز للتوصيل", labelEn: "Ready for delivery", color: "text-emerald-400", bgColor: "bg-emerald-500/10", borderColor: "border-emerald-500/20", icon: <Truck className="w-6 h-6 text-emerald-400" />, pulse: false };
+      case "completed":
+      case "archived":
+        return { label: "تم التوصيل", labelEn: "Delivered", color: "text-emerald-400", bgColor: "bg-emerald-500/10", borderColor: "border-emerald-500/20", icon: <CheckCircle className="w-6 h-6 text-emerald-400" />, pulse: false };
+      case "rejected":
+        return { label: "تم رفض الطلب", labelEn: "Order rejected", color: "text-red-400", bgColor: "bg-red-500/10", borderColor: "border-red-500/20", icon: <XCircle className="w-6 h-6 text-red-400" />, pulse: false };
+      default:
+        return { label: "جاري المعالجة", labelEn: "Processing", color: "text-white/60", bgColor: "bg-white/5", borderColor: "border-white/10", icon: <Loader2 className="w-6 h-6 text-white/60 animate-spin" />, pulse: true };
+    }
+  }
+
+  const sc = getStatusConfig();
+
+  return (
+    <div
+      className="h-[100dvh] flex flex-col items-center justify-between py-8 px-5 text-center overflow-y-auto"
+      style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }}
+      data-testid="tracking-delivery-screen"
+    >
+      <div className="flex flex-col items-center gap-5 w-full max-w-sm animate-in fade-in duration-700 flex-1">
+        {merchant && (
+          <p className="text-white/30 text-xs font-medium tracking-wide">{merchant.storeName}</p>
+        )}
+
+        <div className="w-20 h-20 rounded-full border-2 border-emerald-500/30 bg-emerald-500/5 flex items-center justify-center" style={{ boxShadow: "0 0 40px rgba(16,185,129,0.15)" }}>
+          <Truck className="w-10 h-10 text-emerald-400/80" />
+        </div>
+
+        <div>
+          <p className="text-emerald-400 text-xl font-bold" dir="rtl" data-testid="text-delivery-header">شكراً لطلبك</p>
+          <p className="text-emerald-400/70 text-sm font-medium mt-2 leading-relaxed max-w-xs" dir="rtl" data-testid="text-delivery-subheader">
+            طلبك الآن في عهدة المندوب
+          </p>
+        </div>
+
+        <div className={`w-full p-4 rounded-2xl ${sc.bgColor} border ${sc.borderColor} transition-all duration-500`} data-testid="delivery-status-card">
+          <div className="flex items-center justify-center gap-3 mb-2">
+            {sc.icon}
+            {sc.pulse && <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />}
+          </div>
+          <p className={`text-2xl font-bold ${sc.color}`} dir="rtl" data-testid="text-delivery-live-status">{sc.label}</p>
+          <p className="text-white/40 text-xs mt-1" data-testid="text-delivery-live-status-en">{sc.labelEn}</p>
+        </div>
+
+        {order.displayOrderId && (
+          <div className="px-4 py-2 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+            <p className="text-white/40 text-[10px] mb-0.5" dir="rtl">رقم الطلب</p>
+            <p className="text-white text-lg font-bold font-mono tracking-wider" data-testid="text-delivery-order-number">{order.displayOrderId}</p>
+          </div>
+        )}
+
+        {!isRejected && (
+          <Button
+            onClick={handleWhatsAppDriver}
+            className="w-full h-14 font-bold text-base rounded-xl gap-3"
+            style={{ background: "linear-gradient(135deg, #25d366 0%, #128c7e 100%)" }}
+            data-testid="button-whatsapp-driver"
+          >
+            <MessageCircle className="w-6 h-6" />
+            <span dir="rtl">تواصل مع المندوب لتتبع طلبك 🟢</span>
+          </Button>
+        )}
+
+        {showRating && !isRejected && ratingPhase === "stars" && (
+          <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <Card className="w-full bg-[#111] border-white/[0.06] rounded-2xl">
+              <CardContent className="p-5 flex flex-col items-center gap-3">
+                <p className="text-white/80 text-sm font-medium" dir="rtl" data-testid="text-delivery-rate-prompt">تقييم الخدمة</p>
+                <p className="text-white/40 text-xs">Rate your experience</p>
+                <div className="flex items-center justify-center gap-3" data-testid="star-rating-widget">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => handleStarClick(star)}
+                      onMouseEnter={() => setHoveredStar(star)}
+                      onMouseLeave={() => setHoveredStar(0)}
+                      className="transition-all duration-200 active:scale-90 p-1"
+                      data-testid={`button-star-${star}`}
+                    >
+                      <Star
+                        className={`w-11 h-11 transition-all duration-200 ${
+                          star <= (hoveredStar || selectedStars)
+                            ? "fill-yellow-400 text-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.5)]"
+                            : "text-zinc-700 hover:text-zinc-500"
+                        }`}
+                      />
+                    </button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {showRating && ratingPhase === "feedback" && (
+          <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <Card className="w-full bg-[#111] border-white/[0.06] rounded-2xl">
+              <CardContent className="p-5 flex flex-col items-center gap-3">
+                <div className="flex items-center justify-center gap-2">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Star key={star} className={`w-7 h-7 ${star <= selectedStars ? "fill-yellow-400 text-yellow-400" : "text-zinc-700"}`} />
+                  ))}
+                </div>
+                <p className="text-white/80 text-sm font-medium" dir="rtl">ما الذي يمكننا تحسينه؟</p>
+                <Textarea
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  placeholder="اكتب ملاحظاتك هنا..."
+                  className="w-full text-sm resize-none bg-black border-zinc-700 text-white placeholder:text-zinc-600"
+                  rows={3}
+                  dir="rtl"
+                  data-testid="textarea-delivery-feedback"
+                />
+                <Button
+                  onClick={handleSubmitFeedback}
+                  disabled={submitting}
+                  className="w-full h-11 font-bold text-sm bg-red-600 hover:bg-red-700 text-white rounded-xl"
+                  data-testid="button-submit-delivery-feedback"
+                >
+                  {submitting ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Send className="w-4 h-4 me-2" />}
+                  <span dir="rtl">{submitting ? "جاري الإرسال..." : "إرسال الملاحظات"}</span>
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {showRating && ratingPhase === "redirecting" && (
+          <div className="w-full animate-in fade-in duration-500">
+            <Card className="w-full bg-[#111] border-white/[0.06] rounded-2xl">
+              <CardContent className="p-5 flex flex-col items-center gap-3">
+                <CheckCircle className="w-10 h-10 text-green-500" />
+                <p className="text-white text-sm font-bold" dir="rtl">شكراً لك! جاري تحويلك لجوجل ماب...</p>
+                <Loader2 className="w-5 h-5 animate-spin text-zinc-400" />
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {showRating && ratingPhase === "done" && (
+          <div className="w-full animate-in fade-in duration-500">
+            <Card className="w-full bg-[#111] border-white/[0.06] rounded-2xl">
+              <CardContent className="p-5 flex flex-col items-center gap-3">
+                <CheckCircle className="w-10 h-10 text-green-500" />
+                <p className="text-white text-base font-bold" dir="rtl">
+                  {selectedStars <= 3 ? "شكراً لملاحظاتك" : "شكراً لتقييمك!"}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {!isRejected && !isCompleted && (
+          <div className="p-3 rounded-xl bg-zinc-900/30 border border-zinc-800/20 w-full">
+            <p className="text-white/30 text-xs text-center" dir="rtl">{order.customerName} • {order.items.length} {order.items.length === 1 ? "منتج" : "منتجات"} • {order.total.toFixed(2)} SAR</p>
+          </div>
+        )}
+
+        {!isRejected && (
+          <div className="flex items-center justify-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${isCompleted ? "bg-emerald-500" : "bg-amber-500 animate-pulse"}`} />
+            <span className="text-white/20 text-[10px]">{isCompleted ? "Completed" : "Live"}</span>
+          </div>
+        )}
+      </div>
+
+      <div className="w-full max-w-sm mt-6 flex-shrink-0">
+        <button
+          onClick={handleCloseAndReturn}
+          className="w-full py-3 text-white/30 text-sm font-medium hover:text-white/50 transition-colors underline underline-offset-4"
+          data-testid="button-close-return"
+          dir="rtl"
+        >
+          إغلاق والعودة للرئيسية
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function OrderTrackingPage() {
   const params = useParams<{ orderId: string }>();
   const urlOrderId = params.orderId;
@@ -619,15 +905,23 @@ export default function OrderTrackingPage() {
       const currentStatus = updatedOrder.status;
       console.log("[OrderTracking] Firestore snapshot — status:", currentStatus, "prev:", prevStatus, "firstSnap:", isFirstSnapshot);
 
+      const isDelivery = updatedOrder.diningType === "delivery";
+
       if (isFirstSnapshot) {
         prevStatus = currentStatus;
         isFirstSnapshot = false;
         if (currentStatus === "completed" || currentStatus === "archived") {
           cleanupAudioSession();
-        } else if (currentStatus === "ready" && bellPrimedRef.current) {
+        } else if (currentStatus === "ready" && bellPrimedRef.current && !isDelivery) {
           console.log("[OrderTracking] Page loaded with ready status + bell primed — auto-playing");
           playFullAlert();
         }
+        return;
+      }
+
+      if (isDelivery) {
+        stopAlert();
+        prevStatus = currentStatus;
         return;
       }
 
@@ -770,6 +1064,16 @@ export default function OrderTrackingPage() {
           </CardContent>
         </Card>
       </div>
+    );
+  }
+
+  if (order.diningType === "delivery") {
+    return (
+      <DeliveryTrackingView
+        order={order}
+        merchant={merchant}
+        merchantId={merchantId}
+      />
     );
   }
 
