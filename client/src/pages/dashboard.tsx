@@ -98,6 +98,7 @@ import {
   Sparkles,
   Search,
   Navigation,
+  Truck,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { Progress } from "@/components/ui/progress";
@@ -1735,6 +1736,61 @@ function OverviewView({
     return null;
   };
 
+  const normalizePhone = (phone: string) => {
+    return (phone || "").replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d))).replace(/[^0-9]/g, "");
+  };
+
+  const shareDeliveryWithDriver = (order: any) => {
+    const orderNum = order.displayOrderId || order.orderNumber || order.id?.slice(0, 6);
+    const storeName = merchant?.storeName || "Digital Pager";
+    const safeTotal = Number.isFinite(Number(order.total)) ? Number(order.total).toFixed(2) : "0.00";
+    const safeDeliveryFee = Number.isFinite(Number(order.deliveryFee)) ? Number(order.deliveryFee).toFixed(2) : null;
+
+    const itemsList = (order.items || []).map((item: any, i: number) => {
+      const qty = Number(item.quantity) || 1;
+      const price = Number.isFinite(Number(item.price)) ? (Number(item.price) * qty).toFixed(2) : "0.00";
+      return `${i + 1}. ${item.name} × ${qty} — ${price} SAR`;
+    }).join("\n");
+
+    const locationLine = order.deliveryLat != null && order.deliveryLng != null
+      ? `📍 ${t("الموقع على الخريطة", "Location on Map")}:\nhttps://www.google.com/maps?q=${order.deliveryLat},${order.deliveryLng}`
+      : order.deliveryAddress
+        ? `📍 ${t("العنوان", "Address")}: ${order.deliveryAddress}`
+        : "";
+
+    const addressText = order.deliveryAddress && order.deliveryLat != null
+      ? `🏠 ${t("العنوان", "Address")}: ${order.deliveryAddress}`
+      : "";
+
+    const msg = [
+      `🚚 ${t("طلب توصيل جديد", "New Delivery Order")} - #${orderNum}`,
+      ``,
+      `👤 ${t("العميل", "Customer")}: ${order.customerName}`,
+      `📞 ${t("الجوال", "Phone")}: ${order.customerPhone}`,
+      `📲 ${t("اتصال مباشر", "Direct Call")}: tel:${order.customerPhone}`,
+      ``,
+      `📋 ${t("الطلب", "Order")}:`,
+      itemsList,
+      safeDeliveryFee ? `🚛 ${t("رسوم التوصيل", "Delivery Fee")}: ${safeDeliveryFee} SAR` : "",
+      `💰 ${t("الإجمالي", "Total")}: ${safeTotal} SAR`,
+      ``,
+      addressText,
+      locationLine,
+      order.customerNotes ? `\n📝 ${t("ملاحظات", "Notes")}: ${order.customerNotes}` : "",
+      ``,
+      `✅ ${t("تم الطلب عبر منصة", "Ordered via")} ${storeName}`,
+    ].filter(Boolean).join("\n");
+
+    const encoded = encodeURIComponent(msg);
+    const savedDriver = normalizePhone(merchant?.driverPhone || "");
+    if (savedDriver) {
+      window.open(`https://wa.me/${savedDriver}?text=${encoded}`, "_blank");
+    } else {
+      toast({ title: t("مشاركة مع المندوب", "Share with Driver"), description: t("لم يتم تحديد رقم مندوب، سيتم فتح واتساب لاختيار جهة الاتصال", "No driver number set, opening WhatsApp to choose contact") });
+      window.open(`https://wa.me/?text=${encoded}`, "_blank");
+    }
+  };
+
   const parseItemExtras = (name: string) => {
     const parts = name.split(" + ");
     const mainPart = parts[0];
@@ -1966,6 +2022,17 @@ function OverviewView({
                         >
                           <MessageCircle className="w-3.5 h-3.5" />
                         </Button>
+                        {order.diningType === "delivery" && (
+                          <Button
+                            size="sm"
+                            onClick={() => shareDeliveryWithDriver(order)}
+                            className="h-9 px-3 bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-400 text-xs font-bold rounded-xl border border-emerald-500/20 gap-1"
+                            data-testid={`button-share-driver-${item.id}`}
+                          >
+                            <Truck className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline text-[10px]">{t("المندوب", "Driver")}</span>
+                          </Button>
+                        )}
                         <Button
                           onClick={() => onRejectWhatsAppOrder(order)}
                           disabled={rejectingOrderId === order.id || acceptingOrderId === order.id}
@@ -2181,6 +2248,17 @@ function OverviewView({
                       >
                         <Printer className="w-3.5 h-3.5" />
                       </Button>
+                      )}
+                      {waOrder.diningType === "delivery" && (
+                        <Button
+                          size="sm"
+                          onClick={() => shareDeliveryWithDriver(waOrder)}
+                          className="h-9 px-3 bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-400 text-xs font-bold rounded-xl border border-emerald-500/20 gap-1"
+                          data-testid={`button-share-driver-${item.id}`}
+                        >
+                          <Truck className="w-3.5 h-3.5" />
+                          <span className="text-[10px]">{t("المندوب 🟢", "Driver 🟢")}</span>
+                        </Button>
                       )}
                       {isPreparing && (
                         <Button
@@ -3823,6 +3901,7 @@ function SettingsView({
   const [codEnabled, setCodEnabled] = useState<boolean>(merchant?.codEnabled !== false);
   const [deliveryEnabled, setDeliveryEnabled] = useState<boolean>(merchant?.deliveryEnabled || false);
   const [deliveryFee, setDeliveryFee] = useState<string>(merchant?.deliveryFee?.toString() || "0");
+  const [driverPhone, setDriverPhone] = useState<string>(merchant?.driverPhone || "");
   const [paymentSaving, setPaymentSaving] = useState(false);
 
   const cityCodeOptions = [
@@ -3855,6 +3934,7 @@ function SettingsView({
         codEnabled,
         deliveryEnabled,
         deliveryFee: parseFloat(deliveryFee) || 0,
+        driverPhone: driverPhone.trim(),
       });
       toast({
         title: t("تم الحفظ", "Saved"),
@@ -4029,20 +4109,36 @@ function SettingsView({
             </div>
 
             {deliveryEnabled && (
-              <div className="space-y-2">
-                <label className="text-xs text-muted-foreground block">{t("رسوم التوصيل (ريال)", "Delivery Fee (SAR)")}</label>
-                <Input
-                  type="number"
-                  value={deliveryFee}
-                  onChange={(e) => setDeliveryFee(e.target.value)}
-                  placeholder="0"
-                  min="0"
-                  step="0.5"
-                  className="h-12 bg-white/[0.03] border-white/10 font-mono"
-                  dir="ltr"
-                  data-testid="input-delivery-fee"
-                />
-              </div>
+              <>
+                <div className="space-y-2">
+                  <label className="text-xs text-muted-foreground block">{t("رسوم التوصيل (ريال)", "Delivery Fee (SAR)")}</label>
+                  <Input
+                    type="number"
+                    value={deliveryFee}
+                    onChange={(e) => setDeliveryFee(e.target.value)}
+                    placeholder="0"
+                    min="0"
+                    step="0.5"
+                    className="h-12 bg-white/[0.03] border-white/10 font-mono"
+                    dir="ltr"
+                    data-testid="input-delivery-fee"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs text-muted-foreground block">{t("رقم جوال المندوب (واتساب)", "Driver Phone (WhatsApp)")}</label>
+                  <Input
+                    type="tel"
+                    value={driverPhone}
+                    onChange={(e) => setDriverPhone(e.target.value)}
+                    placeholder={t("مثال: 966501234567", "e.g. 966501234567")}
+                    maxLength={15}
+                    className="h-12 bg-white/[0.03] border-white/10 font-mono"
+                    dir="ltr"
+                    data-testid="input-driver-phone"
+                  />
+                  <p className="text-[10px] text-muted-foreground">{t("اتركه فارغاً لاختيار المندوب يدوياً عند كل طلب", "Leave empty to choose driver manually per order")}</p>
+                </div>
+              </>
             )}
 
             <Button
