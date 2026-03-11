@@ -70,9 +70,6 @@ import {
   Plus,
   Power,
   PowerOff,
-  Zap,
-  RotateCcw,
-  Hash,
   Image,
   EyeOff,
   Pencil,
@@ -385,9 +382,6 @@ export default function DashboardPage() {
   const [currentView, setCurrentView] = useState<DashboardView>("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [storeOpen, setStoreOpen] = useState<boolean>((merchant as any)?.storeOpen !== false);
-  const [nextOrderNumber, setNextOrderNumber] = useState<number>(1);
-  const [showShiftStart, setShowShiftStart] = useState(false);
-  const [shiftStartNumber, setShiftStartNumber] = useState("");
   const [whatsappOrders, setWhatsappOrders] = useState<WhatsAppOrder[]>([]);
   const [activeWhatsappOrders, setActiveWhatsappOrders] = useState<WhatsAppOrder[]>([]);
   const prevWhatsappCountRef = useState({ current: -1 })[0];
@@ -507,21 +501,6 @@ export default function DashboardPage() {
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data?.features) setMerchantFeatures(data.features); })
       .catch(() => {});
-  }, [merchant?.uid]);
-
-  useEffect(() => {
-    if (!merchant?.uid) return;
-    const counterRef = doc(db, "merchants", merchant.uid, "settings", "orderCounter");
-    const unsub = onSnapshot(counterRef, (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
-        const val = parseInt(String(data.onlineCounter || 1), 10);
-        setNextOrderNumber(isNaN(val) || val < 1 ? 1 : val);
-      } else {
-        setShowShiftStart(true);
-      }
-    });
-    return () => unsub();
   }, [merchant?.uid]);
 
   useEffect(() => {
@@ -914,61 +893,6 @@ export default function DashboardPage() {
       toast({
         title: t("خطأ", "Error"),
         description: t("فشل في تحديث حالة الطلب", "Failed to update order status"),
-        variant: "destructive",
-      });
-    }
-  }, [merchant?.uid, t, toast]);
-
-  const handleShiftStart = useCallback(async () => {
-    if (!merchant?.uid) return;
-    const num = parseInt(shiftStartNumber.trim(), 10);
-    if (isNaN(num) || num < 1) {
-      toast({
-        title: t("خطأ", "Error"),
-        description: t("أدخل رقم صالح (1 أو أكثر)", "Enter a valid number (1 or more)"),
-        variant: "destructive",
-      });
-      return;
-    }
-    try {
-      const counterRef = doc(db, "merchants", merchant.uid, "settings", "orderCounter");
-      const currentYY = new Date().getFullYear().toString().slice(-2);
-      await setDoc(counterRef, { onlineCounter: num, onlineCounterYear: currentYY }, { merge: true });
-      setShowShiftStart(false);
-      setShiftStartNumber("");
-      toast({
-        title: t("تم تعيين الرقم", "Counter Set"),
-        description: t(
-          `الطلب التالي أونلاين: ${num}`,
-          `Next online order: ${num}`
-        ),
-      });
-    } catch {
-      toast({
-        title: t("خطأ", "Error"),
-        description: t("فشل في تعيين العداد", "Failed to set counter"),
-        variant: "destructive",
-      });
-    }
-  }, [merchant?.uid, shiftStartNumber, t, toast]);
-
-  const handleResetCounter = useCallback(async (resetTo: number) => {
-    if (!merchant?.uid) return;
-    try {
-      const counterRef = doc(db, "merchants", merchant.uid, "settings", "orderCounter");
-      const currentYY = new Date().getFullYear().toString().slice(-2);
-      await setDoc(counterRef, { onlineCounter: resetTo, onlineCounterYear: currentYY }, { merge: true });
-      toast({
-        title: t("تم إعادة التعيين", "Counter Reset"),
-        description: t(
-          `الطلب التالي أونلاين: ${resetTo}`,
-          `Next online order: ${resetTo}`
-        ),
-      });
-    } catch {
-      toast({
-        title: t("خطأ", "Error"),
-        description: t("فشل في إعادة تعيين العداد", "Failed to reset counter"),
         variant: "destructive",
       });
     }
@@ -1480,9 +1404,6 @@ export default function DashboardPage() {
                 merchant={merchant}
                 onDownloadQR={handleDownloadQR}
                 qrLoading={qrLoading}
-                nextOrderNumber={nextOrderNumber}
-                onResetCounter={handleResetCounter}
-                onOpenShiftStart={() => setShowShiftStart(true)}
                 onlineOrdersEnabled={onlineOrdersEnabled}
                 onToggleOnlineOrders={handleToggleOnlineOrders}
                 businessOpenTime={businessOpenTime}
@@ -1496,75 +1417,6 @@ export default function DashboardPage() {
         </main>
       </div>
 
-      
-
-      <Dialog open={showShiftStart} onOpenChange={setShowShiftStart}>
-        <DialogContent className="border-white/[0.08] bg-[#111] sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Hash className="w-5 h-5 text-primary" />
-              {t("بداية الوردية", "Shift Start")}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="py-4 space-y-4">
-            <p className="text-sm text-muted-foreground">
-              {t(
-                "أدخل رقم الطلب الذي تريد البدء منه",
-                "Enter the starting order number"
-              )}
-            </p>
-            <Input
-              type="text"
-              inputMode="numeric"
-              placeholder={t("مثال: 500", "e.g. 500")}
-              value={shiftStartNumber}
-              onChange={(e) => setShiftStartNumber(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && shiftStartNumber.trim()) {
-                  handleShiftStart();
-                }
-              }}
-              className="h-16 text-center text-2xl font-bold border-white/10 focus:border-primary focus:ring-primary/20 bg-white/[0.03]"
-              dir="ltr"
-              autoFocus
-              data-testid="input-shift-start-number"
-            />
-            <p className="text-xs text-muted-foreground text-center">
-              {shiftStartNumber.trim() && !isNaN(parseInt(shiftStartNumber)) && parseInt(shiftStartNumber) >= 1 ? (
-                <>
-                  {t("الطلب التالي سيكون:", "Next order will be:")}
-                  {" "}
-                  <span className="font-mono font-bold text-primary">#{parseInt(shiftStartNumber)}</span>
-                </>
-              ) : (
-                t("أدخل 1 أو أكثر للبدء", "Enter 1 or more to start")
-              )}
-            </p>
-          </div>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowShiftStart(false);
-                setShiftStartNumber("1");
-                handleResetCounter(1);
-              }}
-              className="border-white/10"
-              data-testid="button-start-from-one"
-            >
-              {t("ابدأ من #1", "Start from #1")}
-            </Button>
-            <Button
-              onClick={handleShiftStart}
-              disabled={!shiftStartNumber.trim() || isNaN(parseInt(shiftStartNumber)) || parseInt(shiftStartNumber) < 1}
-              className="bg-primary hover:bg-primary/90 font-bold"
-              data-testid="button-confirm-shift-start"
-            >
-              {t("تعيين", "Set")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
@@ -4079,9 +3931,6 @@ function SettingsView({
   merchant,
   onDownloadQR,
   qrLoading,
-  nextOrderNumber,
-  onResetCounter,
-  onOpenShiftStart,
   onlineOrdersEnabled,
   onToggleOnlineOrders,
   businessOpenTime,
@@ -4093,9 +3942,6 @@ function SettingsView({
   merchant: any;
   onDownloadQR: () => void;
   qrLoading: boolean;
-  nextOrderNumber: number;
-  onResetCounter: (n: number) => void;
-  onOpenShiftStart: () => void;
   onlineOrdersEnabled: boolean;
   onToggleOnlineOrders: () => void;
   businessOpenTime: string;
@@ -4105,7 +3951,6 @@ function SettingsView({
   lang: string;
 }) {
   const { toast } = useToast();
-  const [resetValue, setResetValue] = useState("");
   const [localOpenTime, setLocalOpenTime] = useState(businessOpenTime);
   const [localCloseTime, setLocalCloseTime] = useState(businessCloseTime);
 
@@ -4562,78 +4407,6 @@ function SettingsView({
                 </Button>
               </div>
             )}
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
-        <CardContent className="p-6">
-          <h3 className="font-semibold mb-4 flex items-center gap-2">
-            <Hash className="w-4 h-4 text-violet-400" />
-            {t("عداد الطلبات", "Order Counter")}
-          </h3>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between py-2 border-b border-white/[0.04]">
-              <span className="text-sm text-muted-foreground">{t("الطلب التالي", "Next Order Number")}</span>
-              <span className="text-lg font-mono font-bold text-violet-400" data-testid="text-next-order-number">#{nextOrderNumber}</span>
-            </div>
-
-            <p className="text-xs text-muted-foreground">
-              {t("أدخل رقم الطلب الذي تريد البدء منه", "Enter the starting order number")}
-            </p>
-            <div className="flex gap-2">
-              <Input
-                type="text"
-                inputMode="numeric"
-                placeholder={t("رقم البداية", "Starting number")}
-                value={resetValue}
-                onChange={(e) => setResetValue(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && resetValue.trim() && !isNaN(parseInt(resetValue)) && parseInt(resetValue) >= 1) {
-                    onResetCounter(parseInt(resetValue));
-                    setResetValue("");
-                  }
-                }}
-                className="flex-1 h-12 text-center font-bold border-white/10 bg-white/[0.03]"
-                dir="ltr"
-                data-testid="input-reset-counter"
-              />
-              <Button
-                variant="outline"
-                onClick={() => {
-                  if (resetValue.trim() && !isNaN(parseInt(resetValue)) && parseInt(resetValue) >= 1) {
-                    onResetCounter(parseInt(resetValue));
-                    setResetValue("");
-                  }
-                }}
-                disabled={!resetValue.trim() || isNaN(parseInt(resetValue)) || parseInt(resetValue) < 1}
-                className="h-12 border-white/10"
-                data-testid="button-set-counter"
-              >
-                {t("تعيين", "Set")}
-              </Button>
-            </div>
-
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => { onResetCounter(1); }}
-                className="flex-1 h-12 border-red-500/15 text-red-400 hover:bg-red-500/10"
-                data-testid="button-reset-to-one"
-              >
-                <RotateCcw className="w-4 h-4 me-2" />
-                {t("إعادة تعيين إلى #1", "Reset to #1")}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={onOpenShiftStart}
-                className="flex-1 h-12 border-white/10"
-                data-testid="button-shift-start"
-              >
-                <Zap className="w-4 h-4 me-2" />
-                {t("بداية وردية", "Shift Start")}
-              </Button>
-            </div>
           </div>
         </CardContent>
       </Card>
