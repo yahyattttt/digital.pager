@@ -599,6 +599,87 @@ function DeliveryTrackingView({
   );
 }
 
+const LED_COUNT = 10;
+
+function BuzzerCircle({ orderNumber, active }: { orderNumber: string; active: boolean }) {
+  const leds = Array.from({ length: LED_COUNT }, (_, i) => {
+    const angle = (i / LED_COUNT) * 360 - 90;
+    const rad = (angle * Math.PI) / 180;
+    const r = 44;
+    const cx = 50 + r * Math.cos(rad);
+    const cy = 50 + r * Math.sin(rad);
+    const delay = active ? `${(i * 0.03).toFixed(3)}s` : `${(i * 0.35).toFixed(2)}s`;
+    return { cx, cy, delay, i };
+  });
+
+  return (
+    <div className="relative w-[260px] h-[260px] mx-auto" data-testid="buzzer-circle">
+      <div
+        className={`absolute inset-0 rounded-full ${active ? "buzzer-ring-active" : ""}`}
+        style={{
+          background: "radial-gradient(circle at 38% 32%, #222 0%, #151515 30%, #0a0a0a 55%, #050505 80%, #000 100%)",
+          boxShadow: active
+            ? undefined
+            : "0 0 40px 8px rgba(0,0,0,0.6), inset 0 0 25px rgba(0,0,0,0.4)",
+        }}
+      />
+      <div
+        className="absolute rounded-full"
+        style={{ inset: "3px", background: "linear-gradient(135deg, rgba(80,80,80,0.12) 0%, transparent 35%, transparent 65%, rgba(30,30,30,0.08) 100%)", border: "1px solid rgba(255,255,255,0.06)" }}
+      />
+      <div
+        className="absolute rounded-full"
+        style={{ inset: "8px", border: "1px solid rgba(255,255,255,0.03)", background: "radial-gradient(circle at 42% 38%, rgba(40,40,40,0.1) 0%, transparent 50%)" }}
+      />
+      <div
+        className="absolute rounded-full"
+        style={{ inset: "22px", border: active ? "1px solid rgba(255,25,0,0.1)" : "1px solid rgba(255,255,255,0.025)" }}
+      />
+      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" style={{ overflow: "visible" }}>
+        <defs>
+          <radialGradient id="ot-led-glow-grad">
+            <stop offset="0%" stopColor="#ff2200" stopOpacity="0.6" />
+            <stop offset="60%" stopColor="#ff1100" stopOpacity="0.15" />
+            <stop offset="100%" stopColor="#ff0000" stopOpacity="0" />
+          </radialGradient>
+        </defs>
+        <g className={active ? "led-ring-spinning" : ""} style={{ transformOrigin: "50px 50px" }}>
+          {leds.map((led) => (
+            <g key={led.i}>
+              <circle cx={led.cx} cy={led.cy} r={6} fill="url(#ot-led-glow-grad)" className={active ? "led-glow-active" : "led-glow-idle"} style={{ animationDelay: led.delay }} />
+              <circle cx={led.cx} cy={led.cy} r={2.6} fill="#ff2000" className={active ? "led-dot-active" : "led-dot-idle"} style={{ animationDelay: led.delay }} />
+              <circle cx={led.cx} cy={led.cy} r={1.2} fill="#ff6644" opacity={active ? 0.9 : 0.25} className={active ? "led-dot-active" : "led-dot-idle"} style={{ animationDelay: led.delay }} />
+            </g>
+          ))}
+        </g>
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center z-10">
+        <span
+          className={`font-dseg7 tracking-wider ${active ? "buzzer-number-blink" : ""}`}
+          style={{
+            fontSize: "clamp(48px, 13vw, 72px)",
+            color: active ? "#ff3000" : "#aa1800",
+            textShadow: active
+              ? "0 0 25px rgba(255,40,0,0.9), 0 0 50px rgba(255,20,0,0.5), 0 0 80px rgba(255,10,0,0.25)"
+              : "0 0 12px rgba(170,24,0,0.35), 0 0 4px rgba(170,24,0,0.2)",
+            lineHeight: 1,
+          }}
+          data-testid="text-buzzer-number text-tracking-order-number"
+        >
+          {orderNumber}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function getShort3Digit(order: WhatsAppOrder): string {
+  const raw = order.orderNumber || order.displayOrderId || "";
+  const nums = raw.replace(/\D/g, "");
+  if (nums.length <= 3) return nums || "?";
+  return nums.slice(-3);
+}
+
 export default function OrderTrackingPage() {
   const params = useParams<{ orderId: string }>();
   const orderId = params.orderId;
@@ -856,47 +937,43 @@ export default function OrderTrackingPage() {
   }
 
   if (order.status === "ready") {
+    const shortNum = getShort3Digit(order);
     return (
-      <div className="h-[100dvh] flex flex-col items-center justify-between py-8 px-5 text-center overflow-hidden"
+      <div className="h-[100dvh] flex flex-col items-center justify-between py-10 px-5 text-center"
         style={{ background: "linear-gradient(180deg, #0a0000 0%, #1a0000 30%, #0d0000 70%, #000 100%)" }}
         data-testid="tracking-ready-screen"
       >
         <div className="w-full">
-          <p className="text-white/40 text-[14px] font-medium tracking-[0.3em] uppercase mb-0.5">DIGITAL PAGER</p>
-          {merchant && <h2 className="text-white text-[26px] font-bold" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>{merchant.storeName}</h2>}
+          <p className="text-white/40 text-[13px] font-medium tracking-[0.3em] uppercase mb-1">DIGITAL PAGER</p>
+          {merchant && <h2 className="text-white text-xl font-bold" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>{merchant.storeName}</h2>}
         </div>
 
-        <div className="flex-1 flex flex-col items-center justify-center -mt-4">
-          <div className="w-28 h-28 rounded-full border-2 border-emerald-500/40 bg-emerald-500/10 flex items-center justify-center mb-6 animate-pulse" style={{ boxShadow: "0 0 50px rgba(16,185,129,0.2)" }}>
-            <CheckCircle className="w-14 h-14 text-emerald-400" />
-          </div>
-          <p className="text-white/30 text-xl font-bold font-dseg7 tracking-wider mb-4" style={{ textShadow: "0 0 15px rgba(255,0,0,0.4)" }} data-testid="text-tracking-order-number">
-            {order.displayOrderId || order.orderNumber || "?"}
-          </p>
+        <div className="flex-1 flex flex-col items-center justify-center min-h-0 gap-5">
+          <BuzzerCircle orderNumber={shortNum} active={true} />
           <div>
-            <p className="text-white text-2xl font-black tracking-wide" data-testid="text-order-ready">ORDER READY!</p>
-            <p className="text-red-400 text-xl font-bold mt-1" dir="rtl">طلبك جاهز!</p>
-            <p className="text-white/50 text-sm mt-3">Please proceed to the counter</p>
-            <p className="text-white/40 text-sm mt-0.5" dir="rtl">تفضل بالاستلام من الكاونتر</p>
+            <p className="text-red-400 text-2xl font-black" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }} data-testid="text-order-ready">
+              طلبك جاهز، استلمه الآن! ✅
+            </p>
+            <p className="text-white/50 text-sm mt-2">Your order is ready! Please pick it up.</p>
           </div>
         </div>
 
-        <div className="w-full max-w-xs space-y-4">
+        <div className="w-full max-w-xs space-y-3">
           {isOnlineOrder && (
             <button
               onClick={() => { window.location.href = `/receipt/${orderId}?m=${merchantId}`; }}
-              className="w-full flex items-center justify-center gap-2.5 rounded-2xl border border-emerald-500/20 bg-gradient-to-r from-emerald-950/30 via-emerald-900/15 to-emerald-950/30 active:scale-[0.97] transition-all duration-200"
-              style={{ padding: "14px 20px", boxShadow: "0 0 15px rgba(16,185,129,0.05), inset 0 1px 0 rgba(255,255,255,0.03)" }}
+              className="w-full flex items-center justify-center gap-2.5 py-4 rounded-2xl border border-red-500/20 bg-gradient-to-r from-red-950/30 via-red-900/15 to-red-950/30 active:scale-[0.97] transition-all duration-200"
+              style={{ boxShadow: "0 0 15px rgba(255,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.03)" }}
               data-testid="button-view-receipt-ready"
             >
-              <span className="text-xl flex-shrink-0">📄</span>
-              <span className="text-emerald-400/90 text-[15px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>عرض إيصال الطلب</span>
+              <span className="text-lg flex-shrink-0">📄</span>
+              <span className="text-red-400/90 text-base font-bold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>عرض إيصال الطلب</span>
             </button>
           )}
           <button
             onClick={handleShareTracking}
-            className="w-full flex items-center justify-center gap-3 rounded-2xl border border-red-500/20 bg-gradient-to-r from-red-950/30 via-red-900/15 to-red-950/30 active:scale-[0.97] transition-all duration-200"
-            style={{ padding: "18px 20px", boxShadow: "0 0 15px rgba(255,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.03)" }}
+            className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl border border-red-500/20 bg-gradient-to-r from-red-950/30 via-red-900/15 to-red-950/30 active:scale-[0.97] transition-all duration-200"
+            style={{ boxShadow: "0 0 15px rgba(255,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.03)" }}
             data-testid="button-share-tracking-ready"
           >
             {navigator.share ? (
@@ -904,7 +981,7 @@ export default function OrderTrackingPage() {
             ) : (
               <Copy className="w-5 h-5 text-red-400/80 flex-shrink-0" />
             )}
-            <span className="text-red-400/90 text-[18px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>شارك حالة الطلب مع أحبابك</span>
+            <span className="text-red-400/90 text-base font-bold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>مشاركة مع الأحباب 🔗</span>
           </button>
         </div>
       </div>
@@ -962,44 +1039,48 @@ export default function OrderTrackingPage() {
     );
   }
 
+  const shortNum = getShort3Digit(order);
   return (
-    <div className="h-[100dvh] flex flex-col items-center justify-between py-8 px-5 text-center overflow-hidden"
+    <div className="h-[100dvh] flex flex-col items-center justify-between py-10 px-5 text-center"
       style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }}
       data-testid="tracking-preparing-screen"
     >
-      <div className="w-full flex-shrink-0">
-        <p className="text-white/40 text-[14px] font-medium tracking-[0.3em] uppercase mb-0.5">DIGITAL PAGER</p>
-        {merchant && <h2 className="text-white text-[26px] font-bold" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>{merchant.storeName}</h2>}
+      <div className="w-full">
+        <p className="text-white/40 text-[13px] font-medium tracking-[0.3em] uppercase mb-1">DIGITAL PAGER</p>
+        {merchant && <h2 className="text-white text-xl font-bold" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>{merchant.storeName}</h2>}
       </div>
 
-      <div className="flex-1 flex flex-col items-center justify-center min-h-0">
-        <div className="w-24 h-24 rounded-full border-2 border-red-500/30 bg-red-500/5 flex items-center justify-center mb-6" style={{ boxShadow: "0 0 40px rgba(239,68,68,0.12)" }}>
-          <Clock className="w-12 h-12 text-red-400 animate-pulse" />
+      <div className="flex-1 flex flex-col items-center justify-center min-h-0 gap-5">
+        <BuzzerCircle orderNumber={shortNum} active={false} />
+        <div>
+          <p className="text-red-400 text-2xl font-black" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }} data-testid="text-preparing-message">
+            جاري التحضير 👨‍🍳
+          </p>
+          <p className="text-white/40 text-sm mt-1 text-center">Your order is being prepared</p>
         </div>
-        <p className="text-red-400 text-lg font-bold" dir="rtl" data-testid="text-preparing-message">جاري التحضير...</p>
-        <p className="text-white/50 text-sm mt-1.5">Your order is being prepared</p>
-        <p className="text-white/30 text-xl font-bold mt-4 font-dseg7 tracking-wider" style={{ textShadow: "0 0 15px rgba(255,0,0,0.4)" }} data-testid="text-tracking-order-number">
-          {order.displayOrderId || order.orderNumber || "?"}
-        </p>
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+          <span className="text-white/20 text-[10px]" data-testid="text-live-status">Live</span>
+        </div>
       </div>
 
-      <div className="w-full max-w-xs space-y-4">
+      <div className="w-full max-w-xs space-y-3">
         {isOnlineOrder && (
           <button
             onClick={() => { window.location.href = `/receipt/${orderId}?m=${merchantId}`; }}
-            className="w-full flex items-center justify-center gap-2.5 rounded-2xl border border-emerald-500/20 bg-gradient-to-r from-emerald-950/30 via-emerald-900/15 to-emerald-950/30 active:scale-[0.97] transition-all duration-200"
-            style={{ padding: "14px 20px", boxShadow: "0 0 15px rgba(16,185,129,0.05), inset 0 1px 0 rgba(255,255,255,0.03)" }}
+            className="w-full flex items-center justify-center gap-2.5 py-4 rounded-2xl border border-red-500/20 bg-gradient-to-r from-red-950/30 via-red-900/15 to-red-950/30 active:scale-[0.97] transition-all duration-200"
+            style={{ boxShadow: "0 0 15px rgba(255,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.03)" }}
             data-testid="button-view-receipt-preparing"
           >
-            <span className="text-xl flex-shrink-0">📄</span>
-            <span className="text-emerald-400/90 text-[15px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>عرض إيصال الطلب</span>
+            <span className="text-lg flex-shrink-0">📄</span>
+            <span className="text-red-400/90 text-base font-bold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>عرض إيصال الطلب</span>
           </button>
         )}
 
         <button
           onClick={handleShareTracking}
-          className="w-full flex items-center justify-center gap-3 rounded-2xl border border-red-500/20 bg-gradient-to-r from-red-950/30 via-red-900/15 to-red-950/30 active:scale-[0.97] transition-all duration-200"
-          style={{ padding: "18px 20px", boxShadow: "0 0 15px rgba(255,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.03)" }}
+          className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl border border-red-500/20 bg-gradient-to-r from-red-950/30 via-red-900/15 to-red-950/30 active:scale-[0.97] transition-all duration-200"
+          style={{ boxShadow: "0 0 15px rgba(255,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.03)" }}
           data-testid="button-share-tracking"
         >
           {navigator.share ? (
@@ -1007,17 +1088,8 @@ export default function OrderTrackingPage() {
           ) : (
             <Copy className="w-5 h-5 text-red-400/80 flex-shrink-0" />
           )}
-          <span className="text-red-400/90 text-[18px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>شارك حالة الطلب مع أحبابك</span>
+          <span className="text-red-400/90 text-base font-bold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>مشاركة مع الأحباب 🔗</span>
         </button>
-
-        <div className="p-3 rounded-xl bg-zinc-900/30 border border-zinc-800/20">
-          <p className="text-white/30 text-xs text-center" dir="rtl">{order.customerName} • {order.items.length} items • {order.total.toFixed(2)} SAR</p>
-        </div>
-
-        <div className="flex items-center justify-center gap-2">
-          <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-          <span className="text-white/20 text-[10px]">Live</span>
-        </div>
       </div>
     </div>
   );
