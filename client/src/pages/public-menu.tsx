@@ -1016,17 +1016,16 @@ export default function PublicMenuPage() {
             <img
               src={merchant.logoUrl}
               alt={merchant.storeName}
-              className="w-16 h-16 rounded-full object-cover border-2 border-red-600/30 mx-auto mb-3"
+              className="w-20 h-20 rounded-full object-cover border-2 border-red-600/30 mx-auto mb-2.5"
               style={{ boxShadow: "0 0 20px rgba(255,0,0,0.15)" }}
               data-testid="img-menu-logo"
             />
           ) : (
-            <div className="w-16 h-16 rounded-full bg-black border-2 border-red-600/30 flex items-center justify-center mx-auto mb-3" style={{ boxShadow: "0 0 20px rgba(255,0,0,0.15)" }}>
-              <Store className="w-8 h-8 text-red-500" />
+            <div className="w-20 h-20 rounded-full bg-black border-2 border-red-600/30 flex items-center justify-center mx-auto mb-2.5" style={{ boxShadow: "0 0 20px rgba(255,0,0,0.15)" }}>
+              <Store className="w-10 h-10 text-red-500" />
             </div>
           )}
           <h1 className="text-white text-xl font-bold" data-testid="text-menu-store-name">{merchant.storeName}</h1>
-          <p className="text-white/40 text-sm mt-1">{t("القائمة الرقمية", "Digital Menu")}</p>
         </div>
       </div>
 
