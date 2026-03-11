@@ -844,6 +844,10 @@ export default function OrderTrackingPage() {
         }
       }
 
+      if (currentStatus === "completed" || currentStatus === "archived") {
+        stopAlert();
+      }
+
       if (isFirstSnapshot) {
         isFirstSnapshot = false;
       }
