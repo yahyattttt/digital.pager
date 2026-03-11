@@ -56,6 +56,7 @@ export default function PublicMenuPage() {
   const [deliveryAddress, setDeliveryAddress] = useState("");
   const [deliveryLat, setDeliveryLat] = useState<number | null>(null);
   const [deliveryLng, setDeliveryLng] = useState<number | null>(null);
+  const [deliveryLocationConfirmed, setDeliveryLocationConfirmed] = useState(false);
   const [geoLoading, setGeoLoading] = useState(false);
   const [customerNotes, setCustomerNotes] = useState("");
 
@@ -396,8 +397,8 @@ export default function PublicMenuPage() {
       toast({ title: t("مطلوب", "Required"), description: t("يرجى اختيار نوع الطلب", "Please select order type"), variant: "destructive" });
       return;
     }
-    if (diningType === "delivery" && (deliveryLat === null || deliveryLng === null)) {
-      toast({ title: t("مطلوب", "Required"), description: t("يرجى تحديد موقع التوصيل على الخريطة", "Please set delivery location on the map"), variant: "destructive" });
+    if (diningType === "delivery" && !deliveryLocationConfirmed) {
+      toast({ title: t("مطلوب", "Required"), description: t("يرجى تحديد وتثبيت موقع التوصيل على الخريطة", "Please set and confirm your delivery location on the map"), variant: "destructive" });
       return;
     }
     if (merchant?.storeTermsEnabled && !storeTermsAccepted) {
@@ -770,9 +771,17 @@ export default function PublicMenuPage() {
                 <DeliveryMapPicker
                   lat={deliveryLat}
                   lng={deliveryLng}
-                  onLocationChange={(lat, lng) => {
+                  confirmed={deliveryLocationConfirmed}
+                  onLocationConfirmed={(lat, lng, address) => {
                     setDeliveryLat(lat);
                     setDeliveryLng(lng);
+                    setDeliveryLocationConfirmed(true);
+                    if (address) {
+                      setDeliveryAddress(address);
+                    }
+                  }}
+                  onLocationDirty={() => {
+                    setDeliveryLocationConfirmed(false);
                   }}
                   onGeoError={(type) => {
                     if (type === "unsupported") {
@@ -785,15 +794,18 @@ export default function PublicMenuPage() {
                   t={t}
                 />
               </Suspense>
-              <Input
-                value={deliveryAddress}
-                onChange={(e) => setDeliveryAddress(e.target.value)}
-                placeholder={t("وصف إضافي للعنوان (اختياري)", "Additional address description (optional)")}
-                maxLength={300}
-                className="h-10 bg-white/[0.03] border-white/10 text-white placeholder:text-white/25 text-xs"
-                dir={isRTL ? "rtl" : "ltr"}
-                data-testid="input-delivery-address"
-              />
+              <div className="space-y-1">
+                <label className="text-white/40 text-[10px]">{t("العنوان (يتم تعبئته تلقائياً من الخريطة)", "Address (auto-filled from map)")}</label>
+                <Input
+                  value={deliveryAddress}
+                  onChange={(e) => setDeliveryAddress(e.target.value)}
+                  placeholder={t("العنوان سيظهر هنا بعد تثبيت الموقع", "Address will appear after confirming location")}
+                  maxLength={300}
+                  className="h-10 bg-white/[0.03] border-white/10 text-white placeholder:text-white/25 text-xs"
+                  dir="rtl"
+                  data-testid="input-delivery-address"
+                />
+              </div>
             </div>
           )}
 
@@ -927,7 +939,7 @@ export default function PublicMenuPage() {
           {(selectedPaymentMethod === "cod" || (!merchant.onlinePaymentEnabled && merchant.codEnabled)) && (
             <Button
               onClick={() => handleConfirmOrder()}
-              disabled={!customerName.trim() || customerPhone.length !== 10 || !diningType || (diningType === "delivery" && (deliveryLat === null || deliveryLng === null)) || (merchant.storeTermsEnabled && !storeTermsAccepted) || submitting || (!merchant.onlinePaymentEnabled && !merchant.codEnabled) || (merchant.onlinePaymentEnabled && merchant.codEnabled && !selectedPaymentMethod)}
+              disabled={!customerName.trim() || customerPhone.length !== 10 || !diningType || (diningType === "delivery" && !deliveryLocationConfirmed) || (merchant.storeTermsEnabled && !storeTermsAccepted) || submitting || (!merchant.onlinePaymentEnabled && !merchant.codEnabled) || (merchant.onlinePaymentEnabled && merchant.codEnabled && !selectedPaymentMethod)}
               className="w-full h-14 text-base font-bold bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-30 rounded-xl gap-2"
               style={{ boxShadow: "0 0 25px rgba(16,185,129,0.15)" }}
               data-testid="button-confirm-order"
