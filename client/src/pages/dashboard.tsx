@@ -1864,21 +1864,43 @@ function OverviewView({
   };
 
   const typeBadgeConfig = (cat: "dine_in" | "takeaway" | "delivery" | "manual") => {
-    if (cat === "dine_in") return { bg: "bg-sky-500/20", text: "text-sky-300", border: "border-sky-500/30", label: t("محلي", "Dine-in"), glow: "border-s-sky-500/60", icon: UtensilsCrossed };
-    if (cat === "takeaway") return { bg: "bg-orange-500/20", text: "text-orange-300", border: "border-orange-500/30", label: t("سفري", "Takeaway"), glow: "border-s-orange-500/60", icon: ShoppingBag };
-    if (cat === "delivery") return { bg: "bg-emerald-500/20", text: "text-emerald-300", border: "border-emerald-500/30", label: t("توصيل", "Delivery"), glow: "border-s-emerald-500/60", icon: Truck };
-    return { bg: "bg-violet-500/20", text: "text-violet-300", border: "border-violet-500/30", label: t("يدوي", "Manual"), glow: "border-s-violet-500/60", icon: Pencil };
+    if (cat === "dine_in") return { bg: "bg-sky-500/20", text: "text-sky-300", border: "border-sky-400/40", label: t("محلي", "Dine-in"), borderColor: "#3498db", tintFrom: "rgba(52,152,219,0.06)", icon: UtensilsCrossed, glowShadow: "0 0 8px rgba(52,152,219,0.3)" };
+    if (cat === "takeaway") return { bg: "bg-orange-500/20", text: "text-orange-300", border: "border-orange-400/40", label: t("سفري", "Takeaway"), borderColor: "#f39c12", tintFrom: "rgba(243,156,18,0.06)", icon: ShoppingBag, glowShadow: "0 0 8px rgba(243,156,18,0.3)" };
+    if (cat === "delivery") return { bg: "bg-emerald-500/20", text: "text-emerald-300", border: "border-emerald-400/40", label: t("توصيل", "Delivery"), borderColor: "#2ecc71", tintFrom: "rgba(46,204,113,0.06)", icon: Truck, glowShadow: "0 0 8px rgba(46,204,113,0.3)" };
+    return { bg: "bg-violet-500/20", text: "text-violet-300", border: "border-violet-400/40", label: t("يدوي", "Manual"), borderColor: "#9b59b6", tintFrom: "rgba(155,89,182,0.06)", icon: Pencil, glowShadow: "0 0 8px rgba(155,89,182,0.3)" };
   };
 
   const TypeBadge = ({ category }: { category: "dine_in" | "takeaway" | "delivery" | "manual" }) => {
     const cfg = typeBadgeConfig(category);
     const Icon = cfg.icon;
     return (
-      <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md ${cfg.bg} ${cfg.text} border ${cfg.border}`} data-testid={`badge-type-${category}`}>
-        <Icon className="w-3 h-3" />
+      <span
+        className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-lg ${cfg.bg} ${cfg.text} border ${cfg.border}`}
+        style={{ boxShadow: cfg.glowShadow }}
+        data-testid={`badge-type-${category}`}
+      >
+        <Icon className="w-3.5 h-3.5" />
         {cfg.label}
       </span>
     );
+  };
+
+  const WatermarkIcon = ({ category }: { category: "dine_in" | "takeaway" | "delivery" | "manual" }) => {
+    const cfg = typeBadgeConfig(category);
+    const Icon = cfg.icon;
+    return (
+      <div className="absolute end-3 bottom-3 pointer-events-none opacity-[0.04]" aria-hidden="true">
+        <Icon className="w-24 h-24" style={{ color: cfg.borderColor }} />
+      </div>
+    );
+  };
+
+  const cardStyle = (cat: "dine_in" | "takeaway" | "delivery" | "manual") => {
+    const cfg = typeBadgeConfig(cat);
+    return {
+      borderInlineStart: `6px solid ${cfg.borderColor}`,
+      background: `linear-gradient(135deg, ${cfg.tintFrom} 0%, ${cat === "manual" ? "#0a0a0a" : "#111111"} 40%)`,
+    };
   };
 
   const typeFilterChips: { key: "all" | "dine_in" | "takeaway" | "delivery" | "manual"; label: string; icon?: any }[] = [
@@ -1895,12 +1917,6 @@ function OverviewView({
     { key: "preparing", label: t("قيد التحضير", "Preparing") },
     { key: "ready", label: t("جاهز", "Ready") },
   ];
-
-  const cardGlowClass = (cat: "dine_in" | "takeaway" | "delivery" | "manual") => {
-    return `border-s-[3px] ${typeBadgeConfig(cat).glow}`;
-  };
-
-  const isManualCard = (cat: "dine_in" | "takeaway" | "delivery" | "manual") => cat === "manual";
 
   return (
     <div className="flex flex-col h-full min-h-[calc(100dvh-3.5rem)]">
@@ -2029,13 +2045,15 @@ function OverviewView({
                 return (
                   <Card
                     key={`wa-new-${item.id}`}
-                    className={`${isManualCard(item.orderCategory) ? "bg-[#0a0a0a]" : "bg-[#111]"} rounded-2xl overflow-hidden transition-all duration-500 border-2 border-red-500/40 shadow-[0_0_15px_rgba(239,0,0,0.08)] ${cardGlowClass(item.orderCategory)} ${isFlying ? "opacity-0 -translate-y-20 scale-75" : ""}`}
+                    className={`relative rounded-2xl overflow-hidden transition-all duration-500 border border-red-500/30 shadow-[0_0_15px_rgba(239,0,0,0.08)] ${isFlying ? "opacity-0 -translate-y-20 scale-75" : ""}`}
+                    style={cardStyle(item.orderCategory)}
                     data-testid={`card-wa-order-${item.id}`}
                   >
+                    <WatermarkIcon category={item.orderCategory} />
                     <div className="flex items-center justify-between px-4 pt-4 pb-2">
                       <div className="flex items-center gap-2">
                         <Globe className="w-4 h-4 text-red-400" />
-                        <span className="text-lg font-extrabold text-white" data-testid={`text-order-num-${item.id}`}>
+                        <span className="text-xl font-extrabold text-white tracking-tight" data-testid={`text-order-num-${item.id}`}>
                           {order.displayOrderId || (order.orderNumber ? `#${order.orderNumber}` : t("جديد", "NEW"))}
                         </span>
                       </div>
@@ -2051,10 +2069,10 @@ function OverviewView({
                       </div>
                     </div>
 
-                    <CardContent className="px-4 pb-4 pt-0 space-y-3">
+                    <CardContent className="px-4 pb-4 pt-0 space-y-3 relative z-[1]">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2 text-xs text-white/50 flex-wrap min-w-0 flex-1">
-                          <span className="font-semibold text-white/80" data-testid={`text-customer-name-${item.id}`}>{order.customerName}</span>
+                          <span className="font-semibold text-white/55" data-testid={`text-customer-name-${item.id}`}>{order.customerName}</span>
                           <span className="text-white/20">|</span>
                           <span className="font-mono text-white/50" dir="ltr" data-testid={`text-customer-phone-${item.id}`}>{order.customerPhone}</span>
                           {(() => {
@@ -2119,7 +2137,7 @@ function OverviewView({
                             <p className="text-[11px] text-emerald-300 font-bold">{t("موقع التوصيل", "Delivery Location")}</p>
                           </div>
                           {order.deliveryAddress && <p className="text-xs text-white/80 leading-relaxed mb-1">{order.deliveryAddress}</p>}
-                          <a href={order.deliveryMapLink || `https://www.google.com/maps?q=${order.deliveryLat},${order.deliveryLng}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 transition-colors text-[11px] text-emerald-400 hover:text-emerald-300 font-bold" data-testid={`link-maps-${item.id}`}>
+                          <a href={order.deliveryMapLink || `https://www.google.com/maps?q=${order.deliveryLat},${order.deliveryLng}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600/25 hover:bg-emerald-500/35 transition-colors text-[11px] text-emerald-300 hover:text-emerald-200 font-bold border border-emerald-500/30 animate-[mapsPulse_2s_ease-in-out_infinite]" data-testid={`link-maps-${item.id}`}>
                             <Navigation className="w-3 h-3" />
                             {t("فتح الموقع في خرائط قوقل 📍", "Open Location in Google Maps 📍")}
                           </a>
@@ -2181,13 +2199,15 @@ function OverviewView({
                 return (
                   <Card
                     key={`${item.type}-${item.id}`}
-                    className={`bg-[#0a0a0a] rounded-2xl overflow-hidden transition-all duration-500 border border-white/[0.08] ${cardGlowClass("manual")} ${isFlying ? "opacity-0 -translate-y-20 scale-75" : ""}`}
+                    className={`relative rounded-2xl overflow-hidden transition-all duration-500 border border-white/[0.08] ${isFlying ? "opacity-0 -translate-y-20 scale-75" : ""}`}
+                    style={cardStyle("manual")}
                     data-testid={`card-${isNotified ? "notified" : "waiting"}-${item.id}`}
                   >
+                    <WatermarkIcon category="manual" />
                     <div className="flex items-center justify-between px-4 pt-4 pb-2">
                       <div className="flex items-center gap-2">
                         <QrCode className="w-4 h-4 text-white/40" />
-                        <span className={`text-lg font-extrabold ${isNotified ? "text-emerald-400" : "text-white"}`} data-testid={`text-order-num-${item.id}`}>
+                        <span className={`text-xl font-extrabold tracking-tight ${isNotified ? "text-emerald-400" : "text-white"}`} data-testid={`text-order-num-${item.id}`}>
                           {pager.displayOrderId || `#${item.orderNumber}`}
                         </span>
                       </div>
@@ -2203,7 +2223,7 @@ function OverviewView({
                       </div>
                     </div>
 
-                    <CardContent className="px-4 pb-4 pt-0 space-y-3">
+                    <CardContent className="px-4 pb-4 pt-0 space-y-3 relative z-[1]">
 
                       <div className="flex gap-2">
                         {!isNotified ? (
@@ -2247,13 +2267,15 @@ function OverviewView({
               return (
                 <Card
                   key={`wa-${item.id}`}
-                  className={`${isManualCard(item.orderCategory) ? "bg-[#0a0a0a]" : "bg-[#111]"} rounded-2xl overflow-hidden transition-all duration-500 border-2 border-red-500/40 shadow-[0_0_15px_rgba(239,0,0,0.08)] ${cardGlowClass(item.orderCategory)} ${isFlying ? "opacity-0 -translate-y-20 scale-75" : ""}`}
+                  className={`relative rounded-2xl overflow-hidden transition-all duration-500 border border-red-500/30 shadow-[0_0_15px_rgba(239,0,0,0.08)] ${isFlying ? "opacity-0 -translate-y-20 scale-75" : ""}`}
+                  style={cardStyle(item.orderCategory)}
                   data-testid={`card-active-order-${item.id}`}
                 >
+                  <WatermarkIcon category={item.orderCategory} />
                   <div className="flex items-center justify-between px-4 pt-4 pb-2">
                     <div className="flex items-center gap-2">
                       <Globe className="w-4 h-4 text-red-400" />
-                      <span className="text-lg font-extrabold text-white" data-testid={`text-order-num-${item.id}`}>
+                      <span className="text-xl font-extrabold text-white tracking-tight" data-testid={`text-order-num-${item.id}`}>
                         {waOrder.displayOrderId || `#${item.orderNumber}`}
                       </span>
                       {customerNoShowMap[waOrder.customerPhone] && (
@@ -2275,10 +2297,10 @@ function OverviewView({
                     </div>
                   </div>
 
-                  <CardContent className="px-4 pb-4 pt-0 space-y-3">
+                  <CardContent className="px-4 pb-4 pt-0 space-y-3 relative z-[1]">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2 text-xs text-white/50 flex-wrap min-w-0 flex-1">
-                        <span className="font-semibold text-white/80">{waOrder.customerName}</span>
+                        <span className="font-semibold text-white/55">{waOrder.customerName}</span>
                         <span className="text-white/20">|</span>
                         <span className="font-mono text-white/50" dir="ltr">{waOrder.customerPhone}</span>
                         {(() => {
@@ -2343,7 +2365,7 @@ function OverviewView({
                           <p className="text-[11px] text-emerald-300 font-bold">{t("موقع التوصيل", "Delivery Location")}</p>
                         </div>
                         {waOrder.deliveryAddress && <p className="text-xs text-white/80 leading-relaxed mb-1">{waOrder.deliveryAddress}</p>}
-                        <a href={waOrder.deliveryMapLink || `https://www.google.com/maps?q=${waOrder.deliveryLat},${waOrder.deliveryLng}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 transition-colors text-[11px] text-emerald-400 hover:text-emerald-300 font-bold" data-testid={`link-maps-${item.id}`}>
+                        <a href={waOrder.deliveryMapLink || `https://www.google.com/maps?q=${waOrder.deliveryLat},${waOrder.deliveryLng}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600/25 hover:bg-emerald-500/35 transition-colors text-[11px] text-emerald-300 hover:text-emerald-200 font-bold border border-emerald-500/30 animate-[mapsPulse_2s_ease-in-out_infinite]" data-testid={`link-maps-${item.id}`}>
                             <Navigation className="w-3 h-3" />
                             {t("فتح الموقع في خرائط قوقل 📍", "Open Location in Google Maps 📍")}
                           </a>
