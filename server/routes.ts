@@ -456,6 +456,78 @@ export async function registerRoutes(
     }
   });
 
+  app.patch("/api/driver-control/:merchantId/:orderId", async (req, res) => {
+    try {
+      const { merchantId, orderId } = req.params;
+      const { action } = req.body;
+
+      if (!action || !["delivered", "failed"].includes(action)) {
+        return res.status(400).json({ message: "Invalid action" });
+      }
+
+      const accessToken = await getFirestoreAccessToken();
+      const baseUrl = getFirestoreBaseUrl();
+      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+
+      const docUrl = `${baseUrl}/merchants/${merchantId}/whatsappOrders/${orderId}`;
+      const docRes = await fetch(docUrl, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!docRes.ok) return res.status(404).json({ message: "Order not found" });
+
+      const doc = await docRes.json();
+      const currentStatus = doc.fields?.status?.stringValue || "";
+      const expiredStatuses = ["completed", "archived", "uncollected", "rejected"];
+      if (expiredStatuses.includes(currentStatus)) {
+        return res.status(409).json({ message: "هذا الرابط لم يعد صالحاً لأن الطلب مكتمل" });
+      }
+
+      const allowedStatuses = ["ready", "preparing", "awaiting_confirmation", "pending_verification"];
+      if (!allowedStatuses.includes(currentStatus)) {
+        return res.status(409).json({ message: "حالة الطلب لا تسمح بهذا الإجراء" });
+      }
+
+      const now = new Date().toISOString();
+      let updateFields: Record<string, any>;
+
+      if (action === "delivered") {
+        updateFields = {
+          status: { stringValue: "completed" },
+          completedAt: { stringValue: now },
+          driverDeliveredAt: { stringValue: now },
+        };
+      } else {
+        updateFields = {
+          status: { stringValue: "uncollected" },
+          uncollectedAt: { stringValue: now },
+          driverFailedAt: { stringValue: now },
+        };
+      }
+
+      const patchRes = await fetch(`${docUrl}?updateMask.fieldPaths=status&updateMask.fieldPaths=${action === "delivered" ? "completedAt&updateMask.fieldPaths=driverDeliveredAt" : "uncollectedAt&updateMask.fieldPaths=driverFailedAt"}`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ fields: { ...doc.fields, ...updateFields } }),
+      });
+
+      if (!patchRes.ok) {
+        return res.status(500).json({ message: "Failed to update order status" });
+      }
+
+      res.json({
+        success: true,
+        action,
+        newStatus: action === "delivered" ? "completed" : "uncollected",
+      });
+    } catch (err: any) {
+      console.error("Driver control error:", err);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   app.get("/api/qr/:storeId", async (req, res) => {
     try {
       const { storeId } = req.params;

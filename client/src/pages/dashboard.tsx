@@ -1767,6 +1767,8 @@ function OverviewView({
       ? `🏠 ${t("العنوان", "Address")}: ${order.deliveryAddress}`
       : "";
 
+    const driverControlLink = `${window.location.origin}/driver-control/${order.id}?m=${merchant?.uid || ""}`;
+
     const msg = [
       `🚚 ${t("طلب توصيل جديد", "New Delivery Order")} - #${orderNum}`,
       ``,
@@ -1782,6 +1784,9 @@ function OverviewView({
       addressText,
       locationLine,
       order.customerNotes ? `\n📝 ${t("ملاحظات", "Notes")}: ${order.customerNotes}` : "",
+      ``,
+      `🔗 ${t("رابط تأكيد التسليم (استخدمه عند باب العميل فقط)", "Delivery confirmation link (use at customer's door only)")}:`,
+      driverControlLink,
       ``,
       `✅ ${t("تم الطلب عبر منصة", "Ordered via")} ${storeName}`,
     ].filter(Boolean).join("\n");
