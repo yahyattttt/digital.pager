@@ -418,6 +418,7 @@ export default function DashboardPage() {
           displayOrderId: data.displayOrderId || "",
           orderType: data.orderType || undefined,
           diningType: data.diningType || undefined,
+          deliveryFee: data.deliveryFee || undefined,
           customerNotes: data.customerNotes || undefined,
           createdAt: data.createdAt || "",
         };
@@ -461,6 +462,7 @@ export default function DashboardPage() {
           displayOrderId: data.displayOrderId || "",
           orderType: data.orderType || undefined,
           diningType: data.diningType || undefined,
+          deliveryFee: data.deliveryFee || undefined,
           customerNotes: data.customerNotes || undefined,
           createdAt: data.createdAt || "",
         };
@@ -1722,6 +1724,7 @@ function OverviewView({
   const diningTypeLabel = (dtype: string | undefined) => {
     if (dtype === "dine_in") return t("محلي", "Dine-in");
     if (dtype === "takeaway") return t("سفري", "Takeaway");
+    if (dtype === "delivery") return t("المتجر يوصلك", "Delivery");
     return null;
   };
 
@@ -1910,7 +1913,7 @@ function OverviewView({
                           <Banknote className="w-3.5 h-3.5 text-amber-400" />
                           <span className="text-[11px] text-amber-400 font-medium">{paymentLabel(order.paymentMethod)}</span>
                           {diningTypeLabel(order.diningType) && (
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${order.diningType === "takeaway" ? "bg-orange-500/15 text-orange-400 border border-orange-500/20" : "bg-sky-500/15 text-sky-400 border border-sky-500/20"}`} data-testid={`badge-dining-type-${item.id}`}>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${order.diningType === "takeaway" ? "bg-orange-500/15 text-orange-400 border border-orange-500/20" : order.diningType === "delivery" ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20" : "bg-sky-500/15 text-sky-400 border border-sky-500/20"}`} data-testid={`badge-dining-type-${item.id}`}>
                               {diningTypeLabel(order.diningType)}
                             </span>
                           )}
@@ -2119,7 +2122,7 @@ function OverviewView({
                         <Banknote className="w-3.5 h-3.5 text-amber-400" />
                         <span className="text-[11px] text-amber-400 font-medium">{paymentLabel(waOrder.paymentMethod)}</span>
                         {diningTypeLabel(waOrder.diningType) && (
-                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${waOrder.diningType === "takeaway" ? "bg-orange-500/15 text-orange-400 border border-orange-500/20" : "bg-sky-500/15 text-sky-400 border border-sky-500/20"}`} data-testid={`badge-dining-type-${item.id}`}>
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${waOrder.diningType === "takeaway" ? "bg-orange-500/15 text-orange-400 border border-orange-500/20" : waOrder.diningType === "delivery" ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20" : "bg-sky-500/15 text-sky-400 border border-sky-500/20"}`} data-testid={`badge-dining-type-${item.id}`}>
                             {diningTypeLabel(waOrder.diningType)}
                           </span>
                         )}
@@ -2204,6 +2207,9 @@ function OverviewView({
               );
             })}
           </div>
+          {printOrder.deliveryFee && printOrder.deliveryFee > 0 && (
+            <div className="receipt-payment">{t("رسوم التوصيل", "Delivery Fee")}: {printOrder.deliveryFee.toFixed(2)} SAR</div>
+          )}
           <div className="receipt-total">{t("الإجمالي", "Total")}: {printOrder.total.toFixed(2)} SAR</div>
           <div className="receipt-payment">{paymentLabel(printOrder.paymentMethod)}</div>
           {diningTypeLabel(printOrder.diningType) && (
@@ -3770,6 +3776,8 @@ function SettingsView({
   const [moyasarSecretKey, setMoyasarSecretKey] = useState<string>(merchant?.moyasarSecretKey || "");
   const [onlinePaymentEnabled, setOnlinePaymentEnabled] = useState<boolean>(merchant?.onlinePaymentEnabled || false);
   const [codEnabled, setCodEnabled] = useState<boolean>(merchant?.codEnabled !== false);
+  const [deliveryEnabled, setDeliveryEnabled] = useState<boolean>(merchant?.deliveryEnabled || false);
+  const [deliveryFee, setDeliveryFee] = useState<string>(merchant?.deliveryFee?.toString() || "0");
   const [paymentSaving, setPaymentSaving] = useState(false);
 
   const cityCodeOptions = [
@@ -3800,6 +3808,8 @@ function SettingsView({
         moyasarSecretKey,
         onlinePaymentEnabled,
         codEnabled,
+        deliveryEnabled,
+        deliveryFee: parseFloat(deliveryFee) || 0,
       });
       toast({
         title: t("تم الحفظ", "Saved"),
@@ -3957,6 +3967,38 @@ function SettingsView({
                 data-testid="switch-cod-payment"
               />
             </div>
+
+            <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]">
+              <div className="flex-1">
+                <p className="text-sm font-semibold" dir="rtl">{t("تفعيل خدمة التوصيل", "Enable Delivery")}</p>
+                <p className="text-xs text-muted-foreground mt-0.5" dir="rtl">
+                  {t("السماح للعملاء بطلب التوصيل لموقعهم", "Allow customers to request delivery to their location")}
+                </p>
+              </div>
+              <Switch
+                checked={deliveryEnabled}
+                onCheckedChange={setDeliveryEnabled}
+                className="data-[state=checked]:bg-emerald-600"
+                data-testid="switch-delivery-enabled"
+              />
+            </div>
+
+            {deliveryEnabled && (
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground block">{t("رسوم التوصيل (ريال)", "Delivery Fee (SAR)")}</label>
+                <Input
+                  type="number"
+                  value={deliveryFee}
+                  onChange={(e) => setDeliveryFee(e.target.value)}
+                  placeholder="0"
+                  min="0"
+                  step="0.5"
+                  className="h-12 bg-white/[0.03] border-white/10 font-mono"
+                  dir="ltr"
+                  data-testid="input-delivery-fee"
+                />
+              </div>
+            )}
 
             <Button
               onClick={handleSavePaymentConfig}

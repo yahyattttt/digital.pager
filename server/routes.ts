@@ -2585,6 +2585,8 @@ export async function registerRoutes(
             moyasarPublishableKey: mf.moyasarPublishableKey?.stringValue || "",
             onlinePaymentEnabled: mf.onlinePaymentEnabled?.booleanValue === true,
             codEnabled: mf.codEnabled?.booleanValue !== false,
+            deliveryEnabled: mf.deliveryEnabled?.booleanValue === true,
+            deliveryFee: mf.deliveryFee?.doubleValue ?? parseFloat(mf.deliveryFee?.integerValue || "0"),
           };
         }
       }
@@ -2708,8 +2710,20 @@ export async function registerRoutes(
         fields.transactionId = { stringValue: transactionId };
       }
 
-      if (diningType && typeof diningType === "string" && ["dine_in", "takeaway"].includes(diningType)) {
+      if (diningType && typeof diningType === "string" && ["dine_in", "takeaway", "delivery"].includes(diningType)) {
         fields.diningType = { stringValue: diningType };
+      }
+
+      if (diningType === "delivery") {
+        if (mf.deliveryEnabled?.booleanValue !== true) {
+          return res.status(400).json({ message: "Delivery is not available for this store" });
+        }
+        const merchantDeliveryFee = mf.deliveryFee?.doubleValue ?? parseFloat(mf.deliveryFee?.integerValue || "0");
+        if (merchantDeliveryFee > 0) {
+          fields.deliveryFee = { doubleValue: merchantDeliveryFee };
+          finalTotal = Math.round((finalTotal + merchantDeliveryFee) * 100) / 100;
+          fields.total = { doubleValue: finalTotal };
+        }
       }
 
       if (customerNotes && typeof customerNotes === "string" && customerNotes.trim()) {

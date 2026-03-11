@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { AlertTriangle, CheckCircle, Loader2, Star, Banknote, Phone, MessageCircle, Send, Share2, Copy, XCircle, Search } from "lucide-react";
+import { AlertTriangle, CheckCircle, Loader2, Star, Banknote, Phone, MessageCircle, Send, Share2, Copy, XCircle, Search, Truck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { WhatsAppOrder } from "@shared/schema";
 
@@ -76,11 +76,13 @@ function SmartRatingScreen({
   storeName,
   googleMapsReviewUrl,
   orderNumber,
+  diningType,
 }: {
   merchantId: string;
   storeName: string;
   googleMapsReviewUrl?: string;
   orderNumber: string;
+  diningType?: string;
 }) {
   const [selectedStars, setSelectedStars] = useState(0);
   const [hoveredStar, setHoveredStar] = useState(0);
@@ -152,15 +154,30 @@ function SmartRatingScreen({
       data-testid="tracking-completed-screen"
     >
       <div className="flex flex-col items-center gap-6 w-full max-w-sm animate-in fade-in duration-700">
-        <div className="w-20 h-20 rounded-full border-2 border-green-500/30 bg-green-500/5 flex items-center justify-center" style={{ boxShadow: "0 0 40px rgba(34,197,94,0.12)" }}>
-          <CheckCircle className="w-10 h-10 text-green-500/80" />
+        <div className={`w-20 h-20 rounded-full border-2 flex items-center justify-center ${diningType === "delivery" ? "border-emerald-500/30 bg-emerald-500/5" : "border-green-500/30 bg-green-500/5"}`} style={{ boxShadow: diningType === "delivery" ? "0 0 40px rgba(16,185,129,0.15)" : "0 0 40px rgba(34,197,94,0.12)" }}>
+          {diningType === "delivery" ? (
+            <Truck className="w-10 h-10 text-emerald-400/80" />
+          ) : (
+            <CheckCircle className="w-10 h-10 text-green-500/80" />
+          )}
         </div>
 
         <div>
-          <p className="text-green-400 text-2xl font-bold" data-testid="text-completed-message">Thank You!</p>
-          <p className="text-green-400/80 text-lg font-bold mt-1" dir="rtl" data-testid="text-completed-message-ar">
-            شكراً لزيارتك، قيم تجربتك معنا
-          </p>
+          {diningType === "delivery" ? (
+            <>
+              <p className="text-emerald-400 text-xl font-bold" data-testid="text-completed-message" dir="rtl">شكراً لطلبك</p>
+              <p className="text-emerald-400/70 text-sm font-medium mt-2 leading-relaxed max-w-xs" dir="rtl" data-testid="text-delivery-message">
+                سوف يتواصل معك مندوب المتجر في أقرب وقت لتزويده بموقعك.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-green-400 text-2xl font-bold" data-testid="text-completed-message">Thank You!</p>
+              <p className="text-green-400/80 text-lg font-bold mt-1" dir="rtl" data-testid="text-completed-message-ar">
+                شكراً لزيارتك، قيم تجربتك معنا
+              </p>
+            </>
+          )}
         </div>
 
         {phase === "rating" && (
@@ -536,6 +553,7 @@ export default function OrderTrackingPage() {
           orderNumber: data.orderNumber || "",
           displayOrderId: data.displayOrderId || "",
           orderType: data.orderType || undefined,
+          diningType: data.diningType || undefined,
           createdAt: data.createdAt || "",
         };
       }
@@ -865,6 +883,7 @@ export default function OrderTrackingPage() {
         storeName={merchant?.storeName || ""}
         googleMapsReviewUrl={merchant?.googleMapsReviewUrl}
         orderNumber={order.orderNumber}
+        diningType={order.diningType}
       />
     );
   }

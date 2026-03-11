@@ -3,7 +3,7 @@ import { useParams } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Store, ShoppingCart, Plus, Minus, X, AlertTriangle, Loader2, Check, ArrowLeft, Clock, Banknote, Tag, CreditCard, Wallet, UtensilsCrossed, ShoppingBag, Globe } from "lucide-react";
+import { Store, ShoppingCart, Plus, Minus, X, AlertTriangle, Loader2, Check, ArrowLeft, Clock, Banknote, Tag, CreditCard, Wallet, UtensilsCrossed, ShoppingBag, Globe, Truck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
 import type { Product, ProductVariant, ProductAddon } from "@shared/schema";
@@ -50,7 +50,7 @@ export default function PublicMenuPage() {
   const [customerPhone, setCustomerPhone] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [, setTimeTick] = useState(0);
-  const [diningType, setDiningType] = useState<"dine_in" | "takeaway" | null>(null);
+  const [diningType, setDiningType] = useState<"dine_in" | "takeaway" | "delivery" | null>(null);
   const [customerNotes, setCustomerNotes] = useState("");
 
   const [storeTermsAccepted, setStoreTermsAccepted] = useState(false);
@@ -114,7 +114,8 @@ export default function PublicMenuPage() {
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   const discountAmount = couponValid ? Math.round(cartTotal * couponDiscount / 100 * 100) / 100 : 0;
-  const finalTotal = Math.round((cartTotal - discountAmount) * 100) / 100;
+  const deliveryFeeAmount = (diningType === "delivery" && merchant?.deliveryEnabled && merchant?.deliveryFee > 0) ? merchant.deliveryFee : 0;
+  const finalTotal = Math.round((cartTotal - discountAmount + deliveryFeeAmount) * 100) / 100;
 
   useEffect(() => {
     if (!merchant?.onlinePaymentEnabled || !merchant?.moyasarPublishableKey) return;
@@ -574,21 +575,32 @@ export default function PublicMenuPage() {
 
           <div className="space-y-2 mb-4">
             <div className="flex items-center justify-between p-4 rounded-xl bg-red-600/5 border border-red-600/20">
-              <span className="text-white/70 font-medium">{couponValid ? t("المجموع الأصلي", "Subtotal") : t("المجموع", "Total")}</span>
-              <span className={`text-xl font-bold ${couponValid ? "text-white/40 line-through" : "text-red-400"}`} data-testid="text-checkout-total">{cartTotal.toFixed(2)} SAR</span>
+              <span className="text-white/70 font-medium">{(couponValid || deliveryFeeAmount > 0) ? t("المجموع الأصلي", "Subtotal") : t("المجموع", "Total")}</span>
+              <span className={`text-xl font-bold ${(couponValid || deliveryFeeAmount > 0) ? "text-white/40 line-through" : "text-red-400"}`} data-testid="text-checkout-total">{cartTotal.toFixed(2)} SAR</span>
             </div>
 
             {couponValid && (
-              <>
-                <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-emerald-500/5 border border-emerald-500/15">
-                  <span className="text-emerald-400 text-sm font-medium">{t("الخصم", "Discount")} ({couponDiscount}%)</span>
-                  <span className="text-emerald-400 text-sm font-bold" data-testid="text-discount-amount">-{discountAmount.toFixed(2)} SAR</span>
-                </div>
-                <div className="flex items-center justify-between p-4 rounded-xl bg-emerald-600/10 border border-emerald-500/20">
-                  <span className="text-white font-bold">{t("المجموع بعد الخصم", "Total after discount")}</span>
-                  <span className="text-emerald-400 text-xl font-bold" data-testid="text-final-total">{finalTotal.toFixed(2)} SAR</span>
-                </div>
-              </>
+              <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-emerald-500/5 border border-emerald-500/15">
+                <span className="text-emerald-400 text-sm font-medium">{t("الخصم", "Discount")} ({couponDiscount}%)</span>
+                <span className="text-emerald-400 text-sm font-bold" data-testid="text-discount-amount">-{discountAmount.toFixed(2)} SAR</span>
+              </div>
+            )}
+
+            {deliveryFeeAmount > 0 && (
+              <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-emerald-500/5 border border-emerald-500/15" data-testid="delivery-fee-line">
+                <span className="text-emerald-400 text-sm font-medium flex items-center gap-1.5">
+                  <Truck className="w-3.5 h-3.5" />
+                  {t("رسوم التوصيل", "Delivery Fee")}
+                </span>
+                <span className="text-emerald-400 text-sm font-bold">+{deliveryFeeAmount.toFixed(2)} SAR</span>
+              </div>
+            )}
+
+            {(couponValid || deliveryFeeAmount > 0) && (
+              <div className="flex items-center justify-between p-4 rounded-xl bg-emerald-600/10 border border-emerald-500/20">
+                <span className="text-white font-bold">{t("الإجمالي", "Total")}</span>
+                <span className="text-emerald-400 text-xl font-bold" data-testid="text-final-total">{finalTotal.toFixed(2)} SAR</span>
+              </div>
             )}
           </div>
 
@@ -698,11 +710,34 @@ export default function PublicMenuPage() {
                 </div>
                 {diningType === "takeaway" && <Check className="w-5 h-5 text-orange-400" />}
               </button>
+              {merchant.deliveryEnabled && (
+                <button
+                  type="button"
+                  onClick={() => setDiningType("delivery")}
+                  className={`p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2.5 col-span-2 ${diningType === "delivery" ? "bg-emerald-500/10 border-emerald-500/40" : "bg-zinc-900/40 border-zinc-800/30 hover:border-zinc-700/50"}`}
+                  style={diningType === "delivery" ? { boxShadow: "0 0 20px rgba(16,185,129,0.08)" } : undefined}
+                  data-testid="button-dining-delivery"
+                >
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center ${diningType === "delivery" ? "bg-emerald-500/20" : "bg-zinc-800/50"}`}>
+                    <Truck className={`w-6 h-6 ${diningType === "delivery" ? "text-emerald-400" : "text-white/40"}`} />
+                  </div>
+                  <div className="text-center">
+                    <p className={`text-sm font-bold ${diningType === "delivery" ? "text-white" : "text-white/70"}`}>{t("المتجر يوصلك", "Delivery")}</p>
+                    <p className="text-white/30 text-[11px] mt-0.5">{t("توصيل لموقعك", "Delivered to your location")}</p>
+                  </div>
+                  {merchant.deliveryFee > 0 && (
+                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${diningType === "delivery" ? "bg-emerald-500/20 text-emerald-400" : "bg-zinc-800 text-white/40"}`}>
+                      +{merchant.deliveryFee.toFixed(2)} SAR
+                    </span>
+                  )}
+                  {diningType === "delivery" && <Check className="w-5 h-5 text-emerald-400" />}
+                </button>
+              )}
             </div>
             {diningType && (
               <div className="mt-3 p-3 rounded-xl bg-zinc-900/40 border border-zinc-800/20">
                 <p className="text-white/50 text-xs text-center">
-                  {t("نوع الطلب:", "Order Type:")} <span className={`font-bold ${diningType === "takeaway" ? "text-orange-400" : "text-sky-400"}`}>{diningType === "dine_in" ? t("محلي", "Dine-in") : t("سفري", "Takeaway")}</span>
+                  {t("نوع الطلب:", "Order Type:")} <span className={`font-bold ${diningType === "delivery" ? "text-emerald-400" : diningType === "takeaway" ? "text-orange-400" : "text-sky-400"}`}>{diningType === "dine_in" ? t("محلي", "Dine-in") : diningType === "takeaway" ? t("سفري", "Takeaway") : t("المتجر يوصلك", "Delivery")}</span>
                 </p>
               </div>
             )}
