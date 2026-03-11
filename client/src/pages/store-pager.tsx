@@ -24,6 +24,105 @@ type MerchantInfo = {
 
 type Phase = "selection" | "preparing" | "ready" | "rating" | "done";
 
+const LED_COUNT = 16;
+
+function BuzzerCircle({ orderNumber, active }: { orderNumber: string; active: boolean }) {
+  const leds = Array.from({ length: LED_COUNT }, (_, i) => {
+    const angle = (i / LED_COUNT) * 360 - 90;
+    const rad = (angle * Math.PI) / 180;
+    const r = 46;
+    const cx = 50 + r * Math.cos(rad);
+    const cy = 50 + r * Math.sin(rad);
+    const delay = active ? `${(i * 0.015).toFixed(3)}s` : `${(i * 0.25).toFixed(2)}s`;
+    return { cx, cy, delay, i };
+  });
+
+  return (
+    <div className="relative w-[280px] h-[280px] mx-auto" data-testid="buzzer-circle">
+      <div
+        className={`absolute inset-0 rounded-full ${active ? "buzzer-ring-active" : ""}`}
+        style={{
+          background: "radial-gradient(circle at 40% 35%, #1a1a1a 0%, #0d0d0d 45%, #050505 70%, #000 100%)",
+          boxShadow: active
+            ? "0 0 60px 15px rgba(255,20,0,0.35), inset 0 0 30px rgba(255,20,0,0.1)"
+            : "0 0 30px 5px rgba(0,0,0,0.5), inset 0 0 20px rgba(0,0,0,0.3)",
+        }}
+      />
+
+      <div
+        className="absolute rounded-full"
+        style={{
+          inset: "6px",
+          background: "linear-gradient(145deg, rgba(60,60,60,0.15) 0%, transparent 40%)",
+          border: "1px solid rgba(255,255,255,0.04)",
+        }}
+      />
+
+      <div
+        className="absolute rounded-full"
+        style={{
+          inset: "18px",
+          border: active ? "1px solid rgba(255,30,0,0.15)" : "1px solid rgba(255,255,255,0.03)",
+          background: "radial-gradient(circle, rgba(10,10,10,0.9) 0%, transparent 70%)",
+        }}
+      />
+
+      <div
+        className="absolute rounded-full"
+        style={{
+          inset: "28px",
+          border: active ? "1px solid rgba(255,30,0,0.08)" : "1px solid rgba(255,255,255,0.02)",
+        }}
+      />
+
+      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100">
+        {leds.map((led) => (
+          <g key={led.i}>
+            <circle
+              cx={led.cx}
+              cy={led.cy}
+              r={active ? 2.2 : 1.8}
+              fill={active ? "#ff1e00" : "#ff2a00"}
+              className={active ? "led-dot-active" : "led-dot-idle"}
+              style={{ animationDelay: led.delay }}
+            />
+            {active && (
+              <circle
+                cx={led.cx}
+                cy={led.cy}
+                r={4.5}
+                fill="none"
+                stroke="rgba(255,30,0,0.3)"
+                strokeWidth={0.3}
+                className="led-dot-active"
+                style={{ animationDelay: led.delay }}
+              />
+            )}
+          </g>
+        ))}
+      </svg>
+
+      <div className="absolute inset-0 flex items-center justify-center z-10">
+        <span
+          className="font-dseg7 tracking-wider"
+          style={{
+            fontSize: "clamp(48px, 12vw, 72px)",
+            color: active ? "#ff3a00" : "#cc2200",
+            textShadow: active
+              ? "0 0 30px rgba(255,40,0,0.8), 0 0 60px rgba(255,20,0,0.4), 0 0 10px rgba(255,60,0,0.6)"
+              : "0 0 15px rgba(200,30,0,0.3), 0 0 5px rgba(200,30,0,0.2)",
+            opacity: active ? 1 : 0.7,
+            lineHeight: 1,
+          }}
+          data-testid="text-buzzer-number"
+        >
+          {orderNumber}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export default function StorePagerPage() {
   const params = useParams<{ storeId: string }>();
   const storeId = params.storeId || "";
@@ -260,7 +359,6 @@ export default function StorePagerPage() {
   }
 
   const bg = "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)";
-  const bgGreen = "linear-gradient(180deg, #001a00 0%, #000d00 40%, #000 100%)";
 
   if (loadingMerchant) {
     return (
@@ -367,20 +465,20 @@ export default function StorePagerPage() {
           )}
         </div>
 
-        <div className="flex-1 flex flex-col items-center justify-center min-h-0 gap-6">
-          <p className="text-white/30 text-lg font-bold font-dseg7 tracking-wider" style={{ textShadow: "0 0 15px rgba(255,0,0,0.4)" }} data-testid="text-pager-order-number">
-            {selectedPager?.displayOrderId || `#${selectedPager?.orderNumber}`}
-          </p>
+        <div className="flex-1 flex flex-col items-center justify-center min-h-0 gap-5">
+          <BuzzerCircle
+            orderNumber={selectedPager?.orderNumber || ""}
+            active={false}
+          />
 
-          <div className="animate-pulse">
-            <p className="text-red-400 text-3xl font-black" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }} data-testid="text-preparing-status">
+          <div>
+            <p className="text-red-400 text-2xl font-black" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }} data-testid="text-preparing-status">
               جاري التحضير 👨‍🍳
             </p>
+            <p className="text-white/40 text-sm mt-1 text-center">Your order is being prepared</p>
           </div>
 
-          <p className="text-white/40 text-sm mt-1">Your order is being prepared</p>
-
-          <div className="flex items-center gap-2 mt-2">
+          <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
             <span className="text-white/20 text-[10px]">Live</span>
           </div>
@@ -430,7 +528,7 @@ export default function StorePagerPage() {
 
   if (phase === "ready") {
     return (
-      <div className="h-[100dvh] flex flex-col items-center justify-between py-10 px-5 text-center" style={{ background: bgGreen }} data-testid="pager-ready-screen">
+      <div className="h-[100dvh] flex flex-col items-center justify-between py-10 px-5 text-center" style={{ background: bg }} data-testid="pager-ready-screen">
         <div className="w-full">
           <p className="text-white/40 text-[13px] font-medium tracking-[0.3em] uppercase mb-1">DIGITAL PAGER</p>
           {merchant && (
@@ -441,16 +539,13 @@ export default function StorePagerPage() {
         </div>
 
         <div className="flex-1 flex flex-col items-center justify-center min-h-0 gap-5">
-          <div className="w-28 h-28 rounded-full border-2 border-emerald-400/40 bg-emerald-500/10 flex items-center justify-center animate-pulse" style={{ boxShadow: "0 0 60px rgba(16,185,129,0.25)" }}>
-            <span className="text-5xl">✅</span>
-          </div>
-
-          <p className="text-white/30 text-lg font-bold font-dseg7 tracking-wider" style={{ textShadow: "0 0 15px rgba(16,185,129,0.4)" }} data-testid="text-ready-order-number">
-            {selectedPager?.displayOrderId || `#${selectedPager?.orderNumber}`}
-          </p>
+          <BuzzerCircle
+            orderNumber={selectedPager?.orderNumber || ""}
+            active={true}
+          />
 
           <div>
-            <p className="text-emerald-400 text-2xl font-black" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }} data-testid="text-ready-status">
+            <p className="text-red-400 text-2xl font-black" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }} data-testid="text-ready-status">
               طلبك جاهز، استلمه الآن! ✅
             </p>
             <p className="text-white/50 text-sm mt-2">Your order is ready! Please pick it up.</p>

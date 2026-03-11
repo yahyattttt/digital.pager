@@ -196,6 +196,33 @@
   font-family: 'DSEG7', 'Courier New', monospace;
 }
 
+@keyframes led-idle-pulse {
+  0%, 100% { opacity: 0.15; filter: blur(0px); }
+  50% { opacity: 0.35; filter: blur(1px); }
+}
+
+@keyframes led-strobe {
+  0%, 100% { opacity: 1; filter: blur(0px) drop-shadow(0 0 8px rgba(255, 30, 0, 0.9)); }
+  50% { opacity: 0.1; filter: blur(0px); }
+}
+
+@keyframes led-strobe-glow {
+  0%, 100% { box-shadow: 0 0 60px 15px rgba(255, 20, 0, 0.35), inset 0 0 30px rgba(255, 20, 0, 0.1); }
+  50% { box-shadow: 0 0 20px 5px rgba(255, 20, 0, 0.05), inset 0 0 10px rgba(255, 20, 0, 0.02); }
+}
+
+.led-dot-idle {
+  animation: led-idle-pulse 4s ease-in-out infinite;
+}
+
+.led-dot-active {
+  animation: led-strobe 0.25s ease-in-out infinite;
+}
+
+.buzzer-ring-active {
+  animation: led-strobe-glow 0.25s ease-in-out infinite;
+}
+
 @layer base {
   * {
     @apply border-border;
