@@ -691,7 +691,7 @@ export async function registerRoutes(
 
       const emailLower = email.toLowerCase().trim();
 
-      const SANDBOX_EMAILS = ["admin@test.com", "merchant@test.com"];
+      const SANDBOX_EMAILS = ["admin@test.com", "merchant@test.com", "yahiatohary@hotmail.com"];
       if (SANDBOX_EMAILS.includes(emailLower)) {
         return res.json({ success: true, message: "OTP sent" });
       }
@@ -779,6 +779,7 @@ export async function registerRoutes(
       const SANDBOX_ACCOUNTS: Record<string, "admin" | "merchant"> = {
         "admin@test.com": "admin",
         "merchant@test.com": "merchant",
+        "yahiatohary@hotmail.com": "admin",
       };
       const sandboxRole = SANDBOX_ACCOUNTS[emailLower];
       const SANDBOX_OTP = "123456";
