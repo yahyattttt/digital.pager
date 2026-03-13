@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useParams } from "wouter";
+import { useParams, useLocation } from "wouter";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Bell } from "lucide-react";
@@ -21,7 +21,6 @@ function getStatusFromPager(status: string): OrderStatus {
   return "processing";
 }
 
-// 12 LED dot angles, evenly spaced
 const DOT_COUNT = 12;
 const DOT_ANGLES = Array.from({ length: DOT_COUNT }, (_, i) => (i * 360) / DOT_COUNT);
 const CX = 160;
@@ -32,7 +31,7 @@ const INNER_RADIUS = 90;
 
 function HapticPagerSVG({ status }: { status: OrderStatus }) {
   const isReady = status === "ready" || status === "done";
-  const isPreparing = status === "preparing" || status === "processing";
+  const isActive = status !== "processing";
 
   return (
     <svg
@@ -42,46 +41,20 @@ function HapticPagerSVG({ status }: { status: OrderStatus }) {
       style={{ display: "block", overflow: "visible" }}
     >
       <defs>
-        {/* Dome body gradient */}
         <radialGradient id="bodyGrad" cx="38%" cy="35%" r="60%">
           <stop offset="0%" stopColor="#2a0800" />
           <stop offset="45%" stopColor="#150200" />
           <stop offset="100%" stopColor="#060000" />
         </radialGradient>
-
-        {/* Inner display gradient */}
         <radialGradient id="innerGrad" cx="50%" cy="45%" r="55%">
           <stop offset="0%" stopColor="#1a0000" />
           <stop offset="100%" stopColor="#000000" />
         </radialGradient>
-
-        {/* Dome specular highlight */}
         <radialGradient id="domeHighlight" cx="35%" cy="28%" r="40%">
-          <stop offset="0%" stopColor="rgba(255,80,40,0.12)" />
+          <stop offset="0%" stopColor="rgba(255,80,40,0.10)" />
           <stop offset="100%" stopColor="rgba(0,0,0,0)" />
         </radialGradient>
-
-        {/* LED glow filter */}
-        <filter id="ledGlow" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur in="SourceGraphic" stdDeviation="3.5" result="blur" />
-          <feMerge>
-            <feMergeNode in="blur" />
-            <feMergeNode in="blur" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
-
-        {/* Ambient outer glow for ready state */}
-        <filter id="outerGlow" x="-30%" y="-30%" width="160%" height="160%">
-          <feGaussianBlur in="SourceGraphic" stdDeviation="12" result="blur" />
-          <feMerge>
-            <feMergeNode in="blur" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
-
-        {/* Number glow */}
-        <filter id="numGlow" x="-20%" y="-20%" width="140%" height="140%">
+        <filter id="ledGlow" x="-60%" y="-60%" width="220%" height="220%">
           <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur" />
           <feMerge>
             <feMergeNode in="blur" />
@@ -89,15 +62,22 @@ function HapticPagerSVG({ status }: { status: OrderStatus }) {
             <feMergeNode in="SourceGraphic" />
           </feMerge>
         </filter>
+        <filter id="outerGlow" x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="14" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
       </defs>
 
-      {/* Outer ambient glow when ready */}
+      {/* Outer ambient red glow for ready state */}
       {isReady && (
         <circle
           cx={CX}
           cy={CY}
-          r={BODY_RADIUS + 10}
-          fill="rgba(200,0,0,0.18)"
+          r={BODY_RADIUS + 12}
+          fill="rgba(200,0,0,0.2)"
           filter="url(#outerGlow)"
           className="pager-ambient-glow"
         />
@@ -105,8 +85,6 @@ function HapticPagerSVG({ status }: { status: OrderStatus }) {
 
       {/* Pager body */}
       <circle cx={CX} cy={CY} r={BODY_RADIUS} fill="url(#bodyGrad)" />
-
-      {/* Body border ring */}
       <circle
         cx={CX}
         cy={CY}
@@ -115,87 +93,56 @@ function HapticPagerSVG({ status }: { status: OrderStatus }) {
         stroke={isReady ? "#cc1100" : "#3a0800"}
         strokeWidth={isReady ? 2.5 : 1.5}
       />
-
-      {/* Dome specular highlight */}
       <circle cx={CX} cy={CY} r={BODY_RADIUS} fill="url(#domeHighlight)" />
 
-      {/* Outer LED track groove */}
-      <circle
-        cx={CX}
-        cy={CY}
-        r={LED_RADIUS}
-        fill="none"
-        stroke="#1a0000"
-        strokeWidth="14"
-      />
+      {/* LED track groove */}
+      <circle cx={CX} cy={CY} r={LED_RADIUS} fill="none" stroke="#110000" strokeWidth="16" />
+      <circle cx={CX} cy={CY} r={LED_RADIUS - 9} fill="none" stroke="#0c0000" strokeWidth="1" />
+      <circle cx={CX} cy={CY} r={LED_RADIUS + 9} fill="none" stroke="#0c0000" strokeWidth="1" />
 
-      {/* Inner track ring line */}
-      <circle
-        cx={CX}
-        cy={CY}
-        r={LED_RADIUS - 8}
-        fill="none"
-        stroke="#0d0000"
-        strokeWidth="1"
-      />
-      <circle
-        cx={CX}
-        cy={CY}
-        r={LED_RADIUS + 8}
-        fill="none"
-        stroke="#0d0000"
-        strokeWidth="1"
-      />
-
-      {/* LED dot ring — this group spins when ready */}
+      {/* LED dots — synchronous flash group (no rotation) */}
       <g
-        className={isReady ? "led-ring-spin" : isPreparing ? "led-ring-idle" : ""}
-        style={{ transformOrigin: `${CX}px ${CY}px` }}
+        className={isReady ? "led-sync-flash" : isActive ? "led-breathe" : "led-dim"}
       >
         {DOT_ANGLES.map((angle, i) => {
           const rad = ((angle - 90) * Math.PI) / 180;
           const x = CX + LED_RADIUS * Math.cos(rad);
           const y = CY + LED_RADIUS * Math.sin(rad);
-          const isLit = isReady || isPreparing;
-          const dotColor = isReady ? "#ff2200" : "#882200";
-          const dotR = isReady ? 7 : 5.5;
+          const dotColor = isReady ? "#ff2000" : "#881800";
+          const dotR = isReady ? 7.5 : 5.5;
 
           return (
             <g key={i}>
-              {isLit && (
-                <circle
-                  cx={x}
-                  cy={y}
-                  r={dotR + 4}
-                  fill={isReady ? "rgba(255,34,0,0.25)" : "rgba(100,10,0,0.2)"}
-                />
-              )}
+              <circle
+                cx={x}
+                cy={y}
+                r={dotR + 5}
+                fill={isReady ? "rgba(255,32,0,0.22)" : "rgba(80,8,0,0.18)"}
+              />
               <circle
                 cx={x}
                 cy={y}
                 r={dotR}
-                fill={isLit ? dotColor : "#1a0000"}
-                stroke={isLit ? (isReady ? "#ff6644" : "#661100") : "#220000"}
+                fill={isActive ? dotColor : "#180000"}
+                stroke={isActive ? (isReady ? "#ff5533" : "#551100") : "#1e0000"}
                 strokeWidth="1"
-                filter={isLit ? "url(#ledGlow)" : undefined}
+                filter={isActive ? "url(#ledGlow)" : undefined}
               />
             </g>
           );
         })}
       </g>
 
-      {/* Inner display bezel */}
-      <circle cx={CX} cy={CY} r={INNER_RADIUS + 4} fill="#0a0000" />
+      {/* Inner bezel */}
+      <circle cx={CX} cy={CY} r={INNER_RADIUS + 5} fill="#0a0000" />
       <circle
         cx={CX}
         cy={CY}
-        r={INNER_RADIUS + 4}
+        r={INNER_RADIUS + 5}
         fill="none"
-        stroke={isReady ? "#550000" : "#1a0000"}
+        stroke={isReady ? "#660000" : "#1a0000"}
         strokeWidth="2"
       />
-
-      {/* Inner display surface */}
       <circle cx={CX} cy={CY} r={INNER_RADIUS} fill="url(#innerGrad)" />
     </svg>
   );
@@ -203,22 +150,21 @@ function HapticPagerSVG({ status }: { status: OrderStatus }) {
 
 function DigitalNumber({ value, isReady }: { value: string; isReady: boolean }) {
   const display = value ? value.replace(/\D/g, "").slice(-4) || "---" : "---";
-
   return (
     <div
       data-testid="text-order-number"
       style={{
         fontFamily: "'Courier New', 'Lucida Console', monospace",
-        fontSize: display.length <= 3 ? 62 : display.length === 4 ? 48 : 40,
-        letterSpacing: "0.12em",
+        fontSize: display.length <= 3 ? 62 : 46,
+        letterSpacing: "0.1em",
         fontWeight: "bold",
         lineHeight: 1,
         color: isReady ? "#ff3300" : "#882200",
         textShadow: isReady
-          ? "0 0 6px #ff3300, 0 0 18px #ff220088, 0 0 40px #cc000055"
-          : "0 0 8px #88220066, 0 0 18px #44100033",
+          ? "0 0 6px #ff3300, 0 0 20px #ff220099, 0 0 40px #cc000055"
+          : "0 0 8px #88220066",
       }}
-      className={isReady ? "num-intense-pulse" : "num-dim-pulse"}
+      className={isReady ? "num-sync-flash" : "num-breathe"}
     >
       {display}
     </div>
@@ -227,6 +173,7 @@ function DigitalNumber({ value, isReady }: { value: string; isReady: boolean }) 
 
 export default function DigitalPagerPage() {
   const { orderId } = useParams<{ orderId: string }>();
+  const [, setLocation] = useLocation();
   const params = new URLSearchParams(window.location.search);
   const merchantId = params.get("m") || "";
   const isManual = params.get("type") === "manual";
@@ -241,9 +188,9 @@ export default function DigitalPagerPage() {
   const [alertConfirmed, setAlertConfirmed] = useState(false);
 
   const prevStatusRef = useRef<OrderStatus>("processing");
-  const audioCtxRef = useRef<AudioContext | null>(null);
   const alertsEnabledRef = useRef(false);
   const vibrateIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const bellAudioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     if (!merchantId) return;
@@ -256,26 +203,12 @@ export default function DigitalPagerPage() {
       .catch(() => {});
   }, [merchantId]);
 
-  const playBellSound = useCallback(() => {
+  const playBell = useCallback(() => {
     try {
-      const ctx = audioCtxRef.current || new (window.AudioContext || (window as any).webkitAudioContext)();
-      audioCtxRef.current = ctx;
-      if (ctx.state === "suspended") ctx.resume();
-
-      const t = ctx.currentTime;
-      [880, 1320, 880, 1100].forEach((freq, i) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.type = "sine";
-        osc.frequency.setValueAtTime(freq, t + i * 0.18);
-        gain.gain.setValueAtTime(0, t + i * 0.18);
-        gain.gain.linearRampToValueAtTime(0.35, t + i * 0.18 + 0.04);
-        gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.18 + 0.3);
-        osc.start(t + i * 0.18);
-        osc.stop(t + i * 0.18 + 0.35);
-      });
+      const audio = bellAudioRef.current || new Audio("/bell.mp3");
+      bellAudioRef.current = audio;
+      audio.currentTime = 0;
+      audio.play().catch(() => {});
     } catch {}
   }, []);
 
@@ -296,17 +229,24 @@ export default function DigitalPagerPage() {
     try { navigator.vibrate(0); } catch {}
   }, []);
 
-  // Fire alerts when status becomes ready
+  // Trigger bell + vibration on status → ready
   useEffect(() => {
     if (status === "ready" && prevStatusRef.current !== "ready") {
-      playBellSound();
+      playBell();
       startVibrateLoop();
     }
     if (status !== "ready" && status !== "done") {
       stopVibrateLoop();
     }
-    return () => { if (status !== "ready") stopVibrateLoop(); };
-  }, [status, playBellSound, startVibrateLoop, stopVibrateLoop]);
+  }, [status, playBell, startVibrateLoop, stopVibrateLoop]);
+
+  // Redirect to order-completed when status becomes "done"
+  useEffect(() => {
+    if (status === "done" && prevStatusRef.current !== "done") {
+      const type = isManual ? "manual" : "whatsapp";
+      setLocation(`/order-completed/${merchantId}?orderId=${orderId}&type=${type}`);
+    }
+  }, [status, merchantId, orderId, isManual, setLocation]);
 
   useEffect(() => {
     if (!orderId || !merchantId) {
@@ -343,29 +283,19 @@ export default function DigitalPagerPage() {
   }, [orderId, merchantId, isManual]);
 
   function handleActivateAlerts() {
-    // Unlock AudioContext via user gesture
     try {
-      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      audioCtxRef.current = ctx;
-      // Play a tiny silent buffer to unlock audio
-      const buf = ctx.createBuffer(1, 1, 22050);
-      const src = ctx.createBufferSource();
-      src.buffer = buf;
-      src.connect(ctx.destination);
-      src.start(0);
+      const audio = new Audio("/bell.mp3");
+      bellAudioRef.current = audio;
+      audio.volume = 0.01;
+      audio.play().then(() => { audio.pause(); audio.currentTime = 0; audio.volume = 1; }).catch(() => {});
     } catch {}
-
-    // Trigger a brief vibration to test
     try { navigator.vibrate([100, 50, 100]); } catch {}
-
     alertsEnabledRef.current = true;
     setAlertsEnabled(true);
     setAlertConfirmed(true);
     setTimeout(() => setAlertConfirmed(false), 2500);
-
-    // If already ready, start vibrating immediately
     if (status === "ready" || status === "done") {
-      playBellSound();
+      playBell();
       startVibrateLoop();
     }
   }
@@ -410,61 +340,57 @@ export default function DigitalPagerPage() {
       style={{ background: bg, fontFamily: "'Tajawal','Cairo',sans-serif" }}
       data-testid="digital-pager-page"
     >
-      {/* Global animation styles */}
       <style>{`
-        /* ── Preparing: slow dim pulse on the LED ring ── */
-        .led-ring-idle {
-          animation: slowDimPulse 3s ease-in-out infinite;
+        /* Preparing: slow breathing pulse on entire LED group */
+        .led-breathe {
+          animation: ledBreathe 3s ease-in-out infinite;
         }
-        @keyframes slowDimPulse {
+        @keyframes ledBreathe {
           0%, 100% { opacity: 0.3; }
           50%       { opacity: 1;   }
         }
 
-        /* ── Ready: rapid spin + intense pulse on the LED ring ── */
-        .led-ring-spin {
-          animation: rapidSpin 0.65s linear infinite,
-                     intensePulse 0.4s ease-in-out infinite;
+        /* Ready: synchronous flash — all LEDs on/off together, no rotation */
+        .led-sync-flash {
+          animation: ledSyncFlash 0.45s ease-in-out infinite;
         }
-        @keyframes rapidSpin {
-          from { transform: rotate(0deg); }
-          to   { transform: rotate(360deg); }
-        }
-        @keyframes intensePulse {
-          0%, 100% { opacity: 1; }
-          50%      { opacity: 0.2; }
-        }
-
-        /* Number glow pulses */
-        .num-dim-pulse {
-          animation: numDimPulse 3s ease-in-out infinite;
-        }
-        @keyframes numDimPulse {
-          0%, 100% { opacity: 0.55; }
-          50%      { opacity: 1;    }
-        }
-        .num-intense-pulse {
-          animation: numIntensePulse 0.4s ease-in-out infinite;
-        }
-        @keyframes numIntensePulse {
+        @keyframes ledSyncFlash {
           0%, 100% { opacity: 1;    }
-          50%      { opacity: 0.25; }
+          50%      { opacity: 0.08; }
         }
 
-        /* Ambient glow pulse */
-        .pager-ambient-glow {
-          animation: ambientGlow 0.55s ease-in-out infinite;
+        .led-dim { opacity: 0.25; }
+
+        /* Number animations */
+        .num-breathe {
+          animation: numBreathe 3s ease-in-out infinite;
         }
-        @keyframes ambientGlow {
+        @keyframes numBreathe {
+          0%, 100% { opacity: 0.5; }
+          50%      { opacity: 1;   }
+        }
+        .num-sync-flash {
+          animation: numSyncFlash 0.45s ease-in-out infinite;
+        }
+        @keyframes numSyncFlash {
+          0%, 100% { opacity: 1;    }
+          50%      { opacity: 0.15; }
+        }
+
+        /* Ambient glow */
+        .pager-ambient-glow {
+          animation: ambientPulse 0.45s ease-in-out infinite;
+        }
+        @keyframes ambientPulse {
           0%, 100% { opacity: 1;   }
-          50%      { opacity: 0.3; }
+          50%      { opacity: 0.2; }
         }
       `}</style>
 
       {/* Header */}
       <div className="text-center pt-8 pb-0 px-5 w-full">
         <p
-          className="text-[11px] font-medium tracking-[0.45em] uppercase mb-4"
+          className="text-[11px] font-medium uppercase mb-4"
           style={{ color: "#5a1a1a", letterSpacing: "0.45em" }}
         >
           DIGITAL PAGER
@@ -479,11 +405,7 @@ export default function DigitalPagerPage() {
           />
         ) : null}
         {merchantName && (
-          <h1
-            className="font-bold text-lg"
-            style={{ color: "rgba(255,255,255,0.8)" }}
-            data-testid="text-store-name"
-          >
+          <h1 className="font-bold text-lg" style={{ color: "rgba(255,255,255,0.8)" }} data-testid="text-store-name">
             {merchantName}
           </h1>
         )}
@@ -495,11 +417,7 @@ export default function DigitalPagerPage() {
       {/* Pager device */}
       <div className="relative flex items-center justify-center mt-4" style={{ width: 320, height: 320, flexShrink: 0 }}>
         <HapticPagerSVG status={status} />
-        {/* Number overlay — centered over the SVG */}
-        <div
-          className="absolute inset-0 flex items-center justify-center"
-          style={{ pointerEvents: "none" }}
-        >
+        <div className="absolute inset-0 flex items-center justify-center" style={{ pointerEvents: "none" }}>
           <DigitalNumber value={orderNumber} isReady={isReady} />
         </div>
       </div>
@@ -511,7 +429,6 @@ export default function DigitalPagerPage() {
           style={{
             color: isReady ? "#ff3300" : "#cc4400",
             textShadow: isReady ? "0 0 16px rgba(255,50,0,0.5)" : "none",
-            fontFamily: "'Tajawal','Cairo',sans-serif",
           }}
           data-testid="text-status-ar"
         >
@@ -532,18 +449,14 @@ export default function DigitalPagerPage() {
       </div>
 
       {/* Activate alerts button */}
-      <div className="mt-4 w-full max-w-xs px-4">
+      <div className="mt-4 w-full max-w-xs px-4 pb-8">
         <button
           onClick={handleActivateAlerts}
           data-testid="btn-activate-alerts"
           className="flex items-center justify-center gap-2.5 w-full py-3.5 rounded-2xl transition-all active:scale-95"
           style={{
-            background: alertsEnabled
-              ? "rgba(30,60,0,0.85)"
-              : "rgba(25,5,5,0.9)",
-            border: alertsEnabled
-              ? "1.5px solid rgba(80,160,0,0.5)"
-              : "1.5px solid #4a1010",
+            background: alertsEnabled ? "rgba(20,50,0,0.9)" : "rgba(22,5,5,0.9)",
+            border: alertsEnabled ? "1.5px solid rgba(70,150,0,0.5)" : "1.5px solid #4a1010",
             color: alertsEnabled ? "#66dd00" : "#cc4422",
           }}
         >
@@ -553,8 +466,6 @@ export default function DigitalPagerPage() {
           </span>
         </button>
       </div>
-
-      <div style={{ height: 24 }} />
     </div>
   );
 }

@@ -21,6 +21,7 @@ import DriverControlPage from "@/pages/driver-control";
 import DigitalPagerPage from "@/pages/digital-pager";
 import DeliveryTrackerPage from "@/pages/delivery-tracker";
 import CheckOrderPage from "@/pages/check-order";
+import OrderCompletedPage from "@/pages/order-completed";
 
 const PRIMARY_ADMIN_EMAIL = import.meta.env.VITE_SUPER_ADMIN_EMAIL || "yahiatohary@hotmail.com";
 const ADMIN_EMAILS = [PRIMARY_ADMIN_EMAIL.toLowerCase(), "admin@test.com"];
@@ -194,6 +195,7 @@ function Router() {
       <Route path="/digital-pager/:orderId" component={DigitalPagerPage} />
       <Route path="/delivery-tracker/:orderId" component={DeliveryTrackerPage} />
       <Route path="/check-order/:merchantId" component={CheckOrderPage} />
+      <Route path="/order-completed/:merchantId" component={OrderCompletedPage} />
       <Route component={NotFound} />
     </Switch>
   );

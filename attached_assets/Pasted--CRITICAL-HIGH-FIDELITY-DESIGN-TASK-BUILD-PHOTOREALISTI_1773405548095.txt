@@ -1,0 +1,33 @@
+### CRITICAL HIGH-FIDELITY DESIGN TASK: BUILD PHOTOREALISTIC HAPTIC PAGER SIMULATION & POST-ORDER FLOW ###
+
+DO NOT ADD ANY UNREQUESTED FEATURES, TEXT, OR BUTTONS. RETAIN THE DARK THEME.
+
+I. CREATE PHOTOREALISTIC LED PAGER UI:
+   - In the "Takeaway/Dine-in" order view, build a centrally located photorealistic circular handheld pager component based on the uploaded images.
+   - OUTER RING: Must feature a ring of DISCRETE, SPACED-OUT LED lights (like multiple distinct small LEDs, not a continuous strip).
+   - CENTRAL DISPLAY: Large, bold digital Order Number (e.g., #123).
+
+II. UPDATED ANIMATION & SOUND LOGIC:
+
+   - STATE: "Preparing Order" (Inactive/Idle)
+     - ANIMATION: Apply a "Slow Breathing Pulse" effect (slowly fade 30%-100%-30% brightness) to the entire ring of LEDs. No rotation.
+
+   - STATE: "Order Ready" (Active/Alert / تضوي وتغض)
+     - ANIMATION: The lights bursts into VIVID, BRIGHT RED. Apply "Synchronous Flashing" (all LEDs flash on-off-on together rapidly) to the entire ring. DO NOT ADD ROTATION ANIMATION.
+     - SOUND & HAPTIC: Looping pattern of browser's `vibrate()` AND trigger the sound file located at path: `/public/bell.mp3` (explicitly replace the old generic audio with this local file).
+
+III. INTERACTIVE ALERT ACTIVATION & DISCLAIMER:
+   - Add a dark button below the circular pager with exact text: "فعل الجرس للتنبيهات". When clicked, explicitly enable session-level audio/vibration for this user gesture.
+   - In the 'Digital Pager' state only, below the status text, add muted text: "لضمان وصول التنبيهات اليك الرجاء البقاء على نفس الصفحة بسبب قيود المتصفح".
+
+IV. IMPLEMENT POST-ORDER FLOW:
+
+   - TRIGGER: If order status is updated by merchant to ' تم الاستلام '.
+   - ACTION: IMMEDIATELY REDIRECT to a new route, e.g., `/order-completed/[merchantId]`.
+   - NEW PAGE CONTENTS (Order Completed View):
+     - 1. GREETING: Prominent text " شكراً لتعاملك معنا " or similar dignified farewell.
+     - 2. RATING MODAL: Immediately on load, display a clean, Star Rating Modal (1-5 stars) with a text feedback area and a 'Submit Rating' button.
+     - 3. INVOICE DOWNLOAD: Add a button below the modal/greeting that says " تحميل الفاتورة (PDF) ". IMPLEMENT logic to dynamically generate a clean PDF of the CUSTOMER'S INVOICE based on the order's items/prices, optimized for download.
+     - 4. Keep existing dark theme and typography. DO NOT change existing dynamically fetched data logic.
+
+V. FINAL RULE: If a feature is not described above, DO NOT add it. Do NOT use simplified generic UI.
