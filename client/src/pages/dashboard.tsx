@@ -1413,10 +1413,8 @@ export default function DashboardPage() {
                 onDownloadQR={handleDownloadQR}
                 qrLoading={qrLoading}
                 onlineOrdersEnabled={onlineOrdersEnabled}
-                onToggleOnlineOrders={handleToggleOnlineOrders}
                 businessOpenTime={businessOpenTime}
                 businessCloseTime={businessCloseTime}
-                onSaveBusinessHours={handleSaveBusinessHours}
                 t={t}
                 lang={lang}
               />
@@ -4056,10 +4054,8 @@ function SettingsView({
   onDownloadQR,
   qrLoading,
   onlineOrdersEnabled,
-  onToggleOnlineOrders,
   businessOpenTime,
   businessCloseTime,
-  onSaveBusinessHours,
   t,
   lang,
 }: {
@@ -4067,31 +4063,31 @@ function SettingsView({
   onDownloadQR: () => void;
   qrLoading: boolean;
   onlineOrdersEnabled: boolean;
-  onToggleOnlineOrders: () => void;
   businessOpenTime: string;
   businessCloseTime: string;
-  onSaveBusinessHours: (openTime: string, closeTime: string) => void;
   t: (ar: string, en: string) => string;
   lang: string;
 }) {
   const { toast } = useToast();
   const [localOpenTime, setLocalOpenTime] = useState(businessOpenTime);
   const [localCloseTime, setLocalCloseTime] = useState(businessCloseTime);
+  const [localOnlineOrdersEnabled, setLocalOnlineOrdersEnabled] = useState(onlineOrdersEnabled);
 
   useEffect(() => {
     setLocalOpenTime(businessOpenTime);
     setLocalCloseTime(businessCloseTime);
   }, [businessOpenTime, businessCloseTime]);
 
-  const hoursChanged = localOpenTime !== businessOpenTime || localCloseTime !== businessCloseTime;
+  useEffect(() => {
+    setLocalOnlineOrdersEnabled(onlineOrdersEnabled);
+  }, [onlineOrdersEnabled]);
+
 
   const [storeTermsEnabled, setStoreTermsEnabled] = useState<boolean>(merchant?.storeTermsEnabled || false);
   const [storeTermsText, setStoreTermsText] = useState<string>(merchant?.storeTermsText || "");
   const [storePrivacyText, setStorePrivacyText] = useState<string>(merchant?.storePrivacyText || "");
   const [storeLegalSaving, setStoreLegalSaving] = useState(false);
-  const [storeTermsToggling, setStoreTermsToggling] = useState(false);
   const [cityCode, setCityCode] = useState<string>(merchant?.cityCode || "");
-  const [cityCodeSaving, setCityCodeSaving] = useState(false);
   const [moyasarPublishableKey, setMoyasarPublishableKey] = useState<string>(merchant?.moyasarPublishableKey || "");
   const [moyasarSecretKey, setMoyasarSecretKey] = useState<string>(merchant?.moyasarSecretKey || "");
   const [onlinePaymentEnabled, setOnlinePaymentEnabled] = useState<boolean>(merchant?.onlinePaymentEnabled || false);
@@ -4159,7 +4155,33 @@ function SettingsView({
     }
   }
 
-  async function handleSaveDelivery() {
+  async function handleSaveAccountInfo() {
+    const uid = merchant?.uid;
+    if (!uid) return;
+    setBranchInfoSaving(true);
+    try {
+      const merchantRef = doc(db, "merchants", uid);
+      await setDoc(merchantRef, {
+        storeName: storeNameEdit.trim() || merchant.storeName,
+        whatsappNumber: whatsappEdit.trim(),
+      }, { merge: true });
+      toast({
+        title: t("تم الحفظ", "Saved"),
+        description: t("تم حفظ معلومات الحساب بنجاح", "Account info saved successfully"),
+      });
+    } catch (err) {
+      console.error("[Save Account] Firestore error:", err);
+      toast({
+        title: t("خطأ", "Error"),
+        description: t("فشل في حفظ معلومات الحساب", "Failed to save account info"),
+        variant: "destructive",
+      });
+    } finally {
+      setBranchInfoSaving(false);
+    }
+  }
+
+  async function handleSaveBranchDelivery() {
     const uid = merchant?.uid;
     if (!uid) return;
     setDeliverySaving(true);
@@ -4172,10 +4194,14 @@ function SettingsView({
         storeLat: storeLat.trim() ? parseFloat(storeLat) : null,
         storeLng: storeLng.trim() ? parseFloat(storeLng) : null,
         driverPhone: driverPhone.trim(),
+        cityCode,
+        onlineOrdersEnabled: localOnlineOrdersEnabled,
+        businessOpenTime: localOpenTime,
+        businessCloseTime: localCloseTime,
       }, { merge: true });
       toast({
         title: t("تم الحفظ", "Saved"),
-        description: t("تم حفظ إعدادات التوصيل بنجاح", "Delivery settings saved successfully"),
+        description: t("تم حفظ إعدادات الفرع والتوصيل بنجاح", "Branch location & delivery settings saved successfully"),
       });
     } catch (err) {
       console.error("[Save Delivery] Firestore error:", err);
@@ -4189,82 +4215,16 @@ function SettingsView({
     }
   }
 
-  async function handleSaveBranchInfo() {
-    const uid = merchant?.uid;
-    if (!uid) return;
-    setBranchInfoSaving(true);
-    try {
-      const merchantRef = doc(db, "merchants", uid);
-      await setDoc(merchantRef, {
-        storeName: storeNameEdit.trim() || merchant.storeName,
-        whatsappNumber: whatsappEdit.trim(),
-      }, { merge: true });
-      console.log("[Save Branch] Saved branch info for merchant:", uid);
-      toast({
-        title: t("تم الحفظ", "Saved"),
-        description: t("تم حفظ معلومات الفرع بنجاح", "Branch info saved successfully"),
-      });
-    } catch (err) {
-      console.error("[Save Branch] Firestore error:", err);
-      toast({
-        title: t("خطأ", "Error"),
-        description: t("فشل في حفظ معلومات الفرع", "Failed to save branch info"),
-        variant: "destructive",
-      });
-    } finally {
-      setBranchInfoSaving(false);
-    }
-  }
-
-  async function handleSaveCityCode() {
-    if (!merchant?.uid) return;
-    setCityCodeSaving(true);
-    try {
-      const merchantRef = doc(db, "merchants", merchant.uid);
-      await updateDoc(merchantRef, { cityCode });
-      toast({ title: t("تم الحفظ", "Saved"), description: t("تم حفظ رمز المدينة بنجاح", "City code saved successfully") });
-    } catch {
-      toast({ title: t("خطأ", "Error"), description: t("فشل في حفظ رمز المدينة", "Failed to save city code"), variant: "destructive" });
-    } finally {
-      setCityCodeSaving(false);
-    }
-  }
 
   useEffect(() => {
-    if (!storeTermsToggling) {
-      setStoreTermsEnabled(merchant?.storeTermsEnabled || false);
-    }
-  }, [merchant?.storeTermsEnabled, storeTermsToggling]);
+    setStoreTermsEnabled(merchant?.storeTermsEnabled || false);
+  }, [merchant?.storeTermsEnabled]);
 
   useEffect(() => {
     setStoreTermsText(merchant?.storeTermsText || "");
     setStorePrivacyText(merchant?.storePrivacyText || "");
   }, [merchant?.storeTermsText, merchant?.storePrivacyText]);
 
-  async function handleToggleStoreTerms(checked: boolean) {
-    const uid = merchant?.uid;
-    if (!uid) {
-      console.error("[Terms Toggle] merchant.uid is undefined — cannot update Firestore");
-      return;
-    }
-    setStoreTermsToggling(true);
-    setStoreTermsEnabled(checked);
-    try {
-      const merchantRef = doc(db, "merchants", uid);
-      await setDoc(merchantRef, { storeTermsEnabled: checked }, { merge: true });
-      console.log("[Terms Toggle] storeTermsEnabled →", checked, "for merchant:", uid);
-    } catch (err) {
-      console.error("[Terms Toggle] Firestore error:", err);
-      setStoreTermsEnabled(!checked);
-      toast({
-        title: t("خطأ", "Error"),
-        description: t("فشل في تحديث الحالة", "Failed to update toggle"),
-        variant: "destructive",
-      });
-    } finally {
-      setStoreTermsToggling(false);
-    }
-  }
 
   async function handleSaveStoreLegal() {
     const uid = merchant?.uid;
@@ -4306,12 +4266,12 @@ function SettingsView({
         </p>
       </div>
 
-      {/* ── SECTION 1: Branch Info ── */}
+      {/* ── SECTION 1: Account Info ── */}
       <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
         <CardContent className="p-6">
           <h3 className="font-semibold mb-1 flex items-center gap-2">
             <Store className="w-4 h-4 text-violet-400" />
-            {t("معلومات الفرع", "Branch Info")}
+            {t("معلومات الحساب", "Account Info")}
           </h3>
           <p className="text-xs text-muted-foreground mb-4">{t("اسم المتجر ورقم التواصل الظاهر للعملاء", "Store name and contact number shown to customers")}</p>
           <div className="space-y-4">
@@ -4328,74 +4288,33 @@ function SettingsView({
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/[0.04]">
               <div>
                 <p className="text-[10px] text-muted-foreground mb-0.5">{t("المالك", "Owner")}</p>
-                <p className="text-sm font-medium truncate">{merchant.ownerName}</p>
+                <p className="text-sm font-medium truncate" data-testid="text-owner-name">{merchant.ownerName}</p>
               </div>
               <div>
                 <p className="text-[10px] text-muted-foreground mb-0.5">{t("البريد الإلكتروني", "Email")}</p>
-                <p className="text-sm font-medium truncate" dir="ltr">{merchant.email}</p>
+                <p className="text-sm font-medium truncate" dir="ltr" data-testid="text-email">{merchant.email}</p>
               </div>
               <div>
                 <p className="text-[10px] text-muted-foreground mb-0.5">{t("نوع النشاط", "Business")}</p>
-                <p className="text-sm font-medium truncate">{lang === "ar" ? businessTypeLabels[merchant.businessType] || merchant.businessType : businessTypeLabelsEn[merchant.businessType] || merchant.businessType}</p>
+                <p className="text-sm font-medium truncate" data-testid="text-business-type">{lang === "ar" ? businessTypeLabels[merchant.businessType] || merchant.businessType : businessTypeLabelsEn[merchant.businessType] || merchant.businessType}</p>
               </div>
             </div>
-            <Button onClick={handleSaveBranchInfo} disabled={branchInfoSaving} className="w-full h-11 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-2xl disabled:opacity-30" data-testid="button-save-branch-info">
+            <Button onClick={handleSaveAccountInfo} disabled={branchInfoSaving} className="w-full h-11 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-2xl disabled:opacity-30" data-testid="button-save-account-info">
               {branchInfoSaving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Save className="w-4 h-4 me-2" />}
-              {t("حفظ معلومات الفرع", "Save Branch Info")}
+              {t("حفظ معلومات الحساب", "Save Account Info")}
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* ── SECTION 2: Online Ordering & Hours ── */}
-      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
-        <CardContent className="p-6">
-          <h3 className="font-semibold mb-1 flex items-center gap-2">
-            <Package className="w-4 h-4 text-emerald-400" />
-            {t("التحكم بالطلبات أونلاين", "Online Ordering Controls")}
-          </h3>
-          <p className="text-xs text-muted-foreground mb-4">{t("تشغيل أو إيقاف استقبال الطلبات وتحديد ساعات العمل", "Enable or pause order intake and set working hours")}</p>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]" data-testid="online-orders-toggle-row">
-              <div className="flex-1">
-                <p className="text-sm font-semibold" dir="rtl">{t("استقبال الطلبات أونلاين", "Enable Online Orders")}</p>
-                <p className="text-xs text-muted-foreground mt-0.5" dir="rtl">{t("إيقاف فوري لاستقبال الطلبات عند ضغط المطبخ", "Instantly stop receiving orders during kitchen pressure")}</p>
-              </div>
-              <Switch checked={onlineOrdersEnabled} onCheckedChange={onToggleOnlineOrders} className="data-[state=checked]:bg-emerald-600" data-testid="switch-online-orders" />
-            </div>
-            <div className="space-y-3">
-              <p className="text-sm font-semibold flex items-center gap-2"><Clock className="w-4 h-4 text-violet-400" />{t("ساعات العمل", "Business Hours")}</p>
-              <p className="text-xs text-muted-foreground" dir="rtl">{t("خارج هذه الأوقات لن يتمكن العملاء من الطلب.", "Outside these hours, customers cannot place orders.")}</p>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-muted-foreground block mb-1.5">{t("وقت الفتح", "Opening Time")}</label>
-                  <Input type="time" value={localOpenTime} onChange={(e) => setLocalOpenTime(e.target.value)} className="h-11 bg-white/[0.03] border-white/10 text-center font-mono" dir="ltr" data-testid="input-open-time" />
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground block mb-1.5">{t("وقت الإغلاق", "Closing Time")}</label>
-                  <Input type="time" value={localCloseTime} onChange={(e) => setLocalCloseTime(e.target.value)} className="h-11 bg-white/[0.03] border-white/10 text-center font-mono" dir="ltr" data-testid="input-close-time" />
-                </div>
-              </div>
-              {localOpenTime && localCloseTime && (
-                <p className="text-xs text-muted-foreground text-center" dir="rtl" data-testid="text-hours-preview">{t("ساعات العمل:", "Business Hours:")} {localOpenTime} → {localCloseTime}</p>
-              )}
-              <Button onClick={() => onSaveBusinessHours(localOpenTime, localCloseTime)} disabled={!hoursChanged} className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl disabled:opacity-30" data-testid="button-save-hours">
-                <Save className="w-4 h-4 me-2" />
-                {t("حفظ ساعات العمل", "Save Business Hours")}
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* ── SECTION 3: Delivery Settings ── */}
+      {/* ── SECTION 2: Branch Location & Delivery Range ── */}
       <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
         <CardContent className="p-6">
           <h3 className="font-semibold mb-1 flex items-center gap-2">
             <MapPin className="w-4 h-4 text-emerald-400" />
-            {t("إعدادات التوصيل", "Delivery Settings")}
+            {t("موقع الفرع ونطاق التوصيل", "Branch Location & Delivery Range")}
           </h3>
-          <p className="text-xs text-muted-foreground mb-4">{t("تفعيل التوصيل وتحديد الرسوم والنطاق الجغرافي", "Enable delivery, set fees and geographic range")}</p>
+          <p className="text-xs text-muted-foreground mb-4">{t("إعدادات التوصيل والموقع وساعات العمل ورمز المدينة", "Delivery, location, business hours, and city code settings")}</p>
           <div className="space-y-4">
             <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]">
               <div className="flex-1">
@@ -4448,22 +4367,81 @@ function SettingsView({
               </div>
             )}
 
-            <Button onClick={handleSaveDelivery} disabled={deliverySaving} className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl disabled:opacity-30" data-testid="button-save-delivery">
+            <div className="space-y-3">
+              <p className="text-sm font-semibold flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-red-400" />
+                {t("رمز المدينة (ترقيم الطلبات)", "City Code (Order Numbering)")}
+              </p>
+              <p className="text-[10px] text-muted-foreground" dir="rtl">
+                {t(
+                  "يُستخدم رمز المدينة في ترقيم الطلبات أونلاين. مثال: الرياض (01) + السنة (26) + الرقم التسلسلي = 0126001",
+                  "City code is used in online order numbering. Example: Riyadh (01) + Year (26) + Sequential = 0126001"
+                )}
+              </p>
+              <Select value={cityCode} onValueChange={setCityCode}>
+                <SelectTrigger className="h-12 bg-white/[0.03] border-white/10" data-testid="select-city-code">
+                  <SelectValue placeholder={t("اختر المدينة", "Select City")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {cityCodeOptions.map((city) => (
+                    <SelectItem key={city.code} value={city.code} data-testid={`option-city-${city.code}`}>
+                      {city.code} — {lang === "ar" ? city.labelAr : city.labelEn}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {cityCode && (
+                <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.06]">
+                  <p className="text-xs text-muted-foreground mb-1" dir="rtl">{t("معاينة رقم الطلب", "Order ID Preview")}</p>
+                  <p className="text-lg font-mono font-bold text-center text-red-400" data-testid="text-city-code-preview">
+                    {cityCode}{new Date().getFullYear().toString().slice(-2)}001
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]" data-testid="online-orders-toggle-row">
+              <div className="flex-1">
+                <p className="text-sm font-semibold" dir="rtl">{t("استقبال الطلبات أونلاين", "Enable Online Orders")}</p>
+                <p className="text-xs text-muted-foreground mt-0.5" dir="rtl">{t("إيقاف فوري لاستقبال الطلبات عند ضغط المطبخ", "Instantly stop receiving orders during kitchen pressure")}</p>
+              </div>
+              <Switch checked={localOnlineOrdersEnabled} onCheckedChange={setLocalOnlineOrdersEnabled} className="data-[state=checked]:bg-emerald-600" data-testid="switch-online-orders" />
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-sm font-semibold flex items-center gap-2"><Clock className="w-4 h-4 text-violet-400" />{t("ساعات العمل", "Business Hours")}</p>
+              <p className="text-xs text-muted-foreground" dir="rtl">{t("خارج هذه الأوقات لن يتمكن العملاء من الطلب.", "Outside these hours, customers cannot place orders.")}</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground block mb-1.5">{t("وقت الفتح", "Opening Time")}</label>
+                  <Input type="time" value={localOpenTime} onChange={(e) => setLocalOpenTime(e.target.value)} className="h-11 bg-white/[0.03] border-white/10 text-center font-mono" dir="ltr" data-testid="input-open-time" />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground block mb-1.5">{t("وقت الإغلاق", "Closing Time")}</label>
+                  <Input type="time" value={localCloseTime} onChange={(e) => setLocalCloseTime(e.target.value)} className="h-11 bg-white/[0.03] border-white/10 text-center font-mono" dir="ltr" data-testid="input-close-time" />
+                </div>
+              </div>
+              {localOpenTime && localCloseTime && (
+                <p className="text-xs text-muted-foreground text-center" dir="rtl" data-testid="text-hours-preview">{t("ساعات العمل:", "Business Hours:")} {localOpenTime} → {localCloseTime}</p>
+              )}
+            </div>
+
+            <Button onClick={handleSaveBranchDelivery} disabled={deliverySaving} className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl disabled:opacity-30" data-testid="button-save-branch-delivery">
               {deliverySaving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Save className="w-4 h-4 me-2" />}
-              {t("حفظ إعدادات التوصيل", "Save Delivery Settings")}
+              {t("حفظ إعدادات الفرع والتوصيل", "Save Branch & Delivery Settings")}
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* ── SECTION 4: Payment Settings ── */}
+      {/* ── SECTION 3: Payment Integration ── */}
       <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
         <CardContent className="p-6">
           <h3 className="font-semibold mb-1 flex items-center gap-2">
             <CreditCard className="w-4 h-4 text-blue-400" />
-            {t("ربط بوابة الدفع", "Payment Gateway Connection")}
+            {t("ربط بوابة الدفع", "Payment Integration")}
           </h3>
-
+          <p className="text-xs text-muted-foreground mb-4">{t("إعدادات الدفع الإلكتروني والدفع عند الاستلام", "Online payment and cash on delivery settings")}</p>
           <div className="space-y-5">
             <div className="space-y-2">
               <label className="text-xs text-muted-foreground block">Moyasar Publishable Key</label>
@@ -4534,61 +4512,14 @@ function SettingsView({
         </CardContent>
       </Card>
 
-      {/* ── SECTION 5: City Code ── */}
-
+      {/* ── SECTION 4: Legal ── */}
       <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
         <CardContent className="p-6">
-          <h3 className="font-semibold mb-4 flex items-center gap-2">
-            <MapPin className="w-4 h-4 text-red-400" />
-            {t("رمز المدينة (ترقيم الطلبات)", "City Code (Order Numbering)")}
-          </h3>
-          <p className="text-xs text-muted-foreground mb-4" dir="rtl">
-            {t(
-              "يُستخدم رمز المدينة في ترقيم الطلبات أونلاين. مثال: الرياض (01) + السنة (26) + الرقم التسلسلي = 0126001",
-              "City code is used in online order numbering. Example: Riyadh (01) + Year (26) + Sequential = 0126001"
-            )}
-          </p>
-          <div className="space-y-3">
-            <Select value={cityCode} onValueChange={setCityCode}>
-              <SelectTrigger className="h-12 bg-white/[0.03] border-white/10" data-testid="select-city-code">
-                <SelectValue placeholder={t("اختر المدينة", "Select City")} />
-              </SelectTrigger>
-              <SelectContent>
-                {cityCodeOptions.map((city) => (
-                  <SelectItem key={city.code} value={city.code} data-testid={`option-city-${city.code}`}>
-                    {city.code} — {lang === "ar" ? city.labelAr : city.labelEn}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {cityCode && (
-              <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.06]">
-                <p className="text-xs text-muted-foreground mb-1" dir="rtl">{t("معاينة رقم الطلب", "Order ID Preview")}</p>
-                <p className="text-lg font-mono font-bold text-center text-red-400" data-testid="text-city-code-preview">
-                  {cityCode}{new Date().getFullYear().toString().slice(-2)}001
-                </p>
-              </div>
-            )}
-            <Button
-              onClick={handleSaveCityCode}
-              disabled={cityCodeSaving || cityCode === (merchant?.cityCode || "")}
-              className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl disabled:opacity-30"
-              data-testid="button-save-city-code"
-            >
-              {cityCodeSaving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : null}
-              {t("حفظ رمز المدينة", "Save City Code")}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
-        <CardContent className="p-6">
-          <h3 className="font-semibold mb-4 flex items-center gap-2">
+          <h3 className="font-semibold mb-1 flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-amber-400" />
-            {t("الشروط والأحكام للمتجر", "Store Terms & Privacy")}
+            {t("الشروط والأحكام", "Legal")}
           </h3>
-
+          <p className="text-xs text-muted-foreground mb-4">{t("شروط المتجر وسياسة الخصوصية للعملاء", "Store terms and privacy policy for customers")}</p>
           <div className="space-y-5">
             <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]" data-testid="store-terms-toggle-row">
               <div className="flex-1">
@@ -4599,8 +4530,7 @@ function SettingsView({
               </div>
               <Switch
                 checked={storeTermsEnabled}
-                onCheckedChange={handleToggleStoreTerms}
-                disabled={storeTermsToggling}
+                onCheckedChange={setStoreTermsEnabled}
                 className="data-[state=checked]:bg-emerald-600"
                 data-testid="switch-store-terms"
               />
@@ -4632,49 +4562,23 @@ function SettingsView({
                     data-testid="textarea-store-privacy"
                   />
                 </div>
-                <Button
-                  onClick={handleSaveStoreLegal}
-                  disabled={storeLegalSaving}
-                  className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl disabled:opacity-30"
-                  data-testid="button-save-store-terms"
-                >
-                  {storeLegalSaving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : null}
-                  {t("حفظ الشروط والأحكام", "Save Terms & Conditions")}
-                </Button>
               </div>
             )}
+
+            <Button
+              onClick={handleSaveStoreLegal}
+              disabled={storeLegalSaving}
+              className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl disabled:opacity-30"
+              data-testid="button-save-store-terms"
+            >
+              {storeLegalSaving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Save className="w-4 h-4 me-2" />}
+              {t("حفظ الشروط والأحكام", "Save Terms & Conditions")}
+            </Button>
           </div>
         </CardContent>
       </Card>
 
-      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
-        <CardContent className="p-6">
-          <h3 className="font-semibold mb-4">{t("معلومات المتجر", "Store Information")}</h3>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between py-2 border-b border-white/[0.04]">
-              <span className="text-sm text-muted-foreground">{t("اسم المتجر", "Store Name")}</span>
-              <span className="text-sm font-medium">{merchant.storeName}</span>
-            </div>
-            <div className="flex items-center justify-between py-2 border-b border-white/[0.04]">
-              <span className="text-sm text-muted-foreground">{t("المالك", "Owner")}</span>
-              <span className="text-sm font-medium">{merchant.ownerName}</span>
-            </div>
-            <div className="flex items-center justify-between py-2 border-b border-white/[0.04]">
-              <span className="text-sm text-muted-foreground">{t("البريد الإلكتروني", "Email")}</span>
-              <span className="text-sm font-medium" dir="ltr">{merchant.email}</span>
-            </div>
-            <div className="flex items-center justify-between py-2">
-              <span className="text-sm text-muted-foreground">{t("نوع النشاط", "Business Type")}</span>
-              <span className="text-sm font-medium">
-                {lang === "ar"
-                  ? businessTypeLabels[merchant.businessType] || merchant.businessType
-                  : businessTypeLabelsEn[merchant.businessType] || merchant.businessType}
-              </span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
+      {/* ── QR Code & Utilities ── */}
       <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
         <CardContent className="p-6">
           <h3 className="font-semibold mb-4">{t("رمز QR", "QR Code")}</h3>
@@ -4722,23 +4626,6 @@ function SettingsView({
         </CardContent>
       </Card>
 
-      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
-        <CardContent className="p-6">
-          <h3 className="font-semibold mb-2">{t("الدعم الفني", "Support")}</h3>
-          <p className="text-sm text-muted-foreground mb-4">
-            {t("تواصل مع فريق الدعم للمساعدة", "Contact support for assistance")}
-          </p>
-          <Button
-            variant="outline"
-            onClick={() => window.open(ADMIN_WHATSAPP, "_blank")}
-            className="border-white/10 rounded-2xl"
-            data-testid="button-contact-support"
-          >
-            <MessageCircle className="w-4 h-4 me-2" />
-            {t("تواصل عبر واتساب", "Contact via WhatsApp")}
-          </Button>
-        </CardContent>
-      </Card>
     </div>
   );
 }
