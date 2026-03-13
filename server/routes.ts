@@ -2614,45 +2614,34 @@ export async function registerRoutes(
         storeLng: mf.storeLng?.doubleValue ?? null,
       };
 
-      // Fetch visible products via runQuery
-      const queryBody = {
-        structuredQuery: {
-          from: [{ collectionId: "products" }],
-          where: {
-            fieldFilter: {
-              field: { fieldPath: "visible" },
-              op: "EQUAL",
-              value: { booleanValue: true },
-            },
-          },
-          limit: 500,
-        },
-      };
-
-      const queryRes = await apikeyFetch(
-        `${base}/merchants/${merchantId}:runQuery`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(queryBody),
-        }
+      // Fetch products via LIST (same reliable method as dashboard)
+      const listRes = await apikeyFetch(
+        `${base}/merchants/${merchantId}/products?pageSize=500`,
+        { headers: {} }
       );
 
       let products: any[] = [];
-      if (queryRes.ok) {
-        const results = await queryRes.json();
-        products = (Array.isArray(results) ? results : [])
-          .filter((r: any) => r.document)
-          .map((r: any) => {
-            const f = r.document.fields || {};
-            const parts = r.document.name.split("/");
-            const mapArray = (arr: any[]) => arr.map((v: any) => ({
-              name: v.mapValue?.fields?.name?.stringValue || "",
-              price: v.mapValue?.fields?.price?.doubleValue ?? parseFloat(v.mapValue?.fields?.price?.integerValue || "0"),
-            }));
-            const mapRemovals = (arr: any[]) => arr.map((v: any) => ({
-              name: v.mapValue?.fields?.name?.stringValue || "",
-            }));
+      if (listRes.ok) {
+        const listData = await listRes.json();
+        const mapArray = (arr: any[]) => arr.map((v: any) => ({
+          name: v.mapValue?.fields?.name?.stringValue || "",
+          price: v.mapValue?.fields?.price?.doubleValue ?? parseFloat(v.mapValue?.fields?.price?.integerValue || "0"),
+        }));
+        const mapRemovals = (arr: any[]) => arr.map((v: any) => ({
+          name: v.mapValue?.fields?.name?.stringValue || "",
+        }));
+        products = (listData.documents || [])
+          .filter((doc: any) => {
+            const f = doc.fields || {};
+            // Only include visible products belonging to this merchant
+            const docMerchantId = f.merchantId?.stringValue || "";
+            const isVisible = f.visible?.booleanValue !== false;
+            const belongsToMerchant = !docMerchantId || docMerchantId === merchantId;
+            return isVisible && belongsToMerchant;
+          })
+          .map((doc: any) => {
+            const f = doc.fields || {};
+            const parts = doc.name.split("/");
             const variants = mapArray(f.variants?.arrayValue?.values || []);
             const addons = mapArray(f.addons?.arrayValue?.values || []);
             const extras = mapArray(f.extras?.arrayValue?.values || []);
