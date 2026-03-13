@@ -51,6 +51,7 @@ export const productSchema = z.object({
   merchantId: z.string(),
   name: z.string().min(1),
   price: z.number().min(0),
+  category: z.string().optional(),
   description: z.string().optional(),
   imageUrl: z.string().optional(),
   visible: z.boolean().default(true),

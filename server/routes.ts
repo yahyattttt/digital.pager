@@ -2431,7 +2431,7 @@ export async function registerRoutes(
   app.post("/api/products/:merchantId", upload.single("image"), async (req, res) => {
     try {
       const { merchantId } = req.params;
-      const { name, price, description, visible } = req.body;
+      const { name, price, description, category, visible } = req.body;
       if (!name || !price) return res.status(400).json({ message: "name and price are required" });
 
       const accessToken = await getFirestoreAccessToken();
@@ -2444,6 +2444,7 @@ export async function registerRoutes(
         merchantId: { stringValue: merchantId },
         name: { stringValue: name },
         price: { doubleValue: parseFloat(price) },
+        category: { stringValue: category || "" },
         description: { stringValue: description || "" },
         imageUrl: { stringValue: imageUrl },
         visible: { booleanValue: visible === "false" ? false : true },
@@ -2519,6 +2520,7 @@ export async function registerRoutes(
           merchantId: f.merchantId?.stringValue || "",
           name: f.name?.stringValue || "",
           price: f.price?.doubleValue ?? parseFloat(f.price?.integerValue || "0"),
+          category: f.category?.stringValue || "",
           description: f.description?.stringValue || "",
           imageUrl: f.imageUrl?.stringValue || "",
           visible: f.visible?.booleanValue !== false,
@@ -2557,6 +2559,10 @@ export async function registerRoutes(
       if (req.body.description !== undefined) {
         updateFields.description = { stringValue: req.body.description };
         fieldPaths.push("description");
+      }
+      if (req.body.category !== undefined) {
+        updateFields.category = { stringValue: req.body.category };
+        fieldPaths.push("category");
       }
       if (req.body.visible !== undefined) {
         updateFields.visible = { booleanValue: req.body.visible === "true" || req.body.visible === true };

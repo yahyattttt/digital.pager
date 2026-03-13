@@ -45,6 +45,7 @@ export default function PublicMenuPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [merchant, setMerchant] = useState<MerchantInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showCheckout, setShowCheckout] = useState(false);
@@ -1054,75 +1055,133 @@ export default function PublicMenuPage() {
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto px-4 pb-28">
-        {products.length === 0 ? (
-          <div className="text-center py-16" data-testid="empty-menu-state">
-            <p className="text-white/40 text-sm">{t("لا توجد منتجات متاحة حالياً", "No products available at the moment")}</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3" data-testid="menu-product-grid">
-            {products.map(product => {
-              const qty = getCartQuantityForProduct(product.id);
-              const hasVariants = product.variants && product.variants.length > 0;
-              const startPrice = hasVariants
-                ? Math.min(...product.variants!.map(v => v.price))
-                : product.price;
+      {(() => {
+        const visibleProducts = products.filter(p => p.visible !== false);
+        const categories = Array.from(new Set(visibleProducts.map(p => p.category).filter((c): c is string => !!c && c.trim() !== "")));
+        const hasCategories = categories.length > 0;
+        const filteredProducts = selectedCategory
+          ? visibleProducts.filter(p => p.category === selectedCategory)
+          : visibleProducts;
+        const grouped: { label: string; items: typeof visibleProducts }[] = hasCategories
+          ? (selectedCategory
+              ? [{ label: selectedCategory, items: filteredProducts }]
+              : [
+                  ...categories.map(cat => ({ label: cat, items: visibleProducts.filter(p => p.category === cat) })),
+                  ...(visibleProducts.some(p => !p.category || p.category.trim() === "")
+                    ? [{ label: t("أخرى", "Other"), items: visibleProducts.filter(p => !p.category || p.category.trim() === "") }]
+                    : []),
+                ])
+          : [];
 
-              return (
-                <div
-                  key={product.id}
-                  className="rounded-xl border border-zinc-800/50 bg-zinc-900/40 overflow-hidden flex flex-col cursor-pointer active:scale-[0.98] transition-transform"
-                  style={{ boxShadow: "0 2px 12px rgba(255,0,0,0.03)" }}
-                  data-testid={`product-card-${product.id}`}
-                  onClick={() => { if (!orderingDisabled) openProductModal(product); }}
-                >
-                  {product.imageUrl ? (
-                    <div className="aspect-square overflow-hidden">
-                      <img
-                        src={product.imageUrl}
-                        alt={product.name}
-                        className="w-full h-full object-cover"
-                        style={{ borderRadius: "0.75rem 0.75rem 0 0", boxShadow: "0 2px 8px rgba(255,0,0,0.06)" }}
-                      />
+        function ProductCard({ product }: { product: (typeof visibleProducts)[number] }) {
+          const qty = getCartQuantityForProduct(product.id);
+          const hasVariants = product.variants && product.variants.length > 0;
+          const startPrice = hasVariants ? Math.min(...product.variants!.map(v => v.price)) : product.price;
+          return (
+            <div
+              className="rounded-xl border border-zinc-800/50 bg-zinc-900/40 overflow-hidden flex flex-col cursor-pointer active:scale-[0.98] transition-transform"
+              style={{ boxShadow: "0 2px 12px rgba(255,0,0,0.03)" }}
+              data-testid={`product-card-${product.id}`}
+              onClick={() => { if (!orderingDisabled) openProductModal(product); }}
+            >
+              {product.imageUrl ? (
+                <div className="aspect-square overflow-hidden">
+                  <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" style={{ borderRadius: "0.75rem 0.75rem 0 0" }} />
+                </div>
+              ) : (
+                <div className="aspect-square bg-zinc-800/30 flex items-center justify-center" style={{ borderRadius: "0.75rem 0.75rem 0 0" }}>
+                  <Store className="w-8 h-8 text-white/10" />
+                </div>
+              )}
+              <div className="p-3 flex-1 flex flex-col">
+                <p className="text-white text-sm font-semibold truncate" data-testid={`text-product-name-${product.id}`}>{product.name}</p>
+                {product.description && <p className="text-white/30 text-[11px] mt-0.5 line-clamp-2">{product.description}</p>}
+                <div className="mt-auto pt-2 flex items-center justify-between">
+                  <span className="text-red-400 font-bold text-sm" data-testid={`text-product-price-${product.id}`}>
+                    {hasVariants ? `${startPrice.toFixed(2)}+` : product.price.toFixed(2)}
+                  </span>
+                  {orderingDisabled ? (
+                    <div className="w-8 h-8 rounded-lg bg-zinc-800/50 flex items-center justify-center opacity-30" data-testid={`button-add-disabled-${product.id}`}>
+                      <Plus className="w-4 h-4 text-white/30" />
+                    </div>
+                  ) : qty > 0 ? (
+                    <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                      <span className="bg-red-600/20 text-red-400 text-xs font-bold rounded-full px-2 py-0.5" data-testid={`text-qty-${product.id}`}>{qty}</span>
                     </div>
                   ) : (
-                    <div className="aspect-square bg-zinc-800/30 flex items-center justify-center" style={{ borderRadius: "0.75rem 0.75rem 0 0" }}>
-                      <Store className="w-8 h-8 text-white/10" />
+                    <div className="w-8 h-8 rounded-lg bg-red-600/10 border border-red-600/20 flex items-center justify-center hover:bg-red-600/20 transition-colors" data-testid={`button-add-${product.id}`}>
+                      <Plus className="w-4 h-4 text-red-500" />
                     </div>
                   )}
-                  <div className="p-3 flex-1 flex flex-col">
-                    <p className="text-white text-sm font-semibold truncate" data-testid={`text-product-name-${product.id}`}>{product.name}</p>
-                    {product.description && (
-                      <p className="text-white/30 text-[11px] mt-0.5 line-clamp-2">{product.description}</p>
-                    )}
-                    <div className="mt-auto pt-2 flex items-center justify-between">
-                      <span className="text-red-400 font-bold text-sm" data-testid={`text-product-price-${product.id}`}>
-                        {hasVariants ? `${startPrice.toFixed(2)}+` : product.price.toFixed(2)}
-                      </span>
-                      {orderingDisabled ? (
-                        <div className="w-8 h-8 rounded-lg bg-zinc-800/50 flex items-center justify-center opacity-30" data-testid={`button-add-disabled-${product.id}`}>
-                          <Plus className="w-4 h-4 text-white/30" />
-                        </div>
-                      ) : qty > 0 ? (
-                        <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                          <span className="bg-red-600/20 text-red-400 text-xs font-bold rounded-full px-2 py-0.5" data-testid={`text-qty-${product.id}`}>{qty}</span>
-                        </div>
-                      ) : (
-                        <div
-                          className="w-8 h-8 rounded-lg bg-red-600/10 border border-red-600/20 flex items-center justify-center hover:bg-red-600/20 transition-colors"
-                          data-testid={`button-add-${product.id}`}
-                        >
-                          <Plus className="w-4 h-4 text-red-500" />
-                        </div>
-                      )}
-                    </div>
-                  </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <>
+            {hasCategories && (
+              <div className="px-4 mb-2 overflow-x-auto" data-testid="category-nav-bar">
+                <div className="flex gap-2 pb-2" style={{ width: "max-content" }}>
+                  <button
+                    onClick={() => setSelectedCategory(null)}
+                    className={`px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all ${
+                      selectedCategory === null
+                        ? "bg-red-600 text-white shadow-md shadow-red-900/30"
+                        : "bg-zinc-800/60 text-white/50 hover:text-white/80 hover:bg-zinc-700/60 border border-white/[0.06]"
+                    }`}
+                    data-testid="category-pill-all"
+                  >
+                    {t("الكل", "All")}
+                  </button>
+                  {categories.map(cat => (
+                    <button
+                      key={cat}
+                      onClick={() => setSelectedCategory(selectedCategory === cat ? null : cat)}
+                      className={`px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all ${
+                        selectedCategory === cat
+                          ? "bg-red-600 text-white shadow-md shadow-red-900/30"
+                          : "bg-zinc-800/60 text-white/50 hover:text-white/80 hover:bg-zinc-700/60 border border-white/[0.06]"
+                      }`}
+                      data-testid={`category-pill-${cat}`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex-1 overflow-y-auto px-4 pb-28">
+              {visibleProducts.length === 0 ? (
+                <div className="text-center py-16" data-testid="empty-menu-state">
+                  <p className="text-white/40 text-sm">{t("لا توجد منتجات متاحة حالياً", "No products available at the moment")}</p>
+                </div>
+              ) : hasCategories ? (
+                <div className="space-y-6" data-testid="menu-product-grid">
+                  {grouped.map(group => group.items.length > 0 && (
+                    <div key={group.label} id={`cat-${group.label}`} data-testid={`category-section-${group.label}`}>
+                      <h2 className="text-white/80 font-bold text-sm mb-3 flex items-center gap-2">
+                        <span className="w-1 h-4 bg-red-500 rounded-full inline-block" />
+                        {group.label}
+                        <span className="text-white/25 font-normal text-xs">({group.items.length})</span>
+                      </h2>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        {group.items.map(product => <ProductCard key={product.id} product={product} />)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3" data-testid="menu-product-grid">
+                  {visibleProducts.map(product => <ProductCard key={product.id} product={product} />)}
+                </div>
+              )}
+            </div>
+          </>
+        );
+      })()}
 
       {modalProduct && (
         <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center" data-testid="modal-product-selection">

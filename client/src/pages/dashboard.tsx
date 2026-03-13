@@ -2530,6 +2530,8 @@ function MenuView({
   const [productName, setProductName] = useState("");
   const [productPrice, setProductPrice] = useState("");
   const [productDescription, setProductDescription] = useState("");
+  const [productCategory, setProductCategory] = useState("");
+  const [productCategoryOpen, setProductCategoryOpen] = useState(false);
   const [productImage, setProductImage] = useState<File | null>(null);
   const [productImagePreview, setProductImagePreview] = useState("");
   const [productVariants, setProductVariants] = useState<ProductVariant[]>([]);
@@ -2563,6 +2565,7 @@ function MenuView({
     setProductName("");
     setProductPrice("");
     setProductDescription("");
+    setProductCategory("");
     setProductImage(null);
     setProductImagePreview("");
     setProductVariants([]);
@@ -2575,6 +2578,7 @@ function MenuView({
     setProductName(product.name);
     setProductPrice(String(product.price));
     setProductDescription(product.description || "");
+    setProductCategory(product.category || "");
     setProductImage(null);
     setProductImagePreview(product.imageUrl || "");
     setProductVariants(product.variants || []);
@@ -2597,6 +2601,7 @@ function MenuView({
       const formData = new FormData();
       formData.append("name", productName.trim());
       formData.append("price", productPrice);
+      formData.append("category", productCategory.trim());
       formData.append("description", productDescription.trim());
       if (productImage) formData.append("image", productImage);
       const cleanVariants = productVariants.filter(v => v.name.trim());
@@ -2715,6 +2720,7 @@ function MenuView({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="text-white font-semibold text-sm truncate" data-testid={`text-product-name-${product.id}`}>{product.name}</p>
+                      {product.category && <Badge variant="outline" className="text-[10px] border-red-500/20 text-red-400/70 rounded-2xl px-1.5 py-0">{product.category}</Badge>}
                       {!product.visible && <Badge variant="outline" className="text-[10px] border-white/10 text-white/30 rounded-2xl">{t("مخفي", "Hidden")}</Badge>}
                     </div>
                     {product.description && <p className="text-muted-foreground text-xs mt-0.5 line-clamp-1">{product.description}</p>}
@@ -2778,6 +2784,57 @@ function MenuView({
                 dir="rtl"
                 data-testid="input-product-name"
               />
+            </div>
+            <div className="relative">
+              <label className="text-xs text-muted-foreground mb-1.5 block">
+                {t("الفئة", "Category")} <span className="text-red-500">*</span>
+              </label>
+              <Input
+                value={productCategory}
+                onChange={(e) => { setProductCategory(e.target.value); setProductCategoryOpen(true); }}
+                onFocus={() => setProductCategoryOpen(true)}
+                onBlur={() => setTimeout(() => setProductCategoryOpen(false), 150)}
+                placeholder={t("مثال: مشروبات، وجبات رئيسية...", "e.g. Drinks, Main Meals...")}
+                className="bg-black/40 border-white/10 text-white placeholder:text-white/20"
+                dir="rtl"
+                data-testid="input-product-category"
+              />
+              {productCategoryOpen && (() => {
+                const existingCats = Array.from(new Set(
+                  products.map(p => p.category).filter((c): c is string => !!c && c.trim() !== "")
+                ));
+                const filtered = existingCats.filter(c =>
+                  c.toLowerCase().includes(productCategory.toLowerCase())
+                );
+                const showCreate = productCategory.trim() !== "" && !existingCats.some(c => c.toLowerCase() === productCategory.trim().toLowerCase());
+                if (filtered.length === 0 && !showCreate) return null;
+                return (
+                  <div className="absolute z-50 top-full mt-1 w-full rounded-xl border border-white/10 bg-[#1a1a1a] shadow-xl overflow-hidden">
+                    {filtered.map(cat => (
+                      <button
+                        key={cat}
+                        type="button"
+                        onMouseDown={() => { setProductCategory(cat); setProductCategoryOpen(false); }}
+                        className="w-full text-start px-3 py-2 text-sm text-white hover:bg-white/[0.06] transition-colors"
+                        data-testid={`category-option-${cat}`}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                    {showCreate && (
+                      <button
+                        type="button"
+                        onMouseDown={() => { setProductCategoryOpen(false); }}
+                        className="w-full text-start px-3 py-2 text-sm text-emerald-400 hover:bg-emerald-500/10 transition-colors border-t border-white/[0.06] flex items-center gap-2"
+                        data-testid="category-create-new"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        {t("إنشاء:", "Create:")} <span className="font-semibold">{productCategory.trim()}</span>
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
             <div>
               <label className="text-xs text-muted-foreground mb-1.5 block">{t("السعر الأساسي (SAR)", "Base Price (SAR)")}</label>
@@ -2930,7 +2987,7 @@ function MenuView({
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowProductDialog(false)} className="border-white/10 text-white/60">{t("إلغاء", "Cancel")}</Button>
-            <Button onClick={handleSaveProduct} disabled={!productName.trim() || !productPrice.trim() || savingProduct} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl" data-testid="button-save-product">
+            <Button onClick={handleSaveProduct} disabled={!productName.trim() || !productPrice.trim() || !productCategory.trim() || savingProduct} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl" data-testid="button-save-product">
               {savingProduct ? <Loader2 className="w-4 h-4 animate-spin me-2" /> : null}
               {t("حفظ", "Save")}
             </Button>
