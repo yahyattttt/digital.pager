@@ -2558,7 +2558,8 @@ function MenuView({
   const [deletingProduct, setDeletingProduct] = useState<string | null>(null);
   const [togglingVisibility, setTogglingVisibility] = useState<string | null>(null);
 
-  const uid = merchant?.uid;
+  // Use the Firestore document ID (id) first; fall back to the uid field
+  const uid = merchant?.id || merchant?.uid;
 
   useEffect(() => {
     if (!uid) return;

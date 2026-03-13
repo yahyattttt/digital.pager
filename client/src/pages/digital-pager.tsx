@@ -191,6 +191,7 @@ export default function DigitalPagerPage() {
   const alertsEnabledRef = useRef(false);
   const vibrateIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const bellAudioRef = useRef<HTMLAudioElement | null>(null);
+  const alertAudioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     if (!merchantId) return;
@@ -203,10 +204,21 @@ export default function DigitalPagerPage() {
       .catch(() => {});
   }, [merchantId]);
 
+  // Used ONLY for the activation button — unlocks browser session audio
   const playBell = useCallback(() => {
     try {
       const audio = bellAudioRef.current || new Audio("/bell.mp3");
       bellAudioRef.current = audio;
+      audio.currentTime = 0;
+      audio.play().catch(() => {});
+    } catch {}
+  }, []);
+
+  // Used ONLY for status → "Order Ready" alert
+  const playAlert = useCallback(() => {
+    try {
+      const audio = alertAudioRef.current || new Audio("/alert.mp3");
+      alertAudioRef.current = audio;
       audio.currentTime = 0;
       audio.play().catch(() => {});
     } catch {}
@@ -229,16 +241,16 @@ export default function DigitalPagerPage() {
     try { navigator.vibrate(0); } catch {}
   }, []);
 
-  // Trigger bell + vibration on status → ready
+  // Trigger alert.mp3 + vibration on status → ready
   useEffect(() => {
     if (status === "ready" && prevStatusRef.current !== "ready") {
-      playBell();
+      playAlert();
       startVibrateLoop();
     }
     if (status !== "ready" && status !== "done") {
       stopVibrateLoop();
     }
-  }, [status, playBell, startVibrateLoop, stopVibrateLoop]);
+  }, [status, playAlert, startVibrateLoop, stopVibrateLoop]);
 
   // Redirect to order-completed when status becomes "done"
   useEffect(() => {
@@ -283,19 +295,25 @@ export default function DigitalPagerPage() {
   }, [orderId, merchantId, isManual]);
 
   function handleActivateAlerts() {
+    // Play bell.mp3 on button press — this unlocks the browser audio session
     try {
-      const audio = new Audio("/bell.mp3");
-      bellAudioRef.current = audio;
-      audio.volume = 0.01;
-      audio.play().then(() => { audio.pause(); audio.currentTime = 0; audio.volume = 1; }).catch(() => {});
+      const bell = bellAudioRef.current || new Audio("/bell.mp3");
+      bellAudioRef.current = bell;
+      bell.currentTime = 0;
+      bell.play().catch(() => {});
+    } catch {}
+    // Pre-load alert.mp3 into the ref so it's ready to fire
+    try {
+      if (!alertAudioRef.current) alertAudioRef.current = new Audio("/alert.mp3");
     } catch {}
     try { navigator.vibrate([100, 50, 100]); } catch {}
     alertsEnabledRef.current = true;
     setAlertsEnabled(true);
     setAlertConfirmed(true);
     setTimeout(() => setAlertConfirmed(false), 2500);
+    // If order is already ready, replay alert.mp3 + vibration
     if (status === "ready" || status === "done") {
-      playBell();
+      playAlert();
       startVibrateLoop();
     }
   }
