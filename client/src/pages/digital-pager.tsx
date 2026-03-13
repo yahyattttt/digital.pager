@@ -241,24 +241,52 @@ export default function DigitalPagerPage() {
     try { navigator.vibrate(0); } catch {}
   }, []);
 
-  // Trigger alert.mp3 + vibration on status → ready
+  // Stop and reset the alert audio immediately
+  const stopAlert = useCallback(() => {
+    try {
+      if (alertAudioRef.current) {
+        alertAudioRef.current.pause();
+        alertAudioRef.current.currentTime = 0;
+      }
+    } catch {}
+  }, []);
+
+  // Trigger alert.mp3 + vibration on status → ready; stop immediately when leaving ready
   useEffect(() => {
     if (status === "ready" && prevStatusRef.current !== "ready") {
       playAlert();
       startVibrateLoop();
     }
-    if (status !== "ready" && status !== "done") {
+    if (status !== "ready") {
+      stopAlert();
       stopVibrateLoop();
     }
-  }, [status, playAlert, startVibrateLoop, stopVibrateLoop]);
+  }, [status, playAlert, startVibrateLoop, stopAlert, stopVibrateLoop]);
+
+  // Component unmount cleanup — kill all audio and vibration
+  useEffect(() => {
+    return () => {
+      stopAlert();
+      stopVibrateLoop();
+      try {
+        if (bellAudioRef.current) {
+          bellAudioRef.current.pause();
+          bellAudioRef.current.currentTime = 0;
+        }
+      } catch {}
+    };
+  }, [stopAlert, stopVibrateLoop]);
 
   // Redirect to order-completed when status becomes "done"
   useEffect(() => {
     if (status === "done" && prevStatusRef.current !== "done") {
+      // Explicitly kill audio and vibration before navigating away
+      stopAlert();
+      stopVibrateLoop();
       const type = isManual ? "manual" : "whatsapp";
       setLocation(`/order-completed/${merchantId}?orderId=${orderId}&type=${type}`);
     }
-  }, [status, merchantId, orderId, isManual, setLocation]);
+  }, [status, merchantId, orderId, isManual, setLocation, stopAlert, stopVibrateLoop]);
 
   useEffect(() => {
     if (!orderId || !merchantId) {
