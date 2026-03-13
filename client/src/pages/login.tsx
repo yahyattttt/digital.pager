@@ -150,8 +150,8 @@ export default function LoginPage() {
       }
 
       if (emailLower === "merchant@test.com") {
-        console.log("[Login] Test merchant account — bypassing Firestore check, injecting mock session");
-        login("test-merchant-uid", emailLower);
+        console.log("[Login] Test merchant account — using real uid from server:", data.uid);
+        login(data.uid, emailLower);
         setLocation("/dashboard");
         return;
       }

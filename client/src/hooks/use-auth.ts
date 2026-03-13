@@ -63,6 +63,13 @@ export function useAuthProvider() {
       const stored = localStorage.getItem(SESSION_KEY);
       if (stored) {
         const session: SessionData = JSON.parse(stored);
+        if (session.uid === "test-merchant-uid") {
+          console.warn("[Auth] Clearing stale test-merchant-uid session — please log in again");
+          localStorage.removeItem(SESSION_KEY);
+          setUser(null);
+          setLoading(false);
+          return;
+        }
         if (session.uid && session.email) {
           console.log("[Auth] Restored session:", session.email);
           setUser(session);
@@ -92,8 +99,8 @@ export function useAuthProvider() {
     }
 
     if (user.email.toLowerCase() === TEST_MERCHANT_EMAIL) {
-      console.log("[Auth] Test merchant account — injecting mock merchant data");
-      setMerchant(MOCK_TEST_MERCHANT);
+      console.log("[Auth] Test merchant account — injecting mock merchant data with uid:", user.uid);
+      setMerchant({ ...MOCK_TEST_MERCHANT, uid: user.uid, id: user.uid });
       setLoading(false);
       return;
     }
@@ -113,7 +120,7 @@ export function useAuthProvider() {
             new Date(data.subscriptionExpiry) < new Date()
           ) {
             console.log("[Auth] Auto-expiring subscription");
-            const expiredData = { ...data, subscriptionStatus: "expired" as const };
+            const expiredData = { ...data, uid: snap.id, id: snap.id, subscriptionStatus: "expired" as const };
             setMerchant(expiredData);
             setLoading(false);
             try {
@@ -124,7 +131,7 @@ export function useAuthProvider() {
             return;
           }
 
-          setMerchant(data);
+          setMerchant({ ...data, uid: snap.id, id: snap.id });
         } else {
           console.warn("[Auth] No merchant document found for uid:", user.uid);
           setMerchant(null);
