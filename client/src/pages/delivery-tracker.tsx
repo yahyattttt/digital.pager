@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams } from "wouter";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { ChefHat, Truck, MapPin, CheckCircle2, Star, BadgeCheck, Send, MapPinned } from "lucide-react";
+import { ChefHat, Truck, MapPin, CheckCircle2, Star, BadgeCheck, Send, MapPinned, Link2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import confetti from "canvas-confetti";
 
@@ -226,6 +226,7 @@ export default function DeliveryTrackerPage() {
   const [selectedStars, setSelectedStars] = useState(0);
   const [feedbackText, setFeedbackText] = useState("");
   const [submittingFeedback, setSubmittingFeedback] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
 
   const prevStatus = useRef<DeliveryStatus | null>(null);
   const confettiFired = useRef(false);
@@ -307,6 +308,30 @@ export default function DeliveryTrackerPage() {
       if (stars <= 3) setReviewState("low_feedback");
       else setReviewState("high_redirect");
     }, 300);
+  }
+
+  async function handleShareTracking() {
+    const url = window.location.href;
+    const storeName = merchantName || "المتجر";
+    const text = `شوف طلبي من ${storeName} جالس يتجهز.. خلنا نتابعه سوا! 😍👇\n${url}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ text });
+        return;
+      } catch (_) {}
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (_) {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
+    setShareCopied(true);
+    setTimeout(() => setShareCopied(false), 2500);
   }
 
   const bg = "linear-gradient(160deg, #060010 0%, #000000 50%, #020008 100%)";
@@ -421,6 +446,63 @@ export default function DeliveryTrackerPage() {
             )}
           </AnimatePresence>
         </div>
+
+        <AnimatePresence>
+          {status === "preparing" && (
+            <motion.button
+              key="share-tracking-btn"
+              initial={{ opacity: 0, scale: 0.92, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.88, y: 6 }}
+              transition={{ duration: 0.35, ease: "easeOut" }}
+              onClick={handleShareTracking}
+              data-testid="button-share-tracking"
+              className="w-full max-w-sm relative overflow-hidden rounded-2xl px-5 py-3.5 flex items-center justify-center gap-2.5 transition-all active:scale-[0.97]"
+              style={{
+                background: "rgba(249,115,22,0.07)",
+                border: "1px solid rgba(249,115,22,0.22)",
+              }}
+            >
+              <span
+                className="absolute inset-0 rounded-2xl"
+                style={{
+                  background: "radial-gradient(ellipse at 50% 0%, rgba(249,115,22,0.12) 0%, transparent 65%)",
+                  animation: "sharePulse 2.2s ease-in-out infinite",
+                }}
+                aria-hidden="true"
+              />
+              <span className="relative flex items-center gap-2.5">
+                {shareCopied ? (
+                  <>
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span
+                      className="font-bold text-sm text-emerald-400"
+                      style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}
+                    >
+                      تم نسخ الرابط ✓
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <Link2
+                      className="w-4 h-4 shrink-0"
+                      style={{ color: "rgba(249,115,22,0.85)" }}
+                    />
+                    <span
+                      className="font-bold text-sm"
+                      style={{
+                        color: "rgba(249,115,22,0.85)",
+                        fontFamily: "'Tajawal','Cairo',sans-serif",
+                      }}
+                    >
+                      خل أصدقاءك يتبعون معك 🔗
+                    </span>
+                  </>
+                )}
+              </span>
+            </motion.button>
+          )}
+        </AnimatePresence>
 
         <AnimatePresence>
           {isDelivered && reviewState !== "idle" && (
@@ -572,6 +654,10 @@ export default function DeliveryTrackerPage() {
         @keyframes truckBounce {
           0% { transform: translateY(-55%) scale(1); }
           100% { transform: translateY(-45%) scale(1.08); }
+        }
+        @keyframes sharePulse {
+          0%, 100% { opacity: 0.5; transform: scaleY(1); }
+          50% { opacity: 1; transform: scaleY(1.04); }
         }
       `}</style>
     </div>
