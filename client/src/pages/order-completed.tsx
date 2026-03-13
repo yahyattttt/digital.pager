@@ -332,22 +332,24 @@ export default function OrderCompletedPage() {
         )}
       </div>
 
-      {/* Invoice Download */}
-      <div className="w-full max-w-sm">
-        <button
-          onClick={downloadInvoice}
-          data-testid="btn-download-invoice"
-          className="flex items-center justify-center gap-2.5 w-full py-3.5 rounded-2xl transition-all active:scale-95"
-          style={{
-            background: "rgba(20,5,5,0.9)",
-            border: "1.5px solid #3a1010",
-            color: "#cc6644",
-          }}
-        >
-          <Download className="w-4 h-4" />
-          <span className="text-sm font-semibold">تحميل الفاتورة (PDF)</span>
-        </button>
-      </div>
+      {/* Invoice Download — only for online orders, not manual/QR pager orders */}
+      {orderType !== "manual" && (
+        <div className="w-full max-w-sm">
+          <button
+            onClick={downloadInvoice}
+            data-testid="btn-download-invoice"
+            className="flex items-center justify-center gap-2.5 w-full py-3.5 rounded-2xl transition-all active:scale-95"
+            style={{
+              background: "rgba(20,5,5,0.9)",
+              border: "1.5px solid #3a1010",
+              color: "#cc6644",
+            }}
+          >
+            <Download className="w-4 h-4" />
+            <span className="text-sm font-semibold">تحميل الفاتورة (PDF)</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }

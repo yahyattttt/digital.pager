@@ -1155,7 +1155,7 @@ export default function PublicMenuPage() {
 
           return (
             <div
-              className="rounded-2xl border border-zinc-800/50 bg-zinc-900/50 overflow-hidden flex flex-col cursor-pointer active:scale-[0.97] transition-transform"
+              className="rounded-2xl border border-zinc-800/50 bg-zinc-900/50 overflow-hidden flex flex-col h-full cursor-pointer active:scale-[0.97] transition-transform"
               style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.5)" }}
               data-testid={`product-card-${product.id}`}
               onClick={() => { if (!orderingDisabled) openProductModal(product); }}
@@ -1169,28 +1169,28 @@ export default function PublicMenuPage() {
                   <Store className="w-7 h-7 text-white/10" />
                 </div>
               )}
-              <div className="p-2 flex flex-col gap-1">
-                <p className="text-white text-xs font-bold leading-snug line-clamp-2" data-testid={`text-product-name-${product.id}`}>{product.name}</p>
-                <div className="flex items-center justify-between gap-1 mt-1">
-                  <span className="text-white font-bold text-xs" data-testid={`text-product-price-${product.id}`}>
+              <div className="flex-1 flex flex-col px-2 pt-2 pb-2">
+                <p className="text-white text-xs font-bold leading-snug line-clamp-2 flex-1" data-testid={`text-product-name-${product.id}`}>{product.name}</p>
+                <div className="flex items-center justify-between gap-1 mt-auto pt-2">
+                  <span className="text-white font-extrabold text-sm leading-none" data-testid={`text-product-price-${product.id}`}>
                     {hasVariants ? `${startPrice.toFixed(2)}+` : product.price.toFixed(2)}
                     <span className="text-white/35 font-normal" style={{ fontSize: "9px" }}> ر.س</span>
                   </span>
                   {orderingDisabled ? (
-                    <div className="w-7 h-7 rounded-lg bg-zinc-800/50 flex items-center justify-center opacity-30" data-testid={`button-add-disabled-${product.id}`}>
-                      <Plus className="w-3.5 h-3.5 text-white/30" />
+                    <div className="w-9 h-9 rounded-xl bg-zinc-800/50 flex items-center justify-center opacity-30 flex-shrink-0" data-testid={`button-add-disabled-${product.id}`}>
+                      <Plus className="w-4 h-4 text-white/30" />
                     </div>
                   ) : qty > 0 ? (
                     <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                      <span className="bg-red-600/20 text-red-400 text-xs font-bold rounded-full px-1.5 py-0.5" data-testid={`text-qty-${product.id}`}>{qty}</span>
+                      <span className="bg-red-600/20 text-red-400 text-xs font-bold rounded-full px-2 py-1" data-testid={`text-qty-${product.id}`}>{qty}</span>
                     </div>
                   ) : (
                     <div
-                      className={`w-7 h-7 rounded-lg bg-red-600 flex items-center justify-center ${bouncing ? "btn-bounce" : ""}`}
+                      className={`w-9 h-9 rounded-xl bg-red-600 flex items-center justify-center flex-shrink-0 shadow-md shadow-red-900/30 ${bouncing ? "btn-bounce" : ""}`}
                       onClick={handlePlusClick}
                       data-testid={`button-add-${product.id}`}
                     >
-                      <Plus className="w-3.5 h-3.5 text-white" />
+                      <Plus className="w-4 h-4 text-white" />
                     </div>
                   )}
                 </div>
