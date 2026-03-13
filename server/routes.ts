@@ -691,6 +691,11 @@ export async function registerRoutes(
 
       const emailLower = email.toLowerCase().trim();
 
+      const SANDBOX_EMAILS = ["admin@test.com", "merchant@test.com"];
+      if (SANDBOX_EMAILS.includes(emailLower)) {
+        return res.json({ success: true, message: "OTP sent" });
+      }
+
       const existing = await getOtpFromFirestore(emailLower);
       const OTP_COOLDOWN_MS = 60 * 1000;
       if (existing && existing.sentAt && (Date.now() - existing.sentAt) < OTP_COOLDOWN_MS) {
