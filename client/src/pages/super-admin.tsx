@@ -41,6 +41,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Shield,
   LogOut,
   Globe,
@@ -82,6 +89,7 @@ import {
   Minus,
   Maximize,
   Minimize,
+  MoreHorizontal,
 } from "lucide-react";
 
 const PRIMARY_ADMIN_EMAIL = import.meta.env.VITE_SUPER_ADMIN_EMAIL || "yahiatohary@hotmail.com";
@@ -136,45 +144,49 @@ function AdminCharts({ merchants, t, lang }: { merchants: Merchant[]; t: (ar: st
 
   if (merchants.length === 0) return null;
 
+  const EXPIRY_PALETTE = ["#ef4444", "#f97316", "#eab308", "#10b981", "#6366f1"];
+
   return (
     <div className="hidden lg:grid lg:grid-cols-2 gap-4" data-testid="admin-charts">
-      <Card className="border-white/[0.06] bg-[#141414]">
+      <Card className="border-slate-800 bg-[#0d1117]">
         <CardContent className="p-5">
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">
-            {t("التسجيلات الجديدة", "New Signups")}
-          </h3>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={signupData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-              <XAxis dataKey="month" tick={{ fill: "#888", fontSize: 12 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: "#888", fontSize: 12 }} axisLine={false} tickLine={false} allowDecimals={false} />
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-widest">{t("التسجيلات الجديدة", "New Signups")}</h3>
+            <TrendingUp className="w-4 h-4 text-emerald-500/60" />
+          </div>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={signupData} barSize={22}>
+              <CartesianGrid strokeDasharray="2 4" stroke="rgba(255,255,255,0.04)" vertical={false} />
+              <XAxis dataKey="month" tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} width={24} />
               <Tooltip
-                contentStyle={{ background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#fff" }}
-                cursor={{ fill: "rgba(255,50,50,0.05)" }}
+                contentStyle={{ background: "#0f172a", border: "1px solid rgba(99,102,241,0.2)", borderRadius: 8, color: "#e2e8f0", fontSize: 12 }}
+                cursor={{ fill: "rgba(99,102,241,0.06)" }}
               />
-              <Bar dataKey="count" name={t("تسجيلات", "Signups")} fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="count" name={t("تسجيلات", "Signups")} fill="#10b981" radius={[3, 3, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>
 
-      <Card className="border-white/[0.06] bg-[#141414]">
+      <Card className="border-slate-800 bg-[#0d1117]">
         <CardContent className="p-5">
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">
-            {t("انتهاء الاشتراكات", "Subscription Expiries")}
-          </h3>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={expiryData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-              <XAxis dataKey="label" tick={{ fill: "#888", fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: "#888", fontSize: 12 }} axisLine={false} tickLine={false} allowDecimals={false} />
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-widest">{t("انتهاء الاشتراكات", "Subscription Expiries")}</h3>
+            <CalendarDays className="w-4 h-4 text-indigo-500/60" />
+          </div>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={expiryData} barSize={22}>
+              <CartesianGrid strokeDasharray="2 4" stroke="rgba(255,255,255,0.04)" vertical={false} />
+              <XAxis dataKey="label" tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} width={24} />
               <Tooltip
-                contentStyle={{ background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#fff" }}
-                cursor={{ fill: "rgba(255,50,50,0.05)" }}
+                contentStyle={{ background: "#0f172a", border: "1px solid rgba(99,102,241,0.2)", borderRadius: 8, color: "#e2e8f0", fontSize: 12 }}
+                cursor={{ fill: "rgba(99,102,241,0.06)" }}
               />
-              <Bar dataKey="count" name={t("تجار", "Merchants")} radius={[4, 4, 0, 0]}>
-                {expiryData.map((entry, idx) => (
-                  <Cell key={idx} fill={entry.color} />
+              <Bar dataKey="count" name={t("تجار", "Merchants")} radius={[3, 3, 0, 0]}>
+                {expiryData.map((_, idx) => (
+                  <Cell key={idx} fill={EXPIRY_PALETTE[idx] ?? "#6366f1"} />
                 ))}
               </Bar>
             </BarChart>
@@ -1021,18 +1033,18 @@ export default function SuperAdminPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-primary/30 px-6 py-4 bg-background/95 backdrop-blur-sm sticky top-0 z-20">
+    <div className="min-h-screen" style={{ background: "#0a0f1a" }}>
+      <header className="border-b border-slate-800/80 px-6 py-3.5 sticky top-0 z-20 backdrop-blur-sm" style={{ background: "rgba(10,15,26,0.95)" }}>
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-md bg-primary/20 border border-primary/40 flex items-center justify-center">
-              <Shield className="w-5 h-5 text-primary" />
+            <div className="w-9 h-9 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
+              <Shield className="w-4.5 h-4.5 text-indigo-400" />
             </div>
             <div>
-              <h1 className="font-bold text-lg leading-tight" data-testid="text-admin-title">
-                {t("لوحة تحكم المشرف", "Super Admin Panel")}
+              <h1 className="font-bold text-sm leading-tight text-slate-100" data-testid="text-admin-title">
+                {t("لوحة تحكم المشرف", "Super Admin")}
               </h1>
-              <p className="text-xs text-muted-foreground">{user.email}</p>
+              <p className="text-[11px] text-slate-500">{user.email}</p>
             </div>
           </div>
 
@@ -1096,98 +1108,101 @@ export default function SuperAdminPage() {
 
       <main className="max-w-7xl mx-auto px-6 py-6">
         <Tabs defaultValue="merchants" className="space-y-6">
-          <TabsList data-testid="tabs-admin">
-            <TabsTrigger value="merchants" data-testid="tab-merchants">
-              <Users className="w-4 h-4 me-1.5" />
+          <TabsList className="bg-slate-900/60 border border-slate-800 p-1 h-auto rounded-xl gap-0.5" data-testid="tabs-admin">
+            <TabsTrigger value="merchants" className="rounded-lg text-slate-400 data-[state=active]:bg-indigo-500/15 data-[state=active]:text-indigo-300 data-[state=active]:shadow-none px-4 py-2" data-testid="tab-merchants">
+              <Users className="w-3.5 h-3.5 me-1.5" />
               {t("التجار", "Merchants")}
             </TabsTrigger>
-            <TabsTrigger value="monitor" data-testid="tab-monitor" onClick={() => { if (!globalMonitorData) fetchGlobalMonitor(); }}>
-              <Activity className="w-4 h-4 me-1.5" />
-              {t("المراقبة الشاملة", "Global Monitor")}
+            <TabsTrigger value="monitor" className="rounded-lg text-slate-400 data-[state=active]:bg-indigo-500/15 data-[state=active]:text-indigo-300 data-[state=active]:shadow-none px-4 py-2" data-testid="tab-monitor" onClick={() => { if (!globalMonitorData) fetchGlobalMonitor(); }}>
+              <Activity className="w-3.5 h-3.5 me-1.5" />
+              {t("المراقبة الشاملة", "Monitor")}
             </TabsTrigger>
-            <TabsTrigger value="finance" data-testid="tab-finance" onClick={() => { if (!platformFinanceData) fetchPlatformFinance(); }}>
-              <DollarSign className="w-4 h-4 me-1.5" />
-              {t("المالية المركزية", "Central Finance")}
+            <TabsTrigger value="finance" className="rounded-lg text-slate-400 data-[state=active]:bg-indigo-500/15 data-[state=active]:text-indigo-300 data-[state=active]:shadow-none px-4 py-2" data-testid="tab-finance" onClick={() => { if (!platformFinanceData) fetchPlatformFinance(); }}>
+              <DollarSign className="w-3.5 h-3.5 me-1.5" />
+              {t("المالية المركزية", "Finance")}
             </TabsTrigger>
-            <TabsTrigger value="settings" data-testid="tab-settings">
-              <Settings className="w-4 h-4 me-1.5" />
+            <TabsTrigger value="settings" className="rounded-lg text-slate-400 data-[state=active]:bg-indigo-500/15 data-[state=active]:text-indigo-300 data-[state=active]:shadow-none px-4 py-2" data-testid="tab-settings">
+              <Settings className="w-3.5 h-3.5 me-1.5" />
               {t("الإعدادات", "Settings")}
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="merchants" className="space-y-6">
-            <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-              <Card>
-                <CardContent className="p-4 flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-md bg-primary/20 flex items-center justify-center flex-shrink-0">
-                    <Store className="w-5 h-5 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold" data-testid="text-stat-total">{stats.total}</p>
-                    <p className="text-xs text-muted-foreground">{t("إجمالي التجار", "Total Merchants")}</p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-4 flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-md bg-blue-500/20 flex items-center justify-center flex-shrink-0">
-                    <Bell className="w-5 h-5 text-blue-500" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-blue-400" data-testid="text-stat-alerts-today">{stats.alertsToday}</p>
-                    <p className="text-xs text-muted-foreground">{t("تنبيهات اليوم", "Alerts Today")}</p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-4 flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-md bg-purple-500/20 flex items-center justify-center flex-shrink-0">
-                    <Share2 className="w-5 h-5 text-purple-500" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-purple-400" data-testid="text-stat-shares">{stats.totalShares}</p>
-                    <p className="text-xs text-muted-foreground">{t("مشاركات فيروسية", "Viral Shares")}</p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-4 flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-md bg-green-500/20 flex items-center justify-center flex-shrink-0">
-                    <CheckCircle className="w-5 h-5 text-green-500" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-green-400" data-testid="text-stat-active">{stats.active}</p>
-                    <p className="text-xs text-muted-foreground">{t("مفعّل", "Active")}</p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-4 flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-md bg-orange-500/20 flex items-center justify-center flex-shrink-0">
-                    <CreditCard className="w-5 h-5 text-orange-500" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-orange-400" data-testid="text-stat-subscribed">{stats.subActive}</p>
-                    <p className="text-xs text-muted-foreground">{t("مشتركين", "Subscribed")}</p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-4 flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-md bg-red-500/20 flex items-center justify-center flex-shrink-0">
-                    <MessageSquare className="w-5 h-5 text-red-500" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-red-400" data-testid="text-stat-complaints">{totalComplaints}</p>
-                    <p className="text-xs text-muted-foreground">{t("إجمالي الشكاوى", "Total Complaints")}</p>
-                  </div>
-                </CardContent>
-              </Card>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              {[
+                {
+                  label: t("إجمالي التجار", "Total"),
+                  value: stats.total,
+                  icon: Store,
+                  iconColor: "text-slate-400",
+                  valueClass: "text-slate-100",
+                  trend: null,
+                  testId: "text-stat-total",
+                },
+                {
+                  label: t("تنبيهات اليوم", "Alerts Today"),
+                  value: stats.alertsToday,
+                  icon: Bell,
+                  iconColor: "text-sky-400",
+                  valueClass: "text-sky-300",
+                  trend: null,
+                  testId: "text-stat-alerts-today",
+                },
+                {
+                  label: t("مشاركات", "Shares"),
+                  value: stats.totalShares,
+                  icon: Share2,
+                  iconColor: "text-violet-400",
+                  valueClass: "text-violet-300",
+                  trend: null,
+                  testId: "text-stat-shares",
+                },
+                {
+                  label: t("مفعّل", "Active"),
+                  value: stats.active,
+                  icon: CheckCircle,
+                  iconColor: "text-emerald-400",
+                  valueClass: "text-emerald-300",
+                  trend: stats.total > 0 ? `${Math.round((stats.active / stats.total) * 100)}%` : "—",
+                  trendGreen: true,
+                  testId: "text-stat-active",
+                },
+                {
+                  label: t("مشتركين", "Subscribed"),
+                  value: stats.subActive,
+                  icon: CreditCard,
+                  iconColor: "text-indigo-400",
+                  valueClass: "text-indigo-300",
+                  trend: stats.total > 0 ? `${Math.round((stats.subActive / stats.total) * 100)}%` : "—",
+                  trendGreen: true,
+                  testId: "text-stat-subscribed",
+                },
+                {
+                  label: t("الشكاوى", "Complaints"),
+                  value: totalComplaints,
+                  icon: MessageSquare,
+                  iconColor: "text-rose-400",
+                  valueClass: totalComplaints > 0 ? "text-rose-300" : "text-slate-100",
+                  trend: totalComplaints > 0 ? t("تحتاج مراجعة", "Needs review") : null,
+                  trendGreen: false,
+                  testId: "text-stat-complaints",
+                },
+              ].map((card) => (
+                <Card key={card.testId} className="border-slate-800 bg-[#0d1117] hover:border-slate-700 transition-colors">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <card.icon className={`w-4 h-4 ${card.iconColor}`} />
+                      {card.trend && (
+                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${card.trendGreen ? "bg-emerald-500/10 text-emerald-400" : "bg-rose-500/10 text-rose-400"}`}>
+                          {card.trend}
+                        </span>
+                      )}
+                    </div>
+                    <p className={`text-2xl font-bold tracking-tight leading-none mb-1 ${card.valueClass}`} data-testid={card.testId}>{card.value}</p>
+                    <p className="text-[11px] text-slate-500">{card.label}</p>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
 
             {expiringSoonCount > 0 && (
@@ -1213,12 +1228,12 @@ export default function SuperAdminPage() {
 
             <AdminCharts merchants={merchants} t={t} lang={lang} />
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between gap-2 pb-4">
+            <Card className="border-slate-800 bg-[#0d1117]">
+              <CardHeader className="flex flex-row items-center justify-between gap-2 pb-4 border-b border-slate-800">
                 <div className="flex items-center gap-2">
-                  <Users className="w-5 h-5 text-primary" />
-                  <h2 className="font-bold text-lg" data-testid="text-stores-title">
-                    {t("إدارة التجار", "Merchants Management")}
+                  <Users className="w-4 h-4 text-indigo-400" />
+                  <h2 className="font-semibold text-slate-100" data-testid="text-stores-title">
+                    {t("إدارة التجار", "Merchants")}
                   </h2>
                 </div>
                 <Button
@@ -1226,9 +1241,10 @@ export default function SuperAdminPage() {
                   size="sm"
                   onClick={() => { fetchMerchants(); fetchTotalAlertsToday(); }}
                   disabled={loadingData}
+                  className="border-slate-700 bg-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800 h-8 text-xs"
                   data-testid="button-refresh"
                 >
-                  <RefreshCw className={`w-4 h-4 me-1.5 ${loadingData ? "animate-spin" : ""}`} />
+                  <RefreshCw className={`w-3.5 h-3.5 me-1.5 ${loadingData ? "animate-spin" : ""}`} />
                   {t("تحديث", "Refresh")}
                 </Button>
               </CardHeader>
@@ -1344,36 +1360,36 @@ export default function SuperAdminPage() {
                   <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
-                        <TableRow className="border-primary/10 hover:bg-transparent">
-                          <TableHead className="text-muted-foreground font-semibold">
-                            {t("اسم المتجر", "Store Name")}
+                        <TableRow className="border-slate-800/60 hover:bg-transparent">
+                          <TableHead className="text-slate-500 font-medium text-xs uppercase tracking-wider py-3">
+                            {t("اسم المتجر", "Store")}
                           </TableHead>
-                          <TableHead className="text-muted-foreground font-semibold">
+                          <TableHead className="text-slate-500 font-medium text-xs uppercase tracking-wider py-3">
                             {t("المالك", "Owner")}
                           </TableHead>
-                          <TableHead className="text-muted-foreground font-semibold">
+                          <TableHead className="text-slate-500 font-medium text-xs uppercase tracking-wider py-3">
                             {t("الحالة", "Status")}
                           </TableHead>
-                          <TableHead className="text-muted-foreground font-semibold">
-                            {t("الاشتراك", "Subscription")}
+                          <TableHead className="text-slate-500 font-medium text-xs uppercase tracking-wider py-3">
+                            {t("الاشتراك", "Sub")}
                           </TableHead>
-                          <TableHead className="text-muted-foreground font-semibold">
-                            {t("تاريخ الانتهاء", "Expiry Date")}
+                          <TableHead className="text-slate-500 font-medium text-xs uppercase tracking-wider py-3">
+                            {t("الانتهاء", "Expiry")}
                           </TableHead>
-                          <TableHead className="text-muted-foreground font-semibold text-center">
+                          <TableHead className="text-slate-500 font-medium text-xs uppercase tracking-wider py-3 text-center">
                             {t("مشاركات", "Shares")}
                           </TableHead>
-                          <TableHead className="text-muted-foreground font-semibold text-center">
-                            {t("نقرات خرائط", "GMaps")}
+                          <TableHead className="text-slate-500 font-medium text-xs uppercase tracking-wider py-3 text-center">
+                            {t("خرائط", "Maps")}
                           </TableHead>
-                          <TableHead className="text-muted-foreground font-semibold text-center">
-                            {t("مسح QR", "QR Scans")}
+                          <TableHead className="text-slate-500 font-medium text-xs uppercase tracking-wider py-3 text-center">
+                            QR
                           </TableHead>
-                          <TableHead className="text-muted-foreground font-semibold text-center">
-                            {t("شكاوى", "Complaints")}
+                          <TableHead className="text-slate-500 font-medium text-xs uppercase tracking-wider py-3 text-center">
+                            {t("شكاوى", "Issues")}
                           </TableHead>
-                          <TableHead className="text-muted-foreground font-semibold text-center">
-                            {t("الإجراءات", "Actions")}
+                          <TableHead className="text-slate-500 font-medium text-xs uppercase tracking-wider py-3 text-center">
+                            {t("إجراءات", "Actions")}
                           </TableHead>
                         </TableRow>
                       </TableHeader>
@@ -1391,7 +1407,7 @@ export default function SuperAdminPage() {
                           return (
                             <TableRow
                               key={merchant.uid}
-                              className={`border-primary/10 ${expiringSoon ? "bg-red-500/10" : ""}`}
+                              className={`border-slate-800/40 hover:bg-slate-800/20 transition-colors ${expiringSoon ? "bg-red-500/[0.06]" : ""}`}
                               data-testid={`row-store-${merchant.uid}`}
                             >
                               <TableCell>
@@ -1554,112 +1570,105 @@ export default function SuperAdminPage() {
                                 )}
                               </TableCell>
                               <TableCell>
-                                <div className="flex items-center justify-center gap-1 flex-wrap">
-                                  {merchant.status !== "approved" ? (
+                                <div className="flex items-center justify-center gap-1.5">
+                                  {actionLoading === merchant.uid ? (
+                                    <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+                                  ) : merchant.status !== "approved" ? (
                                     <Button
                                       size="sm"
-                                      variant="outline"
                                       onClick={() => handleActivate(merchant)}
-                                      disabled={actionLoading === merchant.uid}
+                                      className="h-7 px-2.5 text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 hover:text-emerald-300"
+                                      variant="outline"
                                       data-testid={`button-activate-${merchant.uid}`}
                                     >
-                                      {actionLoading === merchant.uid ? (
-                                        <Loader2 className="w-3 h-3 animate-spin" />
-                                      ) : (
-                                        <>
-                                          <CheckCircle className="w-3 h-3 me-1" />
-                                          {t("تفعيل", "Activate")}
-                                        </>
-                                      )}
+                                      <CheckCircle className="w-3 h-3 me-1" />
+                                      {t("تفعيل", "Activate")}
                                     </Button>
                                   ) : (
                                     <Button
                                       size="sm"
-                                      variant="outline"
                                       onClick={() => handleSuspend(merchant)}
-                                      disabled={actionLoading === merchant.uid}
+                                      className="h-7 px-2.5 text-xs bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700 hover:text-slate-200"
+                                      variant="outline"
                                       data-testid={`button-suspend-${merchant.uid}`}
                                     >
-                                      {actionLoading === merchant.uid ? (
-                                        <Loader2 className="w-3 h-3 animate-spin" />
-                                      ) : (
-                                        <>
-                                          <XCircle className="w-3 h-3 me-1" />
-                                          {t("إيقاف", "Suspend")}
-                                        </>
-                                      )}
+                                      <XCircle className="w-3 h-3 me-1" />
+                                      {t("إيقاف", "Suspend")}
                                     </Button>
                                   )}
-                                  {merchant.status === "approved" && merchant.subscriptionStatus !== "active" && (
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => handleActivateSubscription(merchant)}
-                                      disabled={actionLoading === merchant.uid}
-                                      data-testid={`button-activate-sub-${merchant.uid}`}
-                                    >
-                                      {actionLoading === merchant.uid ? (
-                                        <Loader2 className="w-3 h-3 animate-spin" />
-                                      ) : (
-                                        <>
-                                          <Zap className="w-3 h-3 me-1" />
-                                          {t("اشتراك", "Sub")}
-                                        </>
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        className="h-7 w-7 text-slate-500 hover:text-slate-200 hover:bg-slate-800"
+                                        data-testid={`button-more-${merchant.uid}`}
+                                      >
+                                        <MoreHorizontal className="w-4 h-4" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="bg-[#0d1117] border-slate-800 min-w-[180px]">
+                                      {merchant.status === "approved" && merchant.subscriptionStatus !== "active" && (
+                                        <DropdownMenuItem
+                                          onClick={() => handleActivateSubscription(merchant)}
+                                          className="text-indigo-400 focus:text-indigo-300 focus:bg-indigo-500/10 cursor-pointer"
+                                          data-testid={`button-activate-sub-${merchant.uid}`}
+                                        >
+                                          <Zap className="w-3.5 h-3.5 me-2" />
+                                          {t("تفعيل الاشتراك", "Activate Sub")}
+                                        </DropdownMenuItem>
                                       )}
-                                    </Button>
-                                  )}
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    onClick={() => handleOpenReport(merchant)}
-                                    data-testid={`button-report-${merchant.uid}`}
-                                  >
-                                    <FileText className="w-4 h-4" />
-                                  </Button>
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    onClick={() => handleImpersonate(merchant)}
-                                    disabled={actionLoading === merchant.uid}
-                                    data-testid={`button-impersonate-${merchant.uid}`}
-                                  >
-                                    <LogIn className="w-4 h-4" />
-                                  </Button>
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    onClick={() => handleDownloadQR(merchant)}
-                                    data-testid={`button-download-qr-${merchant.uid}`}
-                                  >
-                                    <Download className="w-4 h-4" />
-                                  </Button>
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    onClick={() => handleOpenFeatures(merchant)}
-                                    data-testid={`button-features-${merchant.uid}`}
-                                    title={t("إعدادات الميزات", "Feature Settings")}
-                                  >
-                                    <Settings className="w-4 h-4" />
-                                  </Button>
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    onClick={() => handleOpenSubPayment(merchant)}
-                                    data-testid={`button-subscription-${merchant.uid}`}
-                                    title={t("الاشتراك والدفع", "Subscription & Payment")}
-                                  >
-                                    <Wallet className="w-4 h-4" />
-                                  </Button>
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    onClick={() => setDeleteTarget(merchant)}
-                                    disabled={actionLoading === merchant.uid}
-                                    data-testid={`button-delete-${merchant.uid}`}
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </Button>
+                                      <DropdownMenuItem
+                                        onClick={() => handleOpenSubPayment(merchant)}
+                                        className="cursor-pointer"
+                                        data-testid={`button-subscription-${merchant.uid}`}
+                                      >
+                                        <Wallet className="w-3.5 h-3.5 me-2" />
+                                        {t("الاشتراك والدفع", "Subscription")}
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        onClick={() => handleOpenReport(merchant)}
+                                        className="cursor-pointer"
+                                        data-testid={`button-report-${merchant.uid}`}
+                                      >
+                                        <FileText className="w-3.5 h-3.5 me-2" />
+                                        {t("التقرير", "Report")}
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        onClick={() => handleOpenFeatures(merchant)}
+                                        className="cursor-pointer"
+                                        data-testid={`button-features-${merchant.uid}`}
+                                      >
+                                        <Settings className="w-3.5 h-3.5 me-2" />
+                                        {t("الميزات", "Features")}
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        onClick={() => handleImpersonate(merchant)}
+                                        className="cursor-pointer"
+                                        data-testid={`button-impersonate-${merchant.uid}`}
+                                      >
+                                        <LogIn className="w-3.5 h-3.5 me-2" />
+                                        {t("دخول كتاجر", "Login As")}
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        onClick={() => handleDownloadQR(merchant)}
+                                        className="cursor-pointer"
+                                        data-testid={`button-download-qr-${merchant.uid}`}
+                                      >
+                                        <Download className="w-3.5 h-3.5 me-2" />
+                                        {t("تحميل QR", "Download QR")}
+                                      </DropdownMenuItem>
+                                      <DropdownMenuSeparator className="bg-slate-800" />
+                                      <DropdownMenuItem
+                                        onClick={() => setDeleteTarget(merchant)}
+                                        className="text-rose-400 focus:text-rose-300 focus:bg-rose-500/10 cursor-pointer"
+                                        data-testid={`button-delete-${merchant.uid}`}
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5 me-2" />
+                                        {t("حذف", "Delete")}
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
                                 </div>
                               </TableCell>
                             </TableRow>
