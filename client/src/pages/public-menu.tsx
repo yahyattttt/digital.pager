@@ -1077,32 +1077,32 @@ export default function PublicMenuPage() {
 
   return (
     <div className="min-h-[100dvh] flex flex-col" style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }} dir={isRTL ? "rtl" : "ltr"} data-testid="public-menu-page">
-      <div className="flex-shrink-0 pt-6 pb-4 px-5">
-        <div className="flex justify-end mb-3">
+      <div className="flex-shrink-0 pt-3 pb-3 px-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            {merchant.logoUrl ? (
+              <img
+                src={merchant.logoUrl}
+                alt={merchant.storeName}
+                className="w-10 h-10 rounded-full object-cover border border-red-600/30 flex-shrink-0"
+                style={{ boxShadow: "0 0 10px rgba(255,0,0,0.12)" }}
+                data-testid="img-menu-logo"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-full bg-black border border-red-600/30 flex items-center justify-center flex-shrink-0" style={{ boxShadow: "0 0 10px rgba(255,0,0,0.12)" }}>
+                <Store className="w-5 h-5 text-red-500" />
+              </div>
+            )}
+            <h1 className="text-white text-base font-bold tracking-tight leading-tight" data-testid="text-menu-store-name">{merchant.storeName}</h1>
+          </div>
           <button
             onClick={toggleLanguage}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-700/50 bg-zinc-900/60 hover:bg-zinc-800/60 transition-colors"
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-zinc-700/50 bg-zinc-900/60 hover:bg-zinc-800/60 transition-colors flex-shrink-0"
             data-testid="button-lang-toggle"
           >
-            <Globe className="w-3.5 h-3.5 text-white/50" />
+            <Globe className="w-3 h-3 text-white/50" />
             <span className="text-white/70 text-xs font-bold">{lang === "ar" ? "EN" : "AR"}</span>
           </button>
-        </div>
-        <div className="text-center">
-          {merchant.logoUrl ? (
-            <img
-              src={merchant.logoUrl}
-              alt={merchant.storeName}
-              className="w-20 h-20 rounded-full object-cover border-2 border-red-600/30 mx-auto mb-2.5"
-              style={{ boxShadow: "0 0 20px rgba(255,0,0,0.15)" }}
-              data-testid="img-menu-logo"
-            />
-          ) : (
-            <div className="w-20 h-20 rounded-full bg-black border-2 border-red-600/30 flex items-center justify-center mx-auto mb-2.5" style={{ boxShadow: "0 0 20px rgba(255,0,0,0.15)" }}>
-              <Store className="w-10 h-10 text-red-500" />
-            </div>
-          )}
-          <h1 className="text-white text-2xl font-extrabold tracking-tight mt-1" data-testid="text-menu-store-name">{merchant.storeName}</h1>
         </div>
       </div>
 
@@ -1155,43 +1155,42 @@ export default function PublicMenuPage() {
 
           return (
             <div
-              className="rounded-2xl border border-zinc-800/50 bg-zinc-900/50 overflow-hidden flex flex-col cursor-pointer active:scale-[0.97] transition-transform shadow-lg"
-              style={{ boxShadow: "0 4px 18px rgba(0,0,0,0.45), 0 1px 4px rgba(255,0,0,0.04)" }}
+              className="rounded-2xl border border-zinc-800/50 bg-zinc-900/50 overflow-hidden flex flex-col cursor-pointer active:scale-[0.97] transition-transform"
+              style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.5)" }}
               data-testid={`product-card-${product.id}`}
               onClick={() => { if (!orderingDisabled) openProductModal(product); }}
             >
               {product.imageUrl ? (
-                <div className="aspect-square overflow-hidden">
-                  <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover rounded-t-2xl" />
+                <div className="h-32 overflow-hidden flex-shrink-0">
+                  <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
                 </div>
               ) : (
-                <div className="aspect-square bg-zinc-800/30 flex items-center justify-center rounded-t-2xl">
-                  <Store className="w-8 h-8 text-white/10" />
+                <div className="h-32 bg-zinc-800/40 flex items-center justify-center flex-shrink-0">
+                  <Store className="w-7 h-7 text-white/10" />
                 </div>
               )}
-              <div className="p-3 flex-1 flex flex-col gap-1">
-                <p className="text-white text-sm font-bold leading-snug line-clamp-2" data-testid={`text-product-name-${product.id}`}>{product.name}</p>
-                {product.description && <p className="text-gray-400 text-[11px] line-clamp-2 leading-relaxed">{product.description}</p>}
-                <div className="mt-auto pt-2 flex items-center justify-between gap-1">
-                  <span className="text-white font-bold text-sm" data-testid={`text-product-price-${product.id}`}>
+              <div className="p-2 flex flex-col gap-1">
+                <p className="text-white text-xs font-bold leading-snug line-clamp-2" data-testid={`text-product-name-${product.id}`}>{product.name}</p>
+                <div className="flex items-center justify-between gap-1 mt-1">
+                  <span className="text-white font-bold text-xs" data-testid={`text-product-price-${product.id}`}>
                     {hasVariants ? `${startPrice.toFixed(2)}+` : product.price.toFixed(2)}
-                    <span className="text-white/40 font-normal text-[10px] ms-0.5">SAR</span>
+                    <span className="text-white/35 font-normal" style={{ fontSize: "9px" }}> ر.س</span>
                   </span>
                   {orderingDisabled ? (
-                    <div className="w-8 h-8 rounded-xl bg-zinc-800/50 flex items-center justify-center opacity-30" data-testid={`button-add-disabled-${product.id}`}>
-                      <Plus className="w-4 h-4 text-white/30" />
+                    <div className="w-7 h-7 rounded-lg bg-zinc-800/50 flex items-center justify-center opacity-30" data-testid={`button-add-disabled-${product.id}`}>
+                      <Plus className="w-3.5 h-3.5 text-white/30" />
                     </div>
                   ) : qty > 0 ? (
                     <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                      <span className="bg-red-600/20 text-red-400 text-xs font-bold rounded-full px-2 py-0.5" data-testid={`text-qty-${product.id}`}>{qty}</span>
+                      <span className="bg-red-600/20 text-red-400 text-xs font-bold rounded-full px-1.5 py-0.5" data-testid={`text-qty-${product.id}`}>{qty}</span>
                     </div>
                   ) : (
                     <div
-                      className={`w-8 h-8 rounded-xl bg-red-600 flex items-center justify-center shadow-md shadow-red-900/30 ${bouncing ? "btn-bounce" : ""}`}
+                      className={`w-7 h-7 rounded-lg bg-red-600 flex items-center justify-center ${bouncing ? "btn-bounce" : ""}`}
                       onClick={handlePlusClick}
                       data-testid={`button-add-${product.id}`}
                     >
-                      <Plus className="w-4 h-4 text-white" />
+                      <Plus className="w-3.5 h-3.5 text-white" />
                     </div>
                   )}
                 </div>
@@ -1203,14 +1202,14 @@ export default function PublicMenuPage() {
         return (
           <>
             {hasCategories && (
-              <div className="sticky top-0 z-30 px-4 pt-2 pb-2 mb-1 overflow-x-auto backdrop-blur-md border-b border-white/[0.04]" style={{ background: "rgba(0,0,0,0.72)" }} data-testid="category-nav-bar">
-                <div className="flex gap-2 pb-1" style={{ width: "max-content" }}>
+              <div className="sticky top-0 z-30 px-3 pt-1.5 pb-1.5 mb-1 overflow-x-auto backdrop-blur-md border-b border-white/[0.04]" style={{ background: "rgba(0,0,0,0.75)" }} data-testid="category-nav-bar">
+                <div className="flex gap-1.5 pb-0.5" style={{ width: "max-content" }}>
                   <button
                     onClick={() => setSelectedCategory(null)}
-                    className={`px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all ${
+                    className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
                       selectedCategory === null
-                        ? "bg-red-600 text-white shadow-md shadow-red-900/30"
-                        : "bg-zinc-800/60 text-white/50 hover:text-white/80 hover:bg-zinc-700/60 border border-white/[0.06]"
+                        ? "bg-red-600 text-white"
+                        : "bg-zinc-800/70 text-white/50 hover:text-white/80 border border-white/[0.06]"
                     }`}
                     data-testid="category-pill-all"
                   >
@@ -1220,10 +1219,10 @@ export default function PublicMenuPage() {
                     <button
                       key={cat}
                       onClick={() => setSelectedCategory(selectedCategory === cat ? null : cat)}
-                      className={`px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all ${
+                      className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
                         selectedCategory === cat
-                          ? "bg-red-600 text-white shadow-md shadow-red-900/30"
-                          : "bg-zinc-800/60 text-white/50 hover:text-white/80 hover:bg-zinc-700/60 border border-white/[0.06]"
+                          ? "bg-red-600 text-white"
+                          : "bg-zinc-800/70 text-white/50 hover:text-white/80 border border-white/[0.06]"
                       }`}
                       data-testid={`category-pill-${cat}`}
                     >
