@@ -431,7 +431,7 @@ export default function DashboardPage() {
       if (prevWhatsappCountRef.current >= 0 && orders.length > prevWhatsappCountRef.current) {
         try {
           if (!waOrderAudioRef.current) {
-            waOrderAudioRef.current = new Audio("/merchant_alert.mp3");
+            waOrderAudioRef.current = new Audio("/merchant_premium_alert.mp3");
           }
           waOrderAudioRef.current.currentTime = 0;
           waOrderAudioRef.current.play().catch(() => {});
@@ -2149,7 +2149,7 @@ function OverviewView({
                         <Button
                           onClick={() => onAcceptWhatsAppOrder(order)}
                           disabled={acceptingOrderId === order.id || rejectingOrderId === order.id}
-                          className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl shadow-lg shadow-emerald-600/20"
+                          className={`w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl ${acceptingOrderId === order.id ? "" : "accept-glow"}`}
                           data-testid={`button-accept-order-${item.id}`}
                         >
                           {acceptingOrderId === order.id ? <Loader2 className="w-4 h-4 animate-spin" /> : (

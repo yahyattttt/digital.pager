@@ -496,3 +496,12 @@
 .new-order-pulse {
   animation: newOrderPulse 1.6s ease-in-out infinite;
 }
+
+/* Accept button luxury green glow — breathing box-shadow only, no movement */
+@keyframes acceptGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+  50%       { box-shadow: 0 4px 24px 6px rgba(16, 185, 129, 0.55), 0 0 0 3px rgba(16, 185, 129, 0.18); }
+}
+.accept-glow {
+  animation: acceptGlow 1.8s ease-in-out infinite;
+}
