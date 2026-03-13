@@ -363,8 +363,8 @@ async function findMerchantByEmail(email: string): Promise<{ uid: string } | nul
     if (Array.isArray(results) && results.length > 0 && results[0].document) {
       const docName: string = results[0].document.name;
       const docId = docName.split("/").pop()!;
-      const fields = results[0].document.fields || {};
-      return { uid: fields.uid?.stringValue || docId };
+      // Always use the real Firestore document ID as the canonical UID
+      return { uid: docId };
     }
     return null;
   } catch (e) {
@@ -2585,10 +2585,53 @@ export async function registerRoutes(
 
       const base = getApiKeyBaseUrl()!;
 
-      // Fetch merchant document
+      // Fetch merchant document — try direct path first, then fallback query by uid field
+      console.log(`[MENU] Fetching merchant document for merchantId: ${merchantId}`);
+      let mDoc: any = null;
       const mRes = await apikeyFetch(`${base}/merchants/${merchantId}`);
-      if (!mRes.ok) return res.status(404).json({ message: "Merchant not found" });
-      const mDoc = await mRes.json();
+      if (mRes.ok) {
+        mDoc = await mRes.json();
+        console.log(`[MENU] Direct document found for merchantId: ${merchantId}`);
+      } else {
+        console.warn(`[MENU] Direct doc 404 for ${merchantId} — falling back to uid field query`);
+        // Fallback: query merchants collection where uid == merchantId
+        const queryBody = {
+          structuredQuery: {
+            from: [{ collectionId: "merchants" }],
+            where: {
+              fieldFilter: {
+                field: { fieldPath: "uid" },
+                op: "EQUAL",
+                value: { stringValue: merchantId },
+              },
+            },
+            limit: 1,
+          },
+        };
+        const dbBase = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
+        const qRes = await apikeyFetch(`${dbBase}:runQuery`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(queryBody),
+        });
+        if (qRes.ok) {
+          const qData = await qRes.json();
+          if (Array.isArray(qData) && qData.length > 0 && qData[0].document) {
+            mDoc = qData[0].document;
+            const realDocId = mDoc.name.split("/").pop();
+            console.log(`[MENU] Found via uid query — real docId: ${realDocId}`);
+          }
+        }
+        if (!mDoc) {
+          console.error(`[MENU] No merchant found for merchantId: ${merchantId}`);
+          return res.status(404).json({ message: "Merchant not found" });
+        }
+      }
+      // Use the real Firestore docId for subcollection paths (may differ from URL merchantId)
+      const resolvedMerchantId = mDoc.name ? mDoc.name.split("/").pop()! : merchantId;
+      if (resolvedMerchantId !== merchantId) {
+        console.log(`[MENU] Resolved merchantId: ${merchantId} → ${resolvedMerchantId}`);
+      }
       const mf = mDoc.fields || {};
 
       const merchant = {
@@ -2614,15 +2657,17 @@ export async function registerRoutes(
         storeLng: mf.storeLng?.doubleValue ?? null,
       };
 
-      // Fetch products via LIST (same reliable method as dashboard)
+      // Fetch products via LIST using the resolved Firestore docId path
+      console.log(`[MENU] Fetching products from merchants/${resolvedMerchantId}/products`);
       const listRes = await apikeyFetch(
-        `${base}/merchants/${merchantId}/products?pageSize=500`,
+        `${base}/merchants/${resolvedMerchantId}/products?pageSize=500`,
         { headers: {} }
       );
 
       let products: any[] = [];
       if (listRes.ok) {
         const listData = await listRes.json();
+        console.log(`[MENU] Raw product docs returned: ${(listData.documents || []).length}`);
         const mapArray = (arr: any[]) => arr.map((v: any) => ({
           name: v.mapValue?.fields?.name?.stringValue || "",
           price: v.mapValue?.fields?.price?.doubleValue ?? parseFloat(v.mapValue?.fields?.price?.integerValue || "0"),
@@ -2633,10 +2678,10 @@ export async function registerRoutes(
         products = (listData.documents || [])
           .filter((doc: any) => {
             const f = doc.fields || {};
-            // Only include visible products belonging to this merchant
+            // Only include visible products; accept products with matching merchantId OR no merchantId field
             const docMerchantId = f.merchantId?.stringValue || "";
             const isVisible = f.visible?.booleanValue !== false;
-            const belongsToMerchant = !docMerchantId || docMerchantId === merchantId;
+            const belongsToMerchant = !docMerchantId || docMerchantId === merchantId || docMerchantId === resolvedMerchantId;
             return isVisible && belongsToMerchant;
           })
           .map((doc: any) => {

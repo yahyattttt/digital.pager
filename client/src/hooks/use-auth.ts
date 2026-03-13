@@ -10,24 +10,6 @@ function isAdminEmail(email: string) {
   return ADMIN_EMAILS.includes(email.toLowerCase());
 }
 
-const TEST_MERCHANT_EMAIL = "merchant@test.com";
-const MOCK_TEST_MERCHANT: Merchant = {
-  uid: "",
-  id: "",
-  storeName: "Test Store",
-  businessType: "restaurant",
-  email: TEST_MERCHANT_EMAIL,
-  logoUrl: "",
-  commercialRegisterURL: "",
-  googleMapsReviewUrl: "https://maps.google.com",
-  status: "approved",
-  subscriptionStatus: "active",
-  plan: "trial",
-  sharesCount: 0,
-  googleMapsClicks: 0,
-  qrScans: 0,
-  createdAt: new Date().toISOString(),
-};
 
 interface SessionData {
   uid: string;
@@ -87,13 +69,6 @@ export function useAuthProvider() {
     if (isAdminEmail(user.email)) {
       console.log("[Auth] Admin email detected — skipping merchant fetch:", user.email);
       setMerchant(null);
-      setLoading(false);
-      return;
-    }
-
-    if (user.email.toLowerCase() === TEST_MERCHANT_EMAIL) {
-      console.log("[Auth] Test merchant account — injecting mock merchant data with uid:", user.uid);
-      setMerchant({ ...MOCK_TEST_MERCHANT, uid: user.uid, id: user.uid });
       setLoading(false);
       return;
     }
