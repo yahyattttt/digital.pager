@@ -65,6 +65,7 @@ export default function PublicMenuPage() {
   const [merchant, setMerchant] = useState<MerchantInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [gridAnimKey, setGridAnimKey] = useState(0);
   const [notFound, setNotFound] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showCheckout, setShowCheckout] = useState(false);
@@ -126,6 +127,18 @@ export default function PublicMenuPage() {
   useEffect(() => {
     fetchMenu(false);
   }, [fetchMenu]);
+
+  useEffect(() => {
+    if (products.length === 0) return;
+    const cats = Array.from(new Set(
+      products.filter(p => p.visible !== false)
+        .map(p => p.category)
+        .filter((c): c is string => !!c && c.trim() !== "")
+    ));
+    if (cats.length > 0 && selectedCategory === null) {
+      setSelectedCategory(cats[0]);
+    }
+  }, [products]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -1126,19 +1139,16 @@ export default function PublicMenuPage() {
         const visibleProducts = products.filter(p => p.visible !== false);
         const categories = Array.from(new Set(visibleProducts.map(p => p.category).filter((c): c is string => !!c && c.trim() !== "")));
         const hasCategories = categories.length > 0;
-        const filteredProducts = selectedCategory
-          ? visibleProducts.filter(p => p.category === selectedCategory)
+        const activeCategory = selectedCategory || categories[0] || null;
+        const displayedProducts = activeCategory
+          ? visibleProducts.filter(p => p.category === activeCategory)
           : visibleProducts;
-        const grouped: { label: string; items: typeof visibleProducts }[] = hasCategories
-          ? (selectedCategory
-              ? [{ label: selectedCategory, items: filteredProducts }]
-              : [
-                  ...categories.map(cat => ({ label: cat, items: visibleProducts.filter(p => p.category === cat) })),
-                  ...(visibleProducts.some(p => !p.category || p.category.trim() === "")
-                    ? [{ label: t("أخرى", "Other"), items: visibleProducts.filter(p => !p.category || p.category.trim() === "") }]
-                    : []),
-                ])
-          : [];
+
+        function handleCategorySelect(cat: string) {
+          if (cat === activeCategory) return;
+          setSelectedCategory(cat);
+          setGridAnimKey(k => k + 1);
+        }
 
         function ProductCard({ product }: { product: (typeof visibleProducts)[number] }) {
           const qty = getCartQuantityForProduct(product.id);
@@ -1202,25 +1212,14 @@ export default function PublicMenuPage() {
         return (
           <div className="flex-1 overflow-y-auto min-h-0">
             {hasCategories && (
-              <div className="sticky top-0 z-30 px-3 pt-1.5 pb-1.5 overflow-x-auto backdrop-blur-md border-b border-white/[0.05]" style={{ background: "rgba(5,0,0,0.82)" }} data-testid="category-nav-bar">
+              <div className="sticky top-0 z-30 px-3 pt-1.5 pb-1.5 overflow-x-auto backdrop-blur-md border-b border-white/[0.05]" style={{ background: "rgba(5,0,0,0.84)" }} data-testid="category-nav-bar">
                 <div className="flex gap-1.5" style={{ width: "max-content" }}>
-                  <button
-                    onClick={() => setSelectedCategory(null)}
-                    className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
-                      selectedCategory === null
-                        ? "bg-red-600 text-white"
-                        : "bg-zinc-800/70 text-white/50 hover:text-white/80 border border-white/[0.06]"
-                    }`}
-                    data-testid="category-pill-all"
-                  >
-                    {t("الكل", "All")}
-                  </button>
                   {categories.map(cat => (
                     <button
                       key={cat}
-                      onClick={() => setSelectedCategory(selectedCategory === cat ? null : cat)}
+                      onClick={() => handleCategorySelect(cat)}
                       className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
-                        selectedCategory === cat
+                        activeCategory === cat
                           ? "bg-red-600 text-white"
                           : "bg-zinc-800/70 text-white/50 hover:text-white/80 border border-white/[0.06]"
                       }`}
@@ -1238,24 +1237,13 @@ export default function PublicMenuPage() {
                 <div className="text-center py-16" data-testid="empty-menu-state">
                   <p className="text-white/40 text-sm">{t("لا توجد منتجات متاحة حالياً", "No products available at the moment")}</p>
                 </div>
-              ) : hasCategories ? (
-                <div className="space-y-5" data-testid="menu-product-grid">
-                  {grouped.map(group => group.items.length > 0 && (
-                    <div key={group.label} id={`cat-${group.label}`} data-testid={`category-section-${group.label}`}>
-                      <h2 className="text-white/70 font-bold text-xs mb-2 flex items-center gap-2 uppercase tracking-wider">
-                        <span className="w-1 h-3 bg-red-500 rounded-full inline-block" />
-                        {group.label}
-                        <span className="text-white/20 font-normal">({group.items.length})</span>
-                      </h2>
-                      <div className="grid grid-cols-2 gap-2">
-                        {group.items.map(product => <ProductCard key={product.id} product={product} />)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
               ) : (
-                <div className="grid grid-cols-2 gap-2" data-testid="menu-product-grid">
-                  {visibleProducts.map(product => <ProductCard key={product.id} product={product} />)}
+                <div
+                  key={gridAnimKey}
+                  className="grid grid-cols-2 gap-2 grid-fade-in"
+                  data-testid="menu-product-grid"
+                >
+                  {displayedProducts.map(product => <ProductCard key={product.id} product={product} />)}
                 </div>
               )}
             </div>
