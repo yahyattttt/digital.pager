@@ -42,3 +42,7 @@ waitForPort = 5000
 
 [userenv.shared]
 VITE_FIREBASE_VAPID_KEY = "BM6HQUX859Byjy-JO1tFdcI_gnhMPm3z4viMJKYkGL3AGDIwZedcWRT1Vgv4R_-8sVD4d_oE23hutzzt51OmXnw"
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 20000
