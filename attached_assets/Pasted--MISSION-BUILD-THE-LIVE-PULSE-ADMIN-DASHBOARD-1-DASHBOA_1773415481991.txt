@@ -1,0 +1,36 @@
+### MISSION: BUILD THE "LIVE PULSE" ADMIN DASHBOARD ###
+
+1. DASHBOARD LAYOUT (Premium SaaS Style):
+   - Refactor the Merchant Dashboard to include a sidebar and a main "Overview" area.
+   - Use a clean dark theme (#0f172a) with high-contrast white text for numbers.
+
+2. SECTION 1: THE LIVE PULSE (Real-Time Monitoring):
+   - LIST: Show active orders.
+   - WAIT TIMER LOGIC: Add a live counter next to each NEW order showing "Time Elapsed" (e.g., 03:45 mins).
+   - DYNAMIC COLORING: If an order stays in "New" status for more than 5 minutes ($T \ge 5$), change the background/border to a soft RED pulse to alert the merchant.
+   - ORDER TYPE ICONS: Clearly label each order with icons: 🚗 (Delivery/توصيل) or 🥡 (Pickup/استلام).
+
+3. SECTION 2: ORDER JOURNEY DETAILS (Actionable Data):
+   - EXPANDABLE ROWS/MODALS: When clicking an order, show:
+     - Customer Name & Phone.
+     - WHATSAPP BUTTON: A direct link to chat with the customer.
+     - GOOGLE MAPS LINK: For delivery orders, show a "Open in Maps" button.
+     - PAYMENT STATUS: Clear badge for (مدفوع أونلاين ✅) or (الدفع عند الاستلام 💵).
+
+4. SECTION 3: PERFORMANCE ANALYTICS (The Charts):
+   - Create an "Analytics" tab showing:
+     - BEST SELLERS: Top 3 most ordered items.
+     - PEAK HOURS: A simple bar chart showing order density throughout the day.
+     - FEEDBACK GATEKEEPER: A list showing all feedback, highlighting those < 3 stars for immediate attention.
+
+5. SECTION 4: FINANCIAL CLARITY:
+   - TOP STATS CARDS:
+     - "صافي مبيعات اليوم" (Daily Net Sales).
+     - "طلبات مكتملة" vs "طلبات ملغاة" (Completed vs. Cancelled).
+   - INVOICE ACCESS: Add a "Quick Print" icon next to every completed order to generate the PDF invoice we designed.
+
+6. SOUND & INTERACTION:
+   - Ensure the "Premium iPhone Chime" plays for every new order.
+   - Add the "Accept" button pulsing animation for all New orders.
+
+7. DATA SOURCE: Fetch all data from Firestore, ensuring real-time updates without page refresh.

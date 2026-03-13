@@ -1476,6 +1476,42 @@ function TimeElapsed({ createdAt, lang }: { createdAt: string; lang: string }) {
   return <span>{elapsed}</span>;
 }
 
+function LiveOrderTimer({ createdAt, lang, isNew }: { createdAt: string; lang: string; isNew: boolean }) {
+  const [secs, setSecs] = useState(0);
+  useEffect(() => {
+    const calc = () => {
+      const ts = new Date(createdAt).getTime();
+      if (isNaN(ts)) return;
+      setSecs(Math.max(0, Math.floor((Date.now() - ts) / 1000)));
+    };
+    calc();
+    const iv = setInterval(calc, 1000);
+    return () => clearInterval(iv);
+  }, [createdAt]);
+
+  const mm = Math.floor(secs / 60);
+  const ss = String(secs % 60).padStart(2, "0");
+  const isOverdue = isNew && secs >= 300;
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1 font-mono text-[11px] font-bold px-1.5 py-0.5 rounded-md transition-colors ${
+        isOverdue
+          ? "bg-red-500/25 text-red-300 border border-red-500/40 animate-pulse"
+          : isNew
+          ? "bg-amber-500/15 text-amber-400 border border-amber-500/20"
+          : "text-white/40"
+      }`}
+      title={isOverdue ? (lang === "ar" ? "تأخر عن 5 دقائق!" : "Over 5 minutes!") : undefined}
+      data-testid="live-order-timer"
+    >
+      <Clock className="w-2.5 h-2.5" />
+      {mm}:{ss}
+      {isOverdue && <span className="text-[9px]">{lang === "ar" ? "⚠️" : "⚠️"}</span>}
+    </span>
+  );
+}
+
 function OverviewView({
   merchant,
   waitingPagers,
@@ -1561,6 +1597,7 @@ function OverviewView({
   const [uncollectedConfirmOrder, setUncollectedConfirmOrder] = useState<WhatsAppOrder | null>(null);
   const [customerNoShowMap, setCustomerNoShowMap] = useState<Record<string, number>>({});
   const [customerOrderCounts, setCustomerOrderCounts] = useState<Record<string, number>>({});
+  const [overviewStats, setOverviewStats] = useState<{ totalRevenueToday: number; completedTodayCount: number; cancelledToday: number } | null>(null);
 
   useEffect(() => {
     if (!merchant?.uid) return;
@@ -1577,6 +1614,19 @@ function OverviewView({
         setCustomerOrderCounts(orderCountMap);
       })
       .catch(() => {});
+  }, [merchant?.uid]);
+
+  useEffect(() => {
+    if (!merchant?.uid) return;
+    const fetchStats = () => {
+      fetch(`/api/merchant-analytics/${merchant.uid}`, { headers: { "x-merchant-email": merchant.email || "" } })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d) setOverviewStats({ totalRevenueToday: d.totalRevenueToday || 0, completedTodayCount: d.completedTodayCount || 0, cancelledToday: d.cancelledToday || 0 }); })
+        .catch(() => {});
+    };
+    fetchStats();
+    const iv = setInterval(fetchStats, 60000);
+    return () => clearInterval(iv);
   }, [merchant?.uid]);
 
   const handlePrint = (order: WhatsAppOrder) => {
@@ -1793,11 +1843,55 @@ function OverviewView({
 
   return (
     <div className="flex flex-col h-full min-h-[calc(100dvh-3.5rem)]">
+
+      {/* Live Pulse Stats Bar */}
+      <div className="grid grid-cols-3 gap-2 mb-4" data-testid="live-pulse-stats-bar">
+        <div className="rounded-xl bg-[#0d1117] border border-white/[0.06] px-3 py-2.5 flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/15 flex items-center justify-center shrink-0">
+            <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] text-white/35 uppercase tracking-wider leading-none mb-0.5">{t("صافي اليوم", "Net Today")}</p>
+            <p className="text-base font-bold text-white leading-none" data-testid="text-daily-net">
+              {overviewStats ? overviewStats.totalRevenueToday.toLocaleString() : "—"} <span className="text-[10px] text-white/30">SAR</span>
+            </p>
+          </div>
+        </div>
+        <div className="rounded-xl bg-[#0d1117] border border-white/[0.06] px-3 py-2.5 flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-lg bg-sky-500/10 border border-sky-500/15 flex items-center justify-center shrink-0">
+            <CheckCircle className="w-3.5 h-3.5 text-sky-400" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] text-white/35 uppercase tracking-wider leading-none mb-0.5">{t("مكتملة", "Completed")}</p>
+            <p className="text-base font-bold text-white leading-none" data-testid="text-completed-today">
+              {overviewStats ? overviewStats.completedTodayCount : "—"} <span className="text-[10px] text-white/30">{t("طلب", "orders")}</span>
+            </p>
+          </div>
+        </div>
+        <div className="rounded-xl bg-[#0d1117] border border-white/[0.06] px-3 py-2.5 flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-lg bg-red-500/10 border border-red-500/15 flex items-center justify-center shrink-0">
+            <X className="w-3.5 h-3.5 text-red-400" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] text-white/35 uppercase tracking-wider leading-none mb-0.5">{t("ملغاة", "Cancelled")}</p>
+            <p className="text-base font-bold text-white leading-none" data-testid="text-cancelled-today">
+              {overviewStats ? overviewStats.cancelledToday : "—"} <span className="text-[10px] text-white/30">{t("طلب", "orders")}</span>
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
-          <h2 className="text-lg font-bold text-white" data-testid="text-overview-title">
-            {t("إدارة الطلبات", "Order Management")}
-          </h2>
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-2 w-2">
+              {allActiveOrders.length > 0 && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>}
+              <span className={`relative inline-flex rounded-full h-2 w-2 ${allActiveOrders.length > 0 ? "bg-red-500" : "bg-white/20"}`}></span>
+            </span>
+            <h2 className="text-lg font-bold text-white" data-testid="text-overview-title">
+              {t("اللايف بولس", "Live Pulse")}
+            </h2>
+          </div>
           {totalActive > 0 && (
             <Badge className="rounded-full text-[11px] px-2 py-0.5 bg-white/[0.06] text-white/60 border-white/10" data-testid="badge-active-count">
               {totalActive} {t("نشط", "active")}
@@ -2002,16 +2096,22 @@ function OverviewView({
 
               const isOnline = item.type === "wa-new" || item.type === "wa";
               const sc = statusColor(item.status);
+              const isNewStatus = item.status === "awaiting_confirmation" || item.status === "pending_verification" || item.type === "wa-new";
+              const orderAgeSecs = Math.max(0, Math.floor((Date.now() - new Date(item.createdAt).getTime()) / 1000));
+              const isOverdueCard = isNewStatus && orderAgeSecs >= 300;
 
               if (item.type === "wa-new") {
                 const order = (item as any).order as WhatsAppOrder;
                 return (
                   <Card
                     key={`wa-new-${item.id}`}
-                    className={`relative rounded-2xl overflow-hidden transition-all duration-500 border new-order-pulse ${isFlying ? "opacity-0 -translate-y-20 scale-75" : ""}`}
+                    className={`relative rounded-2xl overflow-hidden transition-all duration-500 border new-order-pulse ${isOverdueCard ? "ring-2 ring-red-500/60 shadow-[0_0_20px_rgba(239,68,68,0.25)]" : ""} ${isFlying ? "opacity-0 -translate-y-20 scale-75" : ""}`}
                     style={cardStyle(item.orderCategory)}
                     data-testid={`card-wa-order-${item.id}`}
                   >
+                    {isOverdueCard && (
+                      <div className="absolute top-0 inset-x-0 h-0.5 bg-gradient-to-r from-red-600 via-red-400 to-red-600 animate-pulse" />
+                    )}
                     <WatermarkIcon category={item.orderCategory} />
                     <div className="flex items-center justify-between px-4 pt-4 pb-2">
                       <div className="flex items-center gap-2">
@@ -2020,15 +2120,12 @@ function OverviewView({
                           {order.displayOrderId || (order.orderNumber ? `#${order.orderNumber}` : t("جديد", "NEW"))}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap justify-end">
                         <TypeBadge category={item.orderCategory} />
                         <Badge className={`rounded-full text-[10px] px-2 py-0.5 ${sc.bg} ${sc.text} border ${sc.border}`}>
                           {sc.label}
                         </Badge>
-                        <div className="flex items-center gap-1 text-[11px] text-white/40">
-                          <Clock className="w-3 h-3" />
-                          <TimeElapsed createdAt={item.createdAt} lang={lang} />
-                        </div>
+                        <LiveOrderTimer createdAt={item.createdAt} lang={lang} isNew={true} />
                       </div>
                     </div>
 
@@ -2180,15 +2277,12 @@ function OverviewView({
                           {pager.displayOrderId || `#${item.orderNumber}`}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap justify-end">
                         <TypeBadge category="manual" />
                         <Badge className={`rounded-full text-[10px] px-2 py-0.5 ${sc.bg} ${sc.text} border ${sc.border}`}>
                           {isNotified ? t("تم التنبيه", "Notified") : t("في الانتظار", "Waiting")}
                         </Badge>
-                        <div className="flex items-center gap-1 text-[11px] text-white/40">
-                          <Clock className="w-3 h-3" />
-                          <TimeElapsed createdAt={item.createdAt} lang={lang} />
-                        </div>
+                        <LiveOrderTimer createdAt={item.createdAt} lang={lang} isNew={!isNotified} />
                       </div>
                     </div>
 
@@ -2259,10 +2353,7 @@ function OverviewView({
                       <Badge className={`rounded-full text-[10px] px-2 py-0.5 ${sc.bg} ${sc.text} border ${sc.border}`}>
                         {sc.label}
                       </Badge>
-                      <div className="flex items-center gap-1 text-[11px] text-white/40">
-                        <Clock className="w-3 h-3" />
-                        <TimeElapsed createdAt={item.createdAt} lang={lang} />
-                      </div>
+                      <LiveOrderTimer createdAt={item.createdAt} lang={lang} isNew={isNewStatus} />
                     </div>
                   </div>
 
@@ -3300,6 +3391,7 @@ function AnalyticsView({
 }) {
   const [analyticsData, setAnalyticsData] = useState<any>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
+  const [feedbacksForAnalytics, setFeedbacksForAnalytics] = useState<any[]>([]);
 
   useEffect(() => {
     if (!merchant?.uid) return;
@@ -3314,6 +3406,14 @@ function AnalyticsView({
     fetchAnalytics();
     const interval = setInterval(fetchAnalytics, 60000);
     return () => clearInterval(interval);
+  }, [merchant?.uid]);
+
+  useEffect(() => {
+    if (!merchant?.uid) return;
+    fetch(`/api/feedback/${merchant.uid}`)
+      .then(r => r.ok ? r.json() : { feedbacks: [] })
+      .then(d => setFeedbacksForAnalytics((d.feedbacks || []).slice(0, 20)))
+      .catch(() => {});
   }, [merchant?.uid]);
 
   const totalActive = waitingPagers.length + notifiedPagers.length + activeWhatsappOrders.length + whatsappOrders.length;
@@ -3454,6 +3554,117 @@ function AnalyticsView({
                 </div>
               )}
             </>
+          )}
+
+          {/* ===== BEST SELLERS ===== */}
+          {analyticsData?.bestSellers?.length > 0 && (
+            <div data-testid="section-best-sellers">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-white/50 mb-3">{t("الأكثر مبيعاً", "Best Sellers")}</h3>
+              <div className="space-y-2">
+                {analyticsData.bestSellers.slice(0, 3).map((item: any, i: number) => {
+                  const medals = ["🥇", "🥈", "🥉"];
+                  const colors = ["from-amber-500/15", "from-slate-400/10", "from-orange-600/10"];
+                  const barColors = ["bg-amber-400", "bg-slate-400", "bg-orange-500"];
+                  const maxCount = analyticsData.bestSellers[0]?.count || 1;
+                  const pct = Math.round((item.count / maxCount) * 100);
+                  return (
+                    <div
+                      key={i}
+                      className={`rounded-xl bg-gradient-to-r ${colors[i]} to-[#111] border border-white/[0.06] p-3 flex items-center gap-3`}
+                      data-testid={`card-bestseller-${i}`}
+                    >
+                      <span className="text-2xl leading-none" aria-hidden="true">{medals[i]}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <p className="text-sm font-bold text-white truncate">{item.name}</p>
+                          <div className="flex items-center gap-2 shrink-0 ms-2">
+                            <span className="text-xs text-white/50 font-mono">{item.count}×</span>
+                            <span className="text-xs font-bold text-emerald-400">{item.revenue.toFixed(0)} SAR</span>
+                          </div>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                          <div className={`h-full rounded-full ${barColors[i]} transition-all`} style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ===== PEAK HOURS ===== */}
+          {analyticsData?.peakHours && (
+            <div data-testid="section-peak-hours">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-white/50 mb-3">{t("ساعات الذروة", "Peak Hours")}</h3>
+              <div className="rounded-2xl bg-[#111] border border-white/[0.06] p-4">
+                <ResponsiveContainer width="100%" height={140}>
+                  <BarChart data={analyticsData.peakHours.filter((h: any) => h.count > 0).length > 0 ? analyticsData.peakHours : analyticsData.peakHours.map((h: any) => ({ ...h, count: 0 }))} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                    <XAxis
+                      dataKey="hour"
+                      tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 9 }}
+                      tickFormatter={(v) => `${v}:00`}
+                      interval={3}
+                    />
+                    <YAxis hide />
+                    <Tooltip
+                      contentStyle={{ background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#fff", fontSize: 11 }}
+                      formatter={(v: any) => [v, lang === "ar" ? "طلبات" : "Orders"]}
+                      labelFormatter={(v) => `${v}:00`}
+                    />
+                    <Bar dataKey="count" radius={[3, 3, 0, 0]}>
+                      {analyticsData.peakHours.map((_: any, i: number) => (
+                        <Cell key={i} fill={analyticsData.peakHours[i]?.count > 0 ? "#ef4444" : "rgba(255,255,255,0.06)"} opacity={0.7 + 0.3 * (analyticsData.peakHours[i]?.count / (Math.max(...analyticsData.peakHours.map((h: any) => h.count), 1)))} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+                {analyticsData.peakHours.every((h: any) => h.count === 0) && (
+                  <p className="text-center text-xs text-white/30 mt-2">{t("لا توجد بيانات بعد", "No data yet")}</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ===== FEEDBACK GATEKEEPER ===== */}
+          {feedbacksForAnalytics.length > 0 && (
+            <div data-testid="section-feedback-gatekeeper">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-white/50">{t("بوابة التقييمات", "Feedback Gatekeeper")}</h3>
+                <span className="text-[10px] text-white/30">
+                  {feedbacksForAnalytics.filter((f: any) => (f.stars || f.rating) < 3).length} {t("تقييم منخفض", "low rating")}
+                </span>
+              </div>
+              <div className="space-y-2">
+                {feedbacksForAnalytics.map((fb: any, i: number) => {
+                  const stars = fb.stars ?? fb.rating ?? 0;
+                  const isLow = stars < 3;
+                  const ts = fb.timestamp || fb.createdAt || "";
+                  const dateStr = ts ? new Date(ts).toLocaleDateString(lang === "ar" ? "ar-SA" : "en-US", { month: "short", day: "numeric" }) : "";
+                  return (
+                    <div
+                      key={i}
+                      className={`rounded-xl border px-3 py-2.5 flex items-start gap-3 ${isLow ? "bg-red-500/8 border-red-500/25 shadow-[0_0_10px_rgba(239,68,68,0.08)]" : "bg-white/[0.02] border-white/[0.05]"}`}
+                      data-testid={`feedback-item-${i}`}
+                    >
+                      {isLow && <span className="text-red-400 text-xs font-bold mt-0.5 shrink-0">⚠️</span>}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          {Array.from({ length: 5 }).map((_, si) => (
+                            <span key={si} className={`text-sm ${si < stars ? (isLow ? "text-red-400" : "text-amber-400") : "text-white/10"}`}>★</span>
+                          ))}
+                          <span className="text-[10px] text-white/30 ms-1">{dateStr}</span>
+                        </div>
+                        {fb.comment && (
+                          <p className={`text-xs leading-relaxed line-clamp-2 ${isLow ? "text-red-300/80" : "text-white/60"}`}>{fb.comment}</p>
+                        )}
+                        {!fb.comment && <p className="text-xs text-white/20 italic">{t("بدون تعليق", "No comment")}</p>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           )}
 
           <div>

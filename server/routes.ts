@@ -1940,8 +1940,12 @@ export async function registerRoutes(
       let totalOrdersToday = 0;
       let totalRevenueToday = 0;
       let lostRevenueToday = 0;
+      let cancelledToday = 0;
+      let completedTodayCount = 0;
       const sourceCounts: Record<string, number> = {};
       const todayPhones: Set<string> = new Set();
+      const itemCounts: Record<string, { count: number; revenue: number }> = {};
+      const peakHourCounts: Record<number, number> = {};
 
       for (const d of docs) {
         const f = d.fields || {};
@@ -1953,8 +1957,9 @@ export async function registerRoutes(
 
         const status = f.status?.stringValue || "";
         const total = Number(f.total?.doubleValue ?? f.total?.integerValue ?? 0);
-        if (status === "archived" || status === "completed") totalRevenueToday += total;
+        if (status === "archived" || status === "completed") { totalRevenueToday += total; completedTodayCount++; }
         if (status === "uncollected") lostRevenueToday += total;
+        if (status === "rejected" || status === "cancelled") cancelledToday++;
 
         const preparingAt = f.preparingAt?.stringValue;
         const readyAt = f.readyAt?.stringValue;
@@ -1968,6 +1973,23 @@ export async function registerRoutes(
 
         const phone = f.customerPhone?.stringValue || "";
         if (phone) todayPhones.add(phone.replace(/[^0-9]/g, ""));
+
+        // Peak hours
+        const hr = new Date(createdMs).getHours();
+        peakHourCounts[hr] = (peakHourCounts[hr] || 0) + 1;
+
+        // Best sellers — scan items array
+        const itemsArr = f.items?.arrayValue?.values || [];
+        for (const iv of itemsArr) {
+          const iFields = iv?.mapValue?.fields || {};
+          const iName = iFields.name?.stringValue || "";
+          const iQty = parseInt(iFields.quantity?.integerValue || iFields.quantity?.doubleValue || "1");
+          const iPrice = Number(iFields.price?.doubleValue ?? iFields.price?.integerValue ?? 0);
+          if (!iName) continue;
+          if (!itemCounts[iName]) itemCounts[iName] = { count: 0, revenue: 0 };
+          itemCounts[iName].count += iQty;
+          itemCounts[iName].revenue += iPrice * iQty;
+        }
       }
 
       const custRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}/customers?pageSize=500`, {
@@ -1989,8 +2011,13 @@ export async function registerRoutes(
 
       const avgPrepTime = prepTimes.length > 0 ? Math.round(prepTimes.reduce((a, b) => a + b, 0) / prepTimes.length / 1000) : 0;
       const orderSources = Object.entries(sourceCounts).map(([source, count]) => ({ source, count })).sort((a, b) => b.count - a.count);
+      const bestSellers = Object.entries(itemCounts)
+        .map(([name, d]) => ({ name, count: d.count, revenue: Math.round(d.revenue * 100) / 100 }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5);
+      const peakHours = Array.from({ length: 24 }, (_, h) => ({ hour: h, count: peakHourCounts[h] || 0 }));
 
-      return res.json({ avgPrepTime, totalOrdersToday, newCustomersToday, totalRevenueToday, lostRevenueToday, orderSources });
+      return res.json({ avgPrepTime, totalOrdersToday, newCustomersToday, totalRevenueToday, lostRevenueToday, orderSources, bestSellers, peakHours, cancelledToday, completedTodayCount });
     } catch (error) {
       console.error("Merchant analytics error:", error);
       return res.status(500).json({ message: "Failed to get analytics" });
