@@ -354,16 +354,21 @@ export default function RegisterPage() {
         createdAt: new Date().toISOString(),
       };
 
+      console.log("[Register] Step 1: Signing in with Firebase custom token...");
       try {
-        await signInWithCustomToken(auth, customToken);
+        await signInWithCustomToken(auth, customToken!);
+        console.log("[Register] Step 1 OK: Firebase Auth session established");
       } catch (authError: any) {
-        void authError;
+        console.warn("[Register] Step 1 WARN: signInWithCustomToken failed:", authError.code, authError.message);
       }
 
+      console.log("[Register] Step 2: Writing merchant to Firestore uid:", firebaseUid);
       try {
-        await setDoc(doc(db, "merchants", firebaseUid), merchantData);
+        await setDoc(doc(db, "merchants", firebaseUid), merchantData, { merge: true });
+        console.log("[Register] Step 2 OK: Merchant document written to Firestore");
       } catch (firestoreError: any) {
-        console.error("Firestore write error:", firestoreError.code, firestoreError.message);
+        console.error("[Register] Step 2 FAIL: Firestore setDoc error — code:", firestoreError.code, "msg:", firestoreError.message);
+        console.log("[Register] Step 3: Falling back to server API...");
         try {
           const res = await fetch("/api/register-merchant", {
             method: "POST",
@@ -373,11 +378,14 @@ export default function RegisterPage() {
             },
             body: JSON.stringify(merchantData),
           });
+          const resData = await res.json().catch(() => ({}));
+          console.log("[Register] Step 3 server response:", res.status, JSON.stringify(resData));
           if (!res.ok) {
-            throw new Error("Server registration failed");
+            throw new Error(`Server returned ${res.status}: ${resData.message || "unknown error"}`);
           }
-        } catch (serverError) {
-          console.error("Server registration fallback error:", serverError);
+          console.log("[Register] Step 3 OK: Server registration succeeded");
+        } catch (serverError: any) {
+          console.error("[Register] Step 3 FAIL: Server fallback error:", serverError.message);
           toast({
             title: t("خطأ في حفظ البيانات", "Data Save Error"),
             description: t(

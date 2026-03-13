@@ -10,6 +10,25 @@ function isAdminEmail(email: string) {
   return ADMIN_EMAILS.includes(email.toLowerCase());
 }
 
+const TEST_MERCHANT_EMAIL = "merchant@test.com";
+const MOCK_TEST_MERCHANT: Merchant = {
+  uid: "test-merchant-uid",
+  id: "test-merchant-uid",
+  storeName: "Test Store",
+  businessType: "restaurant",
+  email: TEST_MERCHANT_EMAIL,
+  logoUrl: "",
+  commercialRegisterURL: "",
+  googleMapsReviewUrl: "https://maps.google.com",
+  status: "approved",
+  subscriptionStatus: "active",
+  plan: "trial",
+  sharesCount: 0,
+  googleMapsClicks: 0,
+  qrScans: 0,
+  createdAt: new Date().toISOString(),
+};
+
 interface SessionData {
   uid: string;
   email: string;
@@ -39,18 +58,21 @@ export function useAuthProvider() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    console.log("[Auth] Initializing — checking localStorage session");
     try {
       const stored = localStorage.getItem(SESSION_KEY);
       if (stored) {
         const session: SessionData = JSON.parse(stored);
         if (session.uid && session.email) {
+          console.log("[Auth] Restored session:", session.email);
           setUser(session);
           return;
         }
       }
     } catch (e) {
-      void e;
+      console.warn("[Auth] Failed to parse session:", e);
     }
+    console.log("[Auth] No valid session found");
     setUser(null);
     setLoading(false);
   }, []);
@@ -63,42 +85,54 @@ export function useAuthProvider() {
     }
 
     if (isAdminEmail(user.email)) {
+      console.log("[Auth] Admin email detected — skipping merchant fetch:", user.email);
       setMerchant(null);
       setLoading(false);
       return;
     }
 
+    if (user.email.toLowerCase() === TEST_MERCHANT_EMAIL) {
+      console.log("[Auth] Test merchant account — injecting mock merchant data");
+      setMerchant(MOCK_TEST_MERCHANT);
+      setLoading(false);
+      return;
+    }
+
+    console.log("[Auth] Setting up Firestore listener for merchant uid:", user.uid);
     const merchantDocRef = doc(db, "merchants", user.uid);
     const unsub = onSnapshot(
       merchantDocRef,
       async (snap) => {
         if (snap.exists()) {
           const data = snap.data() as Merchant;
+          console.log("[Auth] Merchant loaded from Firestore:", data.storeName, "| status:", data.status, "| sub:", data.subscriptionStatus);
 
           if (
             data.subscriptionStatus === "active" &&
             data.subscriptionExpiry &&
             new Date(data.subscriptionExpiry) < new Date()
           ) {
+            console.log("[Auth] Auto-expiring subscription");
             const expiredData = { ...data, subscriptionStatus: "expired" as const };
             setMerchant(expiredData);
             setLoading(false);
             try {
               await updateDoc(merchantDocRef, { subscriptionStatus: "expired" });
             } catch (e) {
-              void e;
+              console.warn("[Auth] Failed to update expired subscription:", e);
             }
             return;
           }
 
           setMerchant(data);
         } else {
+          console.warn("[Auth] No merchant document found for uid:", user.uid);
           setMerchant(null);
         }
         setLoading(false);
       },
       (error) => {
-        void error;
+        console.error("[Auth] Firestore snapshot error:", error.code, error.message);
         setMerchant(null);
         setLoading(false);
       }
@@ -108,6 +142,7 @@ export function useAuthProvider() {
   }, [user?.uid, user?.email]);
 
   const login = useCallback((uid: string, email: string) => {
+    console.log("[Auth] login() called for:", email, "uid:", uid);
     const session: SessionData = { uid, email };
     localStorage.setItem(SESSION_KEY, JSON.stringify(session));
     setLoading(true);
@@ -115,6 +150,7 @@ export function useAuthProvider() {
   }, []);
 
   const logout = useCallback(() => {
+    console.log("[Auth] logout()");
     localStorage.removeItem(SESSION_KEY);
     setUser(null);
     setMerchant(null);
