@@ -97,6 +97,7 @@ import {
   ShoppingBag,
   Filter,
   FolderArchive,
+  Save,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import ArchiveView from "@/pages/order-archive";
@@ -4102,6 +4103,15 @@ function SettingsView({
   const [storeLng, setStoreLng] = useState<string>(merchant?.storeLng?.toString() || "");
   const [driverPhone, setDriverPhone] = useState<string>(merchant?.driverPhone || "");
   const [paymentSaving, setPaymentSaving] = useState(false);
+  const [deliverySaving, setDeliverySaving] = useState(false);
+  const [storeNameEdit, setStoreNameEdit] = useState<string>(merchant?.storeName || "");
+  const [whatsappEdit, setWhatsappEdit] = useState<string>(merchant?.whatsappNumber || "");
+  const [branchInfoSaving, setBranchInfoSaving] = useState(false);
+
+  useEffect(() => {
+    setStoreNameEdit(merchant?.storeName || "");
+    setWhatsappEdit(merchant?.whatsappNumber || "");
+  }, [merchant?.storeName, merchant?.whatsappNumber]);
 
   const cityCodeOptions = [
     { code: "01", labelAr: "الرياض", labelEn: "Riyadh" },
@@ -4122,27 +4132,23 @@ function SettingsView({
   ];
 
   async function handleSavePaymentConfig() {
-    if (!merchant?.uid) return;
+    const uid = merchant?.uid;
+    if (!uid) return;
     setPaymentSaving(true);
     try {
-      const merchantRef = doc(db, "merchants", merchant.uid);
-      await updateDoc(merchantRef, {
+      const merchantRef = doc(db, "merchants", uid);
+      await setDoc(merchantRef, {
         moyasarPublishableKey,
         moyasarSecretKey,
         onlinePaymentEnabled,
         codEnabled,
-        deliveryEnabled,
-        deliveryFee: parseFloat(deliveryFee) || 0,
-        deliveryRange: parseFloat(deliveryRange) || 0,
-        storeLat: storeLat.trim() ? parseFloat(storeLat) : null,
-        storeLng: storeLng.trim() ? parseFloat(storeLng) : null,
-        driverPhone: driverPhone.trim(),
-      });
+      }, { merge: true });
       toast({
         title: t("تم الحفظ", "Saved"),
         description: t("تم حفظ إعدادات بوابة الدفع بنجاح", "Payment gateway settings saved successfully"),
       });
-    } catch {
+    } catch (err) {
+      console.error("[Save Payment] Firestore error:", err);
       toast({
         title: t("خطأ", "Error"),
         description: t("فشل في حفظ إعدادات الدفع", "Failed to save payment settings"),
@@ -4150,6 +4156,63 @@ function SettingsView({
       });
     } finally {
       setPaymentSaving(false);
+    }
+  }
+
+  async function handleSaveDelivery() {
+    const uid = merchant?.uid;
+    if (!uid) return;
+    setDeliverySaving(true);
+    try {
+      const merchantRef = doc(db, "merchants", uid);
+      await setDoc(merchantRef, {
+        deliveryEnabled,
+        deliveryFee: parseFloat(deliveryFee) || 0,
+        deliveryRange: parseFloat(deliveryRange) || 0,
+        storeLat: storeLat.trim() ? parseFloat(storeLat) : null,
+        storeLng: storeLng.trim() ? parseFloat(storeLng) : null,
+        driverPhone: driverPhone.trim(),
+      }, { merge: true });
+      toast({
+        title: t("تم الحفظ", "Saved"),
+        description: t("تم حفظ إعدادات التوصيل بنجاح", "Delivery settings saved successfully"),
+      });
+    } catch (err) {
+      console.error("[Save Delivery] Firestore error:", err);
+      toast({
+        title: t("خطأ", "Error"),
+        description: t("فشل في حفظ إعدادات التوصيل", "Failed to save delivery settings"),
+        variant: "destructive",
+      });
+    } finally {
+      setDeliverySaving(false);
+    }
+  }
+
+  async function handleSaveBranchInfo() {
+    const uid = merchant?.uid;
+    if (!uid) return;
+    setBranchInfoSaving(true);
+    try {
+      const merchantRef = doc(db, "merchants", uid);
+      await setDoc(merchantRef, {
+        storeName: storeNameEdit.trim() || merchant.storeName,
+        whatsappNumber: whatsappEdit.trim(),
+      }, { merge: true });
+      console.log("[Save Branch] Saved branch info for merchant:", uid);
+      toast({
+        title: t("تم الحفظ", "Saved"),
+        description: t("تم حفظ معلومات الفرع بنجاح", "Branch info saved successfully"),
+      });
+    } catch (err) {
+      console.error("[Save Branch] Firestore error:", err);
+      toast({
+        title: t("خطأ", "Error"),
+        description: t("فشل في حفظ معلومات الفرع", "Failed to save branch info"),
+        variant: "destructive",
+      });
+    } finally {
+      setBranchInfoSaving(false);
     }
   }
 
@@ -4235,7 +4298,7 @@ function SettingsView({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div>
         <h2 className="text-xl font-bold">{t("الإعدادات", "Settings")}</h2>
         <p className="text-sm text-muted-foreground mt-0.5">
@@ -4243,9 +4306,160 @@ function SettingsView({
         </p>
       </div>
 
+      {/* ── SECTION 1: Branch Info ── */}
       <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
         <CardContent className="p-6">
-          <h3 className="font-semibold mb-4 flex items-center gap-2">
+          <h3 className="font-semibold mb-1 flex items-center gap-2">
+            <Store className="w-4 h-4 text-violet-400" />
+            {t("معلومات الفرع", "Branch Info")}
+          </h3>
+          <p className="text-xs text-muted-foreground mb-4">{t("اسم المتجر ورقم التواصل الظاهر للعملاء", "Store name and contact number shown to customers")}</p>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">{t("اسم المتجر", "Store Name")}</label>
+                <Input value={storeNameEdit} onChange={(e) => setStoreNameEdit(e.target.value)} className="h-11 bg-white/[0.03] border-white/10" data-testid="input-store-name-edit" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">{t("رقم واتساب التواصل", "WhatsApp Contact")}</label>
+                <Input value={whatsappEdit} onChange={(e) => setWhatsappEdit(e.target.value)} placeholder="966501234567" dir="ltr" className="h-11 bg-white/[0.03] border-white/10 font-mono" data-testid="input-whatsapp-edit" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/[0.04]">
+              <div>
+                <p className="text-[10px] text-muted-foreground mb-0.5">{t("المالك", "Owner")}</p>
+                <p className="text-sm font-medium truncate">{merchant.ownerName}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-muted-foreground mb-0.5">{t("البريد الإلكتروني", "Email")}</p>
+                <p className="text-sm font-medium truncate" dir="ltr">{merchant.email}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-muted-foreground mb-0.5">{t("نوع النشاط", "Business")}</p>
+                <p className="text-sm font-medium truncate">{lang === "ar" ? businessTypeLabels[merchant.businessType] || merchant.businessType : businessTypeLabelsEn[merchant.businessType] || merchant.businessType}</p>
+              </div>
+            </div>
+            <Button onClick={handleSaveBranchInfo} disabled={branchInfoSaving} className="w-full h-11 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-2xl disabled:opacity-30" data-testid="button-save-branch-info">
+              {branchInfoSaving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Save className="w-4 h-4 me-2" />}
+              {t("حفظ معلومات الفرع", "Save Branch Info")}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── SECTION 2: Online Ordering & Hours ── */}
+      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
+        <CardContent className="p-6">
+          <h3 className="font-semibold mb-1 flex items-center gap-2">
+            <Package className="w-4 h-4 text-emerald-400" />
+            {t("التحكم بالطلبات أونلاين", "Online Ordering Controls")}
+          </h3>
+          <p className="text-xs text-muted-foreground mb-4">{t("تشغيل أو إيقاف استقبال الطلبات وتحديد ساعات العمل", "Enable or pause order intake and set working hours")}</p>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]" data-testid="online-orders-toggle-row">
+              <div className="flex-1">
+                <p className="text-sm font-semibold" dir="rtl">{t("استقبال الطلبات أونلاين", "Enable Online Orders")}</p>
+                <p className="text-xs text-muted-foreground mt-0.5" dir="rtl">{t("إيقاف فوري لاستقبال الطلبات عند ضغط المطبخ", "Instantly stop receiving orders during kitchen pressure")}</p>
+              </div>
+              <Switch checked={onlineOrdersEnabled} onCheckedChange={onToggleOnlineOrders} className="data-[state=checked]:bg-emerald-600" data-testid="switch-online-orders" />
+            </div>
+            <div className="space-y-3">
+              <p className="text-sm font-semibold flex items-center gap-2"><Clock className="w-4 h-4 text-violet-400" />{t("ساعات العمل", "Business Hours")}</p>
+              <p className="text-xs text-muted-foreground" dir="rtl">{t("خارج هذه الأوقات لن يتمكن العملاء من الطلب.", "Outside these hours, customers cannot place orders.")}</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground block mb-1.5">{t("وقت الفتح", "Opening Time")}</label>
+                  <Input type="time" value={localOpenTime} onChange={(e) => setLocalOpenTime(e.target.value)} className="h-11 bg-white/[0.03] border-white/10 text-center font-mono" dir="ltr" data-testid="input-open-time" />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground block mb-1.5">{t("وقت الإغلاق", "Closing Time")}</label>
+                  <Input type="time" value={localCloseTime} onChange={(e) => setLocalCloseTime(e.target.value)} className="h-11 bg-white/[0.03] border-white/10 text-center font-mono" dir="ltr" data-testid="input-close-time" />
+                </div>
+              </div>
+              {localOpenTime && localCloseTime && (
+                <p className="text-xs text-muted-foreground text-center" dir="rtl" data-testid="text-hours-preview">{t("ساعات العمل:", "Business Hours:")} {localOpenTime} → {localCloseTime}</p>
+              )}
+              <Button onClick={() => onSaveBusinessHours(localOpenTime, localCloseTime)} disabled={!hoursChanged} className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl disabled:opacity-30" data-testid="button-save-hours">
+                <Save className="w-4 h-4 me-2" />
+                {t("حفظ ساعات العمل", "Save Business Hours")}
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── SECTION 3: Delivery Settings ── */}
+      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
+        <CardContent className="p-6">
+          <h3 className="font-semibold mb-1 flex items-center gap-2">
+            <MapPin className="w-4 h-4 text-emerald-400" />
+            {t("إعدادات التوصيل", "Delivery Settings")}
+          </h3>
+          <p className="text-xs text-muted-foreground mb-4">{t("تفعيل التوصيل وتحديد الرسوم والنطاق الجغرافي", "Enable delivery, set fees and geographic range")}</p>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]">
+              <div className="flex-1">
+                <p className="text-sm font-semibold" dir="rtl">{t("تفعيل خدمة التوصيل", "Enable Delivery")}</p>
+                <p className="text-xs text-muted-foreground mt-0.5" dir="rtl">{t("السماح للعملاء بطلب التوصيل لموقعهم", "Allow customers to request delivery to their location")}</p>
+              </div>
+              <Switch checked={deliveryEnabled} onCheckedChange={setDeliveryEnabled} className="data-[state=checked]:bg-emerald-600" data-testid="switch-delivery-enabled" />
+            </div>
+
+            {deliveryEnabled && (
+              <div className="space-y-4 pt-1">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs text-muted-foreground block">{t("رسوم التوصيل (ريال)", "Delivery Fee (SAR)")}</label>
+                    <Input type="number" value={deliveryFee} onChange={(e) => setDeliveryFee(e.target.value)} placeholder="0" min="0" step="0.5" className="h-11 bg-white/[0.03] border-white/10 font-mono" dir="ltr" data-testid="input-delivery-fee" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs text-muted-foreground block flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />
+                      {t("أقصى نطاق (كم)", "Max Range (km)")}
+                    </label>
+                    <Input type="number" value={deliveryRange} onChange={(e) => setDeliveryRange(e.target.value)} placeholder={t("0=غير محدود", "0=unlimited")} min="0" step="1" className="h-11 bg-white/[0.03] border-white/10 font-mono" dir="ltr" data-testid="input-delivery-range" />
+                  </div>
+                </div>
+                <p className="text-[10px] text-muted-foreground" dir="rtl">{t("اضبط النطاق على 0 لقبول أي مسافة. يُستخدم مع الإحداثيات لحساب المسافة.", "Set range to 0 to accept any distance. Used with coordinates for distance calculation.")}</p>
+
+                <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.06] space-y-3">
+                  <p className="text-sm font-semibold flex items-center gap-2" dir="rtl">
+                    <MapPin className="w-4 h-4 text-red-400" />
+                    {t("إحداثيات موقع الفرع", "Branch Location Coordinates")}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground" dir="rtl">{t("افتح Google Maps، انقر بزر اليمين على موقع فرعك، وانسخ الإحداثيات.", "Open Google Maps, right-click your branch, and copy coordinates.")}</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[11px] text-muted-foreground block">{t("خط العرض", "Latitude")}</label>
+                      <Input type="text" value={storeLat} onChange={(e) => setStoreLat(e.target.value)} placeholder="24.7136" className="h-10 bg-black/40 border-white/10 font-mono text-sm" dir="ltr" data-testid="input-store-lat" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[11px] text-muted-foreground block">{t("خط الطول", "Longitude")}</label>
+                      <Input type="text" value={storeLng} onChange={(e) => setStoreLng(e.target.value)} placeholder="46.6753" className="h-10 bg-black/40 border-white/10 font-mono text-sm" dir="ltr" data-testid="input-store-lng" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground block">{t("رقم جوال المندوب (واتساب)", "Driver Phone (WhatsApp)")}</label>
+                  <Input type="tel" value={driverPhone} onChange={(e) => setDriverPhone(e.target.value)} placeholder={t("مثال: 966501234567", "e.g. 966501234567")} maxLength={15} className="h-11 bg-white/[0.03] border-white/10 font-mono" dir="ltr" data-testid="input-driver-phone" />
+                  <p className="text-[10px] text-muted-foreground">{t("اتركه فارغاً لاختيار المندوب يدوياً عند كل طلب", "Leave empty to choose driver manually per order")}</p>
+                </div>
+              </div>
+            )}
+
+            <Button onClick={handleSaveDelivery} disabled={deliverySaving} className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl disabled:opacity-30" data-testid="button-save-delivery">
+              {deliverySaving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Save className="w-4 h-4 me-2" />}
+              {t("حفظ إعدادات التوصيل", "Save Delivery Settings")}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── SECTION 4: Payment Settings ── */}
+      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
+        <CardContent className="p-6">
+          <h3 className="font-semibold mb-1 flex items-center gap-2">
             <CreditCard className="w-4 h-4 text-blue-400" />
             {t("ربط بوابة الدفع", "Payment Gateway Connection")}
           </h3>
@@ -4307,197 +4521,20 @@ function SettingsView({
               />
             </div>
 
-            <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]">
-              <div className="flex-1">
-                <p className="text-sm font-semibold" dir="rtl">{t("تفعيل خدمة التوصيل", "Enable Delivery")}</p>
-                <p className="text-xs text-muted-foreground mt-0.5" dir="rtl">
-                  {t("السماح للعملاء بطلب التوصيل لموقعهم", "Allow customers to request delivery to their location")}
-                </p>
-              </div>
-              <Switch
-                checked={deliveryEnabled}
-                onCheckedChange={setDeliveryEnabled}
-                className="data-[state=checked]:bg-emerald-600"
-                data-testid="switch-delivery-enabled"
-              />
-            </div>
-
-            {deliveryEnabled && (
-              <>
-                <div className="space-y-2">
-                  <label className="text-xs text-muted-foreground block">{t("رسوم التوصيل (ريال)", "Delivery Fee (SAR)")}</label>
-                  <Input
-                    type="number"
-                    value={deliveryFee}
-                    onChange={(e) => setDeliveryFee(e.target.value)}
-                    placeholder="0"
-                    min="0"
-                    step="0.5"
-                    className="h-12 bg-white/[0.03] border-white/10 font-mono"
-                    dir="ltr"
-                    data-testid="input-delivery-fee"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-xs text-muted-foreground block flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />
-                    {t("أقصى نطاق توصيل (كيلومتر)", "Max Delivery Range (km)")}
-                  </label>
-                  <Input
-                    type="number"
-                    value={deliveryRange}
-                    onChange={(e) => setDeliveryRange(e.target.value)}
-                    placeholder={t("0 = غير محدود", "0 = unlimited")}
-                    min="0"
-                    step="1"
-                    className="h-12 bg-white/[0.03] border-white/10 font-mono"
-                    dir="ltr"
-                    data-testid="input-delivery-range"
-                  />
-                  <p className="text-[10px] text-muted-foreground" dir="rtl">
-                    {t("اضبط على 0 لقبول أي مسافة. يُستخدم مع إحداثيات الفرع لحساب المسافة.", "Set to 0 to accept any distance. Used with branch coordinates to calculate delivery range.")}
-                  </p>
-                </div>
-
-                <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.06] space-y-3">
-                  <p className="text-sm font-semibold flex items-center gap-2" dir="rtl">
-                    <MapPin className="w-4 h-4 text-emerald-400" />
-                    {t("إحداثيات موقع الفرع", "Branch Location Coordinates")}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground" dir="rtl">
-                    {t("افتح Google Maps، انقر بزر اليمين على موقع فرعك، وانسخ الإحداثيات.", "Open Google Maps, right-click your branch location, and copy the coordinates.")}
-                  </p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[11px] text-muted-foreground block mb-1">{t("خط العرض", "Latitude")}</label>
-                      <Input
-                        type="text"
-                        value={storeLat}
-                        onChange={(e) => setStoreLat(e.target.value)}
-                        placeholder="24.7136"
-                        className="h-10 bg-black/40 border-white/10 font-mono text-sm"
-                        dir="ltr"
-                        data-testid="input-store-lat"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] text-muted-foreground block mb-1">{t("خط الطول", "Longitude")}</label>
-                      <Input
-                        type="text"
-                        value={storeLng}
-                        onChange={(e) => setStoreLng(e.target.value)}
-                        placeholder="46.6753"
-                        className="h-10 bg-black/40 border-white/10 font-mono text-sm"
-                        dir="ltr"
-                        data-testid="input-store-lng"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-xs text-muted-foreground block">{t("رقم جوال المندوب (واتساب)", "Driver Phone (WhatsApp)")}</label>
-                  <Input
-                    type="tel"
-                    value={driverPhone}
-                    onChange={(e) => setDriverPhone(e.target.value)}
-                    placeholder={t("مثال: 966501234567", "e.g. 966501234567")}
-                    maxLength={15}
-                    className="h-12 bg-white/[0.03] border-white/10 font-mono"
-                    dir="ltr"
-                    data-testid="input-driver-phone"
-                  />
-                  <p className="text-[10px] text-muted-foreground">{t("اتركه فارغاً لاختيار المندوب يدوياً عند كل طلب", "Leave empty to choose driver manually per order")}</p>
-                </div>
-              </>
-            )}
-
             <Button
               onClick={handleSavePaymentConfig}
               disabled={paymentSaving}
-              className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl disabled:opacity-30"
+              className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl disabled:opacity-30"
               data-testid="button-save-payment-config"
             >
-              {paymentSaving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : null}
+              {paymentSaving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Save className="w-4 h-4 me-2" />}
               {t("حفظ إعدادات الدفع", "Save Payment Settings")}
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
-        <CardContent className="p-6">
-          <h3 className="font-semibold mb-4 flex items-center gap-2">
-            <Package className="w-4 h-4 text-emerald-400" />
-            {t("التحكم بالطلبات أونلاين", "Online Ordering Controls")}
-          </h3>
-
-          <div className="space-y-5">
-            <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]" data-testid="online-orders-toggle-row">
-              <div className="flex-1">
-                <p className="text-sm font-semibold" dir="rtl">{t("استقبال الطلبات أونلاين", "Enable Online Orders")}</p>
-                <p className="text-xs text-muted-foreground mt-0.5" dir="rtl">
-                  {t("إيقاف فوري لاستقبال الطلبات عند ضغط المطبخ", "Instantly stop receiving orders during kitchen pressure")}
-                </p>
-              </div>
-              <Switch
-                checked={onlineOrdersEnabled}
-                onCheckedChange={onToggleOnlineOrders}
-                className="data-[state=checked]:bg-emerald-600"
-                data-testid="switch-online-orders"
-              />
-            </div>
-
-            <div className="space-y-3">
-              <p className="text-sm font-semibold flex items-center gap-2">
-                <Clock className="w-4 h-4 text-violet-400" />
-                {t("ساعات العمل", "Business Hours")}
-              </p>
-              <p className="text-xs text-muted-foreground" dir="rtl">
-                {t("حدد أوقات فتح وإغلاق المتجر. خارج هذه الأوقات لن يتمكن العملاء من الطلب.", "Set your opening and closing times. Outside these hours, customers cannot place orders.")}
-              </p>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-muted-foreground block mb-1.5">{t("وقت الفتح", "Opening Time")}</label>
-                  <Input
-                    type="time"
-                    value={localOpenTime}
-                    onChange={(e) => setLocalOpenTime(e.target.value)}
-                    className="h-12 bg-white/[0.03] border-white/10 text-center font-mono"
-                    dir="ltr"
-                    data-testid="input-open-time"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground block mb-1.5">{t("وقت الإغلاق", "Closing Time")}</label>
-                  <Input
-                    type="time"
-                    value={localCloseTime}
-                    onChange={(e) => setLocalCloseTime(e.target.value)}
-                    className="h-12 bg-white/[0.03] border-white/10 text-center font-mono"
-                    dir="ltr"
-                    data-testid="input-close-time"
-                  />
-                </div>
-              </div>
-              {localOpenTime && localCloseTime && (
-                <p className="text-xs text-muted-foreground text-center" dir="rtl" data-testid="text-hours-preview">
-                  {t("ساعات العمل:", "Business Hours:")} {localOpenTime} → {localCloseTime}
-                </p>
-              )}
-              <Button
-                onClick={() => onSaveBusinessHours(localOpenTime, localCloseTime)}
-                disabled={!hoursChanged}
-                className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl disabled:opacity-30"
-                data-testid="button-save-hours"
-              >
-                {t("حفظ ساعات العمل", "Save Business Hours")}
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* ── SECTION 5: City Code ── */}
 
       <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
         <CardContent className="p-6">
