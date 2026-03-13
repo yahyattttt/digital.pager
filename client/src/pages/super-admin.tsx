@@ -84,7 +84,10 @@ import {
   Minimize,
 } from "lucide-react";
 
-const SUPER_ADMIN_EMAIL = "yahiatohary@hotmail.com";
+const ADMIN_EMAILS = ["yahiatohary@hotmail.com", "admin@test.com"];
+function isAdminEmail(email?: string | null) {
+  return !!email && ADMIN_EMAILS.includes(email.toLowerCase());
+}
 
 function AdminCharts({ merchants, t, lang }: { merchants: Merchant[]; t: (ar: string, en: string) => string; lang: string }) {
   const signupData = useMemo(() => {
@@ -732,7 +735,7 @@ export default function SuperAdminPage() {
   }
 
   useEffect(() => {
-    if (!authLoading && user?.email === SUPER_ADMIN_EMAIL) {
+    if (!authLoading && isAdminEmail(user?.email)) {
       fetchMerchants();
       fetchTotalAlertsToday();
       fetchSettings();
@@ -1001,7 +1004,7 @@ export default function SuperAdminPage() {
     );
   }
 
-  if (!user || user.email !== SUPER_ADMIN_EMAIL) {
+  if (!user || !isAdminEmail(user.email)) {
     setLocation("/");
     return null;
   }

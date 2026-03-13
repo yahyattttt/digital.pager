@@ -19,7 +19,10 @@ import OrderTrackingPage from "@/pages/order-tracking";
 import OrderReceiptPage from "@/pages/order-receipt";
 import DriverControlPage from "@/pages/driver-control";
 
-const SUPER_ADMIN_EMAIL = "yahiatohary@hotmail.com";
+const ADMIN_EMAILS = ["yahiatohary@hotmail.com", "admin@test.com"];
+function isAdminEmail(email: string) {
+  return ADMIN_EMAILS.includes(email.toLowerCase());
+}
 
 function SuperAdminRoute() {
   const { user, loading } = useAuth();
@@ -32,7 +35,7 @@ function SuperAdminRoute() {
     );
   }
 
-  if (!user || user.email !== SUPER_ADMIN_EMAIL) {
+  if (!user || !isAdminEmail(user.email)) {
     return <Redirect to="/" />;
   }
 
@@ -142,7 +145,7 @@ function GuestRoute({ component: Component }: { component: () => JSX.Element | n
   }
 
   if (user) {
-    if (user.email === SUPER_ADMIN_EMAIL) {
+    if (isAdminEmail(user.email)) {
       return <Redirect to="/super-admin" />;
     }
     if (!merchant && !guestTimeout) {

@@ -4,7 +4,10 @@ import { db } from "@/lib/firebase";
 import type { Merchant } from "@shared/schema";
 
 const SESSION_KEY = "dp-session";
-const SUPER_ADMIN_EMAIL = "yahiatohary@hotmail.com";
+const ADMIN_EMAILS = ["yahiatohary@hotmail.com", "admin@test.com"];
+function isAdminEmail(email: string) {
+  return ADMIN_EMAILS.includes(email.toLowerCase());
+}
 
 interface SessionData {
   uid: string;
@@ -58,7 +61,7 @@ export function useAuthProvider() {
       return;
     }
 
-    if (user.email === SUPER_ADMIN_EMAIL) {
+    if (isAdminEmail(user.email)) {
       setMerchant(null);
       setLoading(false);
       return;
