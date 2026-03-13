@@ -1090,6 +1090,18 @@ export default function PublicMenuPage() {
 
   return (
     <div className="h-[100dvh] flex flex-col overflow-hidden" style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }} dir={isRTL ? "rtl" : "ltr"} data-testid="public-menu-page">
+
+      {/* ── Marketing Marquee Bar ── */}
+      <div className="flex-shrink-0 overflow-hidden border-b border-white/[0.05]" style={{ background: "#1a1a1a" }} data-testid="marketing-marquee-bar">
+        <div className="marketing-marquee flex whitespace-nowrap py-1.5">
+          {[0, 1].map(i => (
+            <span key={i} aria-hidden={i === 1 || undefined} className="inline-block text-sm text-white/90 font-medium shrink-0" style={{ fontFamily: "'Cairo', 'Tajawal', sans-serif", letterSpacing: "0.01em" }}>
+              &nbsp;&nbsp;&nbsp;&nbsp;اطلب بدون زحمة وانتظار وننبهك إذا جهز طلبك!&nbsp; ✨ &nbsp;&nbsp;｜&nbsp;&nbsp; اطلب وأنت بسيارتك وبننادي عليك تستلم!&nbsp; 🚗 &nbsp;&nbsp;｜&nbsp;&nbsp; خلك مرتاح.. جرسك بجيبك وطلبك بين يديك!&nbsp; 🔔 &nbsp;&nbsp;&nbsp;&nbsp;
+            </span>
+          ))}
+        </div>
+      </div>
+
       <div className="flex-shrink-0 pt-3 pb-3 px-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
