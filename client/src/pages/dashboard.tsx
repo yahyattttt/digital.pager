@@ -521,13 +521,25 @@ export default function DashboardPage() {
     const todayISO = todayStart.toISOString();
 
     const pagersRef = collection(db, "merchants", merchant.uid, "pagers");
-    const pQ = query(pagersRef, where("status", "==", "archived"), where("archivedAt", ">=", todayISO));
+    const pQ = query(pagersRef, where("status", "==", "archived"));
     const waRef = collection(db, "merchants", merchant.uid, "whatsappOrders");
-    const wQ = query(waRef, where("status", "==", "archived"), where("archivedAt", ">=", todayISO));
+    const wQ = query(waRef, where("status", "==", "archived"));
 
     let pCount = 0, wCount = 0;
-    const unsub1 = onSnapshot(pQ, (snap) => { pCount = snap.size; setCompletedToday(pCount + wCount); });
-    const unsub2 = onSnapshot(wQ, (snap) => { wCount = snap.size; setCompletedToday(pCount + wCount); });
+    const unsub1 = onSnapshot(pQ, (snap) => {
+      pCount = snap.docs.filter(d => {
+        const a = d.data().archivedAt;
+        return a && a >= todayISO;
+      }).length;
+      setCompletedToday(pCount + wCount);
+    });
+    const unsub2 = onSnapshot(wQ, (snap) => {
+      wCount = snap.docs.filter(d => {
+        const a = d.data().archivedAt;
+        return a && a >= todayISO;
+      }).length;
+      setCompletedToday(pCount + wCount);
+    });
     return () => { unsub1(); unsub2(); };
   }, [merchant?.uid]);
 

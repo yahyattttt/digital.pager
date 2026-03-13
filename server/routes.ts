@@ -3656,23 +3656,83 @@ Return ONLY a valid JSON array (no markdown, no explanation) where each element 
 Example format:
 [{"name":"برجر لحم كلاسيكي","description":"برجر لحم أنجوس مشوي مع جبنة شيدر وصوص خاص","keywords":"classic beef burger","category":"برجر"}]`;
 
-      const geminiRes = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: geminiPrompt }] }],
-            generationConfig: { temperature: 0.8, maxOutputTokens: 2048 },
-          }),
+      const geminiModels = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-flash-latest"];
+      let geminiRes: Response | null = null;
+      let usedModel = "";
+      for (const model of geminiModels) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 45000);
+        try {
+          const r = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: geminiPrompt }] }],
+                generationConfig: { temperature: 0.8, maxOutputTokens: 2048 },
+              }),
+              signal: controller.signal,
+            }
+          );
+          clearTimeout(timeoutId);
+          if (r.status !== 429) {
+            geminiRes = r;
+            usedModel = model;
+            break;
+          }
+          const retryBody = await r.json().catch(() => ({}));
+          const retryDelay = retryBody?.error?.details?.find((d: any) => d["@type"]?.includes("RetryInfo"))?.retryDelay;
+          const isDaily = JSON.stringify(retryBody).includes("PerDay");
+          console.warn(`[AI-Menu] Model ${model} returned 429 (daily=${isDaily}), retryDelay=${retryDelay}`);
+          if (isDaily) continue;
+          if (retryDelay) {
+            const secs = parseInt(String(retryDelay)) || 0;
+            if (secs > 0 && secs <= 60) {
+              await new Promise((resolve) => setTimeout(resolve, secs * 1000));
+              const r2 = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    contents: [{ parts: [{ text: geminiPrompt }] }],
+                    generationConfig: { temperature: 0.8, maxOutputTokens: 2048 },
+                  }),
+                }
+              );
+              if (r2.ok) {
+                geminiRes = r2;
+                usedModel = model;
+                break;
+              }
+            }
+          }
+        } catch (fetchErr: any) {
+          clearTimeout(timeoutId);
+          if (fetchErr?.name === "AbortError") {
+            console.error("[AI-Menu] Gemini timeout for model:", model);
+            continue;
+          }
+          throw fetchErr;
         }
-      );
+      }
+
+      if (!geminiRes) {
+        return res.status(429).json({
+          message: "تم استخدام الحد اليومي لخدمة الذكاء الاصطناعي. يرجى المحاولة لاحقًا أو تفعيل الفوترة في مشروع Google Cloud. 🕐",
+        });
+      }
 
       if (!geminiRes.ok) {
         const errText = await geminiRes.text();
         console.error("[AI-Menu] Gemini API error:", geminiRes.status, errText);
+        if (geminiRes.status === 429) {
+          return res.status(429).json({ message: "تم استخدام الحد اليومي لخدمة الذكاء الاصطناعي. يرجى المحاولة غدًا أو تفعيل الفوترة في Google Cloud. 🕐" });
+        }
         return res.status(502).json({ message: "حدث خطأ أثناء إنشاء المنيو. حاول مرة أخرى." });
       }
+      console.log(`[AI-Menu] Using model: ${usedModel}`);
 
       const geminiData = await geminiRes.json();
       const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
