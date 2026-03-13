@@ -1076,7 +1076,7 @@ export default function PublicMenuPage() {
   }
 
   return (
-    <div className="min-h-[100dvh] flex flex-col" style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }} dir={isRTL ? "rtl" : "ltr"} data-testid="public-menu-page">
+    <div className="h-[100dvh] flex flex-col overflow-hidden" style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }} dir={isRTL ? "rtl" : "ltr"} data-testid="public-menu-page">
       <div className="flex-shrink-0 pt-3 pb-3 px-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -1200,10 +1200,10 @@ export default function PublicMenuPage() {
         }
 
         return (
-          <>
+          <div className="flex-1 overflow-y-auto min-h-0">
             {hasCategories && (
-              <div className="sticky top-0 z-30 px-3 pt-1.5 pb-1.5 mb-1 overflow-x-auto backdrop-blur-md border-b border-white/[0.04]" style={{ background: "rgba(0,0,0,0.75)" }} data-testid="category-nav-bar">
-                <div className="flex gap-1.5 pb-0.5" style={{ width: "max-content" }}>
+              <div className="sticky top-0 z-30 px-3 pt-1.5 pb-1.5 overflow-x-auto backdrop-blur-md border-b border-white/[0.05]" style={{ background: "rgba(5,0,0,0.82)" }} data-testid="category-nav-bar">
+                <div className="flex gap-1.5" style={{ width: "max-content" }}>
                   <button
                     onClick={() => setSelectedCategory(null)}
                     className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
@@ -1233,33 +1233,33 @@ export default function PublicMenuPage() {
               </div>
             )}
 
-            <div className="flex-1 overflow-y-auto px-4 pb-28">
+            <div className="px-3 pt-3 pb-28">
               {visibleProducts.length === 0 ? (
                 <div className="text-center py-16" data-testid="empty-menu-state">
                   <p className="text-white/40 text-sm">{t("لا توجد منتجات متاحة حالياً", "No products available at the moment")}</p>
                 </div>
               ) : hasCategories ? (
-                <div className="space-y-6" data-testid="menu-product-grid">
+                <div className="space-y-5" data-testid="menu-product-grid">
                   {grouped.map(group => group.items.length > 0 && (
                     <div key={group.label} id={`cat-${group.label}`} data-testid={`category-section-${group.label}`}>
-                      <h2 className="text-white/80 font-bold text-sm mb-3 flex items-center gap-2">
-                        <span className="w-1 h-4 bg-red-500 rounded-full inline-block" />
+                      <h2 className="text-white/70 font-bold text-xs mb-2 flex items-center gap-2 uppercase tracking-wider">
+                        <span className="w-1 h-3 bg-red-500 rounded-full inline-block" />
                         {group.label}
-                        <span className="text-white/25 font-normal text-xs">({group.items.length})</span>
+                        <span className="text-white/20 font-normal">({group.items.length})</span>
                       </h2>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      <div className="grid grid-cols-2 gap-2">
                         {group.items.map(product => <ProductCard key={product.id} product={product} />)}
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3" data-testid="menu-product-grid">
+                <div className="grid grid-cols-2 gap-2" data-testid="menu-product-grid">
                   {visibleProducts.map(product => <ProductCard key={product.id} product={product} />)}
                 </div>
               )}
             </div>
-          </>
+          </div>
         );
       })()}
 
