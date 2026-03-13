@@ -63,9 +63,8 @@ const crUpload = multer({
 });
 
 async function logSystemError(merchantId: string, errorType: string, errorMessage: string): Promise<void> {
-  const accessToken = await getFirestoreAccessToken();
-  const baseUrl = getFirestoreBaseUrl();
-  if (!accessToken || !baseUrl) return;
+  const baseUrl = getApiKeyBaseUrl();
+  if (!baseUrl || !getApiKey()) return;
 
   const docId = randomUUID();
   const data = {
@@ -79,9 +78,9 @@ async function logSystemError(merchantId: string, errorType: string, errorMessag
   };
 
   try {
-    await fetch(`${baseUrl}/system_errors/${docId}`, {
+    await apikeyFetch(`${baseUrl}/system_errors/${docId}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
   } catch (err) {
@@ -144,35 +143,39 @@ function getFirestoreBaseUrl(): string | null {
   return `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
 }
 
-async function generateOnlineOrderId(merchantId: string, accessToken: string, baseUrl: string): Promise<{ orderNumber: string; currentYY: string }> {
-  const projectId = process.env.VITE_FIREBASE_PROJECT_ID || "";
-  const dbPath = `projects/${projectId}/databases/(default)/documents`;
-  const counterDocPath = `${dbPath}/merchants/${merchantId}/settings/orderCounter`;
-  const txUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:beginTransaction`;
-  const commitUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:commit`;
+function getApiKey(): string | null {
+  return process.env.VITE_FIREBASE_API_KEY || null;
+}
+
+function getApiKeyBaseUrl(): string | null {
+  const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
+  if (!projectId) return null;
+  return `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
+}
+
+async function apikeyFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  const apiKey = getApiKey();
+  if (!apiKey) throw new Error("Firebase API key not configured");
+  const sep = url.includes("?") ? "&" : "?";
+  return fetch(`${url}${sep}key=${apiKey}`, options);
+}
+
+async function generateOnlineOrderId(merchantId: string, _accessToken?: string, _baseUrl?: string): Promise<{ orderNumber: string; currentYY: string }> {
+  const baseUrl = getApiKeyBaseUrl();
+  if (!baseUrl) throw new Error("Firestore not configured");
+
   const currentYY = new Date().getFullYear().toString().slice(-2);
-
-  const txRes = await fetch(txUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
-    body: JSON.stringify({}),
-  });
-  if (!txRes.ok) throw new Error("Failed to begin transaction");
-  const { transaction } = await txRes.json();
-
-  const counterRes = await fetch(`${baseUrl}/merchants/${merchantId}/settings/orderCounter?transaction=${encodeURIComponent(transaction)}`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
+  const counterUrl = `${baseUrl}/merchants/${merchantId}/settings/orderCounter`;
 
   let currentCounter = 1;
   let existingFields: Record<string, any> = {};
-  let storedYear = "";
 
+  const counterRes = await apikeyFetch(counterUrl);
   if (counterRes.ok) {
     const counterDoc = await counterRes.json();
     if (counterDoc.fields) {
       existingFields = counterDoc.fields;
-      storedYear = existingFields.onlineCounterYear?.stringValue || "";
+      const storedYear = existingFields.onlineCounterYear?.stringValue || "";
       if (storedYear === currentYY) {
         const raw = existingFields.onlineCounter?.integerValue || existingFields.nextOrderNumber?.integerValue || "1";
         currentCounter = parseInt(String(raw), 10);
@@ -186,24 +189,12 @@ async function generateOnlineOrderId(merchantId: string, accessToken: string, ba
   newFields.onlineCounter = { integerValue: String(orderNum + 1) };
   newFields.onlineCounterYear = { stringValue: currentYY };
 
-  const commitBody = {
-    transaction,
-    writes: [
-      {
-        update: {
-          name: `${dbPath}/merchants/${merchantId}/settings/orderCounter`,
-          fields: newFields,
-        },
-      },
-    ],
-  };
-
-  const commitRes = await fetch(commitUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
-    body: JSON.stringify(commitBody),
+  const patchRes = await apikeyFetch(counterUrl, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fields: newFields }),
   });
-  if (!commitRes.ok) throw new Error("Failed to commit counter transaction");
+  if (!patchRes.ok) throw new Error("Failed to update order counter");
 
   return { orderNumber: String(orderNum), currentYY };
 }
@@ -218,9 +209,8 @@ function sanitizeEmailKey(email: string): string {
 }
 
 async function saveOtpToFirestore(email: string, code: string): Promise<boolean> {
-  const accessToken = await getFirestoreAccessToken();
-  const baseUrl = getFirestoreBaseUrl();
-  if (!accessToken || !baseUrl) return false;
+  const baseUrl = getApiKeyBaseUrl();
+  if (!baseUrl || !getApiKey()) return false;
 
   const docId = sanitizeEmailKey(email);
   const now = Date.now();
@@ -235,9 +225,9 @@ async function saveOtpToFirestore(email: string, code: string): Promise<boolean>
   };
 
   try {
-    const res = await fetch(`${baseUrl}/otps/${docId}`, {
+    const res = await apikeyFetch(`${baseUrl}/otps/${docId}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
     if (!res.ok) {
@@ -253,16 +243,13 @@ async function saveOtpToFirestore(email: string, code: string): Promise<boolean>
 }
 
 async function getOtpFromFirestore(email: string): Promise<{ code: string; expiresAt: number; attempts: number; sentAt: number } | null> {
-  const accessToken = await getFirestoreAccessToken();
-  const baseUrl = getFirestoreBaseUrl();
-  if (!accessToken || !baseUrl) return null;
+  const baseUrl = getApiKeyBaseUrl();
+  if (!baseUrl || !getApiKey()) return null;
 
   const docId = sanitizeEmailKey(email);
 
   try {
-    const res = await fetch(`${baseUrl}/otps/${docId}`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+    const res = await apikeyFetch(`${baseUrl}/otps/${docId}`);
     if (!res.ok) {
       console.log(`[OTP] Firestore lookup: no OTP doc found in 'otps' for ${email} (status ${res.status})`);
       return null;
@@ -282,31 +269,26 @@ async function getOtpFromFirestore(email: string): Promise<{ code: string; expir
 }
 
 async function updateOtpAttempts(email: string, attempts: number): Promise<void> {
-  const accessToken = await getFirestoreAccessToken();
-  const baseUrl = getFirestoreBaseUrl();
-  if (!accessToken || !baseUrl) return;
+  const baseUrl = getApiKeyBaseUrl();
+  if (!baseUrl || !getApiKey()) return;
 
   const docId = sanitizeEmailKey(email);
   try {
-    await fetch(`${baseUrl}/otps/${docId}?updateMask.fieldPaths=attempts`, {
+    await apikeyFetch(`${baseUrl}/otps/${docId}?updateMask.fieldPaths=attempts`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ fields: { attempts: { integerValue: String(attempts) } } }),
     });
   } catch {}
 }
 
 async function deleteOtpFromFirestore(email: string): Promise<void> {
-  const accessToken = await getFirestoreAccessToken();
-  const baseUrl = getFirestoreBaseUrl();
-  if (!accessToken || !baseUrl) return;
+  const baseUrl = getApiKeyBaseUrl();
+  if (!baseUrl || !getApiKey()) return;
 
   const docId = sanitizeEmailKey(email);
   try {
-    await fetch(`${baseUrl}/otps/${docId}`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+    await apikeyFetch(`${baseUrl}/otps/${docId}`, { method: "DELETE" });
     console.log(`[OTP] Deleted OTP from Firestore (otps) for ${email}`);
   } catch {}
 }
@@ -348,23 +330,11 @@ function generateUidFromEmail(email: string): string {
 }
 
 async function findMerchantByEmail(email: string): Promise<{ uid: string } | null> {
-  const saJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-  if (!saJson) return null;
+  const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
+  if (!projectId || !getApiKey()) return null;
 
   try {
-    const credentials = JSON.parse(saJson);
-    const authClient = new GoogleAuth({
-      credentials,
-      scopes: ["https://www.googleapis.com/auth/datastore"],
-    });
-    const client = await authClient.getClient();
-    const tokenRes = await client.getAccessToken();
-    const accessToken = tokenRes?.token;
-    if (!accessToken) return null;
-
-    const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
-    if (!projectId) return null;
-
+    const base = getApiKeyBaseUrl()!;
     const query = {
       structuredQuery: {
         from: [{ collectionId: "merchants" }],
@@ -379,25 +349,22 @@ async function findMerchantByEmail(email: string): Promise<{ uid: string } | nul
       },
     };
 
-    const res = await fetch(
-      `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`,
+    const res = await apikeyFetch(
+      `${base}:runQuery`,
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(query),
       }
     );
 
     if (!res.ok) return null;
     const results = await res.json();
-    if (results && results.length > 0 && results[0].document) {
-      const fields = results[0].document.fields;
-      if (fields?.uid?.stringValue) {
-        return { uid: fields.uid.stringValue };
-      }
+    if (Array.isArray(results) && results.length > 0 && results[0].document) {
+      const docName: string = results[0].document.name;
+      const docId = docName.split("/").pop()!;
+      const fields = results[0].document.fields || {};
+      return { uid: fields.uid?.stringValue || docId };
     }
     return null;
   } catch (e) {
@@ -473,13 +440,12 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Invalid action" });
       }
 
-      const accessToken = await getFirestoreAccessToken();
-      const baseUrl = getFirestoreBaseUrl();
-      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
 
       const docUrl = `${baseUrl}/merchants/${merchantId}/whatsappOrders/${orderId}`;
       const docRes = await fetch(docUrl, {
-        headers: { Authorization: `Bearer ${accessToken}` },
+        headers: {},
       });
       if (!docRes.ok) return res.status(404).json({ message: "Order not found" });
 
@@ -515,7 +481,6 @@ export async function registerRoutes(
       const patchRes = await fetch(`${docUrl}?updateMask.fieldPaths=status&updateMask.fieldPaths=${action === "delivered" ? "completedAt&updateMask.fieldPaths=driverDeliveredAt" : "uncollectedAt&updateMask.fieldPaths=driverFailedAt"}`, {
         method: "PATCH",
         headers: {
-          Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ fields: { ...doc.fields, ...updateFields } }),
@@ -629,7 +594,6 @@ export async function registerRoutes(
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
           },
           body: JSON.stringify({
             message: {
@@ -795,15 +759,16 @@ export async function registerRoutes(
       const SANDBOX_OTP = "123456";
 
       if (sandboxRole && codeStr === SANDBOX_OTP) {
-        const uid = generateUidFromEmail(emailLower);
-        const customToken = createFirebaseCustomToken(uid);
-        if (!customToken) {
-          return res.status(500).json({ message: "Failed to generate authentication token." });
-        }
         if (sandboxRole === "admin") {
+          const uid = generateUidFromEmail(emailLower);
+          const customToken = createFirebaseCustomToken(uid);
+          if (!customToken) return res.status(500).json({ message: "Failed to generate authentication token." });
           return res.json({ success: true, verified: true, customToken, uid, isNewUser: false, isAdmin: true });
         }
         const existingMerchant = await findMerchantByEmail(emailLower);
+        const uid = existingMerchant?.uid || generateUidFromEmail(emailLower);
+        const customToken = createFirebaseCustomToken(uid);
+        if (!customToken) return res.status(500).json({ message: "Failed to generate authentication token." });
         return res.json({
           success: true,
           verified: true,
@@ -902,14 +867,13 @@ export async function registerRoutes(
       }
 
       const { merchantId } = req.params;
-      const accessToken = await getFirestoreAccessToken();
-      const baseUrl = getFirestoreBaseUrl();
-      if (!accessToken || !baseUrl) {
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) {
         return res.status(500).json({ message: "Firestore not configured" });
       }
 
-      const docRes = await fetch(`${baseUrl}/merchants/${merchantId}`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
+      const docRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}`, {
+        headers: {},
       });
       if (!docRes.ok) {
         return res.status(404).json({ message: "Merchant not found" });
@@ -937,14 +901,13 @@ export async function registerRoutes(
 
   app.get("/api/admin/settings", async (_req, res) => {
     try {
-      const accessToken = await getFirestoreAccessToken();
-      const baseUrl = getFirestoreBaseUrl();
-      if (!accessToken || !baseUrl) {
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) {
         return res.status(500).json({ message: "Firestore not configured" });
       }
 
-      const docRes = await fetch(`${baseUrl}/systemSettings/global`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
+      const docRes = await apikeyFetch(`${baseUrl}/systemSettings/global`, {
+        headers: {},
       });
 
       if (!docRes.ok) {
@@ -977,9 +940,8 @@ export async function registerRoutes(
       }
 
       const { appName, globalLogoUrl, supportWhatsapp, globalThemeColor } = req.body;
-      const accessToken = await getFirestoreAccessToken();
-      const baseUrl = getFirestoreBaseUrl();
-      if (!accessToken || !baseUrl) {
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) {
         return res.status(500).json({ message: "Firestore not configured" });
       }
 
@@ -992,9 +954,9 @@ export async function registerRoutes(
         },
       };
 
-      const patchRes = await fetch(`${baseUrl}/systemSettings/global`, {
+      const patchRes = await apikeyFetch(`${baseUrl}/systemSettings/global`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
 
@@ -1014,9 +976,8 @@ export async function registerRoutes(
   app.post("/api/track/share/:storeId", async (req, res) => {
     try {
       const { storeId } = req.params;
-      const accessToken = await getFirestoreAccessToken();
       const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
-      if (!accessToken || !projectId) {
+      if (!projectId || !getApiKey()) {
         return res.status(500).json({ message: "Firestore not configured" });
       }
 
@@ -1024,7 +985,7 @@ export async function registerRoutes(
       const docPath = `projects/${projectId}/databases/(default)/documents/merchants/${storeId}`;
       await fetch(commitUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           writes: [{
             transform: {
@@ -1048,9 +1009,8 @@ export async function registerRoutes(
   app.post("/api/track/gmaps/:storeId", async (req, res) => {
     try {
       const { storeId } = req.params;
-      const accessToken = await getFirestoreAccessToken();
       const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
-      if (!accessToken || !projectId) {
+      if (!projectId || !getApiKey()) {
         return res.status(500).json({ message: "Firestore not configured" });
       }
 
@@ -1058,7 +1018,7 @@ export async function registerRoutes(
       const docPath = `projects/${projectId}/databases/(default)/documents/merchants/${storeId}`;
       await fetch(commitUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           writes: [{
             transform: {
@@ -1082,9 +1042,8 @@ export async function registerRoutes(
   app.post("/api/track/qrscan/:storeId", async (req, res) => {
     try {
       const { storeId } = req.params;
-      const accessToken = await getFirestoreAccessToken();
       const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
-      if (!accessToken || !projectId) {
+      if (!projectId || !getApiKey()) {
         return res.status(500).json({ message: "Firestore not configured" });
       }
 
@@ -1092,7 +1051,7 @@ export async function registerRoutes(
       const docPath = `projects/${projectId}/databases/(default)/documents/merchants/${storeId}`;
       await fetch(commitUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           writes: [{
             transform: {
@@ -1119,9 +1078,8 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Unauthorized" });
       }
 
-      const accessToken = await getFirestoreAccessToken();
       const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
-      if (!accessToken || !projectId) {
+      if (!projectId || !getApiKey()) {
         return res.status(500).json({ message: "Firestore not configured" });
       }
 
@@ -1159,7 +1117,7 @@ export async function registerRoutes(
         `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(query),
         }
       );
@@ -1242,7 +1200,6 @@ export async function registerRoutes(
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify(merchantData),
       });
@@ -1267,9 +1224,8 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Unauthorized" });
       }
 
-      const accessToken = await getFirestoreAccessToken();
       const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
-      if (!accessToken || !projectId) {
+      if (!projectId || !getApiKey()) {
         return res.status(500).json({ message: "Firestore not configured" });
       }
 
@@ -1294,7 +1250,7 @@ export async function registerRoutes(
         `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(query),
         }
       );
@@ -1338,15 +1294,14 @@ export async function registerRoutes(
       }
 
       const { errorId } = req.params;
-      const accessToken = await getFirestoreAccessToken();
-      const baseUrl = getFirestoreBaseUrl();
-      if (!accessToken || !baseUrl) {
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) {
         return res.status(500).json({ message: "Firestore not configured" });
       }
 
-      const patchRes = await fetch(`${baseUrl}/system_errors/${errorId}?updateMask.fieldPaths=resolved`, {
+      const patchRes = await apikeyFetch(`${baseUrl}/system_errors/${errorId}?updateMask.fieldPaths=resolved`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fields: { resolved: { booleanValue: true } } }),
       });
 
@@ -1371,9 +1326,8 @@ export async function registerRoutes(
         return res.status(400).json({ message: "stars must be between 1 and 5" });
       }
 
-      const accessToken = await getFirestoreAccessToken();
-      const baseUrl = getFirestoreBaseUrl();
-      if (!accessToken || !baseUrl) {
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) {
         return res.status(500).json({ message: "Firestore not configured" });
       }
 
@@ -1388,9 +1342,9 @@ export async function registerRoutes(
         },
       };
 
-      const patchRes = await fetch(`${baseUrl}/store_internal_reviews/${docId}`, {
+      const patchRes = await apikeyFetch(`${baseUrl}/store_internal_reviews/${docId}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
 
@@ -1415,9 +1369,8 @@ export async function registerRoutes(
         return res.status(400).json({ message: "stars must be a number between 1 and 5" });
       }
 
-      const accessToken = await getFirestoreAccessToken();
-      const baseUrl = getFirestoreBaseUrl();
-      if (!accessToken || !baseUrl) {
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) {
         return res.status(500).json({ message: "Firestore not configured" });
       }
 
@@ -1432,9 +1385,9 @@ export async function registerRoutes(
         },
       };
 
-      const patchRes = await fetch(`${baseUrl}/private_feedbacks/${docId}`, {
+      const patchRes = await apikeyFetch(`${baseUrl}/private_feedbacks/${docId}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
 
@@ -1452,9 +1405,8 @@ export async function registerRoutes(
   app.get("/api/feedback/:merchantId", async (req, res) => {
     try {
       const { merchantId } = req.params;
-      const accessToken = await getFirestoreAccessToken();
       const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
-      if (!accessToken || !projectId) {
+      if (!projectId || !getApiKey()) {
         return res.status(500).json({ message: "Firestore not configured" });
       }
 
@@ -1476,7 +1428,7 @@ export async function registerRoutes(
         `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(query),
         }
       );
@@ -1519,15 +1471,14 @@ export async function registerRoutes(
   app.post("/api/feedback/:feedbackId/read", async (req, res) => {
     try {
       const { feedbackId } = req.params;
-      const accessToken = await getFirestoreAccessToken();
-      const baseUrl = getFirestoreBaseUrl();
-      if (!accessToken || !baseUrl) {
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) {
         return res.status(500).json({ message: "Firestore not configured" });
       }
 
-      const patchRes = await fetch(`${baseUrl}/private_feedbacks/${feedbackId}?updateMask.fieldPaths=read`, {
+      const patchRes = await apikeyFetch(`${baseUrl}/private_feedbacks/${feedbackId}?updateMask.fieldPaths=read`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fields: { read: { booleanValue: true } } }),
       });
 
@@ -1548,9 +1499,8 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Unauthorized" });
       }
 
-      const accessToken = await getFirestoreAccessToken();
       const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
-      if (!accessToken || !projectId) {
+      if (!projectId || !getApiKey()) {
         return res.status(500).json({ message: "Firestore not configured" });
       }
 
@@ -1566,7 +1516,7 @@ export async function registerRoutes(
         `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(query),
         }
       );
@@ -1610,9 +1560,8 @@ export async function registerRoutes(
       }
 
       const { merchantId } = req.params;
-      const accessToken = await getFirestoreAccessToken();
       const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
-      if (!accessToken || !projectId) {
+      if (!projectId || !getApiKey()) {
         return res.status(500).json({ message: "Firestore not configured" });
       }
 
@@ -1634,7 +1583,7 @@ export async function registerRoutes(
         `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(query),
         }
       );
@@ -1679,15 +1628,14 @@ export async function registerRoutes(
       }
 
       const { merchantId } = req.params;
-      const accessToken = await getFirestoreAccessToken();
-      const baseUrl = getFirestoreBaseUrl();
+      const baseUrl = getApiKeyBaseUrl();
       const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
       if (!accessToken || !baseUrl || !projectId) {
         return res.status(500).json({ message: "Firestore not configured" });
       }
 
-      const docRes = await fetch(`${baseUrl}/merchants/${merchantId}`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
+      const docRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}`, {
+        headers: {},
       });
       if (!docRes.ok) {
         return res.status(404).json({ message: "Merchant not found" });
@@ -1712,7 +1660,7 @@ export async function registerRoutes(
         `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/merchants/${merchantId}:runQuery`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(pagersQuery),
         }
       );
@@ -1765,14 +1713,13 @@ export async function registerRoutes(
       }
 
       const { merchantId } = req.params;
-      const accessToken = await getFirestoreAccessToken();
-      const baseUrl = getFirestoreBaseUrl();
-      if (!accessToken || !baseUrl) {
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) {
         return res.status(500).json({ message: "Firestore not configured" });
       }
 
-      const docRes = await fetch(`${baseUrl}/merchants/${merchantId}`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
+      const docRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}`, {
+        headers: {},
       });
 
       if (!docRes.ok) {
@@ -1818,7 +1765,6 @@ export async function registerRoutes(
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
           },
           body: JSON.stringify({ fields: { ...fields, ...updates } }),
         }
@@ -1858,12 +1804,11 @@ export async function registerRoutes(
   app.get("/api/merchant-features/:merchantId", async (req, res) => {
     try {
       const { merchantId } = req.params;
-      const accessToken = await getFirestoreAccessToken();
-      const baseUrl = getFirestoreBaseUrl();
-      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
 
-      const docRes = await fetch(`${baseUrl}/merchants/${merchantId}`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
+      const docRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}`, {
+        headers: {},
       });
       if (!docRes.ok) return res.status(404).json({ message: "Merchant not found" });
 
@@ -1880,12 +1825,11 @@ export async function registerRoutes(
     try {
       if (!(await isAdminRequest(req))) return res.status(403).json({ message: "Unauthorized" });
       const { merchantId } = req.params;
-      const accessToken = await getFirestoreAccessToken();
-      const baseUrl = getFirestoreBaseUrl();
-      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
 
-      const docRes = await fetch(`${baseUrl}/merchants/${merchantId}`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
+      const docRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}`, {
+        headers: {},
       });
       if (!docRes.ok) return res.status(404).json({ message: "Merchant not found" });
 
@@ -1903,12 +1847,11 @@ export async function registerRoutes(
       if (!(await isAdminRequest(req))) return res.status(403).json({ message: "Unauthorized" });
       const { merchantId } = req.params;
       const { analyticsEnabled, crmEnabled, smartRatingEnabled, printReceiptsEnabled } = req.body;
-      const accessToken = await getFirestoreAccessToken();
-      const baseUrl = getFirestoreBaseUrl();
-      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
 
-      const docRes = await fetch(`${baseUrl}/merchants/${merchantId}`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
+      const docRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}`, {
+        headers: {},
       });
       if (!docRes.ok) return res.status(404).json({ message: "Merchant not found" });
 
@@ -1940,7 +1883,7 @@ export async function registerRoutes(
       const patchUrl = `${baseUrl}/merchants/${merchantId}?${fieldPaths.map(f => `updateMask.fieldPaths=${f}`).join("&")}`;
       const patchRes = await fetch(patchUrl, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fields: { ...existingFields, ...updatedFields } }),
       });
 
@@ -1967,18 +1910,17 @@ export async function registerRoutes(
       const merchantEmail = req.headers["x-merchant-email"];
       if (!merchantEmail) return res.status(401).json({ message: "Authentication required" });
 
-      const accessToken = await getFirestoreAccessToken();
-      const baseUrl = getFirestoreBaseUrl();
-      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
 
-      const mCheck = await fetch(`${baseUrl}/merchants/${merchantId}`, { headers: { Authorization: `Bearer ${accessToken}` } });
+      const mCheck = await apikeyFetch(`${baseUrl}/merchants/${merchantId}`, { headers: {} });
       if (!mCheck.ok) return res.status(404).json({ message: "Merchant not found" });
       const mDoc = await mCheck.json();
       const mEmail = mDoc.fields?.email?.stringValue || "";
       if (mEmail !== merchantEmail) return res.status(403).json({ message: "Unauthorized" });
 
-      const ordersRes = await fetch(`${baseUrl}/merchants/${merchantId}/whatsappOrders?pageSize=500`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
+      const ordersRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}/whatsappOrders?pageSize=500`, {
+        headers: {},
       });
       if (!ordersRes.ok) return res.json({ avgPrepTime: 0, totalOrdersToday: 0, newCustomersToday: 0, totalRevenueToday: 0, lostRevenueToday: 0, orderSources: [] });
 
@@ -2023,8 +1965,8 @@ export async function registerRoutes(
         if (phone) todayPhones.add(phone.replace(/[^0-9]/g, ""));
       }
 
-      const custRes = await fetch(`${baseUrl}/merchants/${merchantId}/customers?pageSize=500`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
+      const custRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}/customers?pageSize=500`, {
+        headers: {},
       });
       let newCustomersToday = 0;
       if (custRes.ok) {
@@ -2058,11 +2000,10 @@ export async function registerRoutes(
       const { amountReceived, startDate, endDate } = req.body;
       if (!amountReceived || !startDate || !endDate) return res.status(400).json({ message: "amountReceived, startDate, and endDate are required" });
 
-      const accessToken = await getFirestoreAccessToken();
-      const baseUrl = getFirestoreBaseUrl();
-      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
 
-      const docRes = await fetch(`${baseUrl}/merchants/${merchantId}`, { headers: { Authorization: `Bearer ${accessToken}` } });
+      const docRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}`, { headers: {} });
       if (!docRes.ok) return res.status(404).json({ message: "Merchant not found" });
 
       const paymentId = randomUUID();
@@ -2075,9 +2016,9 @@ export async function registerRoutes(
           createdAt: { stringValue: new Date().toISOString() },
         },
       };
-      const createRes = await fetch(`${baseUrl}/merchants/${merchantId}/subscriptionPayments/${paymentId}`, {
+      const createRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}/subscriptionPayments/${paymentId}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(paymentDoc),
       });
       if (!createRes.ok) {
@@ -2097,7 +2038,7 @@ export async function registerRoutes(
       const patchUrl = `${baseUrl}/merchants/${merchantId}?updateMask.fieldPaths=subscriptionStatus&updateMask.fieldPaths=subscriptionStartAt&updateMask.fieldPaths=subscriptionExpiry`;
       const activationRes = await fetch(patchUrl, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fields: updateFields }),
       });
       if (!activationRes.ok) {
@@ -2117,12 +2058,11 @@ export async function registerRoutes(
     try {
       if (!(await isAdminRequest(req))) return res.status(403).json({ message: "Unauthorized" });
       const { merchantId } = req.params;
-      const accessToken = await getFirestoreAccessToken();
-      const baseUrl = getFirestoreBaseUrl();
-      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
 
-      const paymentsRes = await fetch(`${baseUrl}/merchants/${merchantId}/subscriptionPayments`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
+      const paymentsRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}/subscriptionPayments`, {
+        headers: {},
       });
       if (!paymentsRes.ok) return res.json({ payments: [] });
 
@@ -2149,12 +2089,11 @@ export async function registerRoutes(
   app.get("/api/admin/platform-finance", async (req, res) => {
     try {
       if (!(await isAdminRequest(req))) return res.status(403).json({ message: "Unauthorized" });
-      const accessToken = await getFirestoreAccessToken();
-      const baseUrl = getFirestoreBaseUrl();
-      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
 
-      const expensesRes = await fetch(`${baseUrl}/platform_admin_finance/expenses/items`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
+      const expensesRes = await apikeyFetch(`${baseUrl}/platform_admin_finance/expenses/items`, {
+        headers: {},
       });
       let expenses: any[] = [];
       if (expensesRes.ok) {
@@ -2171,7 +2110,7 @@ export async function registerRoutes(
         }).sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
       }
 
-      const merchantsRes = await fetch(`${baseUrl}/merchants`, { headers: { Authorization: `Bearer ${accessToken}` } });
+      const merchantsRes = await apikeyFetch(`${baseUrl}/merchants`, { headers: {} });
       let totalRevenue = 0;
       const revenueByMerchant: any[] = [];
 
@@ -2184,8 +2123,8 @@ export async function registerRoutes(
           const mId = mDoc.name?.split("/").pop() || "";
           const storeName = mFields.storeName?.stringValue || mFields.email?.stringValue || mId;
 
-          const pmtRes = await fetch(`${baseUrl}/merchants/${mId}/subscriptionPayments`, {
-            headers: { Authorization: `Bearer ${accessToken}` },
+          const pmtRes = await apikeyFetch(`${baseUrl}/merchants/${mId}/subscriptionPayments`, {
+            headers: {},
           });
           let merchantTotal = 0;
           let paymentCount = 0;
@@ -2226,16 +2165,15 @@ export async function registerRoutes(
       const { name, amount, date } = req.body;
       if (!name || amount === undefined || !date) return res.status(400).json({ message: "name, amount, and date are required" });
 
-      const accessToken = await getFirestoreAccessToken();
-      const baseUrl = getFirestoreBaseUrl();
-      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
 
       const parentDocUrl = `${baseUrl}/platform_admin_finance/expenses`;
-      const checkParent = await fetch(parentDocUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
+      const checkParent = await fetch(parentDocUrl, { headers: {} });
       if (!checkParent.ok || checkParent.status === 404) {
         await fetch(parentDocUrl, {
           method: "PATCH",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ fields: { _placeholder: { booleanValue: true } } }),
         });
       }
@@ -2249,9 +2187,9 @@ export async function registerRoutes(
           createdAt: { stringValue: new Date().toISOString() },
         },
       };
-      const createRes = await fetch(`${baseUrl}/platform_admin_finance/expenses/items/${expenseId}`, {
+      const createRes = await apikeyFetch(`${baseUrl}/platform_admin_finance/expenses/items/${expenseId}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(expenseDoc),
       });
       if (!createRes.ok) {
@@ -2272,13 +2210,12 @@ export async function registerRoutes(
     try {
       if (!(await isAdminRequest(req))) return res.status(403).json({ message: "Unauthorized" });
       const { expenseId } = req.params;
-      const accessToken = await getFirestoreAccessToken();
-      const baseUrl = getFirestoreBaseUrl();
-      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
 
-      const delRes = await fetch(`${baseUrl}/platform_admin_finance/expenses/items/${expenseId}`, {
+      const delRes = await apikeyFetch(`${baseUrl}/platform_admin_finance/expenses/items/${expenseId}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${accessToken}` },
+        headers: {},
       });
       if (!delRes.ok) return res.status(500).json({ message: "Failed to delete expense" });
 
@@ -2294,11 +2231,10 @@ export async function registerRoutes(
   app.get("/api/admin/renewal-analytics", async (req, res) => {
     try {
       if (!(await isAdminRequest(req))) return res.status(403).json({ message: "Unauthorized" });
-      const accessToken = await getFirestoreAccessToken();
-      const baseUrl = getFirestoreBaseUrl();
-      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
 
-      const merchantsRes = await fetch(`${baseUrl}/merchants`, { headers: { Authorization: `Bearer ${accessToken}` } });
+      const merchantsRes = await apikeyFetch(`${baseUrl}/merchants`, { headers: {} });
       if (!merchantsRes.ok) return res.status(500).json({ message: "Failed to fetch merchants" });
       const merchData = await merchantsRes.json();
       const merchantDocs = merchData.documents || [];
@@ -2335,12 +2271,11 @@ export async function registerRoutes(
   app.get("/api/admin/global-monitor", async (req, res) => {
     try {
       if (!(await isAdminRequest(req))) return res.status(403).json({ message: "Unauthorized" });
-      const accessToken = await getFirestoreAccessToken();
-      const baseUrl = getFirestoreBaseUrl();
-      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
 
-      const merchantsRes = await fetch(`${baseUrl}/merchants`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
+      const merchantsRes = await apikeyFetch(`${baseUrl}/merchants`, {
+        headers: {},
       });
       if (!merchantsRes.ok) return res.status(500).json({ message: "Failed to fetch merchants" });
       const merchantsData = await merchantsRes.json();
@@ -2365,7 +2300,7 @@ export async function registerRoutes(
 
         const ordersRes = await fetch(
           `${baseUrl}/merchants/${merchantId}/whatsappOrders`,
-          { headers: { Authorization: `Bearer ${accessToken}` } }
+          { headers: {} }
         );
 
         let ordersToday = 0;
@@ -2442,9 +2377,8 @@ export async function registerRoutes(
       const { name, price, description, category, visible } = req.body;
       if (!name || !price) return res.status(400).json({ message: "name and price are required" });
 
-      const accessToken = await getFirestoreAccessToken();
-      const baseUrl = getFirestoreBaseUrl();
-      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
 
       const docId = randomUUID();
       const imageUrl = req.file ? `/uploads/${req.file.filename}` : "";
@@ -2485,9 +2419,9 @@ export async function registerRoutes(
         } catch {}
       }
 
-      const patchRes = await fetch(`${baseUrl}/merchants/${merchantId}/products/${docId}`, {
+      const patchRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}/products/${docId}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fields }),
       });
 
@@ -2502,12 +2436,11 @@ export async function registerRoutes(
   app.get("/api/products/:merchantId", async (req, res) => {
     try {
       const { merchantId } = req.params;
-      const accessToken = await getFirestoreAccessToken();
-      const baseUrl = getFirestoreBaseUrl();
-      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
 
-      const listRes = await fetch(`${baseUrl}/merchants/${merchantId}/products?pageSize=500`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
+      const listRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}/products?pageSize=500`, {
+        headers: {},
       });
 
       if (!listRes.ok) return res.status(500).json({ message: "Failed to list products" });
@@ -2549,9 +2482,8 @@ export async function registerRoutes(
   app.patch("/api/products/:merchantId/:productId", upload.single("image"), async (req, res) => {
     try {
       const { merchantId, productId } = req.params;
-      const accessToken = await getFirestoreAccessToken();
-      const baseUrl = getFirestoreBaseUrl();
-      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
 
       const updateFields: Record<string, any> = {};
       const fieldPaths: string[] = [];
@@ -2610,9 +2542,9 @@ export async function registerRoutes(
       if (fieldPaths.length === 0) return res.status(400).json({ message: "No fields to update" });
 
       const maskParams = fieldPaths.map(fp => `updateMask.fieldPaths=${fp}`).join("&");
-      const patchRes = await fetch(`${baseUrl}/merchants/${merchantId}/products/${productId}?${maskParams}`, {
+      const patchRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}/products/${productId}?${maskParams}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fields: updateFields }),
       });
 
@@ -2628,13 +2560,12 @@ export async function registerRoutes(
   app.delete("/api/products/:merchantId/:productId", async (req, res) => {
     try {
       const { merchantId, productId } = req.params;
-      const accessToken = await getFirestoreAccessToken();
-      const baseUrl = getFirestoreBaseUrl();
-      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
 
-      const delRes = await fetch(`${baseUrl}/merchants/${merchantId}/products/${productId}`, {
+      const delRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}/products/${productId}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${accessToken}` },
+        headers: {},
       });
 
       if (!delRes.ok) return res.status(500).json({ message: "Failed to delete product" });
@@ -2648,10 +2579,42 @@ export async function registerRoutes(
   app.get("/api/menu/:merchantId", async (req, res) => {
     try {
       const { merchantId } = req.params;
-      const accessToken = await getFirestoreAccessToken();
       const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
-      if (!accessToken || !projectId) return res.status(500).json({ message: "Firestore not configured" });
+      const apiKey = getApiKey();
+      if (!projectId || !apiKey) return res.status(500).json({ message: "Firestore not configured" });
 
+      const base = getApiKeyBaseUrl()!;
+
+      // Fetch merchant document
+      const mRes = await apikeyFetch(`${base}/merchants/${merchantId}`);
+      if (!mRes.ok) return res.status(404).json({ message: "Merchant not found" });
+      const mDoc = await mRes.json();
+      const mf = mDoc.fields || {};
+
+      const merchant = {
+        storeName: mf.storeName?.stringValue || "",
+        logoUrl: mf.logoUrl?.stringValue || "",
+        whatsappNumber: mf.whatsappNumber?.stringValue || "",
+        status: mf.status?.stringValue || "",
+        subscriptionStatus: mf.subscriptionStatus?.stringValue || "",
+        storeOpen: mf.storeOpen?.booleanValue !== false,
+        onlineOrdersEnabled: mf.onlineOrdersEnabled?.booleanValue !== false,
+        businessOpenTime: mf.businessOpenTime?.stringValue || "",
+        businessCloseTime: mf.businessCloseTime?.stringValue || "",
+        storeTermsEnabled: mf.storeTermsEnabled?.booleanValue === true,
+        storeTermsText: mf.storeTermsText?.stringValue || "",
+        storePrivacyText: mf.storePrivacyText?.stringValue || "",
+        moyasarPublishableKey: mf.moyasarPublishableKey?.stringValue || "",
+        onlinePaymentEnabled: mf.onlinePaymentEnabled?.booleanValue === true,
+        codEnabled: mf.codEnabled?.booleanValue !== false,
+        deliveryEnabled: mf.deliveryEnabled?.booleanValue === true,
+        deliveryFee: mf.deliveryFee?.doubleValue ?? parseFloat(mf.deliveryFee?.integerValue || "0"),
+        deliveryRange: mf.deliveryRange?.doubleValue ?? parseFloat(mf.deliveryRange?.integerValue || "0"),
+        storeLat: mf.storeLat?.doubleValue ?? null,
+        storeLng: mf.storeLng?.doubleValue ?? null,
+      };
+
+      // Fetch visible products via runQuery
       const queryBody = {
         structuredQuery: {
           from: [{ collectionId: "products" }],
@@ -2666,74 +2629,49 @@ export async function registerRoutes(
         },
       };
 
-      const queryRes = await fetch(
-        `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/merchants/${merchantId}:runQuery`,
+      const queryRes = await apikeyFetch(
+        `${base}/merchants/${merchantId}:runQuery`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(queryBody),
         }
       );
 
-      if (!queryRes.ok) return res.status(500).json({ message: "Failed to query products" });
-      const results = await queryRes.json();
-      const products = results
-        .filter((r: any) => r.document)
-        .map((r: any) => {
-          const f = r.document.fields || {};
-          const parts = r.document.name.split("/");
-          const variants = (f.variants?.arrayValue?.values || []).map((v: any) => ({
-            name: v.mapValue?.fields?.name?.stringValue || "",
-            price: v.mapValue?.fields?.price?.doubleValue ?? parseFloat(v.mapValue?.fields?.price?.integerValue || "0"),
-          }));
-          const addons = (f.addons?.arrayValue?.values || []).map((a: any) => ({
-            name: a.mapValue?.fields?.name?.stringValue || "",
-            price: a.mapValue?.fields?.price?.doubleValue ?? parseFloat(a.mapValue?.fields?.price?.integerValue || "0"),
-          }));
-          return {
-            id: parts[parts.length - 1],
-            name: f.name?.stringValue || "",
-            price: f.price?.doubleValue ?? parseFloat(f.price?.integerValue || "0"),
-            description: f.description?.stringValue || "",
-            imageUrl: f.imageUrl?.stringValue || "",
-            variants: variants.length > 0 ? variants : undefined,
-            addons: addons.length > 0 ? addons : undefined,
-          };
-        });
-
-      // Also get merchant info for display
-      const baseUrl = getFirestoreBaseUrl();
-      let merchant = null;
-      if (baseUrl) {
-        const mRes = await fetch(`${baseUrl}/merchants/${merchantId}`, {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
-        if (mRes.ok) {
-          const mDoc = await mRes.json();
-          const mf = mDoc.fields || {};
-          merchant = {
-            storeName: mf.storeName?.stringValue || "",
-            logoUrl: mf.logoUrl?.stringValue || "",
-            whatsappNumber: mf.whatsappNumber?.stringValue || "",
-            status: mf.status?.stringValue || "",
-            subscriptionStatus: mf.subscriptionStatus?.stringValue || "",
-            storeOpen: mf.storeOpen?.booleanValue !== false,
-            onlineOrdersEnabled: mf.onlineOrdersEnabled?.booleanValue !== false,
-            businessOpenTime: mf.businessOpenTime?.stringValue || "",
-            businessCloseTime: mf.businessCloseTime?.stringValue || "",
-            storeTermsEnabled: mf.storeTermsEnabled?.booleanValue === true,
-            storeTermsText: mf.storeTermsText?.stringValue || "",
-            storePrivacyText: mf.storePrivacyText?.stringValue || "",
-            moyasarPublishableKey: mf.moyasarPublishableKey?.stringValue || "",
-            onlinePaymentEnabled: mf.onlinePaymentEnabled?.booleanValue === true,
-            codEnabled: mf.codEnabled?.booleanValue !== false,
-            deliveryEnabled: mf.deliveryEnabled?.booleanValue === true,
-            deliveryFee: mf.deliveryFee?.doubleValue ?? parseFloat(mf.deliveryFee?.integerValue || "0"),
-            deliveryRange: mf.deliveryRange?.doubleValue ?? parseFloat(mf.deliveryRange?.integerValue || "0"),
-            storeLat: mf.storeLat?.doubleValue ?? null,
-            storeLng: mf.storeLng?.doubleValue ?? null,
-          };
-        }
+      let products: any[] = [];
+      if (queryRes.ok) {
+        const results = await queryRes.json();
+        products = (Array.isArray(results) ? results : [])
+          .filter((r: any) => r.document)
+          .map((r: any) => {
+            const f = r.document.fields || {};
+            const parts = r.document.name.split("/");
+            const mapArray = (arr: any[]) => arr.map((v: any) => ({
+              name: v.mapValue?.fields?.name?.stringValue || "",
+              price: v.mapValue?.fields?.price?.doubleValue ?? parseFloat(v.mapValue?.fields?.price?.integerValue || "0"),
+            }));
+            const mapRemovals = (arr: any[]) => arr.map((v: any) => ({
+              name: v.mapValue?.fields?.name?.stringValue || "",
+            }));
+            const variants = mapArray(f.variants?.arrayValue?.values || []);
+            const addons = mapArray(f.addons?.arrayValue?.values || []);
+            const extras = mapArray(f.extras?.arrayValue?.values || []);
+            const removals = mapRemovals(f.removals?.arrayValue?.values || []);
+            return {
+              id: parts[parts.length - 1],
+              name: f.name?.stringValue || "",
+              price: f.price?.doubleValue ?? parseFloat(f.price?.integerValue || "0"),
+              pricingType: f.pricingType?.stringValue || "fixed",
+              category: f.category?.stringValue || "",
+              description: f.description?.stringValue || "",
+              imageUrl: f.imageUrl?.stringValue || "",
+              visible: f.visible?.booleanValue !== false,
+              variants: variants.length > 0 ? variants : undefined,
+              addons: addons.length > 0 ? addons : undefined,
+              extras: extras.length > 0 ? extras : undefined,
+              removals: removals.length > 0 ? removals : undefined,
+            };
+          });
       }
 
       return res.json({ products, merchant });
@@ -2753,13 +2691,10 @@ export async function registerRoutes(
         return res.status(400).json({ message: "customerName, customerPhone, and items are required" });
       }
 
-      const accessToken = await getFirestoreAccessToken();
-      const baseUrl = getFirestoreBaseUrl();
-      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
 
-      const mRes = await fetch(`${baseUrl}/merchants/${merchantId}`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
+      const mRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}`);
       if (!mRes.ok) return res.status(404).json({ message: "Merchant not found" });
       const mDoc = await mRes.json();
       const mf = mDoc.fields || {};
@@ -2800,10 +2735,7 @@ export async function registerRoutes(
 
       const { couponCode } = req.body;
       if (couponCode && typeof couponCode === "string") {
-        const couponsUrl = `${baseUrl}/merchants/${merchantId}/coupons`;
-        const cRes = await fetch(`${couponsUrl}?pageSize=200`, {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
+        const cRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}/coupons?pageSize=200`);
         if (cRes.ok) {
           const cData = await cRes.json();
           const docs = cData.documents || [];
@@ -2823,7 +2755,7 @@ export async function registerRoutes(
 
       let onlineId: { orderNumber: string; currentYY: string };
       try {
-        onlineId = await generateOnlineOrderId(merchantId, accessToken, baseUrl);
+        onlineId = await generateOnlineOrderId(merchantId);
       } catch (err) {
         console.error("[OrderCreate] Failed to generate online order ID:", err);
         return res.status(500).json({ message: "Failed to generate order ID. Please try again." });
@@ -2894,9 +2826,9 @@ export async function registerRoutes(
         fields.source = { stringValue: source };
       }
 
-      const patchRes = await fetch(`${baseUrl}/merchants/${merchantId}/whatsappOrders/${docId}`, {
+      const patchRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}/whatsappOrders/${docId}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fields }),
       });
 
@@ -2906,16 +2838,16 @@ export async function registerRoutes(
       const custId = custPhone.replace(/\+/g, "");
       if (custId) {
         const custUrl = `${baseUrl}/merchants/${merchantId}/customers/${custId}`;
-        const existRes = await fetch(custUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
+        const existRes = await apikeyFetch(custUrl);
         let totalOrders = 1;
         if (existRes.ok) {
           const existDoc = await existRes.json();
           const ef = existDoc.fields || {};
           totalOrders = parseInt(ef.totalOrders?.integerValue || "0") + 1;
         }
-        await fetch(custUrl, {
+        apikeyFetch(custUrl, {
           method: "PATCH",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             fields: {
               name: { stringValue: customerName },
@@ -2937,12 +2869,11 @@ export async function registerRoutes(
   app.get("/api/whatsapp-orders/:merchantId", async (req, res) => {
     try {
       const { merchantId } = req.params;
-      const accessToken = await getFirestoreAccessToken();
-      const baseUrl = getFirestoreBaseUrl();
-      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
 
-      const listRes = await fetch(`${baseUrl}/merchants/${merchantId}/whatsappOrders?pageSize=200`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
+      const listRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}/whatsappOrders?pageSize=200`, {
+        headers: {},
       });
 
       if (!listRes.ok) return res.status(500).json({ message: "Failed to list orders" });
@@ -2986,9 +2917,8 @@ export async function registerRoutes(
       const { merchantId, orderId } = req.params;
       const { status, orderNumber } = req.body;
 
-      const accessToken = await getFirestoreAccessToken();
-      const baseUrl = getFirestoreBaseUrl();
-      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
 
       const updateFields: Record<string, any> = {};
       const fieldPaths: string[] = [];
@@ -3019,9 +2949,9 @@ export async function registerRoutes(
       if (fieldPaths.length === 0) return res.status(400).json({ message: "No fields to update" });
 
       const maskParams = fieldPaths.map(fp => `updateMask.fieldPaths=${fp}`).join("&");
-      const patchRes = await fetch(`${baseUrl}/merchants/${merchantId}/whatsappOrders/${orderId}?${maskParams}`, {
+      const patchRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}/whatsappOrders/${orderId}?${maskParams}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fields: updateFields }),
       });
 
@@ -3029,8 +2959,8 @@ export async function registerRoutes(
 
       if (status === "uncollected") {
         try {
-          const orderDoc = await fetch(`${baseUrl}/merchants/${merchantId}/whatsappOrders/${orderId}`, {
-            headers: { Authorization: `Bearer ${accessToken}` },
+          const orderDoc = await apikeyFetch(`${baseUrl}/merchants/${merchantId}/whatsappOrders/${orderId}`, {
+            headers: {},
           });
           if (orderDoc.ok) {
             const od = await orderDoc.json();
@@ -3038,7 +2968,7 @@ export async function registerRoutes(
             const custId = phone.replace(/[^0-9]/g, "");
             if (custId) {
               const custUrl = `${baseUrl}/merchants/${merchantId}/customers/${custId}`;
-              const custRes = await fetch(custUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
+              const custRes = await fetch(custUrl, { headers: {} });
               let noShowCount = 1;
               if (custRes.ok) {
                 const cd = await custRes.json();
@@ -3046,7 +2976,7 @@ export async function registerRoutes(
               }
               await fetch(`${custUrl}?updateMask.fieldPaths=noShowCount`, {
                 method: "PATCH",
-                headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ fields: { noShowCount: { integerValue: String(noShowCount) } } }),
               }).catch(() => {});
             }
@@ -3068,12 +2998,11 @@ export async function registerRoutes(
       const { merchantId } = req.params;
       if (!merchantId) return res.status(400).json({ message: "merchantId required" });
 
-      const accessToken = await getFirestoreAccessToken();
-      const baseUrl = getFirestoreBaseUrl();
-      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
 
-      const mRes = await fetch(`${baseUrl}/merchants/${merchantId}`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
+      const mRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}`, {
+        headers: {},
       });
       if (!mRes.ok) return res.status(404).json({ message: "Merchant not found" });
       const mDoc = await mRes.json();
@@ -3101,13 +3030,12 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Rating must be an integer between 1 and 5" });
       }
 
-      const accessToken = await getFirestoreAccessToken();
-      const baseUrl = getFirestoreBaseUrl();
-      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
 
       const docUrl = `${baseUrl}/merchants/${merchantId}/pagers/${pagerId}`;
 
-      const getRes = await fetch(docUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
+      const getRes = await fetch(docUrl, { headers: {} });
       if (!getRes.ok) return res.status(404).json({ message: "Pager not found" });
       const pagerDoc = await getRes.json();
       const pagerStatus = pagerDoc?.fields?.status?.stringValue;
@@ -3128,7 +3056,7 @@ export async function registerRoutes(
 
       const patchRes = await fetch(`${docUrl}?updateMask.fieldPaths=customerFeedback`, {
         method: "PATCH",
-        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           fields: {
             customerFeedback: {
@@ -3166,13 +3094,12 @@ export async function registerRoutes(
         return res.status(400).json({ message: "merchantId query parameter required" });
       }
 
-      const accessToken = await getFirestoreAccessToken();
-      const baseUrl = getFirestoreBaseUrl();
-      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
 
       const collectionName = type === "pager" ? "pagers" : "whatsappOrders";
-      const docRes = await fetch(`${baseUrl}/merchants/${merchantId}/${collectionName}/${orderId}`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
+      const docRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}/${collectionName}/${orderId}`, {
+        headers: {},
       });
 
       if (!docRes.ok) return res.status(404).json({ message: "Order not found" });
@@ -3232,8 +3159,8 @@ export async function registerRoutes(
         };
       }
 
-      const mRes = await fetch(`${baseUrl}/merchants/${merchantId}`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
+      const mRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}`, {
+        headers: {},
       });
       let merchant = null;
       if (mRes.ok) {
@@ -3258,12 +3185,11 @@ export async function registerRoutes(
   app.get("/api/coupons/:merchantId", async (req, res) => {
     try {
       const { merchantId } = req.params;
-      const accessToken = await getFirestoreAccessToken();
-      const baseUrl = getFirestoreBaseUrl();
-      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
 
       const url = `${baseUrl}/merchants/${merchantId}/coupons?pageSize=200`;
-      const r = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+      const r = await fetch(url, { headers: {} });
       if (!r.ok) return res.json({ coupons: [] });
       const data = await r.json();
       const coupons = (data.documents || []).map((d: any) => {
@@ -3290,14 +3216,13 @@ export async function registerRoutes(
       const { code, discountPercent, active } = req.body;
       if (!code || !discountPercent) return res.status(400).json({ message: "code and discountPercent are required" });
 
-      const accessToken = await getFirestoreAccessToken();
-      const baseUrl = getFirestoreBaseUrl();
-      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
 
       const docId = randomUUID();
-      const patchRes = await fetch(`${baseUrl}/merchants/${merchantId}/coupons/${docId}`, {
+      const patchRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}/coupons/${docId}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           fields: {
             code: { stringValue: String(code).toUpperCase() },
@@ -3319,13 +3244,12 @@ export async function registerRoutes(
   app.delete("/api/coupons/:merchantId/:couponId", async (req, res) => {
     try {
       const { merchantId, couponId } = req.params;
-      const accessToken = await getFirestoreAccessToken();
-      const baseUrl = getFirestoreBaseUrl();
-      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
 
-      const delRes = await fetch(`${baseUrl}/merchants/${merchantId}/coupons/${couponId}`, {
+      const delRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}/coupons/${couponId}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${accessToken}` },
+        headers: {},
       });
 
       if (!delRes.ok) return res.status(500).json({ message: "Failed to delete coupon" });
@@ -3340,13 +3264,12 @@ export async function registerRoutes(
     try {
       const { merchantId, couponId } = req.params;
       const { active } = req.body;
-      const accessToken = await getFirestoreAccessToken();
-      const baseUrl = getFirestoreBaseUrl();
-      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
 
-      const patchRes = await fetch(`${baseUrl}/merchants/${merchantId}/coupons/${couponId}?updateMask.fieldPaths=active`, {
+      const patchRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}/coupons/${couponId}?updateMask.fieldPaths=active`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           fields: {
             active: { booleanValue: !!active },
@@ -3368,12 +3291,11 @@ export async function registerRoutes(
       const { code } = req.body;
       if (!code) return res.status(400).json({ valid: false, message: "Code is required" });
 
-      const accessToken = await getFirestoreAccessToken();
-      const baseUrl = getFirestoreBaseUrl();
-      if (!accessToken || !baseUrl) return res.status(500).json({ valid: false, message: "Firestore not configured" });
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ valid: false, message: "Firestore not configured" });
 
       const url = `${baseUrl}/merchants/${merchantId}/coupons?pageSize=200`;
-      const r = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+      const r = await fetch(url, { headers: {} });
       if (!r.ok) return res.json({ valid: false });
       const data = await r.json();
       const docs = data.documents || [];
@@ -3397,9 +3319,8 @@ export async function registerRoutes(
     try {
       const { merchantId } = req.params;
       const { period, from, to } = req.query;
-      const accessToken = await getFirestoreAccessToken();
-      const baseUrl = getFirestoreBaseUrl();
-      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
 
       const now = new Date();
       let startDate: Date;
@@ -3423,7 +3344,7 @@ export async function registerRoutes(
       }
 
       const url = `${baseUrl}/merchants/${merchantId}/whatsappOrders?pageSize=500`;
-      const r = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+      const r = await fetch(url, { headers: {} });
       if (!r.ok) return res.json({ totalSales: 0, collectedSales: 0, lostSales: 0, completionRate: 0, orders: [] });
       const data = await r.json();
       const allDocs = data.documents || [];
@@ -3520,12 +3441,11 @@ export async function registerRoutes(
   app.get("/api/customers/:merchantId", async (req, res) => {
     try {
       const { merchantId } = req.params;
-      const accessToken = await getFirestoreAccessToken();
-      const baseUrl = getFirestoreBaseUrl();
-      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
 
       const url = `${baseUrl}/merchants/${merchantId}/customers?pageSize=500`;
-      const r = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+      const r = await fetch(url, { headers: {} });
       if (!r.ok) return res.json({ customers: [] });
       const data = await r.json();
       const customers = (data.documents || []).map((d: any) => {
@@ -3555,9 +3475,8 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Admin access required" });
       }
 
-      const accessToken = await getFirestoreAccessToken();
-      const baseUrl = getFirestoreBaseUrl();
-      if (!accessToken || !baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
 
       let cleaned = 0;
       const details: { orderId: string; displayOrderId: string; removedOrderNumber: string }[] = [];
@@ -3567,7 +3486,7 @@ export async function registerRoutes(
         let listUrl = `${baseUrl}/merchants/${merchantId}/whatsappOrders?pageSize=300`;
         if (pageToken) listUrl += `&pageToken=${encodeURIComponent(pageToken)}`;
 
-        const listRes = await fetch(listUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
+        const listRes = await fetch(listUrl, { headers: {} });
         if (!listRes.ok) break;
         const listData = await listRes.json();
         const docs = listData.documents || [];
@@ -3590,7 +3509,7 @@ export async function registerRoutes(
           const patchUrl = `${baseUrl}/merchants/${merchantId}/whatsappOrders/${docId}?updateMask.fieldPaths=orderNumber`;
           const patchRes = await fetch(patchUrl, {
             method: "PATCH",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ fields: { orderNumber: { stringValue: cloudOrderNum } } }),
           });
           if (patchRes.ok) {

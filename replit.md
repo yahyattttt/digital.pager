@@ -48,7 +48,9 @@ The platform is a multi-tenant SaaS application. The frontend uses React, Vite, 
 - **Super Admin Panel**: Manages merchants, global settings, impersonation, system health, and ROI reports, including per-merchant feature toggles.
 - **Subscription System**: Two-layer gating for subscription status, admin-managed payment tracking, and auto-activation.
 - **Platform Finance System**: Isolated `platform_admin_finance` collection for tracking platform revenue, expenses, and net profit.
-- **Structured Cloud Numbering System**: Online orders use `[CityCode][YY][PaddedCounter]` format, assigned via a Firestore REST transaction, with city codes configurable.
+- **Structured Cloud Numbering System**: Online orders use `[CityCode][YY][PaddedCounter]` format, assigned via a Firestore REST PATCH (non-transactional) to the `settings/orderCounter` subcollection, with city codes configurable.
+- **Firestore Auth Strategy**: The Firebase Admin SDK service account JWT was invalid (`invalid_grant`), so ALL server-side Firestore operations use unauthenticated REST calls with `VITE_FIREBASE_API_KEY` via `apikeyFetch()`. Firestore security rules are `allow read, write: if true`. The `getFirestoreAccessToken()` function exists but is no longer used.
+- **Merchant UID Resolution**: `findMerchantByEmail()` queries Firestore for existing merchants and returns the Firestore document ID as the uid (not the Firebase Auth UID). This ensures store URLs like `/menu/{uid}` correctly resolve to the merchant's public store.
 - **Manual Order System**: Allows merchants to manually enter 3-digit order IDs or use shift-based auto-generation, creating pagers that are strictly isolated from WhatsApp order sync.
 - **Advanced Merchant Tracking**: Captures `preparingAt`/`readyAt` timestamps and provides a 4-metric dashboard grid, new/loyal customer badges, top order sources, and revenue/loss charts.
 
