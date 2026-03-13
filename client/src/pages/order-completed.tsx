@@ -110,18 +110,20 @@ export default function OrderCompletedPage() {
     .totals { border-top: 1px solid #3a0000; padding-top: 16px; }
     .total-row { display: flex; justify-content: space-between; padding: 5px 12px; font-size: 14px; color: #ccc; }
     .total-row.grand { color: #ff4422; font-size: 18px; font-weight: 700; border-top: 1px solid #cc2200; margin-top: 8px; padding-top: 10px; }
+    .tax-disclaimer { text-align: center; margin-top: 10px; padding: 8px 12px; font-size: 13px; color: #aaa; border: 1px dashed #3a0000; border-radius: 6px; }
     .footer { text-align: center; margin-top: 40px; color: #555; font-size: 12px; border-top: 1px solid #1a0000; padding-top: 16px; }
     @media print {
       body { background: #fff; color: #000; }
       .header h1 { color: #cc2200; }
       .total-row.grand { color: #cc2200; }
+      .tax-disclaimer { color: #444; border-color: #bbb; }
     }
   </style>
 </head>
 <body>
   <div class="header">
     <h1>${merchantName || "Digital Pager"}</h1>
-    <p>فاتورة ضريبية مبسطة</p>
+    <p>فاتورة</p>
   </div>
   <div class="meta">
     <span>رقم الطلب: <strong>#${num}</strong></span>
@@ -144,6 +146,7 @@ export default function OrderCompletedPage() {
       <div class="total-row"><span>رسوم التوصيل</span><span>${deliveryFee.toFixed(2)} ر.س</span></div>
     ` : ""}
     <div class="total-row grand"><span>الإجمالي</span><span>${total.toFixed(2)} ر.س</span></div>
+    <div class="tax-disclaimer">المؤسسة غير خاضعة للضريبة</div>
   </div>
   ` : `<p style="color:#888;text-align:center;padding:24px;">لا توجد تفاصيل للطلب</p>`}
   <div class="footer">
