@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { doc, getDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { signInWithCustomToken } from "firebase/auth";
+import { db, auth } from "@/lib/firebase";
 import { z } from "zod";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -133,6 +134,11 @@ export default function LoginPage() {
       const emailLower = email.trim().toLowerCase();
 
       if (emailLower === "yahiatohary@hotmail.com" || data.isAdmin) {
+        try {
+          await signInWithCustomToken(auth, data.customToken);
+        } catch (authErr: any) {
+          void authErr;
+        }
         login(data.uid, emailLower);
         window.location.href = "/super-admin";
         return;
@@ -177,6 +183,11 @@ export default function LoginPage() {
         return;
       }
 
+      try {
+        await signInWithCustomToken(auth, data.customToken);
+      } catch (authErr: any) {
+        void authErr;
+      }
       login(data.uid, emailLower);
       setLocation("/dashboard");
     } catch (error: any) {

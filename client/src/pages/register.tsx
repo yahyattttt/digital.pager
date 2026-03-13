@@ -2,7 +2,8 @@ import { useState, useRef, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { doc, setDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { signInWithCustomToken } from "firebase/auth";
+import { db, auth } from "@/lib/firebase";
 import { registerFormSchema, type RegisterFormData, businessTypeLabels } from "@shared/schema";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -352,6 +353,12 @@ export default function RegisterPage() {
         plan: "trial",
         createdAt: new Date().toISOString(),
       };
+
+      try {
+        await signInWithCustomToken(auth, customToken);
+      } catch (authError: any) {
+        void authError;
+      }
 
       try {
         await setDoc(doc(db, "merchants", firebaseUid), merchantData);
