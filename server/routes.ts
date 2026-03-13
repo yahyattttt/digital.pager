@@ -3594,5 +3594,148 @@ export async function registerRoutes(
     }
   });
 
+  const aiRateLimitMap = new Map<string, { count: number; resetAt: number }>();
+  const AI_RATE_LIMIT = 5;
+  const AI_RATE_WINDOW_MS = 60 * 1000;
+
+  app.post("/api/ai/generate-menu", async (req, res) => {
+    try {
+      const { prompt, count, merchantId } = req.body;
+      if (!merchantId || typeof merchantId !== "string" || merchantId.trim().length < 5) {
+        return res.status(401).json({ message: "Merchant authentication required" });
+      }
+
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) {
+        return res.status(500).json({ message: "Firestore not configured" });
+      }
+      const merchantRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}`);
+      if (!merchantRes.ok) {
+        return res.status(403).json({ message: "Invalid merchant" });
+      }
+
+      const now = Date.now();
+      const rateKey = merchantId;
+      const rateEntry = aiRateLimitMap.get(rateKey);
+      if (rateEntry && now < rateEntry.resetAt) {
+        if (rateEntry.count >= AI_RATE_LIMIT) {
+          return res.status(429).json({ message: "Too many requests. Please wait before trying again." });
+        }
+        rateEntry.count++;
+      } else {
+        aiRateLimitMap.set(rateKey, { count: 1, resetAt: now + AI_RATE_WINDOW_MS });
+      }
+
+      if (!prompt || typeof prompt !== "string" || prompt.trim().length < 3) {
+        return res.status(400).json({ message: "Prompt is required (min 3 chars)" });
+      }
+
+      const geminiKey = process.env.GEMINI_API_KEY;
+      if (!geminiKey) {
+        return res.status(500).json({ message: "Gemini API key not configured" });
+      }
+
+      const unsplashKey = process.env.UNSPLASH_ACCESS_KEY;
+      if (!unsplashKey) {
+        return res.status(500).json({ message: "Unsplash access key not configured" });
+      }
+
+      const parsedCount = typeof count === "number" ? count : parseInt(String(count), 10);
+      const itemCount = Math.min(Math.max(isNaN(parsedCount) ? 5 : parsedCount, 1), 20);
+
+      const geminiPrompt = `You are a restaurant menu expert. Based on the following request, generate exactly ${itemCount} menu products as a JSON array.
+
+Request: "${prompt.trim()}"
+
+Return ONLY a valid JSON array (no markdown, no explanation) where each element has:
+- "name": product name in Arabic
+- "description": short product description in Arabic (1-2 sentences)
+- "keywords": 2-3 English keywords for food photography search (e.g. "gourmet beef burger", "iced latte coffee")
+- "category": product category in Arabic (e.g. "برجر", "مشروبات", "حلويات")
+
+Example format:
+[{"name":"برجر لحم كلاسيكي","description":"برجر لحم أنجوس مشوي مع جبنة شيدر وصوص خاص","keywords":"classic beef burger","category":"برجر"}]`;
+
+      const geminiRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: geminiPrompt }] }],
+            generationConfig: { temperature: 0.8, maxOutputTokens: 2048 },
+          }),
+        }
+      );
+
+      if (!geminiRes.ok) {
+        const errText = await geminiRes.text();
+        console.error("[AI-Menu] Gemini API error:", geminiRes.status, errText);
+        return res.status(502).json({ message: "حدث خطأ أثناء إنشاء المنيو. حاول مرة أخرى." });
+      }
+
+      const geminiData = await geminiRes.json();
+      const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      const jsonMatch = rawText.match(/\[[\s\S]*\]/);
+      if (!jsonMatch) {
+        console.error("[AI-Menu] Could not parse Gemini response:", rawText);
+        return res.status(502).json({ message: "حدث خطأ في معالجة البيانات. حاول مرة أخرى." });
+      }
+
+      let products: Array<{ name: string; description: string; keywords: string; category: string }>;
+      try {
+        const parsed = JSON.parse(jsonMatch[0]);
+        if (!Array.isArray(parsed)) throw new Error("Not an array");
+        products = parsed
+          .filter((item: any) => item && typeof item.name === "string" && item.name.trim())
+          .map((item: any) => ({
+            name: String(item.name || "").trim(),
+            description: String(item.description || "").trim(),
+            keywords: String(item.keywords || "").trim(),
+            category: String(item.category || "").trim(),
+          }));
+        if (products.length === 0) throw new Error("No valid products");
+      } catch (parseErr) {
+        console.error("[AI-Menu] JSON parse error:", parseErr);
+        return res.status(502).json({ message: "حدث خطأ في معالجة البيانات. حاول مرة أخرى." });
+      }
+
+      const enrichedProducts = await Promise.all(
+        products.map(async (product) => {
+          let imageUrl = "";
+          try {
+            const searchQuery = `Gourmet ${product.keywords}`;
+            const unsplashRes = await fetch(
+              `https://api.unsplash.com/search/photos?query=${encodeURIComponent(searchQuery)}&per_page=1&orientation=squarish`,
+              { headers: { Authorization: `Client-ID ${unsplashKey}` } }
+            );
+            if (unsplashRes.ok) {
+              const unsplashData = await unsplashRes.json();
+              if (unsplashData.results && unsplashData.results.length > 0) {
+                imageUrl = unsplashData.results[0].urls?.regular || unsplashData.results[0].urls?.small || "";
+              }
+            }
+          } catch (imgErr) {
+            console.warn("[AI-Menu] Unsplash fetch failed for:", product.keywords, imgErr);
+          }
+
+          return {
+            name: product.name,
+            description: product.description,
+            keywords: product.keywords,
+            category: product.category || "",
+            imageUrl,
+          };
+        })
+      );
+
+      console.log(`[AI-Menu] Generated ${enrichedProducts.length} products successfully`);
+      return res.json({ products: enrichedProducts });
+    } catch (err: any) {
+      console.error("[AI-Menu] Unexpected error:", err);
+      return res.status(500).json({ message: "حدث خطأ غير متوقع. حاول مرة أخرى." });
+    }
+  });
+
   return httpServer;
 }

@@ -2904,6 +2904,15 @@ function MenuView({
         </div>
       )}
 
+      <AiMenuAdder
+        merchant={merchant}
+        uid={uid}
+        t={t}
+        lang={lang}
+        onProductCreated={() => fetchProducts()}
+        onEditProduct={(product: Product) => openEditDialog(product)}
+      />
+
       <Dialog open={showProductDialog} onOpenChange={setShowProductDialog}>
         <DialogContent className="bg-[#111] border-white/[0.06] max-w-lg max-h-[90vh] overflow-y-auto p-0">
           <DialogHeader className="px-6 pt-6 pb-0">
@@ -3160,6 +3169,235 @@ function MenuView({
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function AiMenuAdder({
+  merchant,
+  uid,
+  t,
+  lang,
+  onProductCreated,
+  onEditProduct,
+}: {
+  merchant: any;
+  uid: string | undefined;
+  t: (ar: string, en: string) => string;
+  lang: string;
+  onProductCreated: () => void;
+  onEditProduct: (product: Product) => void;
+}) {
+  const { toast } = useToast();
+  const [prompt, setPrompt] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [generatedProducts, setGeneratedProducts] = useState<Array<{ name: string; description: string; imageUrl: string; category: string; id?: string }>>([]);
+  const [savingToFirestore, setSavingToFirestore] = useState(false);
+
+  async function handleGenerate() {
+    if (!prompt.trim() || !uid) return;
+    setGenerating(true);
+    setGeneratedProducts([]);
+    try {
+      const res = await fetch("/api/ai/generate-menu", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: prompt.trim(), merchantId: uid }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: "Unknown error" }));
+        throw new Error(err.message || "Failed to generate");
+      }
+      const data = await res.json();
+      const products = data.products || [];
+
+      setSavingToFirestore(true);
+      const savedProducts: typeof generatedProducts = [];
+      for (const product of products) {
+        try {
+          const productData = {
+            merchantId: uid,
+            name: product.name,
+            price: 0,
+            pricingType: "fixed",
+            category: product.category || "",
+            description: product.description || "",
+            imageUrl: product.imageUrl || "",
+            visible: false,
+            variants: [],
+            addons: [],
+            extras: [],
+            removals: [],
+            createdAt: new Date().toISOString(),
+          };
+          const newRef = await addDoc(collection(db, "merchants", uid, "products"), productData);
+          savedProducts.push({
+            name: product.name,
+            description: product.description,
+            imageUrl: product.imageUrl || "",
+            category: product.category || "",
+            id: newRef.id,
+          });
+        } catch (saveErr) {
+          console.error("[AI-Menu] Failed to save product:", product.name, saveErr);
+        }
+      }
+
+      setGeneratedProducts(savedProducts);
+      setSavingToFirestore(false);
+      onProductCreated();
+      toast({
+        title: t("تم بنجاح! ✨", "Success! ✨"),
+        description: t(
+          `تم إنشاء ${savedProducts.length} منتج كمسودة`,
+          `Created ${savedProducts.length} draft products`
+        ),
+      });
+    } catch (err: any) {
+      console.error("[AI-Menu] Generate error:", err);
+      toast({
+        title: t("خطأ", "Error"),
+        description: err.message || t("فشل إنشاء المنيو", "Failed to generate menu"),
+        variant: "destructive",
+      });
+    } finally {
+      setGenerating(false);
+      setSavingToFirestore(false);
+    }
+  }
+
+  function handleEditPrice(product: typeof generatedProducts[0]) {
+    if (!product.id) return;
+    const fullProduct: Product = {
+      id: product.id,
+      merchantId: uid || "",
+      name: product.name,
+      price: 0,
+      pricingType: "fixed",
+      category: product.category,
+      description: product.description,
+      imageUrl: product.imageUrl,
+      visible: false,
+      variants: [],
+      addons: [],
+      extras: [],
+      removals: [],
+      createdAt: new Date().toISOString(),
+    };
+    onEditProduct(fullProduct);
+  }
+
+  return (
+    <Card className="border-white/[0.06] bg-[#111] rounded-2xl overflow-hidden" data-testid="ai-menu-adder">
+      <CardContent className="p-0">
+        <div className="px-5 pt-5 pb-4 border-b border-white/[0.06]">
+          <div className="flex items-center gap-2 mb-1">
+            <Sparkles className="w-5 h-5 text-amber-400" />
+            <h3 className="text-base font-bold text-white">{t("إضافة المنيو بلمحة ✨", "Smart Menu Adder ✨")}</h3>
+          </div>
+          <p className="text-xs text-white/40">
+            {t(
+              "اكتب وصف بالعربي وراح نولّد لك المنيو بالذكاء الاصطناعي مع الصور",
+              "Write a description in Arabic and we'll generate your menu with AI including images"
+            )}
+          </p>
+        </div>
+
+        <div className="p-5 space-y-4">
+          <div>
+            <Textarea
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder={t(
+                "مثال: أضف 5 أنواع برجر مع الوصف والصور",
+                "e.g. Add 5 types of burgers with descriptions and images"
+              )}
+              className="bg-black/40 border-white/10 text-white placeholder:text-white/20 min-h-[80px] resize-none"
+              dir="rtl"
+              disabled={generating}
+              data-testid="input-ai-prompt"
+            />
+          </div>
+
+          <Button
+            onClick={handleGenerate}
+            disabled={generating || !prompt.trim()}
+            className="w-full bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white rounded-xl h-11 font-bold gap-2"
+            data-testid="button-ai-generate"
+          >
+            {generating ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                {savingToFirestore
+                  ? t("جاري الحفظ...", "Saving...")
+                  : t("الأرنب يطبخ المنيو... 👨‍🍳", "Cooking your menu... 👨‍🍳")}
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4" />
+                {t("ولّد المنيو بالذكاء الاصطناعي", "Generate Menu with AI")}
+              </>
+            )}
+          </Button>
+        </div>
+
+        {generatedProducts.length > 0 && (
+          <div className="border-t border-white/[0.06]">
+            <div className="px-5 pt-4 pb-2">
+              <p className="text-xs font-bold text-white/50 uppercase tracking-widest">
+                {t(`تم إنشاء ${generatedProducts.length} منتج`, `${generatedProducts.length} Products Created`)}
+              </p>
+            </div>
+            <div className="px-5 pb-5 space-y-3">
+              {generatedProducts.map((product, i) => (
+                <div
+                  key={product.id || i}
+                  className="flex items-start gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/[0.04]"
+                  data-testid={`ai-product-${product.id || i}`}
+                >
+                  {product.imageUrl ? (
+                    <img
+                      src={product.imageUrl}
+                      alt={product.name}
+                      className="w-14 h-14 rounded-lg object-cover flex-shrink-0 border border-white/[0.06]"
+                    />
+                  ) : (
+                    <div className="w-14 h-14 rounded-lg bg-white/[0.03] flex items-center justify-center flex-shrink-0 border border-white/[0.06]">
+                      <Image className="w-5 h-5 text-muted-foreground/20" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-white truncate">{product.name}</p>
+                    {product.description && (
+                      <p className="text-xs text-white/40 mt-0.5 line-clamp-2">{product.description}</p>
+                    )}
+                    {product.category && (
+                      <Badge variant="outline" className="text-[10px] border-amber-500/20 text-amber-400/70 rounded-2xl px-1.5 py-0 mt-1">
+                        {product.category}
+                      </Badge>
+                    )}
+                  </div>
+                  {product.id ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleEditPrice(product)}
+                      className="border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 h-8 px-3 rounded-lg text-xs font-semibold flex-shrink-0"
+                      data-testid={`button-edit-price-${product.id}`}
+                    >
+                      {t("تعديل السعر", "Edit Price")}
+                    </Button>
+                  ) : (
+                    <Badge variant="outline" className="text-[10px] border-red-500/20 text-red-400/70 rounded-2xl px-2 py-0.5 flex-shrink-0">
+                      {t("فشل الحفظ", "Save failed")}
+                    </Badge>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
