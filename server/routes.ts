@@ -770,6 +770,34 @@ export async function registerRoutes(
       }
 
       const emailLower = email.toLowerCase().trim();
+
+      const SANDBOX_ACCOUNTS: Record<string, "admin" | "merchant"> = {
+        "admin@test.com": "admin",
+        "merchant@test.com": "merchant",
+      };
+      const sandboxRole = SANDBOX_ACCOUNTS[emailLower];
+      const SANDBOX_OTP = "123456";
+
+      if (sandboxRole && codeStr === SANDBOX_OTP) {
+        const uid = generateUidFromEmail(emailLower);
+        const customToken = createFirebaseCustomToken(uid);
+        if (!customToken) {
+          return res.status(500).json({ message: "Failed to generate authentication token." });
+        }
+        if (sandboxRole === "admin") {
+          return res.json({ success: true, verified: true, customToken, uid, isNewUser: false, isAdmin: true });
+        }
+        const existingMerchant = await findMerchantByEmail(emailLower);
+        return res.json({
+          success: true,
+          verified: true,
+          customToken,
+          uid,
+          isNewUser: !existingMerchant,
+          isAdmin: false,
+        });
+      }
+
       const DEV_MASTER_OTP = "123456";
       const isMasterOtp = process.env.NODE_ENV !== "production" && codeStr === DEV_MASTER_OTP;
 
