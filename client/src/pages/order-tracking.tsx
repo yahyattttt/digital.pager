@@ -5,7 +5,7 @@ import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { AlertTriangle, CheckCircle, Loader2, Star, Banknote, Phone, MessageCircle, Send, Share2, Copy, XCircle, Truck, MapPin, Package, Clock } from "lucide-react";
+import { AlertTriangle, CheckCircle, Loader2, Star, Banknote, Phone, MessageCircle, Send, XCircle, Truck, MapPin, Package, Clock, Link2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { WhatsAppOrder } from "@shared/schema";
 
@@ -314,12 +314,14 @@ function DeliveryTrackingView({
   const isCompleted = order.status === "completed" || order.status === "archived";
   const isReady = order.status === "ready";
   const isRejected = order.status === "rejected";
+  const isPreparing = order.status === "preparing";
   const [showRating, setShowRating] = useState(false);
   const [selectedStars, setSelectedStars] = useState(0);
   const [hoveredStar, setHoveredStar] = useState(0);
   const [ratingPhase, setRatingPhase] = useState<"stars" | "feedback" | "redirecting" | "done">("stars");
   const [comment, setComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
   const prevStatusRef = useRef(order.status);
 
   useEffect(() => {
@@ -387,6 +389,26 @@ function DeliveryTrackingView({
     } catch {}
     setSubmitting(false);
     setRatingPhase("done");
+  }
+
+  async function handleShareTracking() {
+    const storeName = merchant?.storeName || "المتجر";
+    const text = `شوف طلبي من ${storeName} جالس يتجهز.. خلنا نتابعه سوا! 😍👇\n${window.location.href}`;
+    if (navigator.share) {
+      try { await navigator.share({ text }); return; } catch (_) {}
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (_) {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
+    setShareCopied(true);
+    setTimeout(() => setShareCopied(false), 2500);
   }
 
   function handleCloseAndReturn() {
@@ -478,6 +500,35 @@ function DeliveryTrackingView({
           >
             <span className="text-lg flex-shrink-0">📄</span>
             <span className="text-emerald-400/90 text-[14px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>عرض إيصال الطلب</span>
+          </button>
+        )}
+
+        {isPreparing && (
+          <button
+            onClick={handleShareTracking}
+            data-testid="button-share-tracking-delivery"
+            className="w-full relative overflow-hidden flex items-center justify-center gap-2.5 rounded-xl px-5 py-3.5 transition-all active:scale-[0.97]"
+            style={{ background: "rgba(249,115,22,0.07)", border: "1px solid rgba(249,115,22,0.22)" }}
+          >
+            <span
+              className="absolute inset-0 rounded-xl pointer-events-none"
+              style={{ background: "radial-gradient(ellipse at 50% 0%, rgba(249,115,22,0.12) 0%, transparent 65%)", animation: "sharePulse 2.2s ease-in-out infinite" }}
+            />
+            <span className="relative flex items-center gap-2.5">
+              {shareCopied ? (
+                <>
+                  <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span className="font-bold text-sm text-emerald-400" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}>تم نسخ الرابط ✓</span>
+                </>
+              ) : (
+                <>
+                  <Link2 className="w-4 h-4 shrink-0" style={{ color: "rgba(249,115,22,0.85)" }} />
+                  <span className="font-bold text-sm" style={{ color: "rgba(249,115,22,0.85)", fontFamily: "'Tajawal','Cairo',sans-serif" }}>
+                    خل أصدقاءك يتبعون معك 🔗
+                  </span>
+                </>
+              )}
+            </span>
           </button>
         )}
 
@@ -689,6 +740,7 @@ export default function OrderTrackingPage() {
   const [notFound, setNotFound] = useState(false);
   const [bellPrimed, setBellPrimed] = useState(false);
   const [bellPlaying, setBellPlaying] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const bellPrimedRef = useRef(false);
@@ -887,24 +939,23 @@ export default function OrderTrackingPage() {
   const isOnlineOrder = order?.orderType === "online" || (!order?.orderType && !!(order?.displayOrderId && !order.displayOrderId.startsWith("MA-")));
 
   async function handleShareTracking() {
-    const displayId = order?.displayOrderId || "";
-    const storeLabel = merchant?.storeName || "";
-    const shareTitle = `تتبع طلبي من ${storeLabel}`;
-    const shareText = `طلبي رقم ${displayId} جاري التحضير الآن! تابعه معي من هنا:`;
-    const shareUrl = window.location.href;
-
+    const storeName = merchant?.storeName || "المتجر";
+    const text = `شوف طلبي من ${storeName} جالس يتجهز.. خلنا نتابعه سوا! 😍👇\n${window.location.href}`;
     if (navigator.share) {
-      try {
-        await navigator.share({ title: shareTitle, text: shareText, url: shareUrl });
-      } catch {}
-    } else {
-      try {
-        await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
-        toast({ title: "تم نسخ الرابط", description: "تم نسخ رابط التتبع إلى الحافظة" });
-      } catch {
-        toast({ title: "خطأ", description: "تعذر نسخ الرابط", variant: "destructive" });
-      }
+      try { await navigator.share({ text }); return; } catch (_) {}
     }
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (_) {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
+    setShareCopied(true);
+    setTimeout(() => setShareCopied(false), 2500);
   }
 
   if (loading) {
@@ -995,31 +1046,15 @@ export default function OrderTrackingPage() {
           </div>
 
           {isOnlineOrder && (
-            <>
-              <button
-                onClick={() => { window.location.href = `/receipt/${orderId}?m=${merchantId}`; }}
-                className="w-full flex items-center justify-center gap-3 rounded-2xl border border-emerald-500/20 bg-gradient-to-r from-emerald-950/30 via-emerald-900/15 to-emerald-950/30 active:scale-[0.97] transition-all duration-200"
-                style={{ padding: "16px 20px", boxShadow: "0 0 15px rgba(16,185,129,0.05), inset 0 1px 0 rgba(255,255,255,0.03)" }}
-                data-testid="button-view-receipt"
-              >
-                <span className="text-2xl flex-shrink-0">📄</span>
-                <span className="text-emerald-400/90 text-[17px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>عرض إيصال الطلب</span>
-              </button>
-
-              <button
-                onClick={handleShareTracking}
-                className="w-full flex items-center justify-center gap-3 rounded-2xl border border-red-500/20 bg-gradient-to-r from-red-950/30 via-red-900/15 to-red-950/30 active:scale-[0.97] transition-all duration-200"
-                style={{ padding: "18px 20px", boxShadow: "0 0 15px rgba(255,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.03)" }}
-                data-testid="button-share-tracking-pending"
-              >
-                {navigator.share ? (
-                  <Share2 className="w-5 h-5 text-red-400/80 flex-shrink-0" />
-                ) : (
-                  <Copy className="w-5 h-5 text-red-400/80 flex-shrink-0" />
-                )}
-                <span className="text-red-400/90 text-[18px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>شارك حالة الطلب مع أحبابك</span>
-              </button>
-            </>
+            <button
+              onClick={() => { window.location.href = `/receipt/${orderId}?m=${merchantId}`; }}
+              className="w-full flex items-center justify-center gap-3 rounded-2xl border border-emerald-500/20 bg-gradient-to-r from-emerald-950/30 via-emerald-900/15 to-emerald-950/30 active:scale-[0.97] transition-all duration-200"
+              style={{ padding: "16px 20px", boxShadow: "0 0 15px rgba(16,185,129,0.05), inset 0 1px 0 rgba(255,255,255,0.03)" }}
+              data-testid="button-view-receipt"
+            >
+              <span className="text-2xl flex-shrink-0">📄</span>
+              <span className="text-emerald-400/90 text-[17px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>عرض إيصال الطلب</span>
+            </button>
           )}
 
           <div className="flex items-center justify-center gap-2 mt-1">
@@ -1089,19 +1124,6 @@ export default function OrderTrackingPage() {
               <span className="text-red-400/90 text-base font-bold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>عرض إيصال الطلب</span>
             </button>
           )}
-          <button
-            onClick={handleShareTracking}
-            className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl border border-red-500/20 bg-gradient-to-r from-red-950/30 via-red-900/15 to-red-950/30 active:scale-[0.97] transition-all duration-200"
-            style={{ boxShadow: "0 0 15px rgba(255,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.03)" }}
-            data-testid="button-share-tracking-ready"
-          >
-            {navigator.share ? (
-              <Share2 className="w-5 h-5 text-red-400/80 flex-shrink-0" />
-            ) : (
-              <Copy className="w-5 h-5 text-red-400/80 flex-shrink-0" />
-            )}
-            <span className="text-red-400/90 text-base font-bold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>مشاركة مع الأحباب 🔗</span>
-          </button>
         </div>
       </div>
     );
@@ -1198,16 +1220,29 @@ export default function OrderTrackingPage() {
 
         <button
           onClick={handleShareTracking}
-          className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl border border-red-500/20 bg-gradient-to-r from-red-950/30 via-red-900/15 to-red-950/30 active:scale-[0.97] transition-all duration-200"
-          style={{ boxShadow: "0 0 15px rgba(255,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.03)" }}
           data-testid="button-share-tracking"
+          className="w-full relative overflow-hidden flex items-center justify-center gap-2.5 rounded-2xl px-5 py-4 transition-all active:scale-[0.97]"
+          style={{ background: "rgba(249,115,22,0.07)", border: "1px solid rgba(249,115,22,0.22)" }}
         >
-          {navigator.share ? (
-            <Share2 className="w-5 h-5 text-red-400/80 flex-shrink-0" />
-          ) : (
-            <Copy className="w-5 h-5 text-red-400/80 flex-shrink-0" />
-          )}
-          <span className="text-red-400/90 text-base font-bold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>مشاركة مع الأحباب 🔗</span>
+          <span
+            className="absolute inset-0 rounded-2xl pointer-events-none"
+            style={{ background: "radial-gradient(ellipse at 50% 0%, rgba(249,115,22,0.12) 0%, transparent 65%)", animation: "sharePulse 2.2s ease-in-out infinite" }}
+          />
+          <span className="relative flex items-center gap-2.5">
+            {shareCopied ? (
+              <>
+                <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span className="font-bold text-sm text-emerald-400" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}>تم نسخ الرابط ✓</span>
+              </>
+            ) : (
+              <>
+                <Link2 className="w-4 h-4 shrink-0" style={{ color: "rgba(249,115,22,0.85)" }} />
+                <span className="font-bold text-base" style={{ color: "rgba(249,115,22,0.85)", fontFamily: "'Tajawal','Cairo',sans-serif" }}>
+                  خل أصدقاءك يتبعون معك 🔗
+                </span>
+              </>
+            )}
+          </span>
         </button>
 
         {!bellPrimed ? (
