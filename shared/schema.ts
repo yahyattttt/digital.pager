@@ -46,17 +46,26 @@ export const productAddonSchema = z.object({
 
 export type ProductAddon = z.infer<typeof productAddonSchema>;
 
+export const productRemovalSchema = z.object({
+  name: z.string(),
+});
+
+export type ProductRemoval = z.infer<typeof productRemovalSchema>;
+
 export const productSchema = z.object({
   id: z.string(),
   merchantId: z.string(),
   name: z.string().min(1),
   price: z.number().min(0),
+  pricingType: z.enum(["fixed", "variable"]).default("fixed"),
   category: z.string().optional(),
   description: z.string().optional(),
   imageUrl: z.string().optional(),
   visible: z.boolean().default(true),
   variants: z.array(productVariantSchema).optional(),
   addons: z.array(productAddonSchema).optional(),
+  extras: z.array(productAddonSchema).optional(),
+  removals: z.array(productRemovalSchema).optional(),
   createdAt: z.string(),
 });
 

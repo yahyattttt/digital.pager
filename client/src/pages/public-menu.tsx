@@ -15,6 +15,7 @@ interface CartItem {
   quantity: number;
   selectedVariant: ProductVariant | null;
   selectedAddons: ProductAddon[];
+  selectedRemovals: string[];
   itemPrice: number;
 }
 
@@ -99,6 +100,7 @@ export default function PublicMenuPage() {
   const [modalProduct, setModalProduct] = useState<Product | null>(null);
   const [modalVariant, setModalVariant] = useState<ProductVariant | null>(null);
   const [modalAddons, setModalAddons] = useState<ProductAddon[]>([]);
+  const [modalRemovals, setModalRemovals] = useState<string[]>([]);
   const [modalQty, setModalQty] = useState(1);
 
   const fetchMenu = useCallback(async (isRefresh = false) => {
@@ -327,6 +329,7 @@ export default function PublicMenuPage() {
     const hasVariants = product.variants && product.variants.length > 0;
     setModalVariant(hasVariants ? product.variants![0] : null);
     setModalAddons([]);
+    setModalRemovals([]);
     setModalQty(1);
   }
 
@@ -345,25 +348,32 @@ export default function PublicMenuPage() {
     });
   }
 
+  function toggleModalRemoval(name: string) {
+    setModalRemovals(prev => prev.includes(name) ? prev.filter(r => r !== name) : [...prev, name]);
+  }
+
   function confirmAddToCart() {
     if (!modalProduct) return;
     const hasVariants = modalProduct.variants && modalProduct.variants.length > 0;
     if (hasVariants && !modalVariant) return;
 
     const itemPrice = getModalPrice();
-    const cartKey = `${modalProduct.id}-${modalVariant?.name || "base"}-${modalAddons.map(a => a.name).sort().join(",")}`;
+    const addonKey = modalAddons.map(a => a.name).sort().join(",");
+    const removalKey = modalRemovals.sort().join(",");
 
     setCart(prev => {
       const existing = prev.find(i =>
         i.product.id === modalProduct.id &&
         (i.selectedVariant?.name || "base") === (modalVariant?.name || "base") &&
-        i.selectedAddons.map(a => a.name).sort().join(",") === modalAddons.map(a => a.name).sort().join(",")
+        i.selectedAddons.map(a => a.name).sort().join(",") === addonKey &&
+        (i.selectedRemovals || []).sort().join(",") === removalKey
       );
       if (existing) {
         return prev.map(i =>
           i.product.id === modalProduct.id &&
           (i.selectedVariant?.name || "base") === (modalVariant?.name || "base") &&
-          i.selectedAddons.map(a => a.name).sort().join(",") === modalAddons.map(a => a.name).sort().join(",")
+          i.selectedAddons.map(a => a.name).sort().join(",") === addonKey &&
+          (i.selectedRemovals || []).sort().join(",") === removalKey
             ? { ...i, quantity: i.quantity + modalQty }
             : i
         );
@@ -373,6 +383,7 @@ export default function PublicMenuPage() {
         quantity: modalQty,
         selectedVariant: modalVariant,
         selectedAddons: [...modalAddons],
+        selectedRemovals: [...modalRemovals],
         itemPrice,
       }];
     });
@@ -381,7 +392,7 @@ export default function PublicMenuPage() {
   }
 
   function cartItemKey(item: CartItem): string {
-    return `${item.product.id}-${item.selectedVariant?.name || "base"}-${item.selectedAddons.map(a => a.name).sort().join(",")}`;
+    return `${item.product.id}-${item.selectedVariant?.name || "base"}-${item.selectedAddons.map(a => a.name).sort().join(",")}-${(item.selectedRemovals || []).sort().join(",")}`;
   }
 
   function updateQuantity(item: CartItem, delta: number) {
@@ -408,6 +419,7 @@ export default function PublicMenuPage() {
     let label = item.product.name;
     if (item.selectedVariant) label += ` (${item.selectedVariant.name})`;
     if (item.selectedAddons.length > 0) label += ` + ${item.selectedAddons.map(a => a.name).join(", ")}`;
+    if (item.selectedRemovals && item.selectedRemovals.length > 0) label += ` — بدون ${item.selectedRemovals.join("، ")}`;
     return label;
   }
 
@@ -442,9 +454,12 @@ export default function PublicMenuPage() {
     try {
       const orderItems = cart.map(item => ({
         productId: item.product.id,
-        name: formatCartItemLabel(item),
+        name: item.product.name,
         price: item.itemPrice,
         quantity: item.quantity,
+        selectedVariant: item.selectedVariant?.name || null,
+        extras: item.selectedAddons.map(a => a.name),
+        removals: item.selectedRemovals || [],
       }));
 
       const urlParams = new URLSearchParams(window.location.search);
@@ -583,7 +598,10 @@ export default function PublicMenuPage() {
                       <p className="text-white/50 text-[11px]">{item.selectedVariant.name}</p>
                     )}
                     {item.selectedAddons.length > 0 && (
-                      <p className="text-white/40 text-[11px]">+ {item.selectedAddons.map(a => a.name).join(", ")}</p>
+                      <p className="text-emerald-400/70 text-[11px]">+ {item.selectedAddons.map(a => a.name).join(", ")}</p>
+                    )}
+                    {item.selectedRemovals && item.selectedRemovals.length > 0 && (
+                      <p className="text-amber-400/70 text-[11px]">— {t("بدون", "No")} {item.selectedRemovals.join(", ")}</p>
                     )}
                     <p className="text-red-400 text-xs mt-0.5">{item.itemPrice.toFixed(2)} SAR</p>
                   </div>
@@ -1281,38 +1299,81 @@ export default function PublicMenuPage() {
                 </div>
               )}
 
-              {modalProduct.addons && modalProduct.addons.length > 0 && (
-                <div data-testid="section-addons">
-                  <p className="text-white/70 text-xs font-bold uppercase tracking-wider mb-2">{t("إضافات", "Extras")}</p>
-                  <div className="space-y-2">
-                    {modalProduct.addons.map((addon, idx) => {
-                      const selected = modalAddons.some(a => a.name === addon.name);
-                      return (
-                        <div
-                          key={idx}
-                          onClick={() => toggleModalAddon(addon)}
-                          className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-colors ${
-                            selected
-                              ? "border-red-500/40 bg-red-600/10"
-                              : "border-zinc-700/50 bg-zinc-900/30 hover:border-zinc-600"
-                          }`}
-                          data-testid={`addon-option-${idx}`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center ${
-                              selected ? "border-red-500 bg-red-500" : "border-zinc-600"
-                            }`}>
-                              {selected && <Check className="w-3 h-3 text-white" />}
+              {(() => {
+                const extras: ProductAddon[] = (modalProduct as any).extras?.length > 0
+                  ? (modalProduct as any).extras
+                  : (modalProduct.addons || []);
+                if (extras.length === 0) return null;
+                return (
+                  <div data-testid="section-addons">
+                    <p className="text-white/70 text-xs font-bold uppercase tracking-wider mb-2">{t("إضافات", "Extras")}</p>
+                    <div className="space-y-2">
+                      {extras.map((addon, idx) => {
+                        const selected = modalAddons.some(a => a.name === addon.name);
+                        return (
+                          <div
+                            key={idx}
+                            onClick={() => toggleModalAddon(addon)}
+                            className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-colors ${
+                              selected
+                                ? "border-emerald-500/40 bg-emerald-600/10"
+                                : "border-zinc-700/50 bg-zinc-900/30 hover:border-zinc-600"
+                            }`}
+                            data-testid={`addon-option-${idx}`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center ${
+                                selected ? "border-emerald-500 bg-emerald-500" : "border-zinc-600"
+                              }`}>
+                                {selected && <Check className="w-3 h-3 text-white" />}
+                              </div>
+                              <span className="text-white text-sm">{addon.name}</span>
                             </div>
-                            <span className="text-white text-sm">{addon.name}</span>
+                            <span className="text-emerald-400/80 text-sm font-medium">{addon.price > 0 ? `+${addon.price.toFixed(2)} SAR` : t("مجاني", "Free")}</span>
                           </div>
-                          <span className="text-white/50 text-sm">{addon.price > 0 ? `+${addon.price.toFixed(2)}` : t("مجاني", "Free")}</span>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
+
+              {(() => {
+                const removals: { name: string }[] = (modalProduct as any).removals || [];
+                if (removals.length === 0) return null;
+                return (
+                  <div data-testid="section-removals">
+                    <p className="text-white/70 text-xs font-bold uppercase tracking-wider mb-2">{t("تعديلات", "Modifications")}</p>
+                    <div className="space-y-2">
+                      {removals.map((removal, idx) => {
+                        const selected = modalRemovals.includes(removal.name);
+                        return (
+                          <div
+                            key={idx}
+                            onClick={() => toggleModalRemoval(removal.name)}
+                            className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-colors ${
+                              selected
+                                ? "border-amber-500/40 bg-amber-600/10"
+                                : "border-zinc-700/50 bg-zinc-900/30 hover:border-zinc-600"
+                            }`}
+                            data-testid={`removal-option-${idx}`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center ${
+                                selected ? "border-amber-500 bg-amber-500" : "border-zinc-600"
+                              }`}>
+                                {selected && <Check className="w-3 h-3 text-white" />}
+                              </div>
+                              <span className="text-white text-sm">{t(`بدون ${removal.name}`, `No ${removal.name}`)}</span>
+                            </div>
+                            <span className="text-amber-400/60 text-xs">{t("مجاني", "Free")}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div data-testid="section-quantity">
                 <p className="text-white/70 text-xs font-bold uppercase tracking-wider mb-2">{t("الكمية", "Quantity")}</p>

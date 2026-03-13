@@ -409,7 +409,7 @@ export default function DashboardPage() {
           merchantId: data.merchantId || "",
           customerName: data.customerName || "",
           customerPhone: data.customerPhone || "",
-          items: (data.items || []).map((item: any) => ({ productId: item.productId || "", name: item.name || "", price: item.price || 0, quantity: item.quantity || 1 })),
+          items: (data.items || []).map((item: any) => ({ productId: item.productId || "", name: item.name || "", price: item.price || 0, quantity: item.quantity || 1, selectedVariant: item.selectedVariant || null, extras: item.extras || [], removals: item.removals || [] })),
           total: data.total || 0,
           status: data.status || "pending_verification",
           paymentMethod: data.paymentMethod || "cod",
@@ -457,7 +457,7 @@ export default function DashboardPage() {
           merchantId: data.merchantId || "",
           customerName: data.customerName || "",
           customerPhone: data.customerPhone || "",
-          items: (data.items || []).map((item: any) => ({ productId: item.productId || "", name: item.name || "", price: item.price || 0, quantity: item.quantity || 1 })),
+          items: (data.items || []).map((item: any) => ({ productId: item.productId || "", name: item.name || "", price: item.price || 0, quantity: item.quantity || 1, selectedVariant: item.selectedVariant || null, extras: item.extras || [], removals: item.removals || [] })),
           total: data.total || 0,
           status: data.status || "preparing",
           paymentMethod: data.paymentMethod || "cod",
@@ -1616,7 +1616,12 @@ function OverviewView({
     const itemsList = (order.items || []).map((item: any, i: number) => {
       const qty = Number(item.quantity) || 1;
       const price = Number.isFinite(Number(item.price)) ? (Number(item.price) * qty).toFixed(2) : "0.00";
-      return `${i + 1}. ${item.name} × ${qty} — ${price} SAR`;
+      let line = `${i + 1}. ${item.name}`;
+      if (item.selectedVariant) line += ` (${item.selectedVariant})`;
+      line += ` × ${qty} — ${price} SAR`;
+      if (item.extras && item.extras.length > 0) line += `\n   + ${item.extras.join(", ")}`;
+      if (item.removals && item.removals.length > 0) line += `\n   — بدون ${item.removals.join(", ")}`;
+      return line;
     }).join("\n");
 
     const mapLink = order.deliveryMapLink
@@ -2068,20 +2073,26 @@ function OverviewView({
                       </div>
 
                       <div className="space-y-1.5 bg-white/[0.02] rounded-xl p-3 border border-white/[0.04]">
-                        {order.items.map((itm, idx) => {
+                        {order.items.map((itm: any, idx: number) => {
                           const parsed = parseItemExtras(itm.name);
+                          const structuredExtras: string[] = itm.extras && itm.extras.length > 0 ? itm.extras : (parsed.extras ? [parsed.extras] : []);
+                          const structuredRemovals: string[] = itm.removals || [];
+                          const displayVariant = itm.selectedVariant || parsed.variant;
                           return (
                             <div key={idx} data-testid={`order-item-${item.id}-${idx}`}>
                               <div className="flex items-start justify-between">
                                 <p className="text-sm font-bold text-white">
                                   <span className="text-white/40 me-1.5">{itm.quantity}×</span>
                                   {parsed.baseName}
-                                  {parsed.variant && <span className="text-white/40 text-xs ms-1">({parsed.variant})</span>}
+                                  {displayVariant && <span className="text-white/40 text-xs ms-1">({displayVariant})</span>}
                                 </p>
                                 <span className="text-xs text-white/50 font-mono shrink-0">{itm.price.toFixed(0)} SAR</span>
                               </div>
-                              {parsed.extras && (
-                                <p className="text-[11px] text-amber-400/70 ps-5 mt-0.5">+ {parsed.extras}</p>
+                              {structuredExtras.length > 0 && (
+                                <p className="text-[11px] text-emerald-400/70 ps-5 mt-0.5">+ {structuredExtras.join(", ")}</p>
+                              )}
+                              {structuredRemovals.length > 0 && (
+                                <p className="text-[11px] text-amber-400/70 ps-5 mt-0.5">— {t("بدون", "No")} {structuredRemovals.join(", ")}</p>
                               )}
                             </div>
                           );
@@ -2296,20 +2307,26 @@ function OverviewView({
                     </div>
 
                     <div className="space-y-1.5 bg-white/[0.02] rounded-xl p-3 border border-white/[0.04]">
-                      {waOrder.items.map((itm, idx) => {
+                      {waOrder.items.map((itm: any, idx: number) => {
                         const parsed = parseItemExtras(itm.name);
+                        const structuredExtras: string[] = itm.extras && itm.extras.length > 0 ? itm.extras : (parsed.extras ? [parsed.extras] : []);
+                        const structuredRemovals: string[] = itm.removals || [];
+                        const displayVariant = itm.selectedVariant || parsed.variant;
                         return (
                           <div key={idx} data-testid={`order-item-${item.id}-${idx}`}>
                             <div className="flex items-start justify-between">
                               <p className="text-sm font-bold text-white">
                                 <span className="text-white/40 me-1.5">{itm.quantity}×</span>
                                 {parsed.baseName}
-                                {parsed.variant && <span className="text-white/40 text-xs ms-1">({parsed.variant})</span>}
+                                {displayVariant && <span className="text-white/40 text-xs ms-1">({displayVariant})</span>}
                               </p>
                               <span className="text-xs text-white/50 font-mono shrink-0">{itm.price.toFixed(0)} SAR</span>
                             </div>
-                            {parsed.extras && (
-                              <p className="text-[11px] text-amber-400/70 ps-5 mt-0.5">+ {parsed.extras}</p>
+                            {structuredExtras.length > 0 && (
+                              <p className="text-[11px] text-emerald-400/70 ps-5 mt-0.5">+ {structuredExtras.join(", ")}</p>
+                            )}
+                            {structuredRemovals.length > 0 && (
+                              <p className="text-[11px] text-amber-400/70 ps-5 mt-0.5">— {t("بدون", "No")} {structuredRemovals.join(", ")}</p>
                             )}
                           </div>
                         );
@@ -2533,8 +2550,10 @@ function MenuView({
   const [productCategoryOpen, setProductCategoryOpen] = useState(false);
   const [productImage, setProductImage] = useState<File | null>(null);
   const [productImagePreview, setProductImagePreview] = useState("");
+  const [productPricingType, setProductPricingType] = useState<"fixed" | "variable">("fixed");
   const [productVariants, setProductVariants] = useState<ProductVariant[]>([]);
-  const [productAddons, setProductAddons] = useState<ProductAddon[]>([]);
+  const [productExtras, setProductExtras] = useState<ProductAddon[]>([]);
+  const [productRemovals, setProductRemovals] = useState<{ name: string }[]>([]);
   const [savingProduct, setSavingProduct] = useState(false);
   const [deletingProduct, setDeletingProduct] = useState<string | null>(null);
   const [togglingVisibility, setTogglingVisibility] = useState<string | null>(null);
@@ -2571,8 +2590,10 @@ function MenuView({
     setProductCategory("");
     setProductImage(null);
     setProductImagePreview("");
+    setProductPricingType("fixed");
     setProductVariants([]);
-    setProductAddons([]);
+    setProductExtras([]);
+    setProductRemovals([]);
     setShowProductDialog(true);
   }
 
@@ -2584,8 +2605,11 @@ function MenuView({
     setProductCategory(product.category || "");
     setProductImage(null);
     setProductImagePreview(product.imageUrl || "");
+    const pt = (product as any).pricingType || (product.variants && product.variants.length > 0 ? "variable" : "fixed");
+    setProductPricingType(pt);
     setProductVariants(product.variants || []);
-    setProductAddons(product.addons || []);
+    setProductExtras((product as any).extras || product.addons || []);
+    setProductRemovals((product as any).removals || []);
     setShowProductDialog(true);
   }
 
@@ -2598,7 +2622,9 @@ function MenuView({
   }
 
   async function handleSaveProduct() {
-    if (!productName.trim() || !productPrice.trim() || !productCategory.trim()) return;
+    const isVariablePricingValid = productPricingType === "variable" && productVariants.some(v => v.name.trim());
+    const isFixedPricingValid = productPricingType === "fixed" && productPrice.trim();
+    if (!productName.trim() || !productCategory.trim() || (!isVariablePricingValid && !isFixedPricingValid)) return;
     setSavingProduct(true);
     try {
       let imageUrl = productImagePreview || "";
@@ -2620,18 +2646,25 @@ function MenuView({
       }
 
       const cleanVariants = productVariants.filter(v => v.name.trim());
-      const cleanAddons = productAddons.filter(a => a.name.trim());
+      const cleanExtras = productExtras.filter(a => a.name.trim());
+      const cleanRemovals = productRemovals.filter(r => r.name.trim());
+      const resolvedPrice = productPricingType === "fixed"
+        ? parseFloat(productPrice) || 0
+        : (cleanVariants.length > 0 ? Math.min(...cleanVariants.map(v => v.price)) : 0);
 
       const productData: Record<string, any> = {
         merchantId: uid,
         name: productName.trim(),
-        price: parseFloat(productPrice) || 0,
+        price: resolvedPrice,
+        pricingType: productPricingType,
         category: productCategory.trim(),
         description: productDescription.trim(),
         imageUrl,
-        visible: true,
+        visible: editingProduct ? (editingProduct as any).visible ?? true : true,
         variants: cleanVariants,
-        addons: cleanAddons,
+        addons: cleanExtras,
+        extras: cleanExtras,
+        removals: cleanRemovals,
       };
 
       if (editingProduct) {
@@ -2780,25 +2813,61 @@ function MenuView({
       )}
 
       <Dialog open={showProductDialog} onOpenChange={setShowProductDialog}>
-        <DialogContent className="bg-[#111] border-white/[0.06] max-w-md max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editingProduct ? t("تعديل المنتج", "Edit Product") : t("إضافة منتج", "Add Product")}</DialogTitle>
+        <DialogContent className="bg-[#111] border-white/[0.06] max-w-lg max-h-[90vh] overflow-y-auto p-0">
+          <DialogHeader className="px-6 pt-6 pb-0">
+            <DialogTitle className="text-base font-bold">
+              {editingProduct ? t("تعديل المنتج", "Edit Product") : t("إضافة منتج جديد", "Add New Product")}
+            </DialogTitle>
           </DialogHeader>
-          <div className="space-y-5 py-2" dir="rtl">
-            <div>
-              <label className="text-xs text-muted-foreground mb-1.5 block">{t("الصورة", "Image")}</label>
-              <div className="flex items-center gap-3">
-                {productImagePreview ? (
-                  <img src={productImagePreview} alt="" className="w-20 h-20 rounded-lg object-cover border border-white/[0.06]" />
-                ) : (
-                  <div className="w-20 h-20 rounded-lg bg-white/[0.03] border border-dashed border-white/10 flex items-center justify-center">
-                    <Image className="w-8 h-8 text-muted-foreground/20" />
-                  </div>
-                )}
-                <label className="cursor-pointer">
+          <div className="space-y-0 py-2" dir="rtl">
+            {/* ── Section A: Basic Info ── */}
+            <div className="px-6 pt-4 pb-5 space-y-4 border-b border-white/[0.06]">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-white/30">{t("المعلومات الأساسية", "Basic Info")}</p>
+
+              <div className="flex items-start gap-4">
+                <label className="cursor-pointer flex-shrink-0" data-testid="label-product-image">
                   <input type="file" accept="image/*" className="hidden" onChange={handleImageChange} data-testid="input-product-image" />
-                  <span className="text-sm text-emerald-400 hover:text-emerald-300">{t("اختر صورة", "Choose Image")}</span>
+                  {productImagePreview ? (
+                    <div className="relative group">
+                      <img src={productImagePreview} alt="" className="w-20 h-20 rounded-xl object-cover border border-white/[0.08]" />
+                      <div className="absolute inset-0 rounded-xl bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                        <Pencil className="w-4 h-4 text-white" />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="w-20 h-20 rounded-xl bg-white/[0.03] border-2 border-dashed border-white/10 flex flex-col items-center justify-center gap-1 hover:border-white/20 transition-colors">
+                      <Image className="w-6 h-6 text-white/20" />
+                      <span className="text-[9px] text-white/30">{t("صورة", "Photo")}</span>
+                    </div>
+                  )}
                 </label>
+                <div className="flex-1 space-y-3">
+                  <div>
+                    <label className="text-[11px] text-white/40 mb-1 block">{t("اسم المنتج", "Product Name")} <span className="text-red-500">*</span></label>
+                    <Input value={productName} onChange={(e) => setProductName(e.target.value)} placeholder={t("مثال: برجر لحم مشوي", "e.g. Grilled Beef Burger")} className="h-10 bg-black/40 border-white/10 text-white placeholder:text-white/20" dir="rtl" data-testid="input-product-name" />
+                  </div>
+                  <div className="relative">
+                    <label className="text-[11px] text-white/40 mb-1 block">{t("الفئة", "Category")} <span className="text-red-500">*</span></label>
+                    <Input value={productCategory} onChange={(e) => { setProductCategory(e.target.value); setProductCategoryOpen(true); }} onFocus={() => setProductCategoryOpen(true)} onBlur={() => setTimeout(() => setProductCategoryOpen(false), 150)} placeholder={t("مشروبات، وجبات رئيسية...", "Drinks, Main Meals...")} className="h-10 bg-black/40 border-white/10 text-white placeholder:text-white/20" dir="rtl" data-testid="input-product-category" />
+                    {productCategoryOpen && (() => {
+                      const existingCats = Array.from(new Set(products.map(p => p.category).filter((c): c is string => !!c && c.trim() !== "")));
+                      const filtered = existingCats.filter(c => c.toLowerCase().includes(productCategory.toLowerCase()));
+                      const showCreate = productCategory.trim() !== "" && !existingCats.some(c => c.toLowerCase() === productCategory.trim().toLowerCase());
+                      if (filtered.length === 0 && !showCreate) return null;
+                      return (
+                        <div className="absolute z-50 top-full mt-1 w-full rounded-xl border border-white/10 bg-[#1a1a1a] shadow-xl overflow-hidden">
+                          {filtered.map(cat => (<button key={cat} type="button" onMouseDown={() => { setProductCategory(cat); setProductCategoryOpen(false); }} className="w-full text-start px-3 py-2.5 text-sm text-white hover:bg-white/[0.06] transition-colors" data-testid={`category-option-${cat}`}>{cat}</button>))}
+                          {showCreate && (<button type="button" onMouseDown={() => setProductCategoryOpen(false)} className="w-full text-start px-3 py-2.5 text-sm text-emerald-400 hover:bg-emerald-500/10 transition-colors border-t border-white/[0.06] flex items-center gap-2" data-testid="category-create-new"><Plus className="w-3.5 h-3.5" />{t("إنشاء:", "Create:")} <span className="font-semibold">{productCategory.trim()}</span></button>)}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] text-white/40 mb-1 block">{t("الوصف (اختياري)", "Description (optional)")}</label>
+                <Input value={productDescription} onChange={(e) => setProductDescription(e.target.value)} placeholder={t("مثال: جبنة شيدر، صوص الترافل، خبز بريوش", "e.g. Cheddar cheese, truffle sauce, brioche bun")} className="h-10 bg-black/40 border-white/10 text-white placeholder:text-white/20" dir="rtl" data-testid="input-product-description" />
               </div>
             </div>
             <div>
@@ -2863,162 +2932,139 @@ function MenuView({
                 );
               })()}
             </div>
-            <div>
-              <label className="text-xs text-muted-foreground mb-1.5 block">{t("السعر الأساسي (SAR)", "Base Price (SAR)")}</label>
-              <Input
-                type="number"
-                step="0.01"
-                value={productPrice}
-                onChange={(e) => setProductPrice(e.target.value)}
-                placeholder="0.00"
-                className="bg-black/40 border-white/10 text-white placeholder:text-white/20"
-                dir="ltr"
-                data-testid="input-product-price"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground mb-1.5 block">{t("الوصف (اختياري)", "Description (optional)")}</label>
-              <Input
-                value={productDescription}
-                onChange={(e) => setProductDescription(e.target.value)}
-                placeholder={t("مثال: شريحة لحم بلدي، جبنة شيدر، صوص الترافل", "e.g. Local beef patty, cheddar cheese, truffle sauce")}
-                className="bg-black/40 border-white/10 text-white placeholder:text-white/20"
-                dir="rtl"
-                data-testid="input-product-description"
-              />
+            {/* ── Section B: Pricing ── */}
+            <div className="px-6 pt-4 pb-5 space-y-4 border-b border-white/[0.06]">
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-white/30">{t("التسعير", "Pricing")}</p>
+                <div className="flex items-center gap-1 p-0.5 bg-white/[0.04] rounded-lg border border-white/[0.06]">
+                  <button
+                    type="button"
+                    onClick={() => setProductPricingType("fixed")}
+                    className={`px-3 py-1 text-xs rounded-md transition-all font-medium ${productPricingType === "fixed" ? "bg-blue-600 text-white shadow" : "text-white/40 hover:text-white/70"}`}
+                    data-testid="button-pricing-fixed"
+                  >
+                    {t("سعر ثابت", "Fixed")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setProductPricingType("variable")}
+                    className={`px-3 py-1 text-xs rounded-md transition-all font-medium ${productPricingType === "variable" ? "bg-violet-600 text-white shadow" : "text-white/40 hover:text-white/70"}`}
+                    data-testid="button-pricing-variable"
+                  >
+                    {t("أحجام / متغير", "Sizes")}
+                  </button>
+                </div>
+              </div>
+
+              {productPricingType === "fixed" ? (
+                <div>
+                  <label className="text-[11px] text-white/40 mb-1 block">{t("السعر الأساسي (ريال)", "Base Price (SAR)")} <span className="text-red-500">*</span></label>
+                  <Input type="number" step="0.01" value={productPrice} onChange={(e) => setProductPrice(e.target.value)} placeholder="0.00" className="h-11 bg-black/40 border-white/10 text-white placeholder:text-white/20 font-mono text-lg" dir="ltr" data-testid="input-product-price" />
+                  <p className="text-[10px] text-white/25 mt-1">{t("مثالي للمنتجات البسيطة مثل الماء أو القهوة العادية", "Ideal for simple items like water or regular coffee")}</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-[11px] text-white/40">{t("أضف أحجاماً مع سعر لكل حجم", "Add sizes with a price for each")}</p>
+                      <p className="text-[10px] text-white/25 mt-0.5">{t("مثال: صغير 15، وسط 20، كبير 25", "e.g. Small 15, Medium 20, Large 25")}</p>
+                    </div>
+                    <Button type="button" size="sm" variant="outline" onClick={() => setProductVariants([...productVariants, { name: "", price: 0 }])} className="h-8 text-xs border-violet-500/30 text-violet-400 hover:bg-violet-500/10 rounded-lg gap-1 flex-shrink-0" data-testid="button-add-variant">
+                      <Plus className="w-3 h-3" />{t("إضافة حجم", "Add Size")}
+                    </Button>
+                  </div>
+                  {productVariants.length === 0 && (
+                    <div className="text-center py-4 rounded-xl border border-dashed border-white/[0.06] text-white/20 text-xs">{t("لا توجد أحجام بعد — اضغط «إضافة حجم»", "No sizes yet — press «Add Size»")}</div>
+                  )}
+                  <div className="space-y-2">
+                    {productVariants.map((variant, i) => (
+                      <div key={i} className="flex items-center gap-2 p-2 rounded-lg bg-white/[0.02] border border-white/[0.04]" data-testid={`variant-row-${i}`}>
+                        <Input value={variant.name} onChange={(e) => { const u = [...productVariants]; u[i] = { ...u[i], name: e.target.value }; setProductVariants(u); }} placeholder={t("الحجم (مثال: صغير)", "Size (e.g. Small)")} className="flex-1 h-9 text-sm bg-black/40 border-white/10 text-white placeholder:text-white/20" dir="rtl" data-testid={`input-variant-name-${i}`} />
+                        <Input type="number" step="0.01" value={variant.price || ""} onChange={(e) => { const u = [...productVariants]; u[i] = { ...u[i], price: parseFloat(e.target.value) || 0 }; setProductVariants(u); }} placeholder="0.00" className="w-20 h-9 text-sm bg-black/40 border-white/10 text-white placeholder:text-white/20 text-center font-mono" dir="ltr" data-testid={`input-variant-price-${i}`} />
+                        <Button type="button" size="icon" variant="ghost" onClick={() => setProductVariants(productVariants.filter((_, idx) => idx !== i))} className="w-8 h-8 text-red-400/50 hover:text-red-400 hover:bg-red-500/10 flex-shrink-0" data-testid={`button-remove-variant-${i}`}><X className="w-3.5 h-3.5" /></Button>
+                      </div>
+                    ))}
+                  </div>
+                  {productVariants.length > 0 && (
+                    <p className="text-[10px] text-white/30 text-center">{t("سيُعرض للعميل أدنى سعر في قائمة المنتجات", "Lowest price shown on product listing")}</p>
+                  )}
+                </div>
+              )}
             </div>
 
-            <div className="border-t border-white/[0.06] pt-4">
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-semibold text-white/80">{t("الأحجام / المقاسات", "Sizes / Variants")}</label>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setProductVariants([...productVariants, { name: "", price: 0 }])}
-                  className="h-7 text-xs border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300 rounded-lg gap-1"
-                  data-testid="button-add-variant"
-                >
-                  <Plus className="w-3 h-3" />
-                  {t("إضافة حجم", "Add Size")}
+            {/* ── Section C: Extras (paid) ── */}
+            <div className="px-6 pt-4 pb-5 space-y-3 border-b border-white/[0.06]">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-white/30">{t("الإضافات (مدفوعة)", "Extras (Paid)")}</p>
+                  <p className="text-[10px] text-white/20 mt-0.5">{t("مثال: جبنة إضافية +3 ريال", "e.g. Extra cheese +3 SAR")}</p>
+                </div>
+                <Button type="button" size="sm" variant="outline" onClick={() => setProductExtras([...productExtras, { name: "", price: 0 }])} className="h-8 text-xs border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 rounded-lg gap-1 flex-shrink-0" data-testid="button-add-extra">
+                  <Plus className="w-3 h-3" />{t("إضافة", "Add")}
                 </Button>
               </div>
-              <p className="text-[11px] text-white/25 mb-3" dir="rtl">{t("أضف أحجاماً مختلفة لمنتجك (مثل: صغير، وسط، كبير)", "Add different sizes for your product (e.g. Small, Medium, Large)")}</p>
-              {productVariants.length > 0 && (
+              {productExtras.length === 0 ? (
+                <p className="text-[10px] text-white/15 text-center py-2">{t("اختياري — لا يظهر للعميل إن كان فارغاً", "Optional — hidden from customer if empty")}</p>
+              ) : (
                 <div className="space-y-2">
-                  {productVariants.map((variant, i) => (
-                    <div key={i} className="flex items-center gap-2" data-testid={`variant-row-${i}`}>
-                      <Input
-                        value={variant.name}
-                        onChange={(e) => {
-                          const updated = [...productVariants];
-                          updated[i] = { ...updated[i], name: e.target.value };
-                          setProductVariants(updated);
-                        }}
-                        placeholder={t("مثال: صغير، دبل، أو حبة", "e.g. Small, Double, or Single")}
-                        className="flex-1 h-9 text-sm bg-black/40 border-white/10 text-white placeholder:text-white/20"
-                        dir="rtl"
-                        data-testid={`input-variant-name-${i}`}
-                      />
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={variant.price || ""}
-                        onChange={(e) => {
-                          const updated = [...productVariants];
-                          updated[i] = { ...updated[i], price: parseFloat(e.target.value) || 0 };
-                          setProductVariants(updated);
-                        }}
-                        placeholder="0.00"
-                        className="w-24 h-9 text-sm bg-black/40 border-white/10 text-white placeholder:text-white/20 text-center"
-                        dir="ltr"
-                        data-testid={`input-variant-price-${i}`}
-                      />
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => setProductVariants(productVariants.filter((_, idx) => idx !== i))}
-                        className="w-8 h-8 text-red-400/60 hover:text-red-400 hover:bg-red-500/10 flex-shrink-0"
-                        data-testid={`button-remove-variant-${i}`}
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </Button>
+                  {productExtras.map((extra, i) => (
+                    <div key={i} className="flex items-center gap-2 p-2 rounded-lg bg-white/[0.02] border border-white/[0.04]" data-testid={`extra-row-${i}`}>
+                      <Input value={extra.name} onChange={(e) => { const u = [...productExtras]; u[i] = { ...u[i], name: e.target.value }; setProductExtras(u); }} placeholder={t("اسم الإضافة", "Extra name")} className="flex-1 h-9 text-sm bg-black/40 border-white/10 text-white placeholder:text-white/20" dir="rtl" data-testid={`input-extra-name-${i}`} />
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <span className="text-[10px] text-white/30">+</span>
+                        <Input type="number" step="0.01" value={extra.price || ""} onChange={(e) => { const u = [...productExtras]; u[i] = { ...u[i], price: parseFloat(e.target.value) || 0 }; setProductExtras(u); }} placeholder="0.00" className="w-16 h-9 text-sm bg-black/40 border-white/10 text-white placeholder:text-white/20 text-center font-mono" dir="ltr" data-testid={`input-extra-price-${i}`} />
+                        <span className="text-[10px] text-white/30">{t("ر", "SAR")}</span>
+                      </div>
+                      <Button type="button" size="icon" variant="ghost" onClick={() => setProductExtras(productExtras.filter((_, idx) => idx !== i))} className="w-8 h-8 text-red-400/50 hover:text-red-400 hover:bg-red-500/10 flex-shrink-0" data-testid={`button-remove-extra-${i}`}><X className="w-3.5 h-3.5" /></Button>
                     </div>
                   ))}
                 </div>
               )}
             </div>
 
-            <div className="border-t border-white/[0.06] pt-4">
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-semibold text-white/80">{t("الإضافات", "Add-ons / Extras")}</label>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setProductAddons([...productAddons, { name: "", price: 0 }])}
-                  className="h-7 text-xs border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300 rounded-lg gap-1"
-                  data-testid="button-add-addon"
-                >
-                  <Plus className="w-3 h-3" />
-                  {t("إضافة خيار", "Add Extra")}
+            {/* ── Section D: Modifications (free) ── */}
+            <div className="px-6 pt-4 pb-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-white/30">{t("التعديلات (مجانية)", "Modifications (Free)")}</p>
+                  <p className="text-[10px] text-white/20 mt-0.5">{t("مثال: بدون بصل، صوص جانبي", "e.g. No onion, sauce on side")}</p>
+                </div>
+                <Button type="button" size="sm" variant="outline" onClick={() => setProductRemovals([...productRemovals, { name: "" }])} className="h-8 text-xs border-amber-500/30 text-amber-400 hover:bg-amber-500/10 rounded-lg gap-1 flex-shrink-0" data-testid="button-add-removal">
+                  <Plus className="w-3 h-3" />{t("إضافة", "Add")}
                 </Button>
               </div>
-              <p className="text-[11px] text-white/25 mb-3" dir="rtl">{t("يمكنك إضافة خيارات مدفوعة (مثلاً: جبنة +3 ريال) أو مجانية (مثلاً: بدون بصل 0 ريال)", "Add paid extras (e.g. Cheese +3 SAR) or free options (e.g. No onion 0 SAR)")}</p>
-              {productAddons.length > 0 && (
+              {productRemovals.length === 0 ? (
+                <p className="text-[10px] text-white/15 text-center py-2">{t("اختياري — لا يظهر للعميل إن كان فارغاً", "Optional — hidden from customer if empty")}</p>
+              ) : (
                 <div className="space-y-2">
-                  {productAddons.map((addon, i) => (
-                    <div key={i} className="flex items-center gap-2" data-testid={`addon-row-${i}`}>
-                      <Input
-                        value={addon.name}
-                        onChange={(e) => {
-                          const updated = [...productAddons];
-                          updated[i] = { ...updated[i], name: e.target.value };
-                          setProductAddons(updated);
-                        }}
-                        placeholder={t("مثال: جبنة إضافية أو بدون بصل", "e.g. Extra cheese or No onion")}
-                        className="flex-1 h-9 text-sm bg-black/40 border-white/10 text-white placeholder:text-white/20"
-                        dir="rtl"
-                        data-testid={`input-addon-name-${i}`}
-                      />
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={addon.price || ""}
-                        onChange={(e) => {
-                          const updated = [...productAddons];
-                          updated[i] = { ...updated[i], price: parseFloat(e.target.value) || 0 };
-                          setProductAddons(updated);
-                        }}
-                        placeholder="0.00"
-                        className="w-24 h-9 text-sm bg-black/40 border-white/10 text-white placeholder:text-white/20 text-center"
-                        dir="ltr"
-                        data-testid={`input-addon-price-${i}`}
-                      />
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => setProductAddons(productAddons.filter((_, idx) => idx !== i))}
-                        className="w-8 h-8 text-red-400/60 hover:text-red-400 hover:bg-red-500/10 flex-shrink-0"
-                        data-testid={`button-remove-addon-${i}`}
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </Button>
+                  {productRemovals.map((removal, i) => (
+                    <div key={i} className="flex items-center gap-2 p-2 rounded-lg bg-white/[0.02] border border-white/[0.04]" data-testid={`removal-row-${i}`}>
+                      <Input value={removal.name} onChange={(e) => { const u = [...productRemovals]; u[i] = { name: e.target.value }; setProductRemovals(u); }} placeholder={t("مثال: بدون بصل", "e.g. No onion")} className="flex-1 h-9 text-sm bg-black/40 border-white/10 text-white placeholder:text-white/20" dir="rtl" data-testid={`input-removal-name-${i}`} />
+                      <span className="text-[10px] px-2 py-0.5 bg-amber-500/10 border border-amber-500/20 text-amber-400/60 rounded-full flex-shrink-0">{t("مجاني", "Free")}</span>
+                      <Button type="button" size="icon" variant="ghost" onClick={() => setProductRemovals(productRemovals.filter((_, idx) => idx !== i))} className="w-8 h-8 text-red-400/50 hover:text-red-400 hover:bg-red-500/10 flex-shrink-0" data-testid={`button-remove-removal-${i}`}><X className="w-3.5 h-3.5" /></Button>
                     </div>
                   ))}
                 </div>
               )}
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowProductDialog(false)} className="border-white/10 text-white/60">{t("إلغاء", "Cancel")}</Button>
-            <Button onClick={handleSaveProduct} disabled={!productName.trim() || !productPrice.trim() || !productCategory.trim() || savingProduct} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl" data-testid="button-save-product">
-              {savingProduct ? <Loader2 className="w-4 h-4 animate-spin me-2" /> : null}
-              {t("حفظ", "Save")}
+
+          <div className="px-6 py-4 border-t border-white/[0.06] flex items-center justify-between gap-3 bg-[#0d0d0d]">
+            <Button variant="outline" onClick={() => setShowProductDialog(false)} className="border-white/10 text-white/60 rounded-xl">{t("إلغاء", "Cancel")}</Button>
+            <Button
+              onClick={handleSaveProduct}
+              disabled={
+                !productName.trim() || !productCategory.trim() ||
+                (productPricingType === "fixed" ? !productPrice.trim() : !productVariants.some(v => v.name.trim())) ||
+                savingProduct
+              }
+              className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-6 font-bold"
+              data-testid="button-save-product"
+            >
+              {savingProduct ? <Loader2 className="w-4 h-4 animate-spin me-2" /> : <Save className="w-4 h-4 me-2" />}
+              {t("حفظ المنتج", "Save Product")}
             </Button>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
