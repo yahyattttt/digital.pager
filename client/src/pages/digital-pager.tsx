@@ -374,12 +374,6 @@ export default function DigitalPagerPage() {
     ? "جاري تحضير طلبك..."
     : "جاري استلام طلبك...";
 
-  const statusTextEn = isReady
-    ? "ORDER READY! Please proceed to the counter"
-    : status === "preparing"
-    ? "Preparing your order. We'll buzz you!"
-    : "Receiving your order...";
-
   return (
     <div
       className="min-h-[100dvh] flex flex-col items-center"
@@ -480,22 +474,15 @@ export default function DigitalPagerPage() {
         >
           {statusTextAr}
         </p>
-        <p
-          className="text-sm mt-1"
-          style={{ color: isReady ? "rgba(255,100,60,0.7)" : "rgba(255,255,255,0.3)" }}
-          data-testid="text-status-en"
-        >
-          {statusTextEn}
-        </p>
-
         {/* Browser disclaimer */}
-        <p className="text-xs text-gray-500 mt-2 leading-relaxed" dir="rtl">
-          لضمان وصول التنبيهات اليك الرجاء البقاء على نفس الصفحة بسبب قيود المتصفح
+        <p className="flex items-start justify-center gap-1.5 text-xs text-gray-400 mt-4 mb-1 leading-relaxed px-2" dir="rtl" data-testid="text-disclaimer">
+          <span className="mt-0.5 shrink-0">⚠️</span>
+          <span>لضمان تنبيهك فور جهوزية الطلب، يرجى إبقاء هذه الصفحة مفتوحة.</span>
         </p>
       </div>
 
       {/* Activate alerts button */}
-      <div className="mt-4 w-full max-w-xs px-4 pb-8">
+      <div className="mt-5 w-full max-w-xs px-4 pb-8">
         <button
           onClick={handleActivateAlerts}
           data-testid="btn-activate-alerts"
