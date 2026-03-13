@@ -527,11 +527,14 @@
 }
 
 @keyframes marqueeScroll {
-  0%   { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
+  0%   { transform: translateX(-50%); }
+  100% { transform: translateX(0); }
 }
 .marketing-marquee {
   direction: ltr;
-  animation: marqueeScroll 38s linear infinite;
+  animation: marqueeScroll 18s linear infinite;
   will-change: transform;
+}
+.marketing-marquee:hover {
+  animation-play-state: paused;
 }

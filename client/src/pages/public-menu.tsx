@@ -1096,7 +1096,7 @@ export default function PublicMenuPage() {
         <div className="marketing-marquee flex whitespace-nowrap py-1.5">
           {[0, 1].map(i => (
             <span key={i} aria-hidden={i === 1 || undefined} className="inline-block text-sm text-white/90 font-medium shrink-0" style={{ fontFamily: "'Cairo', 'Tajawal', sans-serif", letterSpacing: "0.01em" }}>
-              &nbsp;&nbsp;&nbsp;&nbsp;اطلب بدون زحمة وانتظار وننبهك إذا جهز طلبك!&nbsp; ✨ &nbsp;&nbsp;｜&nbsp;&nbsp; اطلب وأنت بسيارتك وبننادي عليك تستلم!&nbsp; 🚗 &nbsp;&nbsp;｜&nbsp;&nbsp; خلك مرتاح.. جرسك بجيبك وطلبك بين يديك!&nbsp; 🔔 &nbsp;&nbsp;&nbsp;&nbsp;
+              &nbsp;&nbsp;&nbsp;&nbsp;• خلك بمكانك.. طلبك يجهز ونناديك!&nbsp; ✨ &nbsp;&nbsp;&nbsp;&nbsp;• ودّع الزحمة.. اطلب بلمسة وجرسك يخبرك!&nbsp; 🔔 &nbsp;&nbsp;&nbsp;&nbsp;• راحتك تهمنا.. اطلب وأنت بسيارتك والباقي علينا!&nbsp; 🚗 &nbsp;&nbsp;&nbsp;&nbsp;
             </span>
           ))}
         </div>
