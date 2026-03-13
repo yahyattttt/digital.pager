@@ -1102,7 +1102,7 @@ export default function PublicMenuPage() {
               <Store className="w-10 h-10 text-red-500" />
             </div>
           )}
-          <h1 className="text-white text-xl font-bold" data-testid="text-menu-store-name">{merchant.storeName}</h1>
+          <h1 className="text-white text-2xl font-extrabold tracking-tight mt-1" data-testid="text-menu-store-name">{merchant.storeName}</h1>
         </div>
       </div>
 
@@ -1144,31 +1144,41 @@ export default function PublicMenuPage() {
           const qty = getCartQuantityForProduct(product.id);
           const hasVariants = product.variants && product.variants.length > 0;
           const startPrice = hasVariants ? Math.min(...product.variants!.map(v => v.price)) : product.price;
+          const [bouncing, setBouncing] = useState(false);
+
+          function handlePlusClick(e: React.MouseEvent) {
+            e.stopPropagation();
+            setBouncing(true);
+            setTimeout(() => setBouncing(false), 400);
+            if (!orderingDisabled) openProductModal(product);
+          }
+
           return (
             <div
-              className="rounded-xl border border-zinc-800/50 bg-zinc-900/40 overflow-hidden flex flex-col cursor-pointer active:scale-[0.98] transition-transform"
-              style={{ boxShadow: "0 2px 12px rgba(255,0,0,0.03)" }}
+              className="rounded-2xl border border-zinc-800/50 bg-zinc-900/50 overflow-hidden flex flex-col cursor-pointer active:scale-[0.97] transition-transform shadow-lg"
+              style={{ boxShadow: "0 4px 18px rgba(0,0,0,0.45), 0 1px 4px rgba(255,0,0,0.04)" }}
               data-testid={`product-card-${product.id}`}
               onClick={() => { if (!orderingDisabled) openProductModal(product); }}
             >
               {product.imageUrl ? (
                 <div className="aspect-square overflow-hidden">
-                  <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" style={{ borderRadius: "0.75rem 0.75rem 0 0" }} />
+                  <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover rounded-t-2xl" />
                 </div>
               ) : (
-                <div className="aspect-square bg-zinc-800/30 flex items-center justify-center" style={{ borderRadius: "0.75rem 0.75rem 0 0" }}>
+                <div className="aspect-square bg-zinc-800/30 flex items-center justify-center rounded-t-2xl">
                   <Store className="w-8 h-8 text-white/10" />
                 </div>
               )}
-              <div className="p-3 flex-1 flex flex-col">
-                <p className="text-white text-sm font-semibold truncate" data-testid={`text-product-name-${product.id}`}>{product.name}</p>
-                {product.description && <p className="text-white/30 text-[11px] mt-0.5 line-clamp-2">{product.description}</p>}
-                <div className="mt-auto pt-2 flex items-center justify-between">
-                  <span className="text-red-400 font-bold text-sm" data-testid={`text-product-price-${product.id}`}>
+              <div className="p-3 flex-1 flex flex-col gap-1">
+                <p className="text-white text-sm font-bold leading-snug line-clamp-2" data-testid={`text-product-name-${product.id}`}>{product.name}</p>
+                {product.description && <p className="text-gray-400 text-[11px] line-clamp-2 leading-relaxed">{product.description}</p>}
+                <div className="mt-auto pt-2 flex items-center justify-between gap-1">
+                  <span className="text-white font-bold text-sm" data-testid={`text-product-price-${product.id}`}>
                     {hasVariants ? `${startPrice.toFixed(2)}+` : product.price.toFixed(2)}
+                    <span className="text-white/40 font-normal text-[10px] ms-0.5">SAR</span>
                   </span>
                   {orderingDisabled ? (
-                    <div className="w-8 h-8 rounded-lg bg-zinc-800/50 flex items-center justify-center opacity-30" data-testid={`button-add-disabled-${product.id}`}>
+                    <div className="w-8 h-8 rounded-xl bg-zinc-800/50 flex items-center justify-center opacity-30" data-testid={`button-add-disabled-${product.id}`}>
                       <Plus className="w-4 h-4 text-white/30" />
                     </div>
                   ) : qty > 0 ? (
@@ -1176,8 +1186,12 @@ export default function PublicMenuPage() {
                       <span className="bg-red-600/20 text-red-400 text-xs font-bold rounded-full px-2 py-0.5" data-testid={`text-qty-${product.id}`}>{qty}</span>
                     </div>
                   ) : (
-                    <div className="w-8 h-8 rounded-lg bg-red-600/10 border border-red-600/20 flex items-center justify-center hover:bg-red-600/20 transition-colors" data-testid={`button-add-${product.id}`}>
-                      <Plus className="w-4 h-4 text-red-500" />
+                    <div
+                      className={`w-8 h-8 rounded-xl bg-red-600 flex items-center justify-center shadow-md shadow-red-900/30 ${bouncing ? "btn-bounce" : ""}`}
+                      onClick={handlePlusClick}
+                      data-testid={`button-add-${product.id}`}
+                    >
+                      <Plus className="w-4 h-4 text-white" />
                     </div>
                   )}
                 </div>
@@ -1189,8 +1203,8 @@ export default function PublicMenuPage() {
         return (
           <>
             {hasCategories && (
-              <div className="px-4 mb-2 overflow-x-auto" data-testid="category-nav-bar">
-                <div className="flex gap-2 pb-2" style={{ width: "max-content" }}>
+              <div className="sticky top-0 z-30 px-4 pt-2 pb-2 mb-1 overflow-x-auto backdrop-blur-md border-b border-white/[0.04]" style={{ background: "rgba(0,0,0,0.72)" }} data-testid="category-nav-bar">
+                <div className="flex gap-2 pb-1" style={{ width: "max-content" }}>
                   <button
                     onClick={() => setSelectedCategory(null)}
                     className={`px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all ${
