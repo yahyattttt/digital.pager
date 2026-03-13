@@ -431,11 +431,11 @@ export default function DashboardPage() {
       if (prevWhatsappCountRef.current >= 0 && orders.length > prevWhatsappCountRef.current) {
         try {
           if (!waOrderAudioRef.current) {
-            waOrderAudioRef.current = new Audio("/alert.mp3");
+            waOrderAudioRef.current = new Audio("/merchant_alert.mp3");
           }
           waOrderAudioRef.current.currentTime = 0;
           waOrderAudioRef.current.play().catch(() => {});
-          setTimeout(() => { waOrderAudioRef.current?.pause(); }, 3000);
+          setTimeout(() => { waOrderAudioRef.current?.pause(); }, 4000);
         } catch {}
         toast({ title: t("طلب جديد!", "New Order!"), description: t("وصل طلب أونلاين جديد", "New online order received") });
       }
@@ -545,7 +545,7 @@ export default function DashboardPage() {
       snapshot.forEach((docSnap) => {
         docs.push({ ...(docSnap.data() as Pager), docId: docSnap.id });
       });
-      docs.sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+      docs.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
       setPagers(docs);
     }, (error) => {
       console.error("Pagers listener error:", error);
@@ -1708,7 +1708,7 @@ function OverviewView({
     ...notifiedPagers.map(p => ({ type: "pager-notified" as const, id: p.docId, orderNumber: p.orderNumber, displayOrderId: p.displayOrderId || `#${p.orderNumber}`, status: "notified" as const, createdAt: p.createdAt, pager: p, order: undefined, orderCategory: "manual" as const })),
     ...activeWhatsappOrders.map(o => ({ type: "wa" as const, id: o.id, orderNumber: o.orderNumber || "?", displayOrderId: o.displayOrderId || (o.orderNumber ? `#${o.orderNumber}` : "?"), status: o.status, createdAt: o.createdAt, pager: undefined, order: o, orderCategory: getOrderCategory({ type: "wa", order: o }) })),
     ...whatsappOrders.map(o => ({ type: "wa-new" as const, id: o.id, orderNumber: "NEW", displayOrderId: "", status: "awaiting_confirmation" as const, createdAt: o.createdAt, pager: undefined, order: o, orderCategory: getOrderCategory({ type: "wa-new", order: o }) })),
-  ].sort((a, b) => safeTime(a.createdAt) - safeTime(b.createdAt));
+  ].sort((a, b) => safeTime(b.createdAt) - safeTime(a.createdAt));
 
   const allActiveOrders = allActiveOrdersRaw.filter(item => {
     if (typeFilter !== "all" && item.orderCategory !== typeFilter) return false;
@@ -2008,7 +2008,7 @@ function OverviewView({
                 return (
                   <Card
                     key={`wa-new-${item.id}`}
-                    className={`relative rounded-2xl overflow-hidden transition-all duration-500 border border-red-500/30 shadow-[0_0_15px_rgba(239,0,0,0.08)] ${isFlying ? "opacity-0 -translate-y-20 scale-75" : ""}`}
+                    className={`relative rounded-2xl overflow-hidden transition-all duration-500 border new-order-pulse ${isFlying ? "opacity-0 -translate-y-20 scale-75" : ""}`}
                     style={cardStyle(item.orderCategory)}
                     data-testid={`card-wa-order-${item.id}`}
                   >
@@ -2168,7 +2168,7 @@ function OverviewView({
                 return (
                   <Card
                     key={`${item.type}-${item.id}`}
-                    className={`relative rounded-2xl overflow-hidden transition-all duration-500 border border-white/[0.08] ${isFlying ? "opacity-0 -translate-y-20 scale-75" : ""}`}
+                    className={`relative rounded-2xl overflow-hidden transition-all duration-500 border ${!isNotified ? "new-order-pulse" : "border-white/[0.08]"} ${isFlying ? "opacity-0 -translate-y-20 scale-75" : ""}`}
                     style={cardStyle("manual")}
                     data-testid={`card-${isNotified ? "notified" : "waiting"}-${item.id}`}
                   >

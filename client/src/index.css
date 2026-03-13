@@ -487,3 +487,12 @@
     padding-top: 4px;
   }
 }
+
+/* New order amber pulse animation for merchant dashboard */
+@keyframes newOrderPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); border-color: rgba(245, 158, 11, 0.25); }
+  50%       { box-shadow: 0 0 16px 4px rgba(245, 158, 11, 0.22); border-color: rgba(245, 158, 11, 0.65); }
+}
+.new-order-pulse {
+  animation: newOrderPulse 1.6s ease-in-out infinite;
+}
