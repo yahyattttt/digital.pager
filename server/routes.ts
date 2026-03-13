@@ -1361,12 +1361,13 @@ export async function registerRoutes(
 
   app.post("/api/feedback", async (req, res) => {
     try {
-      const { merchantId, stars, comment } = req.body;
+      const { merchantId, stars, rating: ratingField, comment, orderId: orderIdField } = req.body;
       if (!merchantId || typeof merchantId !== "string") {
         return res.status(400).json({ message: "merchantId is required" });
       }
-      if (!stars || typeof stars !== "number" || stars < 1 || stars > 5) {
-        return res.status(400).json({ message: "stars must be a number between 1 and 5" });
+      const resolvedStars = stars ?? ratingField;
+      if (!resolvedStars || typeof resolvedStars !== "number" || resolvedStars < 1 || resolvedStars > 5) {
+        return res.status(400).json({ message: "rating must be a number between 1 and 5" });
       }
 
       const baseUrl = getApiKeyBaseUrl();
@@ -1375,12 +1376,16 @@ export async function registerRoutes(
       }
 
       const docId = randomUUID();
+      const nowIso = new Date().toISOString();
       const data = {
         fields: {
           merchantId: { stringValue: merchantId },
-          stars: { integerValue: String(stars) },
+          stars: { integerValue: String(resolvedStars) },
+          rating: { integerValue: String(resolvedStars) },
           comment: { stringValue: comment || "" },
-          timestamp: { stringValue: new Date().toISOString() },
+          orderId: { stringValue: orderIdField || "" },
+          timestamp: { stringValue: nowIso },
+          createdAt: { stringValue: nowIso },
           read: { booleanValue: false },
         },
       };

@@ -374,7 +374,7 @@ export default function DashboardPage() {
   
   const [notifyLoading, setNotifyLoading] = useState<string | null>(null);
   const [qrLoading, setQrLoading] = useState(false);
-  const [feedbacks, setFeedbacks] = useState<Array<{ id: string; merchantId: string; stars: number; comment: string; timestamp: string; read: boolean }>>([]);
+  const [feedbacks, setFeedbacks] = useState<Array<{ id: string; merchantId: string; stars: number; rating?: number; comment: string; timestamp: string; createdAt?: string; orderId?: string; read: boolean }>>([]);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [markingRead, setMarkingRead] = useState<string | null>(null);
   const [currentView, setCurrentView] = useState<DashboardView>("overview");
@@ -3081,7 +3081,7 @@ function FeedbackView({
   t,
   lang,
 }: {
-  feedbacks: Array<{ id: string; merchantId: string; stars: number; comment: string; timestamp: string; read: boolean }>;
+  feedbacks: Array<{ id: string; merchantId: string; stars: number; rating?: number; comment: string; timestamp: string; createdAt?: string; orderId?: string; read: boolean }>;
   feedbackLoading: boolean;
   markingRead: string | null;
   onMarkAsRead: (id: string) => void;
@@ -3089,15 +3089,26 @@ function FeedbackView({
   t: (ar: string, en: string) => string;
   lang: string;
 }) {
+  const [filterStars, setFilterStars] = useState<number | null>(null);
+  const [filterDate, setFilterDate] = useState<string>("");
+
   const unreadCount = feedbacks.filter(f => !f.read).length;
 
+  const displayed = feedbacks
+    .filter(f => filterStars === null || (f.stars === filterStars || f.rating === filterStars))
+    .filter(f => {
+      if (!filterDate) return true;
+      const ts = f.createdAt || f.timestamp;
+      return ts ? ts.slice(0, 10) === filterDate : false;
+    });
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-5">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-xl font-bold">{t("ملاحظات العملاء", "Customer Feedback")}</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {t("تقييمات العملاء ذوي التجربة المنخفضة", "Low-rating customer reviews and complaints")}
+            {t("جميع تقييمات العملاء بعد اكتمال الطلبات", "All customer ratings after order completion")}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -3113,85 +3124,156 @@ function FeedbackView({
         </div>
       </div>
 
+      {/* Filter Bar */}
+      <Card className="border-white/[0.06] bg-[#0d0d0d] rounded-2xl">
+        <CardContent className="p-4 flex flex-wrap gap-3 items-center">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-xs text-muted-foreground font-medium me-1">{t("تصفية:", "Filter:")}</span>
+            <button
+              onClick={() => setFilterStars(null)}
+              className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${filterStars === null ? "bg-white/10 text-white" : "text-muted-foreground hover:text-white"}`}
+              data-testid="filter-stars-all"
+            >
+              {t("الكل", "All")}
+            </button>
+            {[1, 2, 3, 4, 5].map(n => (
+              <button
+                key={n}
+                onClick={() => setFilterStars(filterStars === n ? null : n)}
+                className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${
+                  filterStars === n
+                    ? n <= 2 ? "bg-red-500/20 text-red-400 border border-red-500/30" : "bg-yellow-500/15 text-yellow-400 border border-yellow-500/25"
+                    : "text-muted-foreground hover:text-white"
+                }`}
+                data-testid={`filter-stars-${n}`}
+              >
+                {n}★
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2 ms-auto">
+            <span className="text-xs text-muted-foreground">{t("التاريخ:", "Date:")}</span>
+            <input
+              type="date"
+              value={filterDate}
+              onChange={e => setFilterDate(e.target.value)}
+              data-testid="filter-date-input"
+              className="text-xs bg-white/[0.05] border border-white/[0.08] rounded-lg px-2 py-1 text-white/80 outline-none focus:border-white/20"
+              style={{ colorScheme: "dark" }}
+            />
+            {filterDate && (
+              <button onClick={() => setFilterDate("")} className="text-xs text-muted-foreground hover:text-white" data-testid="filter-date-clear">✕</button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {feedbackLoading ? (
         <div className="flex flex-col items-center justify-center py-20">
           <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
           <p className="text-muted-foreground text-sm">{t("جاري التحميل...", "Loading...")}</p>
         </div>
-      ) : feedbacks.length === 0 ? (
+      ) : displayed.length === 0 ? (
         <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
-          <CardContent className="py-20 flex flex-col items-center justify-center text-center">
-            <div className="w-20 h-20 rounded-2xl bg-white/[0.03] flex items-center justify-center mb-4">
-              <MessageSquare className="w-10 h-10 text-muted-foreground/30" />
+          <CardContent className="py-16 flex flex-col items-center justify-center text-center">
+            <div className="w-16 h-16 rounded-2xl bg-white/[0.03] flex items-center justify-center mb-4">
+              <MessageSquare className="w-8 h-8 text-muted-foreground/30" />
             </div>
-            <p className="text-muted-foreground font-medium text-lg" data-testid="text-no-feedbacks">
-              {t("لا توجد ملاحظات", "No feedback yet")}
-            </p>
-            <p className="text-muted-foreground/50 text-sm mt-2">
-              {t("ستظهر هنا ملاحظات العملاء ذوي التقييمات المنخفضة", "Low-rating customer feedback will appear here")}
+            <p className="text-muted-foreground font-medium" data-testid="text-no-feedbacks">
+              {feedbacks.length === 0 ? t("لا توجد ملاحظات بعد", "No feedback yet") : t("لا توجد نتائج للفلتر المحدد", "No results for selected filter")}
             </p>
           </CardContent>
         </Card>
       ) : (
-        <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
+        <Card className="border-white/[0.06] bg-[#111] rounded-2xl overflow-hidden">
           <CardContent className="p-0 divide-y divide-white/[0.04]">
-            {feedbacks.map((feedback) => (
-              <div
-                key={feedback.id}
-                className={`flex items-start gap-4 px-5 py-4 ${!feedback.read ? "bg-orange-500/[0.02]" : ""}`}
-                data-testid={`card-feedback-${feedback.id}`}
-              >
-                <div className="flex-shrink-0 pt-0.5">
-                  <div className="flex gap-0.5">
-                    {[1, 2, 3, 4, 5].map((s) => (
-                      <Star
-                        key={s}
-                        className={`w-3.5 h-3.5 ${s <= feedback.stars ? "text-yellow-400 fill-yellow-400" : "text-white/10"}`}
-                        data-testid={`star-${feedback.id}-${s}`}
-                      />
-                    ))}
-                  </div>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    {!feedback.read && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-orange-400 flex-shrink-0" data-testid={`badge-unread-${feedback.id}`} />
+            {displayed.map((feedback) => {
+              const stars = feedback.stars ?? feedback.rating ?? 0;
+              const isNegative = stars <= 2;
+              const ts = feedback.createdAt || feedback.timestamp;
+              return (
+                <div
+                  key={feedback.id}
+                  className={`flex items-start gap-4 px-5 py-4 transition-colors ${
+                    isNegative
+                      ? "bg-red-950/20 border-s-2 border-red-500/40"
+                      : !feedback.read
+                        ? "bg-orange-500/[0.02]"
+                        : ""
+                  }`}
+                  data-testid={`card-feedback-${feedback.id}`}
+                >
+                  <div className="flex-shrink-0 pt-0.5 flex flex-col items-center gap-1.5">
+                    <div className="flex gap-0.5">
+                      {[1, 2, 3, 4, 5].map((s) => (
+                        <Star
+                          key={s}
+                          className={`w-3.5 h-3.5 ${s <= stars ? (isNegative ? "text-red-400 fill-red-400" : "text-yellow-400 fill-yellow-400") : "text-white/10"}`}
+                          data-testid={`star-${feedback.id}-${s}`}
+                        />
+                      ))}
+                    </div>
+                    {isNegative && (
+                      <span className="text-[10px] text-red-400/70 font-bold">{t("تقييم سلبي", "Negative")}</span>
                     )}
-                    <p className="text-xs text-muted-foreground/60" data-testid={`text-feedback-time-${feedback.id}`}>
-                      {new Date(feedback.timestamp).toLocaleDateString(lang === "ar" ? "ar-SA" : "en-US", {
-                        month: "short",
-                        day: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </p>
                   </div>
-                  {feedback.comment && (
-                    <p className="text-sm text-foreground/80 leading-relaxed" data-testid={`text-feedback-comment-${feedback.id}`}>
-                      {feedback.comment}
-                    </p>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      {!feedback.read && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-orange-400 flex-shrink-0" data-testid={`badge-unread-${feedback.id}`} />
+                      )}
+                      <p className="text-xs text-muted-foreground/70 font-mono" data-testid={`text-feedback-time-${feedback.id}`}>
+                        {ts ? new Date(ts).toLocaleString(lang === "ar" ? "ar-SA" : "en-US", {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        }) : "—"}
+                      </p>
+                    </div>
+                    {feedback.comment ? (
+                      <p className="text-sm text-foreground/80 leading-relaxed" data-testid={`text-feedback-comment-${feedback.id}`}>
+                        {feedback.comment}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground/40 italic" data-testid={`text-feedback-no-comment-${feedback.id}`}>
+                        {t("بدون تعليق", "No comment")}
+                      </p>
+                    )}
+                    {feedback.orderId && (
+                      <p className="text-[11px] text-muted-foreground/40 mt-1" data-testid={`text-feedback-orderid-${feedback.id}`}>
+                        {t("رقم الطلب:", "Order:")} <span className="font-mono">{feedback.orderId.slice(-8)}</span>
+                      </p>
+                    )}
+                  </div>
+                  {!feedback.read && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => onMarkAsRead(feedback.id)}
+                      disabled={markingRead === feedback.id}
+                      className="flex-shrink-0 text-xs h-8 px-2 text-muted-foreground hover:text-foreground"
+                      data-testid={`button-mark-read-${feedback.id}`}
+                    >
+                      {markingRead === feedback.id ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <Eye className="w-3.5 h-3.5" />
+                      )}
+                    </Button>
                   )}
                 </div>
-                {!feedback.read && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => onMarkAsRead(feedback.id)}
-                    disabled={markingRead === feedback.id}
-                    className="flex-shrink-0 text-xs h-8 px-2 text-muted-foreground hover:text-foreground"
-                    data-testid={`button-mark-read-${feedback.id}`}
-                  >
-                    {markingRead === feedback.id ? (
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                    ) : (
-                      <Eye className="w-3.5 h-3.5" />
-                    )}
-                  </Button>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </CardContent>
         </Card>
+      )}
+
+      {displayed.length > 0 && (
+        <p className="text-xs text-muted-foreground/40 text-center">
+          {t(`عرض ${displayed.length} من ${feedbacks.length} ملاحظة`, `Showing ${displayed.length} of ${feedbacks.length} entries`)}
+        </p>
       )}
     </div>
   );

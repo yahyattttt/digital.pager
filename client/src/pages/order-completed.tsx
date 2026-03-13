@@ -36,6 +36,7 @@ export default function OrderCompletedPage() {
   const [hoverRating, setHoverRating] = useState(0);
   const [feedback, setFeedback] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [submittingRating, setSubmittingRating] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -60,8 +61,23 @@ export default function OrderCompletedPage() {
     fetchData();
   }, [merchantId, orderId, orderType]);
 
-  function handleSubmitRating() {
-    if (rating === 0) return;
+  async function handleSubmitRating() {
+    if (rating === 0 || submittingRating) return;
+    setSubmittingRating(true);
+    try {
+      await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          merchantId,
+          stars: rating,
+          rating,
+          comment: feedback.trim(),
+          orderId: orderId || "",
+        }),
+      });
+    } catch {}
+    setSubmittingRating(false);
     setSubmitted(true);
   }
 
@@ -275,17 +291,24 @@ export default function OrderCompletedPage() {
 
             <button
               onClick={handleSubmitRating}
-              disabled={rating === 0}
+              disabled={rating === 0 || submittingRating}
               data-testid="btn-submit-rating"
-              className="w-full py-3 rounded-xl font-bold text-sm transition-all active:scale-95"
+              className="w-full py-3 rounded-xl font-bold text-sm transition-all active:scale-95 flex items-center justify-center gap-2"
               style={{
                 background: rating > 0 ? "#cc2200" : "#2a0808",
                 color: rating > 0 ? "#fff" : "#5a2020",
                 border: "none",
-                cursor: rating > 0 ? "pointer" : "not-allowed",
+                cursor: rating > 0 && !submittingRating ? "pointer" : "not-allowed",
+                opacity: submittingRating ? 0.7 : 1,
               }}
             >
-              إرسال التقييم
+              {submittingRating && (
+                <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.3" />
+                  <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                </svg>
+              )}
+              {submittingRating ? "جاري الإرسال..." : "إرسال التقييم"}
             </button>
           </>
         ) : (
