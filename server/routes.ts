@@ -418,6 +418,14 @@ export async function registerRoutes(
     return res.json({ url });
   });
 
+  app.post("/api/upload-image", upload.single("image"), (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
+    const url = `/uploads/${req.file.filename}`;
+    return res.json({ url });
+  });
+
   app.post("/api/upload-cr", crUpload.single("cr"), (req, res) => {
     if (!req.file) {
       return res.status(400).json({ message: "No file uploaded" });
@@ -2721,6 +2729,9 @@ export async function registerRoutes(
             codEnabled: mf.codEnabled?.booleanValue !== false,
             deliveryEnabled: mf.deliveryEnabled?.booleanValue === true,
             deliveryFee: mf.deliveryFee?.doubleValue ?? parseFloat(mf.deliveryFee?.integerValue || "0"),
+            deliveryRange: mf.deliveryRange?.doubleValue ?? parseFloat(mf.deliveryRange?.integerValue || "0"),
+            storeLat: mf.storeLat?.doubleValue ?? null,
+            storeLng: mf.storeLng?.doubleValue ?? null,
           };
         }
       }

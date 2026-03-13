@@ -2550,12 +2550,16 @@ function MenuView({
   async function fetchProducts() {
     if (!uid) return;
     try {
-      const res = await fetch(`/api/products/${uid}`);
-      if (res.ok) {
-        const data = await res.json();
-        setProducts(data.products || []);
-      }
-    } catch {} finally {
+      console.log("[Products] Fetching products for uid:", uid);
+      const productsRef = collection(db, "merchants", uid, "products");
+      const snap = await getDocs(productsRef);
+      const prods: Product[] = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Product));
+      prods.sort((a: any, b: any) => ((b as any).createdAt || "").localeCompare((a as any).createdAt || ""));
+      console.log("[Products] Loaded", prods.length, "products from Firestore");
+      setProducts(prods);
+    } catch (err: any) {
+      console.error("[Products] fetchProducts error:", err.code, err.message);
+    } finally {
       setProductsLoading(false);
     }
   }
@@ -2595,36 +2599,58 @@ function MenuView({
   }
 
   async function handleSaveProduct() {
-    if (!productName.trim() || !productPrice.trim()) return;
+    if (!productName.trim() || !productPrice.trim() || !productCategory.trim()) return;
     setSavingProduct(true);
     try {
-      const formData = new FormData();
-      formData.append("name", productName.trim());
-      formData.append("price", productPrice);
-      formData.append("category", productCategory.trim());
-      formData.append("description", productDescription.trim());
-      if (productImage) formData.append("image", productImage);
+      let imageUrl = productImagePreview || "";
+
+      if (productImage) {
+        console.log("[Products] Uploading product image...");
+        const formData = new FormData();
+        formData.append("image", productImage);
+        try {
+          const uploadRes = await fetch("/api/upload-image", { method: "POST", body: formData });
+          if (uploadRes.ok) {
+            const uploadData = await uploadRes.json();
+            imageUrl = uploadData.url || imageUrl;
+            console.log("[Products] Image uploaded:", imageUrl);
+          }
+        } catch (uploadErr) {
+          console.warn("[Products] Image upload failed, continuing without image:", uploadErr);
+        }
+      }
+
       const cleanVariants = productVariants.filter(v => v.name.trim());
       const cleanAddons = productAddons.filter(a => a.name.trim());
-      formData.append("variants", JSON.stringify(cleanVariants));
-      formData.append("addons", JSON.stringify(cleanAddons));
 
-      let res: Response;
+      const productData: Record<string, any> = {
+        merchantId: uid,
+        name: productName.trim(),
+        price: parseFloat(productPrice) || 0,
+        category: productCategory.trim(),
+        description: productDescription.trim(),
+        imageUrl,
+        visible: true,
+        variants: cleanVariants,
+        addons: cleanAddons,
+      };
+
       if (editingProduct) {
-        res = await fetch(`/api/products/${uid}/${editingProduct.id}`, { method: "PATCH", body: formData });
+        console.log("[Products] Updating product in Firestore:", editingProduct.id);
+        await updateDoc(doc(db, "merchants", uid!, "products", editingProduct.id), productData);
+        console.log("[Products] Product updated successfully");
       } else {
-        formData.append("visible", "true");
-        res = await fetch(`/api/products/${uid}`, { method: "POST", body: formData });
+        productData.createdAt = new Date().toISOString();
+        console.log("[Products] Creating new product in Firestore...");
+        const newRef = await addDoc(collection(db, "merchants", uid!, "products"), productData);
+        console.log("[Products] Product created:", newRef.id);
       }
 
-      if (res.ok) {
-        toast({ title: t("تم الحفظ", "Saved"), description: t("تم حفظ المنتج بنجاح", "Product saved successfully") });
-        setShowProductDialog(false);
-        fetchProducts();
-      } else {
-        toast({ title: t("خطأ", "Error"), description: t("فشل حفظ المنتج", "Failed to save product"), variant: "destructive" });
-      }
-    } catch {
+      toast({ title: t("تم الحفظ", "Saved"), description: t("تم حفظ المنتج بنجاح", "Product saved successfully") });
+      setShowProductDialog(false);
+      fetchProducts();
+    } catch (err: any) {
+      console.error("[Products] handleSaveProduct error:", err.code, err.message);
       toast({ title: t("خطأ", "Error"), description: t("فشل حفظ المنتج", "Failed to save product"), variant: "destructive" });
     } finally {
       setSavingProduct(false);
@@ -2634,12 +2660,14 @@ function MenuView({
   async function handleDeleteProduct(productId: string) {
     setDeletingProduct(productId);
     try {
-      const res = await fetch(`/api/products/${uid}/${productId}`, { method: "DELETE" });
-      if (res.ok) {
-        toast({ title: t("تم الحذف", "Deleted"), description: t("تم حذف المنتج", "Product deleted") });
-        fetchProducts();
-      }
-    } catch {} finally {
+      console.log("[Products] Deleting product:", productId);
+      await deleteDoc(doc(db, "merchants", uid!, "products", productId));
+      toast({ title: t("تم الحذف", "Deleted"), description: t("تم حذف المنتج", "Product deleted") });
+      fetchProducts();
+    } catch (err: any) {
+      console.error("[Products] handleDeleteProduct error:", err.code, err.message);
+      toast({ title: t("خطأ", "Error"), description: t("فشل حذف المنتج", "Failed to delete product"), variant: "destructive" });
+    } finally {
       setDeletingProduct(null);
     }
   }
@@ -2647,11 +2675,11 @@ function MenuView({
   async function handleToggleVisibility(product: Product) {
     setTogglingVisibility(product.id);
     try {
-      const formData = new FormData();
-      formData.append("visible", String(!product.visible));
-      const res = await fetch(`/api/products/${uid}/${product.id}`, { method: "PATCH", body: formData });
-      if (res.ok) fetchProducts();
-    } catch {} finally {
+      await updateDoc(doc(db, "merchants", uid!, "products", product.id), { visible: !product.visible });
+      fetchProducts();
+    } catch (err: any) {
+      console.error("[Products] handleToggleVisibility error:", err.code, err.message);
+    } finally {
       setTogglingVisibility(null);
     }
   }
@@ -4069,6 +4097,9 @@ function SettingsView({
   const [codEnabled, setCodEnabled] = useState<boolean>(merchant?.codEnabled !== false);
   const [deliveryEnabled, setDeliveryEnabled] = useState<boolean>(merchant?.deliveryEnabled || false);
   const [deliveryFee, setDeliveryFee] = useState<string>(merchant?.deliveryFee?.toString() || "0");
+  const [deliveryRange, setDeliveryRange] = useState<string>(merchant?.deliveryRange?.toString() || "0");
+  const [storeLat, setStoreLat] = useState<string>(merchant?.storeLat?.toString() || "");
+  const [storeLng, setStoreLng] = useState<string>(merchant?.storeLng?.toString() || "");
   const [driverPhone, setDriverPhone] = useState<string>(merchant?.driverPhone || "");
   const [paymentSaving, setPaymentSaving] = useState(false);
 
@@ -4102,6 +4133,9 @@ function SettingsView({
         codEnabled,
         deliveryEnabled,
         deliveryFee: parseFloat(deliveryFee) || 0,
+        deliveryRange: parseFloat(deliveryRange) || 0,
+        storeLat: storeLat.trim() ? parseFloat(storeLat) : null,
+        storeLng: storeLng.trim() ? parseFloat(storeLng) : null,
         driverPhone: driverPhone.trim(),
       });
       toast({
@@ -4292,6 +4326,64 @@ function SettingsView({
                     data-testid="input-delivery-fee"
                   />
                 </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs text-muted-foreground block flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />
+                    {t("أقصى نطاق توصيل (كيلومتر)", "Max Delivery Range (km)")}
+                  </label>
+                  <Input
+                    type="number"
+                    value={deliveryRange}
+                    onChange={(e) => setDeliveryRange(e.target.value)}
+                    placeholder={t("0 = غير محدود", "0 = unlimited")}
+                    min="0"
+                    step="1"
+                    className="h-12 bg-white/[0.03] border-white/10 font-mono"
+                    dir="ltr"
+                    data-testid="input-delivery-range"
+                  />
+                  <p className="text-[10px] text-muted-foreground" dir="rtl">
+                    {t("اضبط على 0 لقبول أي مسافة. يُستخدم مع إحداثيات الفرع لحساب المسافة.", "Set to 0 to accept any distance. Used with branch coordinates to calculate delivery range.")}
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.06] space-y-3">
+                  <p className="text-sm font-semibold flex items-center gap-2" dir="rtl">
+                    <MapPin className="w-4 h-4 text-emerald-400" />
+                    {t("إحداثيات موقع الفرع", "Branch Location Coordinates")}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground" dir="rtl">
+                    {t("افتح Google Maps، انقر بزر اليمين على موقع فرعك، وانسخ الإحداثيات.", "Open Google Maps, right-click your branch location, and copy the coordinates.")}
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] text-muted-foreground block mb-1">{t("خط العرض", "Latitude")}</label>
+                      <Input
+                        type="text"
+                        value={storeLat}
+                        onChange={(e) => setStoreLat(e.target.value)}
+                        placeholder="24.7136"
+                        className="h-10 bg-black/40 border-white/10 font-mono text-sm"
+                        dir="ltr"
+                        data-testid="input-store-lat"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-muted-foreground block mb-1">{t("خط الطول", "Longitude")}</label>
+                      <Input
+                        type="text"
+                        value={storeLng}
+                        onChange={(e) => setStoreLng(e.target.value)}
+                        placeholder="46.6753"
+                        className="h-10 bg-black/40 border-white/10 font-mono text-sm"
+                        dir="ltr"
+                        data-testid="input-store-lng"
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 <div className="space-y-2">
                   <label className="text-xs text-muted-foreground block">{t("رقم جوال المندوب (واتساب)", "Driver Phone (WhatsApp)")}</label>
                   <Input

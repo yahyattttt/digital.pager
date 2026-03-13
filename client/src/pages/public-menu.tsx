@@ -34,6 +34,24 @@ interface MerchantInfo {
   moyasarPublishableKey: string;
   onlinePaymentEnabled: boolean;
   codEnabled: boolean;
+  deliveryEnabled: boolean;
+  deliveryFee: number;
+  deliveryRange: number;
+  storeLat: number | null;
+  storeLng: number | null;
+}
+
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 export default function PublicMenuPage() {
@@ -773,9 +791,16 @@ export default function PublicMenuPage() {
 
           {diningType === "delivery" && (
             <div className="mb-4 p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/20 space-y-3" data-testid="delivery-address-section">
-              <div className="flex items-center gap-2 mb-1">
-                <MapPin className="w-4 h-4 text-emerald-400" />
-                <label className="text-emerald-400 text-xs font-bold">{t("حدد موقع التوصيل", "Set Delivery Location")} <span className="text-red-400">*</span></label>
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-emerald-400" />
+                  <label className="text-emerald-400 text-xs font-bold">{t("حدد موقع التوصيل", "Set Delivery Location")} <span className="text-red-400">*</span></label>
+                </div>
+                {merchant?.deliveryRange && merchant.deliveryRange > 0 && (
+                  <span className="text-[10px] bg-red-500/10 border border-red-500/20 text-red-400 px-2 py-0.5 rounded-full font-mono" data-testid="text-delivery-range">
+                    {t("نطاق", "Range")}: {merchant.deliveryRange} km
+                  </span>
+                )}
               </div>
               <Suspense fallback={<div className="w-full h-[220px] rounded-xl bg-white/[0.03] flex items-center justify-center"><Loader2 className="w-6 h-6 text-emerald-400 animate-spin" /></div>}>
                 <DeliveryMapPicker
@@ -785,10 +810,29 @@ export default function PublicMenuPage() {
                   onLocationConfirmed={(lat, lng, address) => {
                     setDeliveryLat(lat);
                     setDeliveryLng(lng);
-                    setDeliveryLocationConfirmed(true);
-                    if (address) {
-                      setDeliveryAddress(address);
+                    if (address) setDeliveryAddress(address);
+
+                    const range = merchant?.deliveryRange ?? 0;
+                    const sLat = merchant?.storeLat ?? null;
+                    const sLng = merchant?.storeLng ?? null;
+
+                    if (range > 0 && sLat !== null && sLng !== null) {
+                      const distKm = haversineKm(sLat, sLng, lat, lng);
+                      if (distKm > range) {
+                        toast({
+                          title: t("خارج نطاق التوصيل", "Outside Delivery Range"),
+                          description: t(
+                            `موقعك يبعد ${distKm.toFixed(1)} كم، وأقصى نطاق توصيل هو ${range} كم.`,
+                            `Your location is ${distKm.toFixed(1)} km away. Max delivery range is ${range} km.`
+                          ),
+                          variant: "destructive",
+                        });
+                        setDeliveryLocationConfirmed(false);
+                        return;
+                      }
                     }
+
+                    setDeliveryLocationConfirmed(true);
                   }}
                   onLocationDirty={() => {
                     setDeliveryLocationConfirmed(false);
