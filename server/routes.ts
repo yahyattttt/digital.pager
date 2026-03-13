@@ -506,7 +506,7 @@ export async function registerRoutes(
       const { storeId } = req.params;
       const protocol = req.headers["x-forwarded-proto"] || req.protocol;
       const host = req.headers["x-forwarded-host"] || req.headers.host;
-      const storeUrl = `${protocol}://${host}/s/${storeId}?new=true`;
+      const storeUrl = `${protocol}://${host}/check-order/${storeId}`;
 
       const qrBuffer = await QRCode.toBuffer(storeUrl, {
         type: "png",

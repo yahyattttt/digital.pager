@@ -509,7 +509,11 @@ export default function PublicMenuPage() {
       const data = await res.json();
       const orderId = data.orderId;
 
-      window.location.href = `/track/${orderId}?m=${merchantId}`;
+      if (diningType === "delivery") {
+        window.location.href = `/delivery-tracker/${orderId}?m=${merchantId}`;
+      } else {
+        window.location.href = `/digital-pager/${orderId}?m=${merchantId}`;
+      }
     } catch (err: any) {
       const msg = (err?.message || "").toLowerCase();
       let description = t("فشل في إرسال الطلب. يرجى المحاولة مرة أخرى", "Failed to submit order. Please try again");

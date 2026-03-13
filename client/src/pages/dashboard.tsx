@@ -674,10 +674,10 @@ export default function DashboardPage() {
   const handleManualDigitAdd = useCallback(async () => {
     if (!merchant?.uid || !isApproved || manualAddLoading) return;
     const trimmed = manualDigitInput.trim();
-    if (!trimmed || !/^\d{1,3}$/.test(trimmed)) {
+    if (!trimmed || !/^\d{1,4}$/.test(trimmed)) {
       toast({
         title: t("رقم غير صالح", "Invalid Number"),
-        description: t("أدخل رقم من 1 إلى 3 أرقام", "Enter a 1-3 digit number"),
+        description: t("أدخل رقم من 1 إلى 4 أرقام", "Enter a 1-4 digit number"),
         variant: "destructive",
       });
       return;
@@ -4655,7 +4655,7 @@ function SettingsView({
             <Button
               variant="outline"
               onClick={() => {
-                const url = `${window.location.origin}/s/${merchant.uid}`;
+                const url = `${window.location.origin}/check-order/${merchant.uid}`;
                 if (navigator.share) {
                   navigator.share({ title: merchant.storeName, url });
                 } else {

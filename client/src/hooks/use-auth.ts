@@ -12,8 +12,8 @@ function isAdminEmail(email: string) {
 
 const TEST_MERCHANT_EMAIL = "merchant@test.com";
 const MOCK_TEST_MERCHANT: Merchant = {
-  uid: "test-merchant-uid",
-  id: "test-merchant-uid",
+  uid: "",
+  id: "",
   storeName: "Test Store",
   businessType: "restaurant",
   email: TEST_MERCHANT_EMAIL,
@@ -63,13 +63,6 @@ export function useAuthProvider() {
       const stored = localStorage.getItem(SESSION_KEY);
       if (stored) {
         const session: SessionData = JSON.parse(stored);
-        if (session.uid === "test-merchant-uid") {
-          console.warn("[Auth] Clearing stale test-merchant-uid session — please log in again");
-          localStorage.removeItem(SESSION_KEY);
-          setUser(null);
-          setLoading(false);
-          return;
-        }
         if (session.uid && session.email) {
           console.log("[Auth] Restored session:", session.email);
           setUser(session);
