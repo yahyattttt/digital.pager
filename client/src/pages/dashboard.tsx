@@ -4179,13 +4179,19 @@ function SettingsView({
   }, [merchant?.storeTermsText, merchant?.storePrivacyText]);
 
   async function handleToggleStoreTerms(checked: boolean) {
-    if (!merchant?.uid) return;
+    const uid = merchant?.uid;
+    if (!uid) {
+      console.error("[Terms Toggle] merchant.uid is undefined — cannot update Firestore");
+      return;
+    }
     setStoreTermsToggling(true);
     setStoreTermsEnabled(checked);
     try {
-      const merchantRef = doc(db, "merchants", merchant.uid);
-      await updateDoc(merchantRef, { storeTermsEnabled: checked });
-    } catch {
+      const merchantRef = doc(db, "merchants", uid);
+      await setDoc(merchantRef, { storeTermsEnabled: checked }, { merge: true });
+      console.log("[Terms Toggle] storeTermsEnabled →", checked, "for merchant:", uid);
+    } catch (err) {
+      console.error("[Terms Toggle] Firestore error:", err);
       setStoreTermsEnabled(!checked);
       toast({
         title: t("خطأ", "Error"),
@@ -4198,20 +4204,26 @@ function SettingsView({
   }
 
   async function handleSaveStoreLegal() {
-    if (!merchant?.uid) return;
+    const uid = merchant?.uid;
+    if (!uid) {
+      console.error("[Save Legal] merchant.uid is undefined — cannot update Firestore");
+      return;
+    }
     setStoreLegalSaving(true);
     try {
-      const merchantRef = doc(db, "merchants", merchant.uid);
-      await updateDoc(merchantRef, {
+      const merchantRef = doc(db, "merchants", uid);
+      await setDoc(merchantRef, {
         storeTermsEnabled,
         storeTermsText,
         storePrivacyText,
-      });
+      }, { merge: true });
+      console.log("[Save Legal] Saved terms for merchant:", uid);
       toast({
         title: t("تم الحفظ", "Saved"),
         description: t("تم حفظ الشروط والأحكام بنجاح", "Store terms saved successfully"),
       });
-    } catch {
+    } catch (err) {
+      console.error("[Save Legal] Firestore error:", err);
       toast({
         title: t("خطأ", "Error"),
         description: t("فشل في حفظ الشروط", "Failed to save terms"),
