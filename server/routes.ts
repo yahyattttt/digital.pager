@@ -691,7 +691,8 @@ export async function registerRoutes(
 
       const emailLower = email.toLowerCase().trim();
 
-      const SANDBOX_EMAILS = ["admin@test.com", "merchant@test.com", "yahiatohary@hotmail.com"];
+      const primaryAdmin = (process.env.SUPER_ADMIN_EMAIL || "yahiatohary@hotmail.com").toLowerCase();
+      const SANDBOX_EMAILS = ["admin@test.com", "merchant@test.com", primaryAdmin];
       if (SANDBOX_EMAILS.includes(emailLower)) {
         return res.json({ success: true, message: "OTP sent" });
       }
@@ -776,10 +777,11 @@ export async function registerRoutes(
 
       const emailLower = email.toLowerCase().trim();
 
+      const primaryAdminEmail = (process.env.SUPER_ADMIN_EMAIL || "yahiatohary@hotmail.com").toLowerCase();
       const SANDBOX_ACCOUNTS: Record<string, "admin" | "merchant"> = {
         "admin@test.com": "admin",
         "merchant@test.com": "merchant",
-        "yahiatohary@hotmail.com": "admin",
+        [primaryAdminEmail]: "admin",
       };
       const sandboxRole = SANDBOX_ACCOUNTS[emailLower];
       const SANDBOX_OTP = "123456";
@@ -837,7 +839,7 @@ export async function registerRoutes(
         await deleteOtpFromFirestore(emailLower);
       }
 
-      const SUPER_ADMIN_EMAIL = "yahiatohary@hotmail.com";
+      const SUPER_ADMIN_EMAIL = (process.env.SUPER_ADMIN_EMAIL || "yahiatohary@hotmail.com").toLowerCase();
 
       if (emailLower === SUPER_ADMIN_EMAIL) {
         const uid = generateUidFromEmail(emailLower);
@@ -876,12 +878,13 @@ export async function registerRoutes(
     }
   });
 
-  const SUPER_ADMIN_EMAIL_GLOBAL = "yahiatohary@hotmail.com";
+  const SUPER_ADMIN_EMAIL_GLOBAL = (process.env.SUPER_ADMIN_EMAIL || "yahiatohary@hotmail.com").toLowerCase();
 
   async function isAdminRequest(req: any): Promise<boolean> {
     const adminEmail = req.headers["x-admin-email"];
     if (!adminEmail || typeof adminEmail !== "string") return false;
-    return adminEmail.toLowerCase().trim() === SUPER_ADMIN_EMAIL_GLOBAL;
+    const emailLower = adminEmail.toLowerCase().trim();
+    return emailLower === SUPER_ADMIN_EMAIL_GLOBAL || emailLower === "admin@test.com";
   }
 
   app.post("/api/admin/impersonate/:merchantId", async (req, res) => {

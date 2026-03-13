@@ -19,7 +19,8 @@ import OrderTrackingPage from "@/pages/order-tracking";
 import OrderReceiptPage from "@/pages/order-receipt";
 import DriverControlPage from "@/pages/driver-control";
 
-const ADMIN_EMAILS = ["yahiatohary@hotmail.com", "admin@test.com"];
+const PRIMARY_ADMIN_EMAIL = import.meta.env.VITE_SUPER_ADMIN_EMAIL || "yahiatohary@hotmail.com";
+const ADMIN_EMAILS = [PRIMARY_ADMIN_EMAIL.toLowerCase(), "admin@test.com"];
 function isAdminEmail(email: string) {
   return ADMIN_EMAILS.includes(email.toLowerCase());
 }

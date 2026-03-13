@@ -4,7 +4,8 @@ import { db } from "@/lib/firebase";
 import type { Merchant } from "@shared/schema";
 
 const SESSION_KEY = "dp-session";
-const ADMIN_EMAILS = ["yahiatohary@hotmail.com", "admin@test.com"];
+const PRIMARY_ADMIN_EMAIL = import.meta.env.VITE_SUPER_ADMIN_EMAIL || "yahiatohary@hotmail.com";
+const ADMIN_EMAILS = [PRIMARY_ADMIN_EMAIL.toLowerCase(), "admin@test.com"];
 function isAdminEmail(email: string) {
   return ADMIN_EMAILS.includes(email.toLowerCase());
 }
