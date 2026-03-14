@@ -3,6 +3,7 @@ import { useParams, useLocation } from "wouter";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Bell } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 type OrderStatus = "processing" | "preparing" | "ready" | "done";
 
@@ -177,6 +178,7 @@ export default function DigitalPagerPage() {
   const params = new URLSearchParams(window.location.search);
   const merchantId = params.get("m") || "";
   const isManual = params.get("type") === "manual";
+  const { toast } = useToast();
 
   const [status, setStatus] = useState<OrderStatus>("processing");
   const [orderNumber, setOrderNumber] = useState<string>("");
@@ -186,6 +188,7 @@ export default function DigitalPagerPage() {
   const [notFound, setNotFound] = useState(false);
   const [alertsEnabled, setAlertsEnabled] = useState(false);
   const [alertConfirmed, setAlertConfirmed] = useState(false);
+  const orderNumberToastedRef = useRef(false);
 
   const prevStatusRef = useRef<OrderStatus>("processing");
   const alertsEnabledRef = useRef(false);
@@ -276,6 +279,17 @@ export default function DigitalPagerPage() {
       } catch {}
     };
   }, [stopAlert, stopVibrateLoop]);
+
+  // Show confirmation toast once when the order number is first received
+  useEffect(() => {
+    if (orderNumber && !orderNumberToastedRef.current) {
+      orderNumberToastedRef.current = true;
+      toast({
+        description: "تم تأكيد رقم طلبك بنجاح",
+        duration: 3000,
+      });
+    }
+  }, [orderNumber, toast]);
 
   // Redirect to order-completed when status becomes "done"
   useEffect(() => {
@@ -372,7 +386,7 @@ export default function DigitalPagerPage() {
     ? "طلبك جاهز! استلمه الآن"
     : status === "preparing"
     ? "جاري تحضير طلبك..."
-    : "جاري استلام طلبك...";
+    : "جاري التحضير";
 
   return (
     <div
