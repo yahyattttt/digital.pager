@@ -69,8 +69,8 @@ export default function PublicMenuPage() {
   const [notFound, setNotFound] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showCheckout, setShowCheckout] = useState(false);
-  const [customerName, setCustomerName] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
+  const [customerName, setCustomerName] = useState(() => localStorage.getItem("dp_customer_name") || "");
+  const [customerPhone, setCustomerPhone] = useState(() => localStorage.getItem("dp_customer_phone") || "");
   const [submitting, setSubmitting] = useState(false);
   const [, setTimeTick] = useState(0);
   const [diningType, setDiningType] = useState<"dine_in" | "takeaway" | "delivery" | null>(null);
@@ -523,6 +523,10 @@ export default function PublicMenuPage() {
       const data = await res.json();
       const orderId = data.orderId;
 
+      // Persist customer info for future visits
+      localStorage.setItem("dp_customer_name", customerName.trim());
+      localStorage.setItem("dp_customer_phone", customerPhone.trim());
+
       if (diningType === "delivery") {
         window.location.href = `/delivery-tracker/${orderId}?m=${merchantId}`;
       } else {
@@ -735,6 +739,7 @@ export default function PublicMenuPage() {
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
                   placeholder={t("الاسم الكريم (مثلاً: محمد أحمد)", "Full Name (e.g. John Smith)")}
+                  autoComplete="name"
                   className="h-12 bg-zinc-900/80 border-zinc-700 text-white placeholder:text-white/25 focus:border-red-500 rounded-xl pr-10"
                   data-testid="input-customer-name"
                 />
@@ -758,6 +763,7 @@ export default function PublicMenuPage() {
                   inputMode="numeric"
                   pattern="[0-9]*"
                   maxLength={10}
+                  autoComplete="tel"
                   className="h-12 bg-zinc-900/80 border-zinc-700 text-white placeholder:text-white/25 focus:border-red-500 rounded-xl pr-10"
                   dir="ltr"
                   data-testid="input-customer-phone"
