@@ -2288,16 +2288,6 @@ function OverviewView({
 
                       <div className="space-y-2 pt-1">
                         <Button
-                          onClick={() => onRejectWhatsAppOrder(order)}
-                          disabled={rejectingOrderId === order.id || acceptingOrderId === order.id || cancellingOrderId === order.id}
-                          className="w-full h-9 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold rounded-xl border border-red-500/20"
-                          data-testid={`button-reject-order-${item.id}`}
-                        >
-                          {rejectingOrderId === order.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : (
-                            <><X className="w-3.5 h-3.5 me-1" />{t("رفض", "Reject")}</>
-                          )}
-                        </Button>
-                        <Button
                           onClick={() => onCancelWhatsAppOrder(order)}
                           disabled={cancellingOrderId === order.id || acceptingOrderId === order.id || rejectingOrderId === order.id}
                           className="w-full h-9 bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 text-xs font-bold rounded-xl border border-orange-500/20"
