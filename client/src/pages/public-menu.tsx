@@ -3,7 +3,7 @@ import { useParams } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Store, ShoppingCart, Plus, Minus, X, AlertTriangle, Loader2, Check, ArrowLeft, Clock, Banknote, Tag, CreditCard, Wallet, UtensilsCrossed, ShoppingBag, Globe, Truck, MapPin, Navigation } from "lucide-react";
+import { Store, ShoppingCart, Plus, Minus, X, AlertTriangle, Loader2, Check, ArrowLeft, Clock, Banknote, Tag, CreditCard, Wallet, UtensilsCrossed, ShoppingBag, Globe, Truck, MapPin, Navigation, User, Phone } from "lucide-react";
 import { lazy, Suspense } from "react";
 const DeliveryMapPicker = lazy(() => import("@/components/delivery-map-picker"));
 import { useToast } from "@/hooks/use-toast";
@@ -725,32 +725,44 @@ export default function PublicMenuPage() {
 
           <div className="space-y-4 mb-6">
             <div>
-              <label className="text-white/60 text-xs mb-1.5 block">{t("الاسم", "Name")}</label>
-              <Input
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                placeholder={t("اسمك", "Your Name")}
-                className="h-12 bg-zinc-900/80 border-zinc-700 text-white placeholder:text-white/20 focus:border-red-500 rounded-xl"
-                data-testid="input-customer-name"
-              />
+              <label className="text-white/70 text-xs font-medium mb-1.5 flex items-center gap-1.5 block">
+                <User className="w-3.5 h-3.5 text-white/40" />
+                {t("الاسم", "Name")}
+              </label>
+              <div className="relative">
+                <User className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/25 pointer-events-none" />
+                <Input
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder={t("الاسم الكريم (مثلاً: محمد أحمد)", "Full Name (e.g. John Smith)")}
+                  className="h-12 bg-zinc-900/80 border-zinc-700 text-white placeholder:text-white/25 focus:border-red-500 rounded-xl pr-10"
+                  data-testid="input-customer-name"
+                />
+              </div>
             </div>
             <div>
-              <label className="text-white/60 text-xs mb-1.5 block">{t("رقم الجوال", "Phone Number")}</label>
-              <Input
-                value={customerPhone}
-                onChange={(e) => {
-                  const val = e.target.value.replace(/[^0-9]/g, "");
-                  if (val.length <= 10) setCustomerPhone(val);
-                }}
-                placeholder="05xxxxxxxx"
-                type="tel"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                maxLength={10}
-                className="h-12 bg-zinc-900/80 border-zinc-700 text-white placeholder:text-white/20 focus:border-red-500 rounded-xl"
-                dir="ltr"
-                data-testid="input-customer-phone"
-              />
+              <label className="text-white/70 text-xs font-medium mb-1.5 flex items-center gap-1.5 block">
+                <Phone className="w-3.5 h-3.5 text-white/40" />
+                {t("رقم الجوال", "Phone Number")}
+              </label>
+              <div className="relative">
+                <Phone className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/25 pointer-events-none" />
+                <Input
+                  value={customerPhone}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/[^0-9]/g, "");
+                    if (val.length <= 10) setCustomerPhone(val);
+                  }}
+                  placeholder={t("رقم الجوال (05xxxxxxxx)", "Phone (05xxxxxxxx)")}
+                  type="tel"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={10}
+                  className="h-12 bg-zinc-900/80 border-zinc-700 text-white placeholder:text-white/25 focus:border-red-500 rounded-xl pr-10"
+                  dir="ltr"
+                  data-testid="input-customer-phone"
+                />
+              </div>
               {customerPhone.length > 0 && customerPhone.length < 10 && (
                 <p className="text-red-400/60 text-[10px] mt-1">{t("يجب إدخال 10 أرقام", "Must be 10 digits")}</p>
               )}
