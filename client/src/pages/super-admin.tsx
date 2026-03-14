@@ -352,6 +352,7 @@ export default function SuperAdminPage() {
   const [expenseDate, setExpenseDate] = useState("");
   const [expenseSaving, setExpenseSaving] = useState(false);
   const [renewalData, setRenewalData] = useState<any>(null);
+  const [activeSection, setActiveSection] = useState<"home" | "stores" | "subscriptions" | "finance" | "settings">("home");
   const [renewalLoading, setRenewalLoading] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -1032,6 +1033,12 @@ export default function SuperAdminPage() {
     subActive: merchants.filter((m) => m.subscriptionStatus === "active").length,
   };
 
+  const tabValue =
+    activeSection === "home" ? "monitor" :
+    activeSection === "stores" ? "merchants" :
+    activeSection === "subscriptions" ? "subscriptions" :
+    activeSection; // "finance" | "settings" pass through
+
   return (
     <div className="min-h-screen" style={{ background: "#0a0f1a" }}>
       <header className="border-b border-slate-800/80 px-6 py-3.5 sticky top-0 z-20 backdrop-blur-sm" style={{ background: "rgba(10,15,26,0.95)" }}>
@@ -1106,26 +1113,59 @@ export default function SuperAdminPage() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-6">
-        <Tabs defaultValue="merchants" className="space-y-6">
-          <TabsList className="bg-slate-900/60 border border-slate-800 p-1 h-auto rounded-xl gap-0.5" data-testid="tabs-admin">
-            <TabsTrigger value="merchants" className="rounded-lg text-slate-400 data-[state=active]:bg-indigo-500/15 data-[state=active]:text-indigo-300 data-[state=active]:shadow-none px-4 py-2" data-testid="tab-merchants">
-              <Users className="w-3.5 h-3.5 me-1.5" />
-              {t("التجار", "Merchants")}
-            </TabsTrigger>
-            <TabsTrigger value="monitor" className="rounded-lg text-slate-400 data-[state=active]:bg-indigo-500/15 data-[state=active]:text-indigo-300 data-[state=active]:shadow-none px-4 py-2" data-testid="tab-monitor" onClick={() => { if (!globalMonitorData) fetchGlobalMonitor(); }}>
-              <Activity className="w-3.5 h-3.5 me-1.5" />
-              {t("المراقبة الشاملة", "Monitor")}
-            </TabsTrigger>
-            <TabsTrigger value="finance" className="rounded-lg text-slate-400 data-[state=active]:bg-indigo-500/15 data-[state=active]:text-indigo-300 data-[state=active]:shadow-none px-4 py-2" data-testid="tab-finance" onClick={() => { if (!platformFinanceData) fetchPlatformFinance(); }}>
-              <DollarSign className="w-3.5 h-3.5 me-1.5" />
-              {t("المالية المركزية", "Finance")}
-            </TabsTrigger>
-            <TabsTrigger value="settings" className="rounded-lg text-slate-400 data-[state=active]:bg-indigo-500/15 data-[state=active]:text-indigo-300 data-[state=active]:shadow-none px-4 py-2" data-testid="tab-settings">
-              <Settings className="w-3.5 h-3.5 me-1.5" />
-              {t("الإعدادات", "Settings")}
-            </TabsTrigger>
-          </TabsList>
+      <main className="flex" style={{ minHeight: "calc(100vh - 57px)" }}>
+
+        {/* ── Right Sidebar — Arabic Navigation ── */}
+        <aside
+          className="w-[220px] shrink-0 flex flex-col sticky top-[57px] self-start h-[calc(100vh-57px)]"
+          style={{ background: "rgba(14,10,4,0.97)", borderRight: "1px solid rgba(251,191,36,0.10)" }}
+          data-testid="sidebar-right"
+        >
+          <div className="p-5 border-b border-amber-500/10">
+            <p className="text-[10px] text-amber-400/40 font-bold tracking-[0.3em] uppercase mb-1">OWNER PANEL</p>
+            <p className="text-amber-300/60 text-xs font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}>
+              لوحة المالك
+            </p>
+          </div>
+          <nav className="flex-1 p-3 space-y-1 overflow-y-auto" dir="rtl">
+            {([
+              { key: "home",          icon: Activity,    labelAr: "الرئيسية",       action: () => { setActiveSection("home"); if (!globalMonitorData) fetchGlobalMonitor(); } },
+              { key: "stores",        icon: Store,       labelAr: "إدارة المتاجر",  action: () => setActiveSection("stores") },
+              { key: "subscriptions", icon: CreditCard,  labelAr: "الاشتراكات",     action: () => setActiveSection("subscriptions") },
+              { key: "finance",       icon: DollarSign,  labelAr: "المالية",        action: () => { setActiveSection("finance"); if (!platformFinanceData) fetchPlatformFinance(); } },
+              { key: "settings",      icon: Settings,    labelAr: "الإعدادات",      action: () => setActiveSection("settings") },
+            ] as const).map(({ key, icon: Icon, labelAr, action }) => (
+              <button
+                key={key}
+                onClick={action}
+                data-testid={`nav-${key}`}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all"
+                style={{
+                  fontFamily: "'Tajawal','Cairo',sans-serif",
+                  fontWeight: activeSection === key ? 700 : 500,
+                  background: activeSection === key ? "rgba(251,191,36,0.10)" : "transparent",
+                  color: activeSection === key ? "rgba(251,191,36,0.9)" : "rgba(255,255,255,0.40)",
+                  border: activeSection === key ? "1px solid rgba(251,191,36,0.22)" : "1px solid transparent",
+                }}
+              >
+                <Icon className="w-4 h-4 shrink-0" />
+                <span>{labelAr}</span>
+                {key === "home" && globalMonitorData && (
+                  <span className="mr-auto text-[10px] font-bold text-amber-400/60 bg-amber-400/8 px-1.5 py-0.5 rounded-full">
+                    {globalMonitorData.summary.totalPreparing ?? 0}
+                  </span>
+                )}
+              </button>
+            ))}
+          </nav>
+          <div className="p-4 border-t border-amber-500/10 text-center">
+            <div className="text-[10px] text-white/15 font-mono">DIGITAL PAGER v2</div>
+          </div>
+        </aside>
+
+        {/* ── Center Content Area ── */}
+        <div className="flex-1 min-w-0 overflow-auto px-6 py-6">
+          <Tabs value={tabValue} onValueChange={() => {}} className="space-y-6">
 
           <TabsContent value="merchants" className="space-y-6">
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -1724,6 +1764,131 @@ export default function SuperAdminPage() {
             </Card>
           </TabsContent>
 
+          {/* ── Subscriptions Section ── */}
+          <TabsContent value="subscriptions" className="space-y-6" data-testid="section-subscriptions">
+            <div>
+              <h2 className="text-xl font-bold text-amber-300/90 mb-1" dir="rtl" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}>
+                إدارة الاشتراكات
+              </h2>
+              <p className="text-sm text-slate-500 mb-5">Subscription plans, expiry dates and payment status</p>
+            </div>
+
+            {/* Summary cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {[
+                { label: t("إجمالي الاشتراكات", "Total Subs"), value: merchants.length, color: "#94a3b8", icon: Users },
+                { label: t("نشطة", "Active"), value: merchants.filter(m => m.subscriptionStatus === "active").length, color: "#34d399", icon: CheckCircle },
+                { label: t("منتهية", "Expired"), value: merchants.filter(m => m.subscriptionStatus === "expired").length, color: "#f87171", icon: XCircle },
+                { label: t("تنتهي قريباً", "Expiring Soon"), value: merchants.filter(m => {
+                  const exp = (m as any).subscriptionExpiry;
+                  if (!exp) return false;
+                  const days = (new Date(exp).getTime() - Date.now()) / 86400000;
+                  return days >= 0 && days <= 7;
+                }).length, color: "#fbbf24", icon: Clock },
+              ].map(({ label, value, color, icon: Icon }) => (
+                <div key={label} className="rounded-2xl p-4 flex items-center gap-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${color}18` }}>
+                    <Icon className="w-4.5 h-4.5" style={{ color }} />
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-slate-500">{label}</p>
+                    <p className="text-xl font-bold" style={{ color }}>{value}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Subscriptions table */}
+            <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <div className="overflow-x-auto">
+                <Table data-testid="table-subscriptions">
+                  <TableHeader>
+                    <TableRow className="border-white/[0.06] hover:bg-transparent">
+                      <TableHead className="text-slate-500 text-xs">{t("المتجر", "Store")}</TableHead>
+                      <TableHead className="text-slate-500 text-xs">{t("الخطة", "Plan")}</TableHead>
+                      <TableHead className="text-slate-500 text-xs">{t("الحالة", "Status")}</TableHead>
+                      <TableHead className="text-slate-500 text-xs">{t("تاريخ الانتهاء", "Expiry")}</TableHead>
+                      <TableHead className="text-slate-500 text-xs">{t("الدفع", "Payment")}</TableHead>
+                      <TableHead className="text-slate-500 text-xs text-center">{t("إجراء", "Action")}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {[...merchants]
+                      .sort((a, b) => {
+                        const ea = new Date((a as any).subscriptionExpiry || 0).getTime();
+                        const eb = new Date((b as any).subscriptionExpiry || 0).getTime();
+                        return ea - eb;
+                      })
+                      .map((m) => {
+                        const exp = (m as any).subscriptionExpiry;
+                        const daysLeft = exp ? Math.ceil((new Date(exp).getTime() - Date.now()) / 86400000) : null;
+                        const isExpired = daysLeft !== null && daysLeft < 0;
+                        const isExpiringSoon = daysLeft !== null && daysLeft >= 0 && daysLeft <= 7;
+                        return (
+                          <TableRow key={m.uid} className="border-white/[0.04] hover:bg-white/[0.02]" data-testid={`sub-row-${m.uid}`}>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                {m.logoUrl ? (
+                                  <img src={m.logoUrl} alt="" className="w-7 h-7 rounded-full object-cover border border-white/10" />
+                                ) : (
+                                  <div className="w-7 h-7 rounded-full bg-white/5 flex items-center justify-center">
+                                    <Store className="w-3.5 h-3.5 text-white/30" />
+                                  </div>
+                                )}
+                                <span className="text-sm font-medium text-slate-200">{m.storeName}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-xs text-blue-300/70 font-mono">
+                                {planLabels[(m as any).planType as keyof typeof planLabels] || (m as any).planType || "—"}
+                              </span>
+                            </TableCell>
+                            <TableCell>{getSubBadge(m.subscriptionStatus, t)}</TableCell>
+                            <TableCell>
+                              {exp ? (
+                                <div>
+                                  <p className="text-xs text-slate-300">{new Date(exp).toLocaleDateString(lang === "ar" ? "ar-SA" : "en-US")}</p>
+                                  {daysLeft !== null && (
+                                    <p className={`text-[10px] font-semibold mt-0.5 ${isExpired ? "text-red-400" : isExpiringSoon ? "text-amber-400" : "text-slate-500"}`}>
+                                      {isExpired
+                                        ? t(`منذ ${Math.abs(daysLeft)} يوم`, `${Math.abs(daysLeft)}d ago`)
+                                        : daysLeft === 0
+                                        ? t("اليوم", "Today")
+                                        : t(`${daysLeft} يوم`, `${daysLeft}d left`)}
+                                    </p>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-xs text-slate-600">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={m.subscriptionStatus === "active" ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/25" : "bg-slate-500/15 text-slate-400 border-slate-500/25"}>
+                                {m.subscriptionStatus === "active" ? t("مدفوع", "Paid") : t("غير مدفوع", "Unpaid")}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleOpenSubPayment(m)}
+                                className="h-7 px-2.5 text-xs border-amber-500/25 text-amber-400/80 hover:bg-amber-500/10"
+                                data-testid={`btn-sub-payment-${m.uid}`}
+                              >
+                                <CreditCard className="w-3 h-3 me-1" />
+                                {t("تجديد", "Renew")}
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* ── Live Center / Home Section ── */}
           <TabsContent value="monitor" className="space-y-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold flex items-center gap-2" data-testid="text-monitor-title">
@@ -2180,7 +2345,92 @@ export default function SuperAdminPage() {
               </CardContent>
             </Card>
           </TabsContent>
-        </Tabs>
+          </Tabs>
+        </div>
+
+        {/* ── Left Sidebar — English Quick Stats ── */}
+        <aside
+          className="w-[190px] shrink-0 flex flex-col sticky top-[57px] self-start h-[calc(100vh-57px)]"
+          style={{ background: "rgba(8,12,22,0.97)", borderLeft: "1px solid rgba(59,130,246,0.12)" }}
+          data-testid="sidebar-left"
+        >
+          <div className="p-4 border-b border-blue-500/10">
+            <p className="text-[10px] text-blue-400/45 font-bold tracking-[0.3em] uppercase">SYSTEM</p>
+            <p className="text-blue-300/55 text-xs mt-0.5 font-medium">Quick Stats</p>
+          </div>
+          <div className="p-4 space-y-5 flex-1 overflow-y-auto">
+
+            {/* Live order counter — hero stat */}
+            {globalMonitorData && (
+              <div className="rounded-2xl p-4 text-center" style={{ background: "rgba(59,130,246,0.07)", border: "1px solid rgba(59,130,246,0.18)" }}>
+                <p className="text-[10px] text-blue-400/55 uppercase tracking-widest mb-1">LIVE ORDERS</p>
+                <p className="text-4xl font-black text-blue-300" data-testid="text-sidebar-live-counter" style={{ textShadow: "0 0 20px rgba(59,130,246,0.4)" }}>
+                  {(globalMonitorData.summary.totalPreparing ?? 0) + (globalMonitorData.summary.totalReady ?? 0)}
+                </p>
+                <p className="text-[10px] text-blue-400/40 mt-1">Active across all stores</p>
+              </div>
+            )}
+
+            {/* Quick stats list */}
+            <div>
+              <p className="text-[10px] text-white/25 uppercase tracking-widest mb-2.5">Platform</p>
+              <div className="space-y-2">
+                {[
+                  { label: "Total Stores",   value: stats.total,     color: "#94a3b8" },
+                  { label: "Active Stores",  value: stats.active,    color: "#34d399" },
+                  { label: "Active Subs",    value: stats.subActive, color: "#60a5fa" },
+                  { label: "Alerts Today",   value: stats.alertsToday, color: "#f59e0b" },
+                ].map(({ label, value, color }) => (
+                  <div key={label} className="flex items-center justify-between">
+                    <span className="text-[11px] text-white/30">{label}</span>
+                    <span className="text-sm font-bold tabular-nums" style={{ color }}>{value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* System status */}
+            <div className="border-t border-white/[0.05] pt-4">
+              <p className="text-[10px] text-white/25 uppercase tracking-widest mb-2.5">System Status</p>
+              <div className="flex items-center gap-1.5">
+                {systemErrors.filter(e => !e.resolved).length === 0 ? (
+                  <><div className="w-2 h-2 rounded-full bg-emerald-500" /><span className="text-[11px] text-emerald-400">All Nominal</span></>
+                ) : (
+                  <><div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" /><span className="text-[11px] text-red-400">{systemErrors.filter(e => !e.resolved).length} Issues</span></>
+                )}
+              </div>
+            </div>
+
+            {/* Shortcuts */}
+            <div className="border-t border-white/[0.05] pt-4">
+              <p className="text-[10px] text-white/25 uppercase tracking-widest mb-2.5">Shortcuts</p>
+              <div className="space-y-2">
+                <button
+                  onClick={() => { setActiveSection("home"); if (!globalMonitorData) fetchGlobalMonitor(); }}
+                  className="w-full text-left text-[11px] text-blue-400/65 hover:text-blue-300 transition-colors py-1 flex items-center gap-1.5"
+                  data-testid="shortcut-live-view"
+                >
+                  <Activity className="w-3 h-3 shrink-0" /> Live View
+                </button>
+                <button
+                  onClick={() => { setHealthDialogOpen(true); fetchSystemErrors(); }}
+                  className="w-full text-left text-[11px] text-blue-400/65 hover:text-blue-300 transition-colors py-1 flex items-center gap-1.5"
+                  data-testid="shortcut-logs"
+                >
+                  <Bell className="w-3 h-3 shrink-0" /> System Logs
+                </button>
+                <button
+                  onClick={() => { setActiveSection("stores"); }}
+                  className="w-full text-left text-[11px] text-blue-400/65 hover:text-blue-300 transition-colors py-1 flex items-center gap-1.5"
+                  data-testid="shortcut-stores"
+                >
+                  <Store className="w-3 h-3 shrink-0" /> All Stores
+                </button>
+              </div>
+            </div>
+          </div>
+        </aside>
+
       </main>
 
       <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
