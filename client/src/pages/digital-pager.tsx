@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useLocation } from "wouter";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Bell } from "lucide-react";
+import { Bell, Share2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 type OrderStatus = "processing" | "preparing" | "ready" | "done" | "cancelled";
@@ -362,6 +362,21 @@ export default function DigitalPagerPage() {
     }
   }
 
+  async function handleShare() {
+    const url = window.location.href;
+    const text = `تابع طلبي الآن: ${url}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: "Digital Pager", text, url });
+      } catch {}
+    } else {
+      try {
+        await navigator.clipboard.writeText(url);
+        toast({ description: "تم نسخ رابط التتبع ✓", duration: 2500 });
+      } catch {}
+    }
+  }
+
   const bg = "linear-gradient(180deg, #080000 0%, #000000 50%, #080000 100%)";
   const isReady = status === "ready" || status === "done";
 
@@ -554,6 +569,25 @@ export default function DigitalPagerPage() {
           <span>لضمان تنبيهك فور جهوزية الطلب، يرجى إبقاء هذه الصفحة مفتوحة.</span>
         </p>
       </div>
+
+      {/* Share button — only while preparing */}
+      {status === "preparing" && (
+        <div className="w-full max-w-xs px-4 mt-4">
+          <button
+            onClick={handleShare}
+            data-testid="btn-share-tracking"
+            className="flex items-center justify-center gap-2.5 w-full py-3 rounded-2xl transition-all active:scale-95"
+            style={{
+              background: "rgba(60,20,80,0.35)",
+              border: "1.5px solid rgba(140,60,200,0.35)",
+              color: "rgba(190,140,255,0.9)",
+            }}
+          >
+            <Share2 className="w-4 h-4 shrink-0" />
+            <span className="text-sm font-semibold">خل أحبابك يتبعون معك الطلب</span>
+          </button>
+        </div>
+      )}
 
       {/* Activate alerts button */}
       <div className="mt-5 w-full max-w-xs px-4 pb-8">
