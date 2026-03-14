@@ -798,6 +798,7 @@ export default function DashboardPage() {
   }, [merchant?.uid, acceptingOrderId, t, toast]);
 
   const [rejectingOrderId, setRejectingOrderId] = useState<string | null>(null);
+  const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
 
   const handleRejectWhatsAppOrder = useCallback(async (order: WhatsAppOrder) => {
     if (!merchant?.uid || rejectingOrderId) return;
@@ -821,6 +822,24 @@ export default function DashboardPage() {
       setRejectingOrderId(null);
     }
   }, [merchant?.uid, rejectingOrderId, t, toast]);
+
+  const handleCancelWhatsAppOrder = useCallback(async (order: WhatsAppOrder) => {
+    if (!merchant?.uid || cancellingOrderId) return;
+    setCancellingOrderId(order.id);
+    try {
+      const orderRef = doc(db, "merchants", merchant.uid, "whatsappOrders", order.id);
+      await updateDoc(orderRef, { status: "cancelled", cancelledAt: new Date().toISOString() });
+      const displayId = order.displayOrderId || `#${order.orderNumber}`;
+      toast({
+        title: t(`تم إلغاء الطلب ${displayId}`, `Order ${displayId} Cancelled`),
+        description: t("تم إلغاء الطلب وسيُبلَّغ العميل فوراً", "Order cancelled and customer will be notified"),
+      });
+    } catch {
+      toast({ title: t("خطأ", "Error"), description: t("فشل في إلغاء الطلب", "Failed to cancel order"), variant: "destructive" });
+    } finally {
+      setCancellingOrderId(null);
+    }
+  }, [merchant?.uid, cancellingOrderId, t, toast]);
 
   const handleCompleteWhatsAppOrder = useCallback(async (order: WhatsAppOrder) => {
     if (!merchant?.uid) return;
@@ -997,6 +1016,20 @@ export default function DashboardPage() {
         description: t("فشل في إكمال الطلب", "Failed to complete order"),
         variant: "destructive",
       });
+    }
+  }, [merchant?.uid, t, toast]);
+
+  const handleCancelPager = useCallback(async (pager: Pager & { docId: string }) => {
+    if (!merchant?.uid) return;
+    try {
+      const pagerRef = doc(db, "merchants", merchant.uid, "pagers", pager.docId);
+      await updateDoc(pagerRef, { status: "cancelled", cancelledAt: new Date().toISOString() });
+      toast({
+        title: t("تم إلغاء الطلب", "Order Cancelled"),
+        description: t(`تم إلغاء الطلب ${pager.displayOrderId || "#" + pager.orderNumber}`, `Order ${pager.displayOrderId || "#" + pager.orderNumber} cancelled`),
+      });
+    } catch {
+      toast({ title: t("خطأ", "Error"), description: t("فشل في إلغاء الطلب", "Failed to cancel order"), variant: "destructive" });
     }
   }, [merchant?.uid, t, toast]);
 
@@ -1339,11 +1372,14 @@ export default function DashboardPage() {
                 activeWhatsappOrders={activeWhatsappOrders}
                 onAcceptWhatsAppOrder={handleAcceptWhatsAppOrder}
                 onRejectWhatsAppOrder={handleRejectWhatsAppOrder}
+                onCancelWhatsAppOrder={handleCancelWhatsAppOrder}
                 onReadyWhatsAppOrder={handleReadyWhatsAppOrder}
                 onCompleteWhatsAppOrder={handleCompleteWhatsAppOrder}
                 onUncollectedWhatsAppOrder={handleUncollectedWhatsAppOrder}
+                onCancelPager={handleCancelPager}
                 acceptingOrderId={acceptingOrderId}
                 rejectingOrderId={rejectingOrderId}
+                cancellingOrderId={cancellingOrderId}
                 completedToday={completedToday}
                 flyingOrderId={flyingOrderId}
                 printReceiptsEnabled={merchantFeatures.printReceiptsEnabled}
@@ -1540,11 +1576,14 @@ function OverviewView({
   activeWhatsappOrders,
   onAcceptWhatsAppOrder,
   onRejectWhatsAppOrder,
+  onCancelWhatsAppOrder,
   onReadyWhatsAppOrder,
   onCompleteWhatsAppOrder,
   onUncollectedWhatsAppOrder,
+  onCancelPager,
   acceptingOrderId,
   rejectingOrderId,
+  cancellingOrderId,
   completedToday,
   flyingOrderId,
   printReceiptsEnabled,
@@ -1580,11 +1619,14 @@ function OverviewView({
   activeWhatsappOrders: WhatsAppOrder[];
   onAcceptWhatsAppOrder: (order: WhatsAppOrder) => void;
   onRejectWhatsAppOrder: (order: WhatsAppOrder) => void;
+  onCancelWhatsAppOrder: (order: WhatsAppOrder) => void;
   onReadyWhatsAppOrder: (order: WhatsAppOrder) => void;
   onCompleteWhatsAppOrder: (order: WhatsAppOrder) => void;
   onUncollectedWhatsAppOrder: (order: WhatsAppOrder) => void;
+  onCancelPager: (pager: Pager & { docId: string }) => void;
   acceptingOrderId: string | null;
   rejectingOrderId: string | null;
+  cancellingOrderId: string | null;
   completedToday: number;
   flyingOrderId: string | null;
   printReceiptsEnabled: boolean;
@@ -2247,7 +2289,7 @@ function OverviewView({
                       <div className="space-y-2 pt-1">
                         <Button
                           onClick={() => onRejectWhatsAppOrder(order)}
-                          disabled={rejectingOrderId === order.id || acceptingOrderId === order.id}
+                          disabled={rejectingOrderId === order.id || acceptingOrderId === order.id || cancellingOrderId === order.id}
                           className="w-full h-9 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold rounded-xl border border-red-500/20"
                           data-testid={`button-reject-order-${item.id}`}
                         >
@@ -2256,8 +2298,18 @@ function OverviewView({
                           )}
                         </Button>
                         <Button
+                          onClick={() => onCancelWhatsAppOrder(order)}
+                          disabled={cancellingOrderId === order.id || acceptingOrderId === order.id || rejectingOrderId === order.id}
+                          className="w-full h-9 bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 text-xs font-bold rounded-xl border border-orange-500/20"
+                          data-testid={`button-cancel-order-${item.id}`}
+                        >
+                          {cancellingOrderId === order.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : (
+                            <><X className="w-3.5 h-3.5 me-1" />{t("إلغاء الطلب", "Cancel Order")}</>
+                          )}
+                        </Button>
+                        <Button
                           onClick={() => onAcceptWhatsAppOrder(order)}
-                          disabled={acceptingOrderId === order.id || rejectingOrderId === order.id}
+                          disabled={acceptingOrderId === order.id || rejectingOrderId === order.id || cancellingOrderId === order.id}
                           className={`w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl ${acceptingOrderId === order.id ? "" : "accept-glow"}`}
                           data-testid={`button-accept-order-${item.id}`}
                         >
@@ -2314,6 +2366,14 @@ function OverviewView({
                               )}
                             </Button>
                             <Button
+                              onClick={() => onCancelPager(pager)}
+                              className="h-10 px-3 bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 rounded-xl border border-orange-500/20 text-xs font-bold"
+                              data-testid={`button-cancel-pager-${item.id}`}
+                              title={t("إلغاء الطلب", "Cancel Order")}
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button
                               onClick={() => onRemove(pager)}
                               className="h-10 px-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl border border-red-500/20"
                               data-testid={`button-remove-${item.id}`}
@@ -2322,13 +2382,23 @@ function OverviewView({
                             </Button>
                           </>
                         ) : (
-                          <Button
-                            onClick={() => onComplete(pager)}
-                            className="flex-1 h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl"
-                            data-testid={`button-complete-${item.id}`}
-                          >
-                            <CheckCircle className="w-3.5 h-3.5 me-1" />{t("تم الاستلام", "Received")}
-                          </Button>
+                          <>
+                            <Button
+                              onClick={() => onComplete(pager)}
+                              className="flex-1 h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl"
+                              data-testid={`button-complete-${item.id}`}
+                            >
+                              <CheckCircle className="w-3.5 h-3.5 me-1" />{t("تم الاستلام", "Received")}
+                            </Button>
+                            <Button
+                              onClick={() => onCancelPager(pager)}
+                              className="h-10 px-3 bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 rounded-xl border border-orange-500/20 text-xs font-bold"
+                              data-testid={`button-cancel-notified-${item.id}`}
+                              title={t("إلغاء الطلب", "Cancel Order")}
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </Button>
+                          </>
                         )}
                       </div>
                     </CardContent>
@@ -2495,13 +2565,24 @@ function OverviewView({
                         </Button>
                       )}
                       {isPreparing && (
-                        <Button
-                          onClick={() => onReadyWhatsAppOrder(waOrder)}
-                          className="flex-1 h-9 bg-amber-500 hover:bg-amber-600 text-black font-bold text-xs rounded-xl"
-                          data-testid={`button-ready-order-${item.id}`}
-                        >
-                          <Utensils className="w-3.5 h-3.5 me-1" />{t("جاهز", "Ready")}
-                        </Button>
+                        <>
+                          <Button
+                            onClick={() => onReadyWhatsAppOrder(waOrder)}
+                            className="flex-1 h-9 bg-amber-500 hover:bg-amber-600 text-black font-bold text-xs rounded-xl"
+                            data-testid={`button-ready-order-${item.id}`}
+                          >
+                            <Utensils className="w-3.5 h-3.5 me-1" />{t("جاهز", "Ready")}
+                          </Button>
+                          <Button
+                            onClick={() => onCancelWhatsAppOrder(waOrder)}
+                            disabled={cancellingOrderId === waOrder.id}
+                            className="h-9 px-3 bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 rounded-xl border border-orange-500/20 text-xs font-bold"
+                            data-testid={`button-cancel-active-order-${item.id}`}
+                            title={t("إلغاء الطلب", "Cancel Order")}
+                          >
+                            {cancellingOrderId === waOrder.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />}
+                          </Button>
+                        </>
                       )}
                       {isReady && (
                         <>
@@ -2518,6 +2599,15 @@ function OverviewView({
                             data-testid={`button-uncollected-wa-order-${item.id}`}
                           >
                             <UserX className="w-3.5 h-3.5 me-1" />{t("لم يحضر", "No-Show")}
+                          </Button>
+                          <Button
+                            onClick={() => onCancelWhatsAppOrder(waOrder)}
+                            disabled={cancellingOrderId === waOrder.id}
+                            className="h-9 px-3 bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 rounded-xl border border-orange-500/20 text-xs font-bold"
+                            data-testid={`button-cancel-ready-order-${item.id}`}
+                            title={t("إلغاء الطلب", "Cancel Order")}
+                          >
+                            {cancellingOrderId === waOrder.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />}
                           </Button>
                         </>
                       )}
