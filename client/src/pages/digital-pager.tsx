@@ -5,13 +5,14 @@ import { db } from "@/lib/firebase";
 import { Bell } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-type OrderStatus = "processing" | "preparing" | "ready" | "done";
+type OrderStatus = "processing" | "preparing" | "ready" | "done" | "cancelled";
 
 function getStatusFromWhatsapp(status: string): OrderStatus {
   if (status === "pending_verification" || status === "awaiting_confirmation") return "processing";
   if (status === "preparing") return "preparing";
   if (status === "ready" || status === "notified") return "ready";
   if (status === "completed" || status === "archived") return "done";
+  if (status === "cancelled") return "cancelled";
   return "processing";
 }
 
@@ -19,6 +20,7 @@ function getStatusFromPager(status: string): OrderStatus {
   if (status === "waiting") return "processing";
   if (status === "notified") return "ready";
   if (status === "completed" || status === "archived") return "done";
+  if (status === "cancelled") return "cancelled";
   return "processing";
 }
 
@@ -378,6 +380,87 @@ export default function DigitalPagerPage() {
           لم يتم العثور على الطلب
         </p>
         <p className="text-red-900/30 text-sm text-center">Order not found</p>
+      </div>
+    );
+  }
+
+  if (status === "cancelled") {
+    return (
+      <div
+        className="min-h-[100dvh] flex flex-col items-center"
+        style={{ background: bg, fontFamily: "'Tajawal','Cairo',sans-serif" }}
+        data-testid="digital-pager-cancelled"
+      >
+        {/* Header — identical to normal view */}
+        <div className="text-center pt-8 pb-0 px-5 w-full">
+          <p
+            className="text-[11px] font-medium uppercase mb-4"
+            style={{ color: "#5a1a1a", letterSpacing: "0.45em" }}
+          >
+            DIGITAL PAGER
+          </p>
+          {merchantLogo ? (
+            <img
+              src={merchantLogo}
+              alt=""
+              className="w-12 h-12 rounded-full mx-auto mb-2 object-cover"
+              style={{ border: "1px solid #3a0808" }}
+              data-testid="img-store-logo"
+            />
+          ) : null}
+          {merchantName && (
+            <h1 className="font-bold text-lg" style={{ color: "rgba(255,255,255,0.8)" }} data-testid="text-store-name">
+              {merchantName}
+            </h1>
+          )}
+          {merchantName && (
+            <p style={{ color: "#5a2020", fontSize: 12, marginTop: 1 }}>Guest Tracking</p>
+          )}
+        </div>
+
+        {/* Cancellation card */}
+        <div className="flex-1 flex flex-col items-center justify-center px-6 w-full max-w-sm mt-8">
+          <div
+            className="w-full rounded-2xl p-7 text-center"
+            style={{
+              background: "rgba(80,0,0,0.22)",
+              border: "1px solid rgba(160,30,30,0.38)",
+            }}
+            data-testid="card-cancelled"
+          >
+            {/* Red-tinted X icon */}
+            <div
+              className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-5"
+              style={{
+                background: "rgba(110,0,0,0.32)",
+                border: "1.5px solid rgba(180,40,40,0.5)",
+              }}
+            >
+              <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                <path d="M8 8L24 24M24 8L8 24" stroke="#cc3333" strokeWidth="2.8" strokeLinecap="round" />
+              </svg>
+            </div>
+
+            {/* Main title */}
+            <p
+              className="font-bold text-2xl mb-4"
+              style={{ color: "#cc3333" }}
+              data-testid="text-cancelled-title"
+            >
+              تم إلغاء الطلب
+            </p>
+
+            {/* Apology message */}
+            <p
+              className="text-sm leading-relaxed"
+              style={{ color: "rgba(200,150,150,0.85)", lineHeight: "1.85" }}
+              dir="rtl"
+              data-testid="text-cancelled-message"
+            >
+              نعتذر منك، تم إلغاء طلبك من قبل المتجر لظروف خارجة عن إرادتنا. يرجى التواصل معنا للمزيد من التفاصيل.
+            </p>
+          </div>
+        </div>
       </div>
     );
   }
