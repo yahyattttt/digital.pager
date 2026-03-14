@@ -55,6 +55,15 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+function normalizePhone(raw: string): string {
+  let v = raw.replace(/\s/g, "");
+  if (v.startsWith("+966")) v = "0" + v.slice(4);
+  else if (v.startsWith("00966")) v = "0" + v.slice(5);
+  else if (v.startsWith("966") && v.length > 9) v = "0" + v.slice(3);
+  v = v.replace(/[^0-9]/g, "");
+  return v.slice(0, 10);
+}
+
 export default function PublicMenuPage() {
   const params = useParams<{ merchantId: string }>();
   const merchantId = params.merchantId;
@@ -755,8 +764,8 @@ export default function PublicMenuPage() {
                 <Input
                   value={customerPhone}
                   onChange={(e) => {
-                    const val = e.target.value.replace(/[^0-9]/g, "");
-                    if (val.length <= 10) setCustomerPhone(val);
+                    const val = normalizePhone(e.target.value);
+                    setCustomerPhone(val);
                   }}
                   placeholder={t("رقم الجوال (05xxxxxxxx)", "Phone (05xxxxxxxx)")}
                   type="tel"
