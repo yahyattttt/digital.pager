@@ -387,80 +387,57 @@ export default function DigitalPagerPage() {
   if (status === "cancelled") {
     return (
       <div
-        className="min-h-[100dvh] flex flex-col items-center"
+        className="min-h-[100dvh] flex flex-col items-center justify-center px-6"
         style={{ background: bg, fontFamily: "'Tajawal','Cairo',sans-serif" }}
         data-testid="digital-pager-cancelled"
       >
-        {/* Header — identical to normal view */}
-        <div className="text-center pt-8 pb-0 px-5 w-full">
-          <p
-            className="text-[11px] font-medium uppercase mb-4"
-            style={{ color: "#5a1a1a", letterSpacing: "0.45em" }}
-          >
-            DIGITAL PAGER
-          </p>
-          {merchantLogo ? (
-            <img
-              src={merchantLogo}
-              alt=""
-              className="w-12 h-12 rounded-full mx-auto mb-2 object-cover"
-              style={{ border: "1px solid #3a0808" }}
-              data-testid="img-store-logo"
-            />
-          ) : null}
-          {merchantName && (
-            <h1 className="font-bold text-lg" style={{ color: "rgba(255,255,255,0.8)" }} data-testid="text-store-name">
-              {merchantName}
-            </h1>
-          )}
-          {merchantName && (
-            <p style={{ color: "#5a2020", fontSize: 12, marginTop: 1 }}>Guest Tracking</p>
-          )}
+        {/* Large cancel icon */}
+        <div
+          className="w-24 h-24 rounded-full flex items-center justify-center mb-8"
+          style={{
+            background: "rgba(100,0,0,0.25)",
+            border: "2px solid rgba(180,40,40,0.45)",
+          }}
+        >
+          <svg width="52" height="52" viewBox="0 0 52 52" fill="none">
+            <circle cx="26" cy="26" r="24" stroke="rgba(180,40,40,0.5)" strokeWidth="1.5" />
+            <path d="M17 17L35 35M35 17L17 35" stroke="rgba(220,70,70,0.95)" strokeWidth="3" strokeLinecap="round" />
+          </svg>
         </div>
 
-        {/* Cancellation card */}
-        <div className="flex-1 flex flex-col items-center justify-center px-6 w-full max-w-sm mt-8">
-          <div
-            className="w-full rounded-2xl p-7 text-center"
-            style={{
-              background: "rgba(80,0,0,0.22)",
-              border: "1px solid rgba(160,30,30,0.38)",
-            }}
-            data-testid="card-cancelled"
-          >
-            {/* Red-tinted X icon */}
-            <div
-              className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-5"
-              style={{
-                background: "rgba(110,0,0,0.32)",
-                border: "1.5px solid rgba(180,40,40,0.5)",
-              }}
-            >
-              <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-                <path d="M8 8L24 24M24 8L8 24" stroke="#cc3333" strokeWidth="2.8" strokeLinecap="round" />
-              </svg>
-            </div>
+        {/* Main title — 24px Bold White */}
+        <p
+          className="font-bold text-center mb-4"
+          style={{ fontSize: 24, color: "#ffffff" }}
+          data-testid="text-cancelled-title"
+        >
+          تم إلغاء طلبك من المتجر
+        </p>
 
-            {/* Main title */}
-            <p
-              className="font-bold text-2xl mb-4"
-              style={{ color: "#cc3333" }}
-              data-testid="text-cancelled-title"
-            >
-              تم إلغاء الطلب
-            </p>
+        {/* Apology message — 16px Gray-200 */}
+        <p
+          className="text-center leading-relaxed mb-10"
+          style={{ fontSize: 16, color: "#e5e7eb", lineHeight: "1.85", maxWidth: 320 }}
+          dir="rtl"
+          data-testid="text-cancelled-message"
+        >
+          نعتذر منك، تم إلغاء طلبك من قبل المتجر لظروف خارجة عن إرادتنا. يرجى التواصل معنا للمزيد من التفاصيل.
+        </p>
 
-            {/* Apology message */}
-            <p
-              className="text-sm leading-relaxed"
-              style={{ color: "rgba(200,150,150,0.85)", lineHeight: "1.85" }}
-              dir="rtl"
-              data-testid="text-cancelled-message"
-            >
-              نعتذر منك، تم إلغاء طلبك من قبل المتجر لظروف خارجة عن إرادتنا. يرجى التواصل معنا للمزيد من التفاصيل.
-            </p>
-          </div>
-        </div>
+        {/* Back to home button */}
+        <button
+          onClick={() => setLocation("/")}
+          data-testid="btn-back-home"
+          className="px-8 py-3.5 rounded-2xl font-semibold transition-all active:scale-95"
+          style={{
+            fontSize: 16,
+            background: "rgba(40,0,0,0.6)",
+            border: "1.5px solid rgba(160,30,30,0.5)",
+            color: "#ff6666",
+          }}
+        >
+          العودة للرئيسية
+        </button>
       </div>
     );
   }
