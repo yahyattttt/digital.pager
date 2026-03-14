@@ -6,10 +6,6 @@ import { createServer } from "http";
 const app = express();
 const httpServer = createServer(app);
 
-app.get("/", (req, res) => {
-  res.send("Digital Pager API is running");
-});
-
 declare module "http" {
   interface IncomingMessage {
     rawBody: unknown;
