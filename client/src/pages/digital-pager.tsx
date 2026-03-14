@@ -426,7 +426,7 @@ export default function DigitalPagerPage() {
 
         {/* Back to home button */}
         <button
-          onClick={() => setLocation("/")}
+          onClick={() => setLocation(merchantId ? `/menu/${merchantId}` : "/")}
           data-testid="btn-back-home"
           className="px-8 py-3.5 rounded-2xl font-semibold transition-all active:scale-95"
           style={{
