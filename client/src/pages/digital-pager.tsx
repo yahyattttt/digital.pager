@@ -372,7 +372,7 @@ export default function DigitalPagerPage() {
     } else {
       try {
         await navigator.clipboard.writeText(url);
-        toast({ description: "تم نسخ رابط التتبع ✓", duration: 2500 });
+        toast({ description: "تم نسخ الرابط", duration: 2500 });
       } catch {}
     }
   }
