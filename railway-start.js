@@ -1,3 +1,10 @@
-// Entry point for Railway deployment.
-// Loads the compiled full-stack server bundle (Express + all API routes + static serving).
-import "./dist/index.cjs";
+import { spawn } from "child_process";
+
+const child = spawn("node", ["dist/index.js"], {
+  stdio: "inherit",
+  shell: true,
+});
+
+child.on("close", (code) => {
+  process.exit(code);
+});
