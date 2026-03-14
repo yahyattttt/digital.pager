@@ -435,7 +435,7 @@ export default function StorePagerPage() {
               <div className="text-center">
                 <p className="text-white/40 text-xs tracking-[0.2em] uppercase mb-3">CONFIRM ORDER</p>
                 <p className="text-white text-lg font-bold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }} data-testid="text-confirm-question">
-                  هل هذا هو رقم طلبك؟
+                  هل أنت متأكد من رقم طلبك؟
                 </p>
                 <p className="text-red-400 text-4xl font-bold font-dseg7 tracking-wider mt-3" style={{ textShadow: "0 0 20px rgba(255,0,0,0.5)" }} data-testid="text-confirm-order-id">
                   {selectedPager.displayOrderId || `#${selectedPager.orderNumber}`}
@@ -448,7 +448,7 @@ export default function StorePagerPage() {
                   className="flex-1 py-3.5 rounded-2xl border border-white/10 text-white/50 text-sm font-bold active:scale-[0.97] transition-all"
                   data-testid="button-confirm-no"
                 >
-                  لا
+                  إلغاء
                 </button>
                 <button
                   onClick={handleConfirm}
@@ -456,7 +456,7 @@ export default function StorePagerPage() {
                   style={{ boxShadow: "0 0 25px rgba(255,0,0,0.2)" }}
                   data-testid="button-confirm-yes"
                 >
-                  نعم، هذا طلبي ✅
+                  تأكيد
                 </button>
               </div>
             </div>
