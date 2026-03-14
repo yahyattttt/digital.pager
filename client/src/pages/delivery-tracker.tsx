@@ -6,7 +6,7 @@ import { ChefHat, Truck, MapPin, CheckCircle2, Star, BadgeCheck, Send, MapPinned
 import { motion, AnimatePresence } from "framer-motion";
 import confetti from "canvas-confetti";
 
-type DeliveryStatus = "accepted" | "preparing" | "out_for_delivery" | "delivered";
+type DeliveryStatus = "accepted" | "preparing" | "out_for_delivery" | "delivered" | "cancelled";
 type ReviewState = "idle" | "rating" | "low_feedback" | "low_submitted" | "high_redirect";
 
 function getDeliveryStatus(status: string): DeliveryStatus {
@@ -14,6 +14,7 @@ function getDeliveryStatus(status: string): DeliveryStatus {
   if (status === "preparing") return "preparing";
   if (status === "ready") return "out_for_delivery";
   if (status === "completed" || status === "archived") return "delivered";
+  if (status === "cancelled") return "cancelled";
   return "accepted";
 }
 
@@ -351,6 +352,92 @@ export default function DeliveryTrackerPage() {
         <p className="text-white/30 text-lg text-center" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}>
           لم يتم العثور على الطلب
         </p>
+      </div>
+    );
+  }
+
+  if (status === "cancelled") {
+    return (
+      <div
+        className="h-[100dvh] flex flex-col items-center overflow-y-auto"
+        style={{ background: bg, fontFamily: "'Tajawal','Cairo',sans-serif" }}
+        dir="rtl"
+        data-testid="delivery-tracker-cancelled"
+      >
+        {/* Header — identical to normal view */}
+        <div className="w-full text-center pt-7 pb-2 px-5">
+          {merchantLogo ? (
+            <img
+              src={merchantLogo}
+              alt=""
+              className="w-14 h-14 rounded-full mx-auto mb-2 object-cover border border-purple-900/30"
+              data-testid="img-store-logo"
+            />
+          ) : (
+            <div className="w-14 h-14 rounded-full mx-auto mb-2 flex items-center justify-center border border-purple-900/20" style={{ background: "rgba(168,85,247,0.06)" }}>
+              <MapPinned className="w-7 h-7 text-purple-800/60" />
+            </div>
+          )}
+          {merchantName && (
+            <h1 className="text-white/80 text-base font-bold" data-testid="text-store-name">{merchantName}</h1>
+          )}
+          {customerName && (
+            <p className="text-white/30 text-sm mt-0.5">{customerName}</p>
+          )}
+          {orderNumber && (
+            <div
+              className="inline-flex items-center gap-2 mt-2 px-4 py-1.5 rounded-full"
+              style={{ background: "rgba(168,85,247,0.08)", border: "1px solid rgba(168,85,247,0.2)" }}
+            >
+              <span className="text-purple-400/60 text-xs">طلب رقم</span>
+              <span className="text-purple-300 font-bold text-base" data-testid="text-order-number">#{orderNumber}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Cancellation card — replaces progress bar + status icons */}
+        <div className="flex-1 flex flex-col items-center justify-center px-4 w-full pb-8">
+          <div
+            className="w-full max-w-sm rounded-3xl p-7 flex flex-col items-center gap-5 text-center"
+            style={{
+              background: "rgba(80,0,0,0.22)",
+              border: "1px solid rgba(160,30,30,0.38)",
+              backdropFilter: "blur(10px)",
+            }}
+            data-testid="card-cancelled"
+          >
+            {/* Red X icon inside circular container */}
+            <div
+              className="w-16 h-16 rounded-full flex items-center justify-center"
+              style={{
+                background: "rgba(110,0,0,0.35)",
+                border: "1.5px solid rgba(180,40,40,0.5)",
+              }}
+            >
+              <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                <path d="M8 8L24 24M24 8L8 24" stroke="#cc3333" strokeWidth="2.8" strokeLinecap="round" />
+              </svg>
+            </div>
+
+            {/* Main title */}
+            <p
+              className="font-bold text-xl leading-snug"
+              style={{ color: "#cc3333" }}
+              data-testid="text-cancelled-title"
+            >
+              تم إلغاء طلبك من المتجر
+            </p>
+
+            {/* Apology message */}
+            <p
+              className="text-sm leading-relaxed"
+              style={{ color: "rgba(200,150,150,0.85)", lineHeight: "1.85" }}
+              data-testid="text-cancelled-message"
+            >
+              نعتذر منك، تم إلغاء طلبك من قبل المتجر لظروف خارجة عن إرادتنا. يرجى التواصل معنا للمزيد من التفاصيل.
+            </p>
+          </div>
+        </div>
       </div>
     );
   }
