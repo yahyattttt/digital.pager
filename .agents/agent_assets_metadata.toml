@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "z8g1qCKA9DwNA71YSNqwL"
+uri = "file://attached_assets/order_cancelled_mockup.png"
+type = "image"
+title = "Cancelled Order Mockup"
