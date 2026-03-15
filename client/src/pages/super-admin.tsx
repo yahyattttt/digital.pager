@@ -2561,8 +2561,8 @@ export default function SuperAdminPage() {
                             />
                           </div>
                           <div className="flex justify-between mt-2 text-[11px] text-slate-500">
-                            <span>{sysHealth.cpu.cores} أنوية</span>
-                            <span>Load: {sysHealth.cpu.loadAvg1m}</span>
+                            <span>{sysHealth.cpu?.cores ?? "—"} أنوية</span>
+                            <span>Load: {sysHealth.cpu?.loadAvg1m ?? "—"}</span>
                           </div>
                         </CardContent>
                       </Card>
@@ -2599,8 +2599,8 @@ export default function SuperAdminPage() {
                             />
                           </div>
                           <div className="flex justify-between mt-2 text-[11px] text-slate-500">
-                            <span data-testid="text-ram-used">{sysHealth.memory.usedMB} MB {t("مستخدم", "used")}</span>
-                            <span>{sysHealth.memory.totalMB} MB {t("إجمالي", "total")}</span>
+                            <span data-testid="text-ram-used">{sysHealth.memory?.usedMB ?? "—"} MB {t("مستخدم", "used")}</span>
+                            <span>{sysHealth.memory?.totalMB ?? "—"} MB {t("إجمالي", "total")}</span>
                           </div>
                         </CardContent>
                       </Card>
@@ -2649,7 +2649,7 @@ export default function SuperAdminPage() {
                           <div>
                             <p className="text-[11px] text-slate-500">Database</p>
                             <p className="text-sm font-bold" style={{ color: dbColor }} data-testid="text-db-status">
-                              {dbOk ? `${t("متصل", "Connected")} · ${sysHealth.db.pingMs}ms` : sysHealth.db?.status === "not_configured" ? t("غير مهيأ", "Not configured") : t("خطأ", "Error")}
+                              {dbOk ? `${t("متصل", "Connected")} · ${sysHealth.db?.pingMs ?? "?"}ms` : sysHealth.db?.status === "not_configured" ? t("غير مهيأ", "Not configured") : t("خطأ", "Error")}
                             </p>
                           </div>
                         </CardContent>
@@ -2673,10 +2673,10 @@ export default function SuperAdminPage() {
                 {/* Alert log */}
                 <Card className="bg-slate-900/80 border-slate-800" data-testid="card-alert-log">
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-sm text-slate-200 flex items-center gap-2">
+                    <p className="text-sm font-semibold text-slate-200 flex items-center gap-2">
                       <AlertTriangle className="w-4 h-4 text-amber-400" />
                       {t("سجل التنبيهات (آخر 10)", "Alert Log (last 10)")}
-                    </CardTitle>
+                    </p>
                   </CardHeader>
                   <CardContent className="p-0">
                     {sysAlerts.length === 0 ? (
