@@ -90,6 +90,13 @@ import {
   Maximize,
   Minimize,
   MoreHorizontal,
+  Cpu,
+  HardDrive,
+  ServerCrash,
+  Wifi,
+  WifiOff,
+  CircleDot,
+  Gauge,
 } from "lucide-react";
 
 const PRIMARY_ADMIN_EMAIL = import.meta.env.VITE_SUPER_ADMIN_EMAIL || "yahiatohary@hotmail.com";
@@ -352,7 +359,10 @@ export default function SuperAdminPage() {
   const [expenseDate, setExpenseDate] = useState("");
   const [expenseSaving, setExpenseSaving] = useState(false);
   const [renewalData, setRenewalData] = useState<any>(null);
-  const [activeSection, setActiveSection] = useState<"home" | "stores" | "subscriptions" | "finance" | "tracking" | "settings">("home");
+  const [activeSection, setActiveSection] = useState<"home" | "stores" | "subscriptions" | "finance" | "tracking" | "settings" | "sysmonitor">("home");
+  const [sysHealth, setSysHealth] = useState<any>(null);
+  const [sysHealthLoading, setSysHealthLoading] = useState(false);
+  const [sysAlerts, setSysAlerts] = useState<{ time: string; message: string; level: "warn" | "critical" }[]>([]);
   const [renewalLoading, setRenewalLoading] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -566,6 +576,49 @@ export default function SuperAdminPage() {
       setGlobalMonitorLoading(false);
     }
   }
+
+  async function fetchSysHealth() {
+    setSysHealthLoading(true);
+    try {
+      const res = await fetch("/api/admin/system-health", {
+        headers: { "x-admin-email": user?.email || "" },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSysHealth(data);
+        // Check for critical/warning thresholds and log alerts
+        const now = new Date().toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+        const alerts: { time: string; message: string; level: "warn" | "critical" }[] = [];
+        if (data.cpu?.percent >= 85) {
+          alerts.push({ time: now, message: `CPU حرج: ${data.cpu.percent}%`, level: "critical" });
+        } else if (data.cpu?.percent >= 60) {
+          alerts.push({ time: now, message: `CPU تحذير: ${data.cpu.percent}%`, level: "warn" });
+        }
+        if (data.memory?.percent >= 85) {
+          alerts.push({ time: now, message: `RAM حرج: ${data.memory.percent}% (${data.memory.usedMB}MB / ${data.memory.totalMB}MB)`, level: "critical" });
+        } else if (data.memory?.percent >= 60) {
+          alerts.push({ time: now, message: `RAM تحذير: ${data.memory.percent}% (${data.memory.usedMB}MB / ${data.memory.totalMB}MB)`, level: "warn" });
+        }
+        if (data.db?.status === "error") {
+          alerts.push({ time: now, message: `قاعدة البيانات: خطأ في الاتصال`, level: "critical" });
+        }
+        if (alerts.length > 0) {
+          setSysAlerts(prev => [...alerts, ...prev].slice(0, 10));
+        }
+      }
+    } catch {
+      // silent
+    } finally {
+      setSysHealthLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (activeSection !== "sysmonitor") return;
+    fetchSysHealth();
+    const iv = setInterval(fetchSysHealth, 30000);
+    return () => clearInterval(iv);
+  }, [activeSection]);
 
   async function handleOpenSubPayment(merchant: Merchant) {
     setSubPaymentMerchant(merchant);
@@ -1037,7 +1090,7 @@ export default function SuperAdminPage() {
     activeSection === "home" ? "monitor" :
     activeSection === "stores" ? "merchants" :
     activeSection === "subscriptions" ? "subscriptions" :
-    activeSection; // "finance" | "tracking" | "settings" pass through
+    activeSection; // "finance" | "tracking" | "settings" | "sysmonitor" pass through
 
   return (
     <div className="min-h-screen" style={{ background: "#0a0f1a" }}>
@@ -1129,13 +1182,14 @@ export default function SuperAdminPage() {
           </div>
           <nav className="flex-1 p-3 space-y-1 overflow-y-auto" dir="rtl">
             {([
-              { key: "home",          icon: Activity,    labelAr: "الرئيسية",       action: () => { setActiveSection("home"); if (!globalMonitorData) fetchGlobalMonitor(); } },
-              { key: "stores",        icon: Store,       labelAr: "إدارة المتاجر",  action: () => setActiveSection("stores") },
-              { key: "subscriptions", icon: CreditCard,  labelAr: "الاشتراكات",     action: () => setActiveSection("subscriptions") },
-              { key: "finance",       icon: DollarSign,  labelAr: "المالية",        action: () => { setActiveSection("finance"); if (!platformFinanceData) fetchPlatformFinance(); } },
-              { key: "tracking",      icon: TrendingUp,  labelAr: "تتبع العملاء",   action: () => setActiveSection("tracking") },
-              { key: "settings",      icon: Settings,    labelAr: "الإعدادات",      action: () => setActiveSection("settings") },
-            ] as const).map(({ key, icon: Icon, labelAr, action }) => (
+              { key: "home",          icon: Activity,    labelAr: "الرئيسية",       action: () => { setActiveSection("home"); if (!globalMonitorData) fetchGlobalMonitor(); }, ownerOnly: false },
+              { key: "stores",        icon: Store,       labelAr: "إدارة المتاجر",  action: () => setActiveSection("stores"), ownerOnly: false },
+              { key: "subscriptions", icon: CreditCard,  labelAr: "الاشتراكات",     action: () => setActiveSection("subscriptions"), ownerOnly: false },
+              { key: "finance",       icon: DollarSign,  labelAr: "المالية",        action: () => { setActiveSection("finance"); if (!platformFinanceData) fetchPlatformFinance(); }, ownerOnly: false },
+              { key: "tracking",      icon: TrendingUp,  labelAr: "تتبع العملاء",   action: () => setActiveSection("tracking"), ownerOnly: false },
+              { key: "sysmonitor",    icon: Gauge,       labelAr: "مراقب الأداء",   action: () => setActiveSection("sysmonitor" as any), ownerOnly: true },
+              { key: "settings",      icon: Settings,    labelAr: "الإعدادات",      action: () => setActiveSection("settings"), ownerOnly: false },
+            ] as const).filter(item => !item.ownerOnly || user?.email?.toLowerCase() === PRIMARY_ADMIN_EMAIL.toLowerCase()).map(({ key, icon: Icon, labelAr, action }) => (
               <button
                 key={key}
                 onClick={action}
@@ -2427,6 +2481,247 @@ export default function SuperAdminPage() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* ══ System Performance Monitor ══ */}
+          <TabsContent value="sysmonitor" className="space-y-6" data-testid="section-sysmonitor">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-slate-100" dir="rtl" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}>
+                  مراقب أداء الخادم
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">Server Performance Monitor — Owner Only</p>
+              </div>
+              <div className="flex items-center gap-3">
+                {sysHealth && (
+                  <span className="text-[11px] text-slate-500">
+                    {t("آخر تحديث", "Last update")}: {new Date(sysHealth.timestamp).toLocaleTimeString()}
+                  </span>
+                )}
+                <div className="flex items-center gap-1.5">
+                  {sysHealthLoading ? (
+                    <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                  ) : (
+                    <div className="w-2 h-2 rounded-full bg-green-400" />
+                  )}
+                  <span className="text-[11px] text-slate-500">{sysHealthLoading ? t("يتحدث…", "Refreshing…") : t("مباشر", "Live")}</span>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={fetchSysHealth}
+                  disabled={sysHealthLoading}
+                  data-testid="button-refresh-syshealth"
+                  className="h-8 text-xs gap-1.5 border-slate-700"
+                >
+                  <Activity className="w-3.5 h-3.5" />
+                  {t("تحديث", "Refresh")}
+                </Button>
+              </div>
+            </div>
+
+            {sysHealthLoading && !sysHealth ? (
+              <div className="text-center py-16">
+                <Cpu className="w-8 h-8 text-slate-600 mx-auto mb-3 animate-pulse" />
+                <p className="text-slate-500 text-sm">{t("جارٍ جمع بيانات الأداء…", "Collecting performance data…")}</p>
+              </div>
+            ) : sysHealth ? (
+              <>
+                {/* Metric Cards Row */}
+                <div className="grid grid-cols-2 gap-4">
+                  {/* CPU Card */}
+                  {(() => {
+                    const pct = sysHealth.cpu?.percent ?? 0;
+                    const color = pct >= 85 ? "#ef4444" : pct >= 60 ? "#eab308" : "#22c55e";
+                    const label = pct >= 85 ? (t("حرج", "Critical")) : pct >= 60 ? (t("تحذير", "Warning")) : (t("طبيعي", "Normal"));
+                    return (
+                      <Card className="bg-slate-900/80 border-slate-800" data-testid="card-cpu">
+                        <CardContent className="p-5">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${color}18` }}>
+                                <Cpu className="w-4 h-4" style={{ color }} />
+                              </div>
+                              <span className="text-sm font-semibold text-slate-200">المعالج CPU</span>
+                            </div>
+                            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${color}18`, color }}>
+                              {label}
+                            </span>
+                          </div>
+                          {/* Circular-ish big number */}
+                          <div className="flex items-end gap-2 mb-3">
+                            <span className="text-4xl font-black" style={{ color }} data-testid="text-cpu-percent">{pct}</span>
+                            <span className="text-slate-500 text-sm mb-1">%</span>
+                          </div>
+                          {/* Progress bar */}
+                          <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all duration-500"
+                              style={{ width: `${pct}%`, background: color }}
+                            />
+                          </div>
+                          <div className="flex justify-between mt-2 text-[11px] text-slate-500">
+                            <span>{sysHealth.cpu.cores} أنوية</span>
+                            <span>Load: {sysHealth.cpu.loadAvg1m}</span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })()}
+
+                  {/* RAM Card */}
+                  {(() => {
+                    const pct = sysHealth.memory?.percent ?? 0;
+                    const color = pct >= 85 ? "#ef4444" : pct >= 60 ? "#eab308" : "#22c55e";
+                    const label = pct >= 85 ? t("حرج", "Critical") : pct >= 60 ? t("تحذير", "Warning") : t("طبيعي", "Normal");
+                    return (
+                      <Card className="bg-slate-900/80 border-slate-800" data-testid="card-ram">
+                        <CardContent className="p-5">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${color}18` }}>
+                                <HardDrive className="w-4 h-4" style={{ color }} />
+                              </div>
+                              <span className="text-sm font-semibold text-slate-200">الذاكرة RAM</span>
+                            </div>
+                            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${color}18`, color }}>
+                              {label}
+                            </span>
+                          </div>
+                          <div className="flex items-end gap-2 mb-3">
+                            <span className="text-4xl font-black" style={{ color }} data-testid="text-ram-percent">{pct}</span>
+                            <span className="text-slate-500 text-sm mb-1">%</span>
+                          </div>
+                          <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all duration-500"
+                              style={{ width: `${pct}%`, background: color }}
+                            />
+                          </div>
+                          <div className="flex justify-between mt-2 text-[11px] text-slate-500">
+                            <span data-testid="text-ram-used">{sysHealth.memory.usedMB} MB {t("مستخدم", "used")}</span>
+                            <span>{sysHealth.memory.totalMB} MB {t("إجمالي", "total")}</span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })()}
+                </div>
+
+                {/* Secondary info row */}
+                <div className="grid grid-cols-3 gap-4">
+                  {/* Process Uptime */}
+                  <Card className="bg-slate-900/80 border-slate-800">
+                    <CardContent className="p-4 flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center shrink-0">
+                        <CircleDot className="w-4 h-4 text-blue-400" />
+                      </div>
+                      <div>
+                        <p className="text-[11px] text-slate-500">Process Uptime</p>
+                        <p className="text-sm font-bold text-slate-200" data-testid="text-process-uptime">{sysHealth.uptime?.process}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* System Uptime */}
+                  <Card className="bg-slate-900/80 border-slate-800">
+                    <CardContent className="p-4 flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center shrink-0">
+                        <ServerCrash className="w-4 h-4 text-indigo-400" />
+                      </div>
+                      <div>
+                        <p className="text-[11px] text-slate-500">System Uptime</p>
+                        <p className="text-sm font-bold text-slate-200" data-testid="text-system-uptime">{sysHealth.uptime?.system}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* DB Connectivity */}
+                  {(() => {
+                    const dbOk = sysHealth.db?.status === "connected";
+                    const dbColor = dbOk ? "#22c55e" : sysHealth.db?.status === "not_configured" ? "#94a3b8" : "#ef4444";
+                    return (
+                      <Card className="bg-slate-900/80 border-slate-800">
+                        <CardContent className="p-4 flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${dbColor}12` }}>
+                            {dbOk ? <Wifi className="w-4 h-4" style={{ color: dbColor }} /> : <WifiOff className="w-4 h-4" style={{ color: dbColor }} />}
+                          </div>
+                          <div>
+                            <p className="text-[11px] text-slate-500">Database</p>
+                            <p className="text-sm font-bold" style={{ color: dbColor }} data-testid="text-db-status">
+                              {dbOk ? `${t("متصل", "Connected")} · ${sysHealth.db.pingMs}ms` : sysHealth.db?.status === "not_configured" ? t("غير مهيأ", "Not configured") : t("خطأ", "Error")}
+                            </p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })()}
+                </div>
+
+                {/* Platform info */}
+                <Card className="bg-slate-900/60 border-slate-800/60">
+                  <CardContent className="p-4">
+                    <div className="flex flex-wrap gap-4 text-[11px] text-slate-500">
+                      <span>Node: <span className="text-slate-300 font-mono">{sysHealth.platform?.node}</span></span>
+                      <span>Platform: <span className="text-slate-300 font-mono">{sysHealth.platform?.platform}</span></span>
+                      <span>Arch: <span className="text-slate-300 font-mono">{sysHealth.platform?.arch}</span></span>
+                      <span className="mr-auto">{t("تحديث تلقائي كل 30 ثانية", "Auto-refresh every 30 seconds")}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Alert log */}
+                <Card className="bg-slate-900/80 border-slate-800" data-testid="card-alert-log">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm text-slate-200 flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 text-amber-400" />
+                      {t("سجل التنبيهات (آخر 10)", "Alert Log (last 10)")}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    {sysAlerts.length === 0 ? (
+                      <div className="text-center py-8 text-slate-600 text-sm" data-testid="text-no-alerts">
+                        {t("لا توجد تنبيهات في هذه الجلسة", "No alerts this session")}
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-slate-800/60">
+                        {sysAlerts.map((alert, i) => (
+                          <div key={i} className="flex items-center gap-3 px-5 py-2.5" data-testid={`alert-row-${i}`}>
+                            <div
+                              className="w-2 h-2 rounded-full shrink-0"
+                              style={{ background: alert.level === "critical" ? "#ef4444" : "#eab308" }}
+                            />
+                            <span className="text-[11px] text-slate-500 font-mono shrink-0">{alert.time}</span>
+                            <span className="text-xs text-slate-300" dir="rtl" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}>
+                              {alert.message}
+                            </span>
+                            <span
+                              className="ms-auto text-[10px] font-bold px-1.5 py-0.5 rounded"
+                              style={{
+                                background: alert.level === "critical" ? "#ef444420" : "#eab30820",
+                                color: alert.level === "critical" ? "#ef4444" : "#eab308",
+                              }}
+                            >
+                              {alert.level === "critical" ? "CRITICAL" : "WARN"}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </>
+            ) : (
+              <div className="text-center py-16">
+                <ServerCrash className="w-8 h-8 text-slate-600 mx-auto mb-3" />
+                <p className="text-slate-500 text-sm">{t("فشل في تحميل بيانات الأداء", "Failed to load performance data")}</p>
+                <Button size="sm" variant="outline" onClick={fetchSysHealth} className="mt-4 border-slate-700 text-slate-400">
+                  {t("إعادة المحاولة", "Retry")}
+                </Button>
+              </div>
+            )}
+          </TabsContent>
+
           </Tabs>
         </div>
 

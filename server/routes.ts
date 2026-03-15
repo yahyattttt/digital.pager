@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import os from "os";
 import { randomUUID, createHash, createSign } from "crypto";
 import QRCode from "qrcode";
 import { GoogleAuth } from "google-auth-library";
@@ -2475,6 +2476,72 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Global monitor error:", error);
       return res.status(500).json({ message: "Failed to get global monitor data" });
+    }
+  });
+
+  // ===== System Health (Owner-only) =====
+  app.get("/api/admin/system-health", async (req, res) => {
+    try {
+      const ownerEmail = SUPER_ADMIN_EMAIL_GLOBAL;
+      const callerEmail = ((req.headers["x-admin-email"] as string) || "").toLowerCase().trim();
+      if (callerEmail !== ownerEmail) {
+        return res.status(403).json({ message: "Owner access only" });
+      }
+
+      // CPU — 1-minute load average normalized by CPU count
+      const cpuCount = os.cpus().length;
+      const loadAvg1m = os.loadavg()[0];
+      const cpuPercent = Math.min(100, Math.round((loadAvg1m / cpuCount) * 100));
+
+      // Memory
+      const totalMem = os.totalmem();
+      const freeMem = os.freemem();
+      const usedMem = totalMem - freeMem;
+      const memPercent = Math.round((usedMem / totalMem) * 100);
+      const totalMemMB = Math.round(totalMem / 1024 / 1024);
+      const usedMemMB = Math.round(usedMem / 1024 / 1024);
+
+      // Process uptime
+      const uptimeSec = Math.round(process.uptime());
+      const uptimeH = Math.floor(uptimeSec / 3600);
+      const uptimeM = Math.floor((uptimeSec % 3600) / 60);
+      const uptimeS = uptimeSec % 60;
+      const uptimeStr = `${uptimeH}h ${uptimeM}m ${uptimeS}s`;
+
+      // System uptime
+      const sysUptimeSec = Math.round(os.uptime());
+      const sysUptimeH = Math.floor(sysUptimeSec / 3600);
+      const sysUptimeM = Math.floor((sysUptimeSec % 3600) / 60);
+      const sysUptimeStr = `${sysUptimeH}h ${sysUptimeM}m`;
+
+      // DB connectivity ping
+      let dbStatus = "unknown";
+      let dbPingMs = -1;
+      try {
+        const baseUrl = getApiKeyBaseUrl();
+        if (baseUrl && getApiKey()) {
+          const dbStart = Date.now();
+          const dbRes = await apikeyFetch(`${baseUrl}/merchants?pageSize=1`, {});
+          dbPingMs = Date.now() - dbStart;
+          dbStatus = dbRes.ok ? "connected" : "error";
+        } else {
+          dbStatus = "not_configured";
+        }
+      } catch {
+        dbStatus = "error";
+      }
+
+      return res.json({
+        timestamp: new Date().toISOString(),
+        cpu: { percent: cpuPercent, cores: cpuCount, loadAvg1m: Math.round(loadAvg1m * 100) / 100 },
+        memory: { percent: memPercent, usedMB: usedMemMB, totalMB: totalMemMB },
+        uptime: { process: uptimeStr, system: sysUptimeStr, processSec: uptimeSec },
+        db: { status: dbStatus, pingMs: dbPingMs },
+        platform: { node: process.version, platform: os.platform(), arch: os.arch() },
+      });
+    } catch (error) {
+      console.error("System health error:", error);
+      return res.status(500).json({ message: "Failed to collect system health" });
     }
   });
 
