@@ -81,7 +81,7 @@ export default function OrderCompletedPage() {
     setSubmitted(true);
   }
 
-  function downloadInvoice() {
+  async function downloadInvoice() {
     if (!order) return;
     const num = order.displayOrderId || order.orderNumber || orderId.slice(-6);
     const date = order.createdAt ? new Date(order.createdAt).toLocaleDateString("ar-SA") : new Date().toLocaleDateString("ar-SA");
@@ -89,6 +89,31 @@ export default function OrderCompletedPage() {
     const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
     const deliveryFee = order.deliveryFee || 0;
     const total = order.total || subtotal + deliveryFee;
+
+    // Fetch QR code data URL
+    let qrDataUrl = "";
+    try {
+      const qrContent = `${window.location.origin}/receipt/${orderId}?m=${merchantId}`;
+      const qrRes = await fetch("/api/receipt-qr", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: qrContent }),
+      });
+      if (qrRes.ok) {
+        const qrData = await qrRes.json();
+        qrDataUrl = qrData.dataUrl || "";
+      }
+    } catch {}
+
+    const qrSection = qrDataUrl ? `
+  <div class="qr-section">
+    <img src="${qrDataUrl}" alt="QR Code" class="qr-img" />
+    <p class="qr-label">امسح الرمز للتحقق من الطلب</p>
+    <p class="vat-under-qr">المنصة غير خاضعة لضريبة القيمة المضافة</p>
+  </div>` : `
+  <div class="qr-section">
+    <p class="vat-under-qr">المنصة غير خاضعة لضريبة القيمة المضافة</p>
+  </div>`;
 
     const itemRows = items.map((item) => `
       <tr>
@@ -103,7 +128,7 @@ export default function OrderCompletedPage() {
 <html dir="rtl" lang="ar">
 <head>
   <meta charset="UTF-8">
-  <title>فاتورة رقم ${num}</title>
+  <title>فاتورة ضريبية رقم ${num}</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap');
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -115,8 +140,9 @@ export default function OrderCompletedPage() {
       direction: rtl;
     }
     .header { text-align: center; margin-bottom: 32px; border-bottom: 2px solid #cc2200; padding-bottom: 20px; }
-    .header h1 { font-size: 28px; color: #ff4422; margin-bottom: 6px; }
-    .header p  { font-size: 14px; color: #888; }
+    .header h1 { font-size: 28px; color: #ff4422; margin-bottom: 4px; }
+    .header .tax-title { font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 2px; letter-spacing: 0.03em; }
+    .header .tax-title-en { font-size: 12px; color: #888; letter-spacing: 0.08em; text-transform: uppercase; }
     .meta { display: flex; justify-content: space-between; margin-bottom: 24px; font-size: 13px; color: #aaa; }
     .meta span strong { color: #fff; }
     table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
@@ -126,20 +152,27 @@ export default function OrderCompletedPage() {
     .totals { border-top: 1px solid #3a0000; padding-top: 16px; }
     .total-row { display: flex; justify-content: space-between; padding: 5px 12px; font-size: 14px; color: #ccc; }
     .total-row.grand { color: #ff4422; font-size: 18px; font-weight: 700; border-top: 1px solid #cc2200; margin-top: 8px; padding-top: 10px; }
-    .tax-disclaimer { text-align: center; margin-top: 10px; padding: 8px 12px; font-size: 13px; color: #aaa; border: 1px dashed #3a0000; border-radius: 6px; }
-    .footer { text-align: center; margin-top: 40px; color: #555; font-size: 12px; border-top: 1px solid #1a0000; padding-top: 16px; }
+    .qr-section { text-align: center; margin-top: 32px; padding-top: 24px; border-top: 1px dashed #3a0000; }
+    .qr-img { width: 120px; height: 120px; margin: 0 auto 8px; display: block; }
+    .qr-label { font-size: 11px; color: #888; margin-bottom: 10px; }
+    .vat-under-qr { font-size: 14px; font-weight: 700; color: #fff; text-align: center; padding: 10px 16px; border: 1px dashed #cc2200; border-radius: 8px; margin-top: 8px; display: inline-block; }
+    .footer { text-align: center; margin-top: 32px; color: #555; font-size: 12px; border-top: 1px solid #1a0000; padding-top: 16px; }
     @media print {
       body { background: #fff; color: #000; }
       .header h1 { color: #cc2200; }
+      .header .tax-title { color: #000; }
       .total-row.grand { color: #cc2200; }
-      .tax-disclaimer { color: #444; border-color: #bbb; }
+      .vat-under-qr { color: #000; border-color: #cc2200; }
+      .qr-label { color: #555; }
+      .footer { color: #888; }
     }
   </style>
 </head>
 <body>
   <div class="header">
     <h1>${merchantName || "Digital Pager"}</h1>
-    <p>فاتورة ضريبية / Tax Invoice</p>
+    <div class="tax-title">فاتورة ضريبية</div>
+    <div class="tax-title-en">Tax Invoice</div>
   </div>
   <div class="meta">
     <span>رقم الطلب: <strong>#${num}</strong></span>
@@ -161,14 +194,14 @@ export default function OrderCompletedPage() {
       <div class="total-row"><span>المجموع الفرعي</span><span>${subtotal.toFixed(2)} ر.س</span></div>
       <div class="total-row"><span>رسوم التوصيل</span><span>${deliveryFee.toFixed(2)} ر.س</span></div>
     ` : ""}
-    <div class="total-row"><span>ضريبة القيمة المضافة (VAT)</span><span>0.00 ر.س</span></div>
+    <div class="total-row"><span>ضريبة القيمة المضافة (VAT 0%)</span><span>0.00 ر.س</span></div>
     <div class="total-row grand"><span>الإجمالي</span><span>${total.toFixed(2)} ر.س</span></div>
-    <div class="tax-disclaimer">المنصة غير خاضعة لضريبة القيمة المضافة</div>
   </div>
   ` : `<p style="color:#888;text-align:center;padding:24px;">لا توجد تفاصيل للطلب</p>`}
+  ${qrSection}
   <div class="footer">
     <p>شكراً لتعاملك معنا • ${merchantName || "Digital Pager"}</p>
-    <p style="margin-top:4px;">هذه الفاتورة تم إنشاؤها إلكترونياً</p>
+    <p style="margin-top:4px;">هذه الفاتورة الضريبية تم إنشاؤها إلكترونياً</p>
   </div>
 </body>
 </html>`;
@@ -186,7 +219,7 @@ export default function OrderCompletedPage() {
     setTimeout(() => {
       iframe.contentWindow!.print();
       setTimeout(() => document.body.removeChild(iframe), 2000);
-    }, 400);
+    }, 600);
   }
 
   const bg = "linear-gradient(180deg, #050000 0%, #000000 50%, #050000 100%)";
