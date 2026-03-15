@@ -600,8 +600,8 @@ export default function DigitalPagerPage() {
         </p>
       </div>
 
-      {/* Share button — only while preparing, not for delivery */}
-      {status === "preparing" && diningType !== "delivery" && (
+      {/* Share button — visible for all order types while preparing */}
+      {status === "preparing" && (
         <div className="w-full max-w-xs px-4 mt-4">
           <button
             onClick={handleShare}
