@@ -594,9 +594,9 @@ export default function SuperAdminPage() {
         } else if (data.cpu?.percent >= 60) {
           alerts.push({ time: now, message: `CPU تحذير: ${data.cpu.percent}%`, level: "warn" });
         }
-        if (data.memory?.percent >= 85) {
+        if (data.memory?.percent >= 90) {
           alerts.push({ time: now, message: `RAM حرج: ${data.memory.percent}% (${data.memory.usedMB}MB / ${data.memory.totalMB}MB)`, level: "critical" });
-        } else if (data.memory?.percent >= 60) {
+        } else if (data.memory?.percent >= 80) {
           alerts.push({ time: now, message: `RAM تحذير: ${data.memory.percent}% (${data.memory.usedMB}MB / ${data.memory.totalMB}MB)`, level: "warn" });
         }
         if (data.db?.status === "error") {
@@ -2572,8 +2572,8 @@ export default function SuperAdminPage() {
                   {/* RAM Card */}
                   {(() => {
                     const pct = sysHealth.memory?.percent ?? 0;
-                    const color = pct >= 85 ? "#ef4444" : pct >= 60 ? "#eab308" : "#22c55e";
-                    const label = pct >= 85 ? t("حرج", "Critical") : pct >= 60 ? t("تحذير", "Warning") : t("طبيعي", "Normal");
+                    const color = pct >= 90 ? "#ef4444" : pct >= 80 ? "#eab308" : "#22c55e";
+                    const label = pct >= 90 ? t("حرج", "Critical") : pct >= 80 ? t("تحذير", "Warning") : t("طبيعي", "Normal");
                     return (
                       <Card className="bg-slate-900/80 border-slate-800" data-testid="card-ram">
                         <CardContent className="p-5">
@@ -2640,17 +2640,33 @@ export default function SuperAdminPage() {
                   {(() => {
                     const dbOk = sysHealth.db?.status === "connected";
                     const dbColor = dbOk ? "#22c55e" : sysHealth.db?.status === "not_configured" ? "#94a3b8" : "#ef4444";
+                    const isCached = sysHealth.db?.cached === true;
+                    const checkedAt = sysHealth.db?.checkedAt
+                      ? new Date(sysHealth.db.checkedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+                      : null;
                     return (
                       <Card className="bg-slate-900/80 border-slate-800">
                         <CardContent className="p-4 flex items-center gap-3">
                           <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${dbColor}12` }}>
                             {dbOk ? <Wifi className="w-4 h-4" style={{ color: dbColor }} /> : <WifiOff className="w-4 h-4" style={{ color: dbColor }} />}
                           </div>
-                          <div>
-                            <p className="text-[11px] text-slate-500">Database</p>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <p className="text-[11px] text-slate-500">Database</p>
+                              {isCached && (
+                                <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-slate-700 text-slate-400 tracking-wide">CACHED</span>
+                              )}
+                            </div>
                             <p className="text-sm font-bold" style={{ color: dbColor }} data-testid="text-db-status">
-                              {dbOk ? `${t("متصل", "Connected")} · ${sysHealth.db?.pingMs ?? "?"}ms` : sysHealth.db?.status === "not_configured" ? t("غير مهيأ", "Not configured") : t("خطأ", "Error")}
+                              {dbOk
+                                ? `${t("متصل", "Connected")} · ${sysHealth.db?.pingMs ?? "?"}ms`
+                                : sysHealth.db?.status === "not_configured"
+                                ? t("غير مهيأ", "Not configured")
+                                : t("خطأ", "Error")}
                             </p>
+                            {checkedAt && (
+                              <p className="text-[10px] text-slate-600 mt-0.5">{t("فُحص في", "Checked at")} {checkedAt}</p>
+                            )}
                           </div>
                         </CardContent>
                       </Card>

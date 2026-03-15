@@ -374,6 +374,11 @@ async function findMerchantByEmail(email: string): Promise<{ uid: string } | nul
   }
 }
 
+// ── Module-level DB ping cache (persists across all requests) ─────────────
+let _dbPingCache: { status: string; pingMs: number; checkedAt: string } | null = null;
+let _dbPingCachedAt = 0;
+const DB_PING_CACHE_TTL_MS = 30_000; // re-ping at most once every 30 seconds
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -2514,21 +2519,40 @@ export async function registerRoutes(
       const sysUptimeM = Math.floor((sysUptimeSec % 3600) / 60);
       const sysUptimeStr = `${sysUptimeH}h ${sysUptimeM}m`;
 
-      // DB connectivity ping
-      let dbStatus = "unknown";
-      let dbPingMs = -1;
-      try {
-        const baseUrl = getApiKeyBaseUrl();
-        if (baseUrl && getApiKey()) {
-          const dbStart = Date.now();
-          const dbRes = await apikeyFetch(`${baseUrl}/merchants?pageSize=1`, {});
-          dbPingMs = Date.now() - dbStart;
-          dbStatus = dbRes.ok ? "connected" : "error";
-        } else {
-          dbStatus = "not_configured";
+      // DB connectivity ping — cached to avoid 1300ms+ round-trip on every poll
+      const nowMs = Date.now();
+      let dbEntry: { status: string; pingMs: number; checkedAt: string };
+      let dbCached = false;
+
+      if (_dbPingCache && (nowMs - _dbPingCachedAt) < DB_PING_CACHE_TTL_MS) {
+        // Return cached result — endpoint responds in <5ms
+        dbEntry = _dbPingCache;
+        dbCached = true;
+      } else {
+        // Actually probe Firestore with the lightest possible request
+        let dbStatus = "unknown";
+        let dbPingMs = -1;
+        try {
+          const baseUrl = getApiKeyBaseUrl();
+          if (baseUrl && getApiKey()) {
+            const dbStart = Date.now();
+            // Minimal probe: list 1 document, no body parsing needed
+            const dbRes = await apikeyFetch(
+              `${baseUrl}/system_config?pageSize=1&fields=name`,
+              {}
+            );
+            dbPingMs = Date.now() - dbStart;
+            // 200 or 404 both prove connectivity; only network errors matter
+            dbStatus = (dbRes.ok || dbRes.status === 404) ? "connected" : "error";
+          } else {
+            dbStatus = "not_configured";
+          }
+        } catch {
+          dbStatus = "error";
         }
-      } catch {
-        dbStatus = "error";
+        dbEntry = { status: dbStatus, pingMs: dbPingMs, checkedAt: new Date().toISOString() };
+        _dbPingCache = dbEntry;
+        _dbPingCachedAt = nowMs;
       }
 
       return res.json({
@@ -2536,7 +2560,7 @@ export async function registerRoutes(
         cpu: { percent: cpuPercent, cores: cpuCount, loadAvg1m: Math.round(loadAvg1m * 100) / 100 },
         memory: { percent: memPercent, usedMB: usedMemMB, totalMB: totalMemMB },
         uptime: { process: uptimeStr, system: sysUptimeStr, processSec: uptimeSec },
-        db: { status: dbStatus, pingMs: dbPingMs },
+        db: { status: dbEntry.status, pingMs: dbEntry.pingMs, cached: dbCached, checkedAt: dbEntry.checkedAt },
         platform: { node: process.version, platform: os.platform(), arch: os.arch() },
       });
     } catch (error) {
