@@ -5071,7 +5071,7 @@ function SettingsView({
             <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]">
               <div className="flex-1">
                 <p className="text-sm font-semibold" dir="rtl">{t("تفعيل خدمة التوصيل", "Enable Delivery")}</p>
-                <p className="text-xs text-muted-foreground mt-0.5" dir="rtl">{t("السماح للعملاء بطلب التوصيل لموقعهم", "Allow customers to request delivery to their location")}</p>
+                <p className="text-xs text-muted-foreground mt-0.5" dir="rtl">{t("للمتاجر التي تملك توصيلاً ذاتياً فقط", "For stores with their own delivery service only")}</p>
               </div>
               <Switch checked={deliveryEnabled} onCheckedChange={setDeliveryEnabled} className="data-[state=checked]:bg-emerald-600" data-testid="switch-delivery-enabled" />
             </div>
