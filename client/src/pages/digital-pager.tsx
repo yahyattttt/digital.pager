@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useLocation } from "wouter";
-import { doc, onSnapshot } from "firebase/firestore";
+import { doc, onSnapshot, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Bell, Share2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -190,6 +190,13 @@ export default function DigitalPagerPage() {
   const [notFound, setNotFound] = useState(false);
   const [alertsEnabled, setAlertsEnabled] = useState(false);
   const [alertConfirmed, setAlertConfirmed] = useState(false);
+  const [curbsideEnabled, setCurbsideEnabled] = useState(false);
+  const [diningType, setDiningType] = useState<string>("");
+  const [isWaitingOutside, setIsWaitingOutside] = useState(false);
+  const [showCurbsideModal, setShowCurbsideModal] = useState(false);
+  const [carPlate, setCarPlate] = useState("");
+  const [curbsideSending, setCurbsideSending] = useState(false);
+  const [curbsideDone, setCurbsideDone] = useState(false);
   const orderNumberToastedRef = useRef(false);
 
   const prevStatusRef = useRef<OrderStatus>("processing");
@@ -205,6 +212,7 @@ export default function DigitalPagerPage() {
       .then((data) => {
         if (data?.storeName) setMerchantName(data.storeName);
         if (data?.logoUrl) setMerchantLogo(data.logoUrl);
+        if (data?.curbsideEnabled) setCurbsideEnabled(true);
       })
       .catch(() => {});
   }, [merchantId]);
@@ -330,6 +338,9 @@ export default function DigitalPagerPage() {
         if (!snap.exists()) { setNotFound(true); return; }
         const data = snap.data();
         setOrderNumber(data.orderNumber || data.displayOrderId || "");
+        setDiningType(data.diningType || "");
+        setIsWaitingOutside(data.is_waiting_outside === true);
+        if (data.is_waiting_outside === true && data.car_plate_number) setCurbsideDone(true);
         const newStatus = getStatusFromWhatsapp(data.status || "pending_verification");
         prevStatusRef.current = status;
         setStatus(newStatus);
@@ -374,6 +385,25 @@ export default function DigitalPagerPage() {
         await navigator.clipboard.writeText(url);
         toast({ description: "تم نسخ الرابط", duration: 2500 });
       } catch {}
+    }
+  }
+
+  async function handleCurbsideSubmit() {
+    if (!carPlate.trim()) return;
+    setCurbsideSending(true);
+    try {
+      const orderRef = doc(db, "merchants", merchantId, "whatsappOrders", orderId);
+      await updateDoc(orderRef, {
+        is_waiting_outside: true,
+        car_plate_number: carPlate.trim().toUpperCase(),
+      });
+      setCurbsideDone(true);
+      setShowCurbsideModal(false);
+      toast({ description: "تم إرسال إشعار للمتجر، العامل في طريقه إليك الآن.", duration: 4000 });
+    } catch {
+      toast({ description: "حدث خطأ، حاول مجدداً", variant: "destructive" });
+    } finally {
+      setCurbsideSending(false);
     }
   }
 
@@ -586,6 +616,91 @@ export default function DigitalPagerPage() {
             <Share2 className="w-4 h-4 shrink-0" />
             <span className="text-sm font-semibold">خل أحبابك يتبعون معك الطلب</span>
           </button>
+        </div>
+      )}
+
+      {/* Curbside Pickup button — only when order is ready, curbside enabled, not delivery, not manual pager */}
+      {isReady && curbsideEnabled && diningType !== "delivery" && !isManual && (
+        <div className="w-full max-w-xs px-4 mt-3">
+          {curbsideDone || isWaitingOutside ? (
+            <div
+              className="flex items-center justify-center gap-2 w-full py-3 rounded-2xl"
+              style={{ background: "rgba(0,120,60,0.18)", border: "1.5px solid rgba(0,200,80,0.35)", color: "rgba(80,240,120,0.9)" }}
+              data-testid="status-curbside-sent"
+            >
+              <span className="text-sm font-semibold">✓ تم إرسال الإشعار — العامل في طريقه</span>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowCurbsideModal(true)}
+              data-testid="btn-curbside-pickup"
+              className="flex items-center justify-center gap-2.5 w-full py-3.5 rounded-2xl transition-all active:scale-95"
+              style={{
+                background: "rgba(255,140,0,0.18)",
+                border: "1.5px solid rgba(255,140,0,0.5)",
+                color: "rgba(255,180,60,0.95)",
+              }}
+            >
+              🚗
+              <span className="text-sm font-bold">أحضر طلبي إلى سيارتي</span>
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Curbside Modal */}
+      {showCurbsideModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center pb-8 px-4"
+          style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)" }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowCurbsideModal(false); }}
+        >
+          <div
+            className="w-full max-w-sm rounded-3xl p-6 space-y-5"
+            style={{ background: "#100808", border: "1px solid rgba(255,140,0,0.3)", fontFamily: "'Tajawal','Cairo',sans-serif" }}
+            dir="rtl"
+          >
+            <div className="text-center">
+              <p className="text-2xl mb-1">🚗</p>
+              <p className="text-base font-bold text-white">استلام الطلب في السيارة</p>
+              <p className="text-xs text-white/40 mt-0.5">أدخل أرقام لوحة سيارتك</p>
+            </div>
+            <input
+              type="text"
+              value={carPlate}
+              onChange={(e) => setCarPlate(e.target.value.toUpperCase())}
+              placeholder="مثال: ABC 1234"
+              data-testid="input-car-plate"
+              className="w-full py-3 px-4 rounded-2xl text-center text-lg font-bold tracking-widest outline-none"
+              style={{
+                background: "rgba(255,255,255,0.05)",
+                border: "1px solid rgba(255,140,0,0.35)",
+                color: "#fff",
+                fontFamily: "monospace",
+              }}
+              autoFocus
+              maxLength={12}
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowCurbsideModal(false)}
+                className="flex-1 py-3 rounded-2xl text-sm text-white/50 transition-all active:scale-95"
+                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                data-testid="btn-curbside-cancel"
+              >
+                إلغاء
+              </button>
+              <button
+                onClick={handleCurbsideSubmit}
+                disabled={!carPlate.trim() || curbsideSending}
+                className="flex-[2] py-3 rounded-2xl text-sm font-bold transition-all active:scale-95 disabled:opacity-30"
+                style={{ background: "rgba(255,140,0,0.85)", color: "#000" }}
+                data-testid="btn-curbside-confirm"
+              >
+                {curbsideSending ? "جاري الإرسال..." : "تأكيد"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

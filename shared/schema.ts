@@ -104,6 +104,8 @@ export const whatsappOrderSchema = z.object({
   deliveryLng: z.number().optional(),
   deliveryMapLink: z.string().optional(),
   customerNotes: z.string().optional(),
+  is_waiting_outside: z.boolean().optional(),
+  car_plate_number: z.string().optional(),
   createdAt: z.string(),
 });
 

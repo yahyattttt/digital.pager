@@ -3153,6 +3153,7 @@ export async function registerRoutes(
         storeName: mf.storeName?.stringValue || "",
         logoUrl: mf.logoUrl?.stringValue || "",
         googleMapsReviewUrl: mf.googleMapsReviewUrl?.stringValue || "",
+        curbsideEnabled: mf.curbsideEnabled?.booleanValue === true,
       });
     } catch (error) {
       console.error("Merchant public fetch error:", error);

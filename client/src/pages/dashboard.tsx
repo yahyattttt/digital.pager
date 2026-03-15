@@ -384,6 +384,8 @@ export default function DashboardPage() {
   const [activeWhatsappOrders, setActiveWhatsappOrders] = useState<WhatsAppOrder[]>([]);
   const prevWhatsappCountRef = useState({ current: -1 })[0];
   const waOrderAudioRef = useState<{ current: HTMLAudioElement | null }>({ current: null })[0];
+  const curbsideAudioRef = useState<{ current: HTMLAudioElement | null }>({ current: null })[0];
+  const prevCurbsideIdsRef = useState<{ current: Set<string> }>({ current: new Set() })[0];
   const [onlineOrdersEnabled, setOnlineOrdersEnabled] = useState<boolean>((merchant as any)?.onlineOrdersEnabled !== false);
   const [businessOpenTime, setBusinessOpenTime] = useState<string>((merchant as any)?.businessOpenTime || "");
   const [businessCloseTime, setBusinessCloseTime] = useState<string>((merchant as any)?.businessCloseTime || "");
@@ -423,6 +425,8 @@ export default function DashboardPage() {
           deliveryLng: data.deliveryLng || undefined,
           deliveryMapLink: data.deliveryMapLink || undefined,
           customerNotes: data.customerNotes || undefined,
+          is_waiting_outside: data.is_waiting_outside === true,
+          car_plate_number: data.car_plate_number || undefined,
           createdAt: data.createdAt || "",
         };
       });
@@ -471,10 +475,27 @@ export default function DashboardPage() {
           deliveryLng: data.deliveryLng || undefined,
           deliveryMapLink: data.deliveryMapLink || undefined,
           customerNotes: data.customerNotes || undefined,
+          is_waiting_outside: data.is_waiting_outside === true,
+          car_plate_number: data.car_plate_number || undefined,
           createdAt: data.createdAt || "",
         };
       });
       orders.sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""));
+
+      // Detect newly arrived curbside customers and play bell
+      const newCurbsideIds = orders.filter(o => o.is_waiting_outside).map(o => o.id);
+      const truly_new = newCurbsideIds.filter(id => !prevCurbsideIdsRef.current.has(id));
+      if (truly_new.length > 0) {
+        try {
+          if (!curbsideAudioRef.current) curbsideAudioRef.current = new Audio("/bell.mp3");
+          curbsideAudioRef.current.currentTime = 0;
+          curbsideAudioRef.current.play().catch(() => {});
+        } catch {}
+        prevCurbsideIdsRef.current = new Set(newCurbsideIds);
+      } else {
+        prevCurbsideIdsRef.current = new Set(newCurbsideIds);
+      }
+
       setActiveWhatsappOrders(orders);
     });
     return () => unsub();
@@ -2266,6 +2287,19 @@ function OverviewView({
                             <Navigation className="w-3 h-3" />
                             {t("فتح الموقع في خرائط قوقل 📍", "Open Location in Google Maps 📍")}
                           </a>
+                        </div>
+                      )}
+
+                      {order.is_waiting_outside && (
+                        <div
+                          className="p-3 rounded-xl border animate-pulse"
+                          style={{ background: "rgba(255,160,0,0.12)", borderColor: "rgba(255,160,0,0.4)" }}
+                          data-testid={`alert-curbside-${item.id}`}
+                        >
+                          <p className="text-sm font-extrabold text-amber-300 mb-1">⚠️ {t("العميل في الخارج! قم بتسليم الطلب", "Customer is outside! Deliver the order")}</p>
+                          {order.car_plate_number && (
+                            <p className="text-xs text-amber-200/80">{t("رقم اللوحة:", "Plate:")} <span className="font-bold text-amber-200">{order.car_plate_number}</span></p>
+                          )}
                         </div>
                       )}
 
@@ -4845,6 +4879,7 @@ function SettingsView({
   const [onlinePaymentEnabled, setOnlinePaymentEnabled] = useState<boolean>(merchant?.onlinePaymentEnabled || false);
   const [codEnabled, setCodEnabled] = useState<boolean>(merchant?.codEnabled !== false);
   const [deliveryEnabled, setDeliveryEnabled] = useState<boolean>(merchant?.deliveryEnabled || false);
+  const [curbsideEnabled, setCurbsideEnabled] = useState<boolean>((merchant as any)?.curbsideEnabled || false);
   const [deliveryFee, setDeliveryFee] = useState<string>(merchant?.deliveryFee?.toString() || "0");
   const [deliveryRange, setDeliveryRange] = useState<string>(merchant?.deliveryRange?.toString() || "0");
   const [storeLat, setStoreLat] = useState<string>(merchant?.storeLat?.toString() || "");
@@ -4941,6 +4976,7 @@ function SettingsView({
       const merchantRef = doc(db, "merchants", uid);
       await setDoc(merchantRef, {
         deliveryEnabled,
+        curbsideEnabled,
         deliveryFee: parseFloat(deliveryFee) || 0,
         deliveryRange: parseFloat(deliveryRange) || 0,
         storeLat: storeLat.trim() ? parseFloat(storeLat) : null,
@@ -5074,6 +5110,14 @@ function SettingsView({
                 <p className="text-xs text-muted-foreground mt-0.5" dir="rtl">{t("للمتاجر التي تملك توصيلاً ذاتياً فقط", "For stores with their own delivery service only")}</p>
               </div>
               <Switch checked={deliveryEnabled} onCheckedChange={setDeliveryEnabled} className="data-[state=checked]:bg-emerald-600" data-testid="switch-delivery-enabled" />
+            </div>
+
+            <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]">
+              <div className="flex-1">
+                <p className="text-sm font-semibold" dir="rtl">{t("تفعيل خدمة استلام الطلب في السيارة", "Enable Curbside Pickup")}</p>
+                <p className="text-xs text-muted-foreground mt-0.5" dir="rtl">{t("يتيح للعميل طلب تسليم الطلب إلى سيارته أمام المتجر", "Allows customer to request delivery to their car outside")}</p>
+              </div>
+              <Switch checked={curbsideEnabled} onCheckedChange={setCurbsideEnabled} className="data-[state=checked]:bg-orange-500" data-testid="switch-curbside-enabled" />
             </div>
 
             {deliveryEnabled && (
