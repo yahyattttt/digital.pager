@@ -40,13 +40,11 @@ export function useAuthProvider() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    console.log("[Auth] Initializing — checking localStorage session");
     try {
       const stored = localStorage.getItem(SESSION_KEY);
       if (stored) {
         const session: SessionData = JSON.parse(stored);
         if (session.uid && session.email) {
-          console.log("[Auth] Restored session:", session.email);
           setUser(session);
           return;
         }
@@ -54,7 +52,6 @@ export function useAuthProvider() {
     } catch (e) {
       console.warn("[Auth] Failed to parse session:", e);
     }
-    console.log("[Auth] No valid session found");
     setUser(null);
     setLoading(false);
   }, []);
@@ -67,27 +64,23 @@ export function useAuthProvider() {
     }
 
     if (isAdminEmail(user.email)) {
-      console.log("[Auth] Admin email detected — skipping merchant fetch:", user.email);
       setMerchant(null);
       setLoading(false);
       return;
     }
 
-    console.log("[Auth] Setting up Firestore listener for merchant uid:", user.uid);
     const merchantDocRef = doc(db, "merchants", user.uid);
     const unsub = onSnapshot(
       merchantDocRef,
       async (snap) => {
         if (snap.exists()) {
           const data = snap.data() as Merchant;
-          console.log("[Auth] Merchant loaded from Firestore:", data.storeName, "| status:", data.status, "| sub:", data.subscriptionStatus);
 
           if (
             data.subscriptionStatus === "active" &&
             data.subscriptionExpiry &&
             new Date(data.subscriptionExpiry) < new Date()
           ) {
-            console.log("[Auth] Auto-expiring subscription");
             const expiredData = { ...data, uid: snap.id, id: snap.id, subscriptionStatus: "expired" as const };
             setMerchant(expiredData);
             setLoading(false);
@@ -117,7 +110,6 @@ export function useAuthProvider() {
   }, [user?.uid, user?.email]);
 
   const login = useCallback((uid: string, email: string) => {
-    console.log("[Auth] login() called for:", email, "uid:", uid);
     const session: SessionData = { uid, email };
     localStorage.setItem(SESSION_KEY, JSON.stringify(session));
     setLoading(true);
@@ -125,7 +117,6 @@ export function useAuthProvider() {
   }, []);
 
   const logout = useCallback(() => {
-    console.log("[Auth] logout()");
     localStorage.removeItem(SESSION_KEY);
     setUser(null);
     setMerchant(null);

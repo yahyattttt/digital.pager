@@ -108,7 +108,6 @@ export default function LoginPage() {
     setIsVerifying(true);
     try {
       const emailLower = email.trim().toLowerCase();
-      console.log("[Login] Verifying OTP for:", emailLower);
 
       const res = await fetch("/api/verify-otp", {
         method: "POST",
@@ -116,7 +115,6 @@ export default function LoginPage() {
         body: JSON.stringify({ email: email.trim(), code: otpCode }),
       });
       const data = await res.json();
-      console.log("[Login] verify-otp response:", res.status, JSON.stringify({ verified: data.verified, isAdmin: data.isAdmin, isNewUser: data.isNewUser, uid: data.uid }));
 
       if (!res.ok || !data.verified) {
         let description = data.message || t("فشل التحقق.", "Verification failed.");
@@ -127,7 +125,6 @@ export default function LoginPage() {
         } else if (data.errorCode === "TOO_MANY_ATTEMPTS") {
           description = t("محاولات كثيرة. يرجى طلب رمز جديد.", "Too many attempts. Please request a new OTP.");
         }
-        console.warn("[Login] OTP verification failed:", data.errorCode, description);
         toast({
           title: t("خطأ في التحقق", "Verification Error"),
           description,
@@ -137,12 +134,9 @@ export default function LoginPage() {
       }
 
       if (data.isAdmin) {
-        console.log("[Login] Admin login path — uid:", data.uid);
         try {
           await signInWithCustomToken(auth, data.customToken);
-          console.log("[Login] Admin: Firebase Auth session established");
         } catch (authErr: any) {
-          console.warn("[Login] Admin: signInWithCustomToken failed:", authErr.code, authErr.message);
         }
         login(data.uid, emailLower);
         window.location.href = "/super-admin";
@@ -150,14 +144,12 @@ export default function LoginPage() {
       }
 
       if (emailLower === "merchant@test.com") {
-        console.log("[Login] Test merchant account — using real uid from server:", data.uid);
         login(data.uid, emailLower);
         setLocation("/dashboard");
         return;
       }
 
       if (data.isNewUser) {
-        console.log("[Login] New user — redirecting to register");
         toast({
           title: t("حساب جديد", "New Account"),
           description: t("لم يتم العثور على متجر مسجل. يرجى التسجيل أولاً.", "No store found. Please register first."),
@@ -167,11 +159,8 @@ export default function LoginPage() {
         return;
       }
 
-      console.log("[Login] Fetching merchant document from Firestore for uid:", data.uid);
       const merchantDoc = await getDoc(doc(db, "merchants", data.uid));
-      console.log("[Login] Merchant doc exists:", merchantDoc.exists());
       if (!merchantDoc.exists()) {
-        console.warn("[Login] No merchant document — redirecting to register");
         toast({
           title: t("حساب غير مسجل", "Not Registered"),
           description: t("لم يتم العثور على متجر مرتبط بهذا البريد. يرجى التسجيل.", "No store found for this email. Please register."),
@@ -182,7 +171,6 @@ export default function LoginPage() {
       }
 
       const merchantData = merchantDoc.data();
-      console.log("[Login] Merchant status:", merchantData.status, "| sub:", merchantData.subscriptionStatus);
       if (merchantData.status === "rejected") {
         toast({
           title: t("تم رفض الحساب", "Account Rejected"),
@@ -200,15 +188,11 @@ export default function LoginPage() {
         return;
       }
 
-      console.log("[Login] Signing in with Firebase custom token...");
       try {
         await signInWithCustomToken(auth, data.customToken);
-        console.log("[Login] Firebase Auth session established successfully");
       } catch (authErr: any) {
-        console.warn("[Login] signInWithCustomToken failed:", authErr.code, authErr.message);
       }
       login(data.uid, emailLower);
-      console.log("[Login] Session stored — redirecting to dashboard");
       setLocation("/dashboard");
     } catch (error: any) {
       toast({

@@ -118,7 +118,6 @@ export default function PublicMenuPage() {
   const fetchMenu = useCallback(async (isRefresh = false) => {
     if (!merchantId) return;
     try {
-      console.log(`[PublicMenu] Fetching menu for merchantId: ${merchantId}`);
       const res = await fetch(`/api/menu/${merchantId}`);
       if (!res.ok) { if (!isRefresh) setNotFound(true); return; }
       const data = await res.json();

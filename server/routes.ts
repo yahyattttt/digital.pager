@@ -379,6 +379,20 @@ let _dbPingCache: { status: string; pingMs: number; checkedAt: string } | null =
 let _dbPingCachedAt = 0;
 const DB_PING_CACHE_TTL_MS = 30_000; // re-ping at most once every 30 seconds
 
+// ── Module-level AI rate-limit map with self-pruning ──────────────────────
+// Moved out of registerRoutes so it persists correctly; pruned on every hit
+// to prevent unbounded memory growth from accumulated merchant entries.
+const aiRateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const AI_RATE_LIMIT = 5;
+const AI_RATE_WINDOW_MS = 60 * 1_000;
+
+function pruneAiRateLimit(): void {
+  const now = Date.now();
+  for (const [key, entry] of aiRateLimitMap) {
+    if (now >= entry.resetAt) aiRateLimitMap.delete(key);
+  }
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -3762,10 +3776,6 @@ export async function registerRoutes(
     }
   });
 
-  const aiRateLimitMap = new Map<string, { count: number; resetAt: number }>();
-  const AI_RATE_LIMIT = 5;
-  const AI_RATE_WINDOW_MS = 60 * 1000;
-
   app.post("/api/ai/generate-menu", async (req, res) => {
     try {
       const { prompt, count, merchantId } = req.body;
@@ -3782,6 +3792,8 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Invalid merchant" });
       }
 
+      // Prune expired entries first, then apply rate limit check
+      pruneAiRateLimit();
       const now = Date.now();
       const rateKey = merchantId;
       const rateEntry = aiRateLimitMap.get(rateKey);

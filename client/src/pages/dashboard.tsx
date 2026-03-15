@@ -1086,11 +1086,9 @@ export default function DashboardPage() {
     try {
       // ── Step 1: fetch QR PNG as blob ──────────────────────────────
       const qrEndpoint = `/api/qr/${merchant.uid}?t=${Date.now()}`;
-      console.log("[PagerQR] fetching QR from", qrEndpoint);
       const qrRes = await fetch(qrEndpoint);
       if (!qrRes.ok) throw new Error(`[PagerQR] QR fetch HTTP ${qrRes.status}`);
       const qrBlob = await qrRes.blob();
-      console.log("[PagerQR] blob size:", qrBlob.size, "type:", qrBlob.type);
 
       // ── Step 2: blob → base64 data URL via FileReader ─────────────
       // (FileReader result is a same-origin data URL — no canvas taint)
@@ -1100,7 +1098,6 @@ export default function DashboardPage() {
         reader.onerror = () => reject(new Error("[PagerQR] FileReader failed to read blob"));
         reader.readAsDataURL(qrBlob);
       });
-      console.log("[PagerQR] data URL prefix:", qrDataUrl.slice(0, 30));
 
       // ── Step 3: load data URL into HTMLImageElement ───────────────
       // NOTE: use window.Image — the local `Image` import (lucide/UI) shadows the native constructor
@@ -1110,7 +1107,6 @@ export default function DashboardPage() {
         qrImg.onerror = () => reject(new Error("[PagerQR] HTMLImageElement failed to load data URL"));
         qrImg.src = qrDataUrl;
       });
-      console.log("[PagerQR] image loaded — natural size:", qrImg.naturalWidth, "×", qrImg.naturalHeight);
 
       // ── Step 4: draw pager frame onto canvas ──────────────────────
       const W = 440, H = 590, S = 2;
@@ -1177,7 +1173,6 @@ export default function DashboardPage() {
       ctx.strokeStyle = "rgba(200,30,30,0.35)"; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(60, H - 22); ctx.lineTo(W - 60, H - 22); ctx.stroke();
 
-      console.log("[PagerQR] canvas drawn — converting to blob");
 
       // ── Step 5: canvas → blob → objectURL → download ──────────────
       // Using toBlob() instead of toDataURL() is more reliable and
@@ -1185,7 +1180,6 @@ export default function DashboardPage() {
       canvasObjUrl = await new Promise<string>((resolve, reject) => {
         canvas.toBlob((blob) => {
           if (!blob) { reject(new Error("[PagerQR] canvas.toBlob() returned null")); return; }
-          console.log("[PagerQR] canvas blob size:", blob.size);
           resolve(URL.createObjectURL(blob));
         }, "image/png");
       });
@@ -1199,7 +1193,6 @@ export default function DashboardPage() {
       // Revoke after a short delay so the browser has time to start the download
       setTimeout(() => { if (canvasObjUrl) URL.revokeObjectURL(canvasObjUrl); }, 5000);
 
-      console.log("[PagerQR] download triggered ✓");
       toast({ title: t("تم التحميل", "Downloaded"), description: t("تم تحميل رمز QR بنجاح", "QR code downloaded successfully") });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -3002,12 +2995,10 @@ function MenuView({
   async function fetchProducts() {
     if (!uid) return;
     try {
-      console.log("[Products] Fetching products for uid:", uid);
       const productsRef = collection(db, "merchants", uid, "products");
       const snap = await getDocs(productsRef);
       const prods: Product[] = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) } as Product));
       prods.sort((a: any, b: any) => ((b as any).createdAt || "").localeCompare((a as any).createdAt || ""));
-      console.log("[Products] Loaded", prods.length, "products from Firestore");
       setProducts(prods);
     } catch (err: any) {
       console.error("[Products] fetchProducts error:", err.code, err.message);
@@ -3064,7 +3055,6 @@ function MenuView({
       let imageUrl = productImagePreview || "";
 
       if (productImage) {
-        console.log("[Products] Uploading product image...");
         const formData = new FormData();
         formData.append("image", productImage);
         try {
@@ -3072,10 +3062,8 @@ function MenuView({
           if (uploadRes.ok) {
             const uploadData = await uploadRes.json();
             imageUrl = uploadData.url || imageUrl;
-            console.log("[Products] Image uploaded:", imageUrl);
           }
         } catch (uploadErr) {
-          console.warn("[Products] Image upload failed, continuing without image:", uploadErr);
         }
       }
 
@@ -3102,14 +3090,10 @@ function MenuView({
       };
 
       if (editingProduct) {
-        console.log("[Products] Updating product in Firestore:", editingProduct.id);
         await updateDoc(doc(db, "merchants", uid!, "products", editingProduct.id), productData);
-        console.log("[Products] Product updated successfully");
       } else {
         productData.createdAt = new Date().toISOString();
-        console.log("[Products] Creating new product in Firestore...");
         const newRef = await addDoc(collection(db, "merchants", uid!, "products"), productData);
-        console.log("[Products] Product created:", newRef.id);
       }
 
       toast({ title: t("تم الحفظ", "Saved"), description: t("تم حفظ المنتج بنجاح", "Product saved successfully") });
@@ -3126,7 +3110,6 @@ function MenuView({
   async function handleDeleteProduct(productId: string) {
     setDeletingProduct(productId);
     try {
-      console.log("[Products] Deleting product:", productId);
       await deleteDoc(doc(db, "merchants", uid!, "products", productId));
       toast({ title: t("تم الحذف", "Deleted"), description: t("تم حذف المنتج", "Product deleted") });
       fetchProducts();
@@ -5239,7 +5222,6 @@ function SettingsView({
         storeTermsText,
         storePrivacyText,
       }, { merge: true });
-      console.log("[Save Legal] Saved terms for merchant:", uid);
       toast({
         title: t("تم الحفظ", "Saved"),
         description: t("تم حفظ الشروط والأحكام بنجاح", "Store terms saved successfully"),
