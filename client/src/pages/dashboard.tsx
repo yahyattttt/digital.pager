@@ -115,7 +115,7 @@ const businessTypeLabelsEn: Record<string, string> = {
 
 const ADMIN_WHATSAPP = "https://wa.me/966500000000";
 
-type DashboardView = "overview" | "menu" | "feedback" | "analytics" | "customers" | "coupons" | "financial" | "settings" | "archive";
+type DashboardView = "overview" | "menu" | "feedback" | "analytics" | "tracking" | "customers" | "coupons" | "financial" | "settings" | "archive";
 
 function SubscriptionRequiredScreen({
   storeName,
@@ -1122,6 +1122,7 @@ export default function DashboardPage() {
     { id: "menu", icon: UtensilsCrossed, label: t("قسم الأونلاين", "Online Section") },
     { id: "feedback", icon: MessageSquare, label: t("ملاحظات العملاء", "Customer Feedback"), badge: unreadFeedbackCount || undefined },
     { id: "analytics", icon: BarChart3, label: t("التحليلات", "Analytics") },
+    { id: "tracking", icon: Activity, label: t("تتبع عملاءك", "Customer Tracking") },
     { id: "customers", icon: Users2, label: t("عملائي", "My Customers") },
     { id: "coupons", icon: Ticket, label: t("الكوبونات", "Coupons") },
     { id: "financial", icon: DollarSign, label: t("الإدارة المالية", "Financial") },
@@ -1429,6 +1430,10 @@ export default function DashboardPage() {
                 t={t}
                 lang={lang}
               />
+            )}
+
+            {currentView === "tracking" && (
+              <TrackingView merchant={merchant} t={t} lang={lang} />
             )}
 
             {currentView === "customers" && (
@@ -3695,6 +3700,83 @@ function FeedbackView({
         <p className="text-xs text-muted-foreground/40 text-center">
           {t(`عرض ${displayed.length} من ${feedbacks.length} ملاحظة`, `Showing ${displayed.length} of ${feedbacks.length} entries`)}
         </p>
+      )}
+    </div>
+  );
+}
+
+function TrackingView({
+  merchant,
+  t,
+  lang,
+}: {
+  merchant: any;
+  t: (ar: string, en: string) => string;
+  lang: string;
+}) {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!merchant?.uid) return;
+    fetch(`/api/merchant-tracking/${merchant.uid}`, {
+      headers: { "x-merchant-email": merchant.email || "" },
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { setData(d); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [merchant?.uid]);
+
+  const dir = lang === "ar" ? "rtl" : "ltr";
+  const linkVisits = data?.linkVisits ?? 0;
+  const qrScans = data?.qrScans ?? 0;
+  const completedOrders = data?.completedOrders ?? 0;
+  const abandonedCarts = data?.abandonedCarts ?? 0;
+  const conversionRate = data?.conversionRate ?? 0;
+
+  const cards = [
+    { label: t("زيارات الرابط", "Link Visits"), value: linkVisits, color: "#60a5fa", Icon: Globe },
+    { label: t("مسح الكيو آر", "QR Scans"), value: qrScans, color: "#a78bfa", Icon: QrCode },
+    { label: t("طلبات مكتملة", "Completed Orders"), value: completedOrders, color: "#34d399", Icon: CheckCircle },
+    { label: t("طلبات لم تكتمل", "Abandoned Carts"), value: abandonedCarts, color: "#fbbf24", Icon: ShoppingBag },
+  ];
+
+  return (
+    <div dir={dir} style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }} className="space-y-6 p-4 max-w-2xl mx-auto">
+      <div>
+        <h2 className="text-xl font-bold text-white">{t("تتبع عملاءك", "Customer Tracking")}</h2>
+        <p className="text-sm text-white/40 mt-0.5">{t("رصد الزيارات والسلوك الشرائي", "Monitor visits and purchase behaviour")}</p>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <Activity className="w-8 h-8 animate-pulse text-white/20" />
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            {cards.map(({ label, value, color, Icon }) => (
+              <div key={label} className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${color}28` }}>
+                <div className="flex items-center gap-2 mb-2">
+                  <Icon className="w-4 h-4" style={{ color }} />
+                  <p className="text-xs text-white/50">{label}</p>
+                </div>
+                <p className="text-3xl font-black" style={{ color }}>{value.toLocaleString()}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="rounded-2xl p-5" style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.2)" }}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-white/50 mb-1">{t("معدل التحويل", "Conversion Rate")}</p>
+                <p className="text-5xl font-black text-blue-300">{conversionRate}%</p>
+                <p className="text-xs text-white/30 mt-2">{t("نسبة الطلبات المكتملة من إجمالي الزيارات", "Completed orders / Total visits")}</p>
+              </div>
+              <Activity className="w-16 h-16 text-blue-500/10" />
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

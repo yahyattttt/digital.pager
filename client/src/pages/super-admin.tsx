@@ -352,7 +352,7 @@ export default function SuperAdminPage() {
   const [expenseDate, setExpenseDate] = useState("");
   const [expenseSaving, setExpenseSaving] = useState(false);
   const [renewalData, setRenewalData] = useState<any>(null);
-  const [activeSection, setActiveSection] = useState<"home" | "stores" | "subscriptions" | "finance" | "settings">("home");
+  const [activeSection, setActiveSection] = useState<"home" | "stores" | "subscriptions" | "finance" | "tracking" | "settings">("home");
   const [renewalLoading, setRenewalLoading] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -1037,7 +1037,7 @@ export default function SuperAdminPage() {
     activeSection === "home" ? "monitor" :
     activeSection === "stores" ? "merchants" :
     activeSection === "subscriptions" ? "subscriptions" :
-    activeSection; // "finance" | "settings" pass through
+    activeSection; // "finance" | "tracking" | "settings" pass through
 
   return (
     <div className="min-h-screen" style={{ background: "#0a0f1a" }}>
@@ -1133,6 +1133,7 @@ export default function SuperAdminPage() {
               { key: "stores",        icon: Store,       labelAr: "إدارة المتاجر",  action: () => setActiveSection("stores") },
               { key: "subscriptions", icon: CreditCard,  labelAr: "الاشتراكات",     action: () => setActiveSection("subscriptions") },
               { key: "finance",       icon: DollarSign,  labelAr: "المالية",        action: () => { setActiveSection("finance"); if (!platformFinanceData) fetchPlatformFinance(); } },
+              { key: "tracking",      icon: TrendingUp,  labelAr: "تتبع العملاء",   action: () => setActiveSection("tracking") },
               { key: "settings",      icon: Settings,    labelAr: "الإعدادات",      action: () => setActiveSection("settings") },
             ] as const).map(({ key, icon: Icon, labelAr, action }) => (
               <button
@@ -2187,6 +2188,87 @@ export default function SuperAdminPage() {
             ) : (
               <div className="text-center py-16 text-muted-foreground">{t("اضغط على التبويب لتحميل البيانات", "Click tab to load data")}</div>
             )}
+          </TabsContent>
+
+          <TabsContent value="tracking" className="space-y-6" data-testid="section-tracking">
+            <Card>
+              <CardHeader className="flex flex-row items-center gap-2 pb-4">
+                <TrendingUp className="w-5 h-5 text-emerald-400" />
+                <h2 className="font-bold text-lg" data-testid="text-tracking-title">
+                  {t("تتبع العملاء — إجمالي المنصة", "Customer Tracking — Platform Totals")}
+                </h2>
+              </CardHeader>
+              <CardContent>
+                {(() => {
+                  const totals = merchants.reduce(
+                    (acc, m: any) => ({
+                      linkVisits: acc.linkVisits + (m.linkVisits || 0),
+                      qrScans: acc.qrScans + (m.qrScans || 0),
+                      cartSessions: acc.cartSessions + (m.cartSessions || 0),
+                      completedOrders: acc.completedOrders + (m.completedOrders || 0),
+                    }),
+                    { linkVisits: 0, qrScans: 0, cartSessions: 0, completedOrders: 0 }
+                  );
+                  const abandoned = Math.max(0, totals.cartSessions - totals.completedOrders);
+                  const totalVisits = totals.linkVisits + totals.qrScans;
+                  const conversion = totalVisits > 0 ? Math.round((totals.completedOrders / totalVisits) * 100) : 0;
+                  return (
+                    <div className="space-y-6">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {[
+                          { label: t("زيارات الرابط", "Link Visits"), value: totals.linkVisits, color: "text-blue-400" },
+                          { label: t("مسح QR", "QR Scans"), value: totals.qrScans, color: "text-purple-400" },
+                          { label: t("طلبات مكتملة", "Completed Orders"), value: totals.completedOrders, color: "text-emerald-400" },
+                          { label: t("سلات متروكة", "Abandoned Carts"), value: abandoned, color: "text-amber-400" },
+                        ].map(({ label, value, color }) => (
+                          <div key={label} className="rounded-xl p-4 bg-white/5 text-center">
+                            <p className="text-xs text-muted-foreground mb-1">{label}</p>
+                            <p className={`text-3xl font-black ${color}`}>{value.toLocaleString()}</p>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="rounded-xl p-4 bg-blue-500/5 border border-blue-500/20 flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-muted-foreground">{t("معدل التحويل الإجمالي", "Overall Conversion Rate")}</p>
+                          <p className="text-4xl font-black text-blue-300 mt-1">{conversion}%</p>
+                        </div>
+                        <TrendingUp className="w-12 h-12 text-blue-500/20" />
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm" data-testid="table-tracking-merchants">
+                          <thead>
+                            <tr className="border-b border-white/10">
+                              <th className="text-start py-2 px-3 text-muted-foreground font-medium">{t("المتجر", "Store")}</th>
+                              <th className="text-center py-2 px-3 text-muted-foreground font-medium">{t("زيارات", "Visits")}</th>
+                              <th className="text-center py-2 px-3 text-muted-foreground font-medium">QR</th>
+                              <th className="text-center py-2 px-3 text-muted-foreground font-medium">{t("سلات", "Sessions")}</th>
+                              <th className="text-center py-2 px-3 text-muted-foreground font-medium">{t("طلبات", "Orders")}</th>
+                              <th className="text-center py-2 px-3 text-muted-foreground font-medium">{t("تحويل", "Conv.")}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {merchants.map((m: any) => {
+                              const vis = (m.linkVisits || 0) + (m.qrScans || 0);
+                              const conv = vis > 0 ? Math.round(((m.completedOrders || 0) / vis) * 100) : 0;
+                              return (
+                                <tr key={m.uid} className="border-b border-white/5 hover:bg-white/3">
+                                  <td className="py-2 px-3 font-medium">{m.storeName || m.email}</td>
+                                  <td className="py-2 px-3 text-center text-blue-300">{m.linkVisits || 0}</td>
+                                  <td className="py-2 px-3 text-center text-purple-300">{m.qrScans || 0}</td>
+                                  <td className="py-2 px-3 text-center text-amber-300">{m.cartSessions || 0}</td>
+                                  <td className="py-2 px-3 text-center text-emerald-300">{m.completedOrders || 0}</td>
+                                  <td className="py-2 px-3 text-center font-bold">{conv}%</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-6">

@@ -106,6 +106,8 @@ export default function PublicMenuPage() {
   const [moyasarLoaded, setMoyasarLoaded] = useState(false);
   const [moyasarInitialized, setMoyasarInitialized] = useState(false);
   const prevFinalTotalRef = useRef(0);
+  const trackFiredRef = useRef(false);
+  const sessionStartedRef = useRef(false);
 
   const [modalProduct, setModalProduct] = useState<Product | null>(null);
   const [modalVariant, setModalVariant] = useState<ProductVariant | null>(null);
@@ -136,6 +138,25 @@ export default function PublicMenuPage() {
   useEffect(() => {
     fetchMenu(false);
   }, [fetchMenu]);
+
+  // Track link visit on mount; also track QR scan if source=qr
+  useEffect(() => {
+    if (!merchantId || trackFiredRef.current) return;
+    trackFiredRef.current = true;
+    fetch(`/api/track/linkvisit/${merchantId}`, { method: "POST" }).catch(() => {});
+    const sp = new URLSearchParams(window.location.search);
+    if (sp.get("source") === "qr") {
+      fetch(`/api/track/qrscan/${merchantId}`, { method: "POST" }).catch(() => {});
+    }
+  }, [merchantId]);
+
+  // Track first cart item add as a session (abandoned cart detection)
+  useEffect(() => {
+    if (cart.length > 0 && !sessionStartedRef.current && merchantId) {
+      sessionStartedRef.current = true;
+      fetch(`/api/track/sessionstart/${merchantId}`, { method: "POST" }).catch(() => {});
+    }
+  }, [cart.length, merchantId]);
 
   useEffect(() => {
     if (products.length === 0) return;
@@ -531,6 +552,9 @@ export default function PublicMenuPage() {
       }
       const data = await res.json();
       const orderId = data.orderId;
+
+      // Track completed order
+      fetch(`/api/track/ordercompleted/${merchantId}`, { method: "POST" }).catch(() => {});
 
       // Persist customer info for future visits
       localStorage.setItem("dp_customer_name", customerName.trim());

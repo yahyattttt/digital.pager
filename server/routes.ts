@@ -1072,6 +1072,81 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/track/linkvisit/:storeId", async (req, res) => {
+    try {
+      const { storeId } = req.params;
+      const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
+      if (!projectId || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
+      const commitUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:commit`;
+      const docPath = `projects/${projectId}/databases/(default)/documents/merchants/${storeId}`;
+      await fetch(commitUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ writes: [{ transform: { document: docPath, fieldTransforms: [{ fieldPath: "linkVisits", increment: { integerValue: "1" } }] } }] }),
+      });
+      return res.json({ success: true });
+    } catch { return res.status(500).json({ message: "Failed to track link visit" }); }
+  });
+
+  app.post("/api/track/sessionstart/:storeId", async (req, res) => {
+    try {
+      const { storeId } = req.params;
+      const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
+      if (!projectId || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
+      const commitUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:commit`;
+      const docPath = `projects/${projectId}/databases/(default)/documents/merchants/${storeId}`;
+      await fetch(commitUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ writes: [{ transform: { document: docPath, fieldTransforms: [{ fieldPath: "cartSessions", increment: { integerValue: "1" } }] } }] }),
+      });
+      return res.json({ success: true });
+    } catch { return res.status(500).json({ message: "Failed to track session start" }); }
+  });
+
+  app.post("/api/track/ordercompleted/:storeId", async (req, res) => {
+    try {
+      const { storeId } = req.params;
+      const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
+      if (!projectId || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
+      const commitUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:commit`;
+      const docPath = `projects/${projectId}/databases/(default)/documents/merchants/${storeId}`;
+      await fetch(commitUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ writes: [{ transform: { document: docPath, fieldTransforms: [{ fieldPath: "completedOrders", increment: { integerValue: "1" } }] } }] }),
+      });
+      return res.json({ success: true });
+    } catch { return res.status(500).json({ message: "Failed to track order completed" }); }
+  });
+
+  app.get("/api/merchant-tracking/:merchantId", async (req, res) => {
+    try {
+      const { merchantId } = req.params;
+      const merchantEmail = req.headers["x-merchant-email"] as string;
+      if (!merchantEmail) return res.status(401).json({ message: "Authentication required" });
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
+      const mRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}`, { headers: {} });
+      if (!mRes.ok) return res.status(404).json({ message: "Merchant not found" });
+      const mDoc = await mRes.json();
+      const fields = mDoc.fields || {};
+      const mEmail = fields.email?.stringValue || "";
+      if (mEmail !== merchantEmail) return res.status(403).json({ message: "Unauthorized" });
+      const linkVisits = parseInt(fields.linkVisits?.integerValue || "0");
+      const qrScans = parseInt(fields.qrScans?.integerValue || "0");
+      const cartSessions = parseInt(fields.cartSessions?.integerValue || "0");
+      const completedOrders = parseInt(fields.completedOrders?.integerValue || "0");
+      const abandonedCarts = Math.max(0, cartSessions - completedOrders);
+      const totalVisits = linkVisits + qrScans;
+      const conversionRate = totalVisits > 0 ? Math.round((completedOrders / totalVisits) * 100) : 0;
+      return res.json({ linkVisits, qrScans, cartSessions, completedOrders, abandonedCarts, conversionRate });
+    } catch (error) {
+      console.error("Merchant tracking error:", error);
+      return res.status(500).json({ message: "Failed to get tracking data" });
+    }
+  });
+
   app.get("/api/admin/stats", async (req, res) => {
     try {
       if (!(await isAdminRequest(req))) {
