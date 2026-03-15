@@ -503,7 +503,7 @@ function DeliveryTrackingView({
           </button>
         )}
 
-        {isPreparing && (
+        {isPreparing && !isDelivery && (
           <button
             onClick={handleShareTracking}
             data-testid="button-share-tracking-delivery"
@@ -524,7 +524,7 @@ function DeliveryTrackingView({
                 <>
                   <Link2 className="w-4 h-4 shrink-0" style={{ color: "rgba(249,115,22,0.85)" }} />
                   <span className="font-bold text-sm" style={{ color: "rgba(249,115,22,0.85)", fontFamily: "'Tajawal','Cairo',sans-serif" }}>
-                    خل أصدقاءك يتبعون معك 🔗
+                    شاركهم اللحظة 🔗
                   </span>
                 </>
               )}
@@ -1218,6 +1218,7 @@ export default function OrderTrackingPage() {
           </button>
         )}
 
+        {!isDelivery && (
         <button
           onClick={handleShareTracking}
           data-testid="button-share-tracking"
@@ -1238,12 +1239,13 @@ export default function OrderTrackingPage() {
               <>
                 <Link2 className="w-4 h-4 shrink-0" style={{ color: "rgba(249,115,22,0.85)" }} />
                 <span className="font-bold text-base" style={{ color: "rgba(249,115,22,0.85)", fontFamily: "'Tajawal','Cairo',sans-serif" }}>
-                  خل أصدقاءك يتبعون معك 🔗
+                  شاركهم اللحظة 🔗
                 </span>
               </>
             )}
           </span>
         </button>
+        )}
 
         {!bellPrimed ? (
           <button

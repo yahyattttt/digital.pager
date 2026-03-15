@@ -535,7 +535,7 @@ export default function DeliveryTrackerPage() {
         </div>
 
         <AnimatePresence>
-          {status === "preparing" && (
+          {status === "preparing" && false && (
             <motion.button
               key="share-tracking-btn"
               initial={{ opacity: 0, scale: 0.92, y: 8 }}
@@ -582,7 +582,7 @@ export default function DeliveryTrackerPage() {
                         fontFamily: "'Tajawal','Cairo',sans-serif",
                       }}
                     >
-                      خل أصدقاءك يتبعون معك 🔗
+                      شاركهم اللحظة 🔗
                     </span>
                   </>
                 )}
