@@ -2786,26 +2786,43 @@ function OverviewView({
 
       {printOrder && (
         <div id="print-receipt" dir={lang === "ar" ? "rtl" : "ltr"}>
+          {/* ── Header ── */}
           <div className="receipt-header">
             <div className="receipt-store-name">{merchant?.storeName || "Digital Pager"}</div>
-            <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.04em", marginTop: "3px", marginBottom: "2px" }}>
-              {t("فاتورة ضريبية", "Tax Invoice")}
+            <div className="receipt-tax-title">{t("فاتورة ضريبية", "Tax Invoice")}</div>
+            <div className="receipt-order-id">
+              {t("رقم الطلب", "Order #")}{printOrder.displayOrderId || printOrder.orderNumber || "---"}
             </div>
-            <div className="receipt-order-id">{t("رقم الطلب", "Order")} #{printOrder.orderNumber || "---"}</div>
-            <div className="receipt-datetime">{new Date(printOrder.createdAt).toLocaleString(lang === "ar" ? "ar-SA" : "en-US")}</div>
+            <div className="receipt-datetime">
+              {new Date(printOrder.createdAt).toLocaleString(lang === "ar" ? "ar-SA" : "en-US", { dateStyle: "short", timeStyle: "short" })}
+            </div>
+            {diningTypeLabel(printOrder.diningType) && (
+              <div className="receipt-order-type">{t("النوع", "Type")}: {diningTypeLabel(printOrder.diningType)}</div>
+            )}
           </div>
+
+          {/* ── Customer ── */}
           <div className="receipt-customer">
             <div><strong>{t("العميل", "Customer")}:</strong> {printOrder.customerName}</div>
-            <div dir="ltr" style={{ textAlign: lang === "ar" ? "right" : "left" }}><strong>{t("الجوال", "Phone")}:</strong> {printOrder.customerPhone}</div>
+            <div dir="ltr" style={{ textAlign: lang === "ar" ? "right" : "left" }}>
+              <strong>{t("الجوال", "Phone")}:</strong> {printOrder.customerPhone}
+            </div>
+            <div className="receipt-payment-method">{paymentLabel(printOrder.paymentMethod)}</div>
           </div>
+
+          {/* ── Items ── */}
           <div className="receipt-items">
             {printOrder.items.map((itm, idx) => {
               const parsed = parseItemExtras(itm.name);
+              const lineTotal = (itm.price * itm.quantity).toFixed(2);
               return (
-                <div key={idx}>
-                  <div className="receipt-item">
-                    <span>{itm.quantity}× {parsed.baseName}{parsed.variant ? ` (${parsed.variant})` : ""}</span>
-                    <span>{itm.price.toFixed(2)} SAR</span>
+                <div key={idx} className="receipt-item-block">
+                  <div className="receipt-item-name">
+                    {itm.quantity}× {parsed.baseName}{parsed.variant ? ` (${parsed.variant})` : ""}
+                  </div>
+                  <div className="receipt-item-price-row">
+                    <span className="receipt-item-unit">{itm.price.toFixed(2)} × {itm.quantity}</span>
+                    <span className="receipt-item-total">{lineTotal} SAR</span>
                   </div>
                   {parsed.extras && (
                     <div className="receipt-item-extras">+ {parsed.extras}</div>
@@ -2814,21 +2831,40 @@ function OverviewView({
               );
             })}
           </div>
-          {printOrder.deliveryFee && printOrder.deliveryFee > 0 && (
-            <div className="receipt-payment">{t("رسوم التوصيل", "Delivery Fee")}: {printOrder.deliveryFee.toFixed(2)} SAR</div>
-          )}
-          <div className="receipt-payment">{t("ضريبة القيمة المضافة (VAT)", "VAT (0%)")}: 0.00 SAR</div>
-          <div className="receipt-total">{t("الإجمالي", "Total")}: {printOrder.total.toFixed(2)} SAR</div>
-          <div className="receipt-payment">{paymentLabel(printOrder.paymentMethod)}</div>
-          {diningTypeLabel(printOrder.diningType) && (
-            <div className="receipt-payment">{t("نوع الطلب", "Order Type")}: {diningTypeLabel(printOrder.diningType)}</div>
-          )}
+
+          {/* ── Totals ── */}
+          <div className="receipt-totals">
+            {printOrder.deliveryFee && printOrder.deliveryFee > 0 && (
+              <div className="receipt-totals-row">
+                <span>{t("المجموع الفرعي", "Subtotal")}</span>
+                <span>{printOrder.items.reduce((s, i) => s + i.price * i.quantity, 0).toFixed(2)} SAR</span>
+              </div>
+            )}
+            {printOrder.deliveryFee && printOrder.deliveryFee > 0 && (
+              <div className="receipt-totals-row">
+                <span>{t("رسوم التوصيل", "Delivery")}</span>
+                <span>{printOrder.deliveryFee.toFixed(2)} SAR</span>
+              </div>
+            )}
+            <div className="receipt-totals-row">
+              <span>{t("ضريبة (VAT)", "VAT")} 0%</span>
+              <span>0.00 SAR</span>
+            </div>
+            <div className="receipt-totals-grand">
+              <span>{t("الإجمالي", "Total")}</span>
+              <span>{printOrder.total.toFixed(2)} SAR</span>
+            </div>
+          </div>
+
+          {/* ── Notes / Delivery ── */}
           {printOrder.diningType === "delivery" && (printOrder.deliveryMapLink || printOrder.deliveryAddress) && (
             <div className="receipt-customer-notes">
               <div className="receipt-customer-notes-label">{t("موقع التوصيل", "Delivery Location")}</div>
               <div className="receipt-customer-notes-text">
                 {printOrder.deliveryAddress && <div>{printOrder.deliveryAddress}</div>}
-                {printOrder.deliveryMapLink && <div style={{fontSize: "12px", wordBreak: "break-all"}}>{printOrder.deliveryMapLink}</div>}
+                {printOrder.deliveryMapLink && (
+                  <div style={{ fontSize: "10px", wordBreak: "break-all", marginTop: "3px" }}>{printOrder.deliveryMapLink}</div>
+                )}
               </div>
             </div>
           )}
@@ -2838,11 +2874,14 @@ function OverviewView({
               <div className="receipt-customer-notes-text">{printOrder.customerNotes}</div>
             </div>
           )}
+
+          {/* ── Footer ── */}
           <div className="receipt-footer">
-            <div>{t("شكراً لطلبكم", "Thank you for your order")}</div>
-            <div style={{ marginTop: "6px", fontSize: "10px", fontStyle: "italic" }}>
-              {t("المنصة غير خاضعة لضريبة القيمة المضافة", "Platform not subject to VAT")}
+            <div className="receipt-vat-disclaimer">
+              {t("المنصة غير خاضعة لضريبة القيمة المضافة", "Not subject to VAT")}
             </div>
+            <div className="receipt-thankyou">{t("شكراً لزيارتكم!", "Thank you for visiting!")}</div>
+            <div style={{ marginTop: "4px", fontSize: "9px", color: "#aaa" }}>Digital Pager • فاتورة ضريبية</div>
           </div>
         </div>
       )}
