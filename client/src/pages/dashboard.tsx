@@ -1076,36 +1076,50 @@ export default function DashboardPage() {
   }, [merchant?.uid, t, toast]);
 
   async function handleDownloadQR() {
-    if (!merchant?.uid) return;
+    if (!merchant?.uid) {
+      console.error("[PagerQR] merchant.uid missing — aborting");
+      return;
+    }
     setQrLoading(true);
+    let qrObjUrl: string | null = null;
+    let canvasObjUrl: string | null = null;
     try {
-      // Step 1: Fetch QR as blob (avoids canvas taint from crossOrigin restrictions)
+      // ── Step 1: fetch QR PNG as blob ──────────────────────────────
       const qrEndpoint = `/api/qr/${merchant.uid}?t=${Date.now()}`;
-      const qrFetchRes = await fetch(qrEndpoint);
-      if (!qrFetchRes.ok) {
-        throw new Error(`QR fetch failed — HTTP ${qrFetchRes.status} from ${qrEndpoint}`);
-      }
-      const qrBlob = await qrFetchRes.blob();
-      const qrObjectUrl = URL.createObjectURL(qrBlob);
+      console.log("[PagerQR] fetching QR from", qrEndpoint);
+      const qrRes = await fetch(qrEndpoint);
+      if (!qrRes.ok) throw new Error(`[PagerQR] QR fetch HTTP ${qrRes.status}`);
+      const qrBlob = await qrRes.blob();
+      console.log("[PagerQR] blob size:", qrBlob.size, "type:", qrBlob.type);
 
-      // Step 2: Load blob URL into an Image element (same-origin blob → no taint)
+      // ── Step 2: blob → base64 data URL via FileReader ─────────────
+      // (FileReader result is a same-origin data URL — no canvas taint)
+      const qrDataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error("[PagerQR] FileReader failed to read blob"));
+        reader.readAsDataURL(qrBlob);
+      });
+      console.log("[PagerQR] data URL prefix:", qrDataUrl.slice(0, 30));
+
+      // ── Step 3: load data URL into Image ──────────────────────────
       const qrImg = new Image();
       await new Promise<void>((resolve, reject) => {
         qrImg.onload = () => resolve();
-        qrImg.onerror = (e) => reject(new Error(`Image element failed to load blob URL: ${String(e)}`));
-        qrImg.src = qrObjectUrl;
+        qrImg.onerror = () => reject(new Error("[PagerQR] Image.onload failed for data URL"));
+        qrImg.src = qrDataUrl;
       });
-      URL.revokeObjectURL(qrObjectUrl); // clean up blob URL after image loads
+      console.log("[PagerQR] Image loaded — natural size:", qrImg.naturalWidth, "×", qrImg.naturalHeight);
 
-      // Canvas dimensions (2× for retina sharpness)
+      // ── Step 4: draw pager frame onto canvas ──────────────────────
       const W = 440, H = 590, S = 2;
       const canvas = document.createElement("canvas");
       canvas.width = W * S;
       canvas.height = H * S;
-      const ctx = canvas.getContext("2d")!;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("[PagerQR] canvas.getContext('2d') returned null");
       ctx.scale(S, S);
 
-      // Helper: draw rounded rect path
       const rr = (x: number, y: number, w: number, h: number, r: number) => {
         ctx.beginPath();
         ctx.moveTo(x + r, y);
@@ -1120,113 +1134,78 @@ export default function DashboardPage() {
         ctx.closePath();
       };
 
-      // ── Body background ──────────────────────────────────────────
+      // Body
       const bodyGrad = ctx.createLinearGradient(0, 0, 0, H);
       bodyGrad.addColorStop(0, "#160505");
       bodyGrad.addColorStop(1, "#060000");
-      rr(0, 0, W, H, 38);
-      ctx.fillStyle = bodyGrad;
-      ctx.fill();
-
-      // Outer glow border (red brand)
-      rr(3, 3, W - 6, H - 6, 36);
-      ctx.strokeStyle = "rgba(200, 30, 30, 0.75)";
-      ctx.lineWidth = 2.5;
-      ctx.stroke();
-
-      // Inner subtle border
-      rr(9, 9, W - 18, H - 18, 31);
-      ctx.strokeStyle = "rgba(255, 60, 60, 0.12)";
-      ctx.lineWidth = 1;
-      ctx.stroke();
-
-      // ── Top label ────────────────────────────────────────────────
-      ctx.fillStyle = "rgba(200, 40, 40, 0.9)";
-      ctx.font = "bold 12px Arial, sans-serif";
-      ctx.textAlign = "center";
+      rr(0, 0, W, H, 38); ctx.fillStyle = bodyGrad; ctx.fill();
+      // Borders
+      rr(3, 3, W - 6, H - 6, 36); ctx.strokeStyle = "rgba(200,30,30,0.75)"; ctx.lineWidth = 2.5; ctx.stroke();
+      rr(9, 9, W - 18, H - 18, 31); ctx.strokeStyle = "rgba(255,60,60,0.12)"; ctx.lineWidth = 1; ctx.stroke();
+      // Top label
+      ctx.fillStyle = "rgba(200,40,40,0.9)"; ctx.font = "bold 12px Arial,sans-serif"; ctx.textAlign = "center";
       ctx.fillText("DIGITAL PAGER", W / 2, 34);
-
-      // Top LED strip (7 LEDs)
-      const ledRowY = 52;
-      [0.18, 0.4, 0.85, 1, 0.85, 0.4, 0.18].forEach((bright, i) => {
-        const cx = W / 2 + (i - 3) * 24;
-        const grad = ctx.createRadialGradient(cx, ledRowY, 0, cx, ledRowY, 6);
-        grad.addColorStop(0, `rgba(255,30,0,${bright})`);
-        grad.addColorStop(1, "rgba(80,0,0,0)");
-        ctx.fillStyle = grad;
-        ctx.beginPath(); ctx.arc(cx, ledRowY, 6, 0, Math.PI * 2); ctx.fill();
-      });
-
-      // ── QR "screen" panel (white) ─────────────────────────────────
+      // LED rows
+      const drawLeds = (ledY: number) => {
+        [0.18, 0.4, 0.85, 1, 0.85, 0.4, 0.18].forEach((op, i) => {
+          const cx = W / 2 + (i - 3) * 24;
+          const g = ctx.createRadialGradient(cx, ledY, 0, cx, ledY, 6);
+          g.addColorStop(0, `rgba(255,30,0,${op})`); g.addColorStop(1, "rgba(80,0,0,0)");
+          ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, ledY, 6, 0, Math.PI * 2); ctx.fill();
+        });
+      };
+      drawLeds(52);
+      // QR screen panel
       const qrX = 40, qrY = 70, qrSize = W - 80;
-      rr(qrX - 10, qrY - 10, qrSize + 20, qrSize + 20, 14);
-      ctx.fillStyle = "#ffffff";
-      ctx.fill();
-
-      // Draw QR code inside screen
+      rr(qrX - 10, qrY - 10, qrSize + 20, qrSize + 20, 14); ctx.fillStyle = "#fff"; ctx.fill();
+      // QR image
       ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
-
-      // Screen bezel top notch (tiny detail line)
-      ctx.strokeStyle = "rgba(200,30,30,0.25)";
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(qrX + 20, qrY - 10);
-      ctx.lineTo(qrX + qrSize - 20, qrY - 10);
-      ctx.stroke();
-
-      // ── Bottom LED strip ──────────────────────────────────────────
+      // Bezel notch
+      ctx.strokeStyle = "rgba(200,30,30,0.25)"; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(qrX + 20, qrY - 10); ctx.lineTo(qrX + qrSize - 20, qrY - 10); ctx.stroke();
+      // Bottom LEDs
       const botLedY = qrY + qrSize + 30;
-      [0.18, 0.4, 0.85, 1, 0.85, 0.4, 0.18].forEach((bright, i) => {
-        const cx = W / 2 + (i - 3) * 24;
-        const grad = ctx.createRadialGradient(cx, botLedY, 0, cx, botLedY, 6);
-        grad.addColorStop(0, `rgba(255,30,0,${bright})`);
-        grad.addColorStop(1, "rgba(80,0,0,0)");
-        ctx.fillStyle = grad;
-        ctx.beginPath(); ctx.arc(cx, botLedY, 6, 0, Math.PI * 2); ctx.fill();
+      drawLeds(botLedY);
+      // Arabic label (without emoji to avoid rendering issues)
+      ctx.fillStyle = "#fff"; ctx.font = "bold 20px Arial,sans-serif"; ctx.textAlign = "center";
+      ctx.fillText("\u0627\u0645\u0633\u062D \u0648\u062A\u0627\u0628\u0639 \u0637\u0644\u0628\u0643 \uD83D\uDCF1", W / 2, botLedY + 36);
+      // Store name
+      const sName = merchant.storeName || "";
+      if (sName) { ctx.fillStyle = "rgba(200,60,60,0.65)"; ctx.font = "13px Arial,sans-serif"; ctx.fillText(sName, W / 2, botLedY + 58); }
+      // Accent line
+      ctx.strokeStyle = "rgba(200,30,30,0.35)"; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(60, H - 22); ctx.lineTo(W - 60, H - 22); ctx.stroke();
+
+      console.log("[PagerQR] canvas drawn — converting to blob");
+
+      // ── Step 5: canvas → blob → objectURL → download ──────────────
+      // Using toBlob() instead of toDataURL() is more reliable and
+      // avoids SecurityError in restricted environments
+      canvasObjUrl = await new Promise<string>((resolve, reject) => {
+        canvas.toBlob((blob) => {
+          if (!blob) { reject(new Error("[PagerQR] canvas.toBlob() returned null")); return; }
+          console.log("[PagerQR] canvas blob size:", blob.size);
+          resolve(URL.createObjectURL(blob));
+        }, "image/png");
       });
 
-      // ── Bottom Arabic text ────────────────────────────────────────
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "bold 21px Arial, sans-serif";
-      ctx.textAlign = "center";
-      ctx.fillText("امسح وتابع طلبك 📱", W / 2, botLedY + 36);
-
-      // Store name sub-label
-      const sName = merchant.storeName || "";
-      if (sName) {
-        ctx.fillStyle = "rgba(200,60,60,0.65)";
-        ctx.font = "13px Arial, sans-serif";
-        ctx.fillText(sName, W / 2, botLedY + 58);
-      }
-
-      // Bottom accent line
-      ctx.strokeStyle = "rgba(200, 30, 30, 0.35)";
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(60, H - 22);
-      ctx.lineTo(W - 60, H - 22);
-      ctx.stroke();
-
-      // ── Download ──────────────────────────────────────────────────
       const link = document.createElement("a");
       link.download = `pager-qr-${merchant.uid}.png`;
-      link.href = canvas.toDataURL("image/png");
+      link.href = canvasObjUrl;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      // Revoke after a short delay so the browser has time to start the download
+      setTimeout(() => { if (canvasObjUrl) URL.revokeObjectURL(canvasObjUrl); }, 5000);
 
-      toast({
-        title: t("تم التحميل", "Downloaded"),
-        description: t("تم تحميل رمز QR بنجاح", "QR code downloaded successfully"),
-      });
+      console.log("[PagerQR] download triggered ✓");
+      toast({ title: t("تم التحميل", "Downloaded"), description: t("تم تحميل رمز QR بنجاح", "QR code downloaded successfully") });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error("[PagerQR] Download failed:", msg);
-      toast({
-        title: t("خطأ في التحميل", "Download Error"),
-        description: msg || t("فشل في تحميل رمز QR", "Failed to download QR code"),
-        variant: "destructive",
-      });
+      console.error("[PagerQR] FAILED:", msg);
+      if (qrObjUrl) URL.revokeObjectURL(qrObjUrl);
+      if (canvasObjUrl) URL.revokeObjectURL(canvasObjUrl);
+      toast({ title: t("خطأ في التحميل", "Download Error"), description: msg, variant: "destructive" });
     } finally {
       setQrLoading(false);
     }
