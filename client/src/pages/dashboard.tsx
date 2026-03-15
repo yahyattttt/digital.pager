@@ -2621,7 +2621,7 @@ function OverviewView({
                       </div>
                     </div>
 
-                    {waOrder.diningType === "delivery" && (
+                    {waOrder.diningType === "delivery" && !(isPreparing || isReady) && (
                       <div className="space-y-0.5 bg-white/[0.02] rounded-xl p-2.5 border border-white/[0.04] max-h-[130px] overflow-y-auto">
                         {waOrder.items.map((itm: any, idx: number) => {
                           const parsed = parseItemExtras(itm.name);
@@ -2650,7 +2650,7 @@ function OverviewView({
                       </div>
                     )}
 
-                    {waOrder.diningType === "delivery" && (waOrder.deliveryMapLink || waOrder.deliveryLat != null) && (
+                    {waOrder.diningType === "delivery" && !(isPreparing || isReady) && (waOrder.deliveryMapLink || waOrder.deliveryLat != null) && (
                       <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20" data-testid={`text-delivery-address-${item.id}`}>
                         <div className="flex items-center gap-1.5 mb-1">
                           <MapPin className="w-3.5 h-3.5 text-emerald-400" />
@@ -2664,7 +2664,7 @@ function OverviewView({
                       </div>
                     )}
 
-                    {waOrder.customerNotes && waOrder.diningType === "delivery" && (
+                    {waOrder.customerNotes && waOrder.diningType === "delivery" && !(isPreparing || isReady) && (
                       <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20" data-testid={`text-customer-notes-${item.id}`}>
                         <p className="text-[11px] text-amber-300 font-bold mb-0.5">{t("ملاحظة العميل", "Customer Note")}</p>
                         <p className="text-xs text-white/80 leading-relaxed">{waOrder.customerNotes}</p>
