@@ -2302,7 +2302,7 @@ function OverviewView({
                       <div className="absolute top-0 inset-x-0 h-0.5 bg-gradient-to-r from-red-600 via-red-400 to-red-600 animate-pulse" />
                     )}
                     <WatermarkIcon category={item.orderCategory} />
-                    <div className="flex items-center justify-between px-4 pt-4 pb-2">
+                    <div className="flex items-center justify-between px-4 pt-3 pb-1.5">
                       <div className="flex items-center gap-2">
                         <Globe className="w-4 h-4 text-red-400" />
                         <span className="text-xl font-extrabold text-white tracking-tight" data-testid={`text-order-num-${item.id}`}>
@@ -2318,7 +2318,7 @@ function OverviewView({
                       </div>
                     </div>
 
-                    <CardContent className="px-4 pb-4 pt-0 space-y-3 relative z-[1]">
+                    <CardContent className="px-4 pb-3 pt-0 space-y-2 relative z-[1]">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2 text-xs text-white/50 flex-wrap min-w-0 flex-1">
                           <span className="font-semibold text-white/55" data-testid={`text-customer-name-${item.id}`}>{order.customerName}</span>
@@ -2358,7 +2358,7 @@ function OverviewView({
                         </div>
                       </div>
 
-                      <div className="space-y-1.5 bg-white/[0.02] rounded-xl p-3 border border-white/[0.04]">
+                      <div className="space-y-0.5 bg-white/[0.02] rounded-xl p-2.5 border border-white/[0.04] max-h-[130px] overflow-y-auto">
                         {order.items.map((itm: any, idx: number) => {
                           const parsed = parseItemExtras(itm.name);
                           const structuredExtras: string[] = itm.extras && itm.extras.length > 0 ? itm.extras : (parsed.extras ? [parsed.extras] : []);
@@ -2366,19 +2366,19 @@ function OverviewView({
                           const displayVariant = itm.selectedVariant || parsed.variant;
                           return (
                             <div key={idx} data-testid={`order-item-${item.id}-${idx}`}>
-                              <div className="flex items-start justify-between">
-                                <p className="text-sm font-bold text-white">
-                                  <span className="text-white/40 me-1.5">{itm.quantity}×</span>
+                              <div className="flex items-center justify-between gap-1">
+                                <p className="text-xs font-semibold text-white leading-tight">
+                                  <span className="text-white/40 me-1">{itm.quantity}×</span>
                                   {parsed.baseName}
-                                  {displayVariant && <span className="text-white/40 text-xs ms-1">({displayVariant})</span>}
+                                  {displayVariant && <span className="text-white/35 text-[10px] ms-1">({displayVariant})</span>}
                                 </p>
-                                <span className="text-xs text-white/50 font-mono shrink-0">{itm.price.toFixed(0)} SAR</span>
+                                <span className="text-[11px] text-white/45 font-mono shrink-0">{itm.price.toFixed(0)}</span>
                               </div>
                               {structuredExtras.length > 0 && (
-                                <p className="text-[11px] text-emerald-400/70 ps-5 mt-0.5">+ {structuredExtras.join(", ")}</p>
+                                <p className="text-[10px] text-emerald-400/70 ps-4 leading-tight">+ {structuredExtras.join(", ")}</p>
                               )}
                               {structuredRemovals.length > 0 && (
-                                <p className="text-[11px] text-amber-400/70 ps-5 mt-0.5">— {t("بدون", "No")} {structuredRemovals.join(", ")}</p>
+                                <p className="text-[10px] text-amber-400/70 ps-4 leading-tight">— {t("بدون", "No")} {structuredRemovals.join(", ")}</p>
                               )}
                             </div>
                           );
@@ -2421,26 +2421,25 @@ function OverviewView({
                         </p>
                       </div>
 
-                      <div className="space-y-2 pt-1">
-                        <Button
-                          onClick={() => onCancelWhatsAppOrder(order)}
-                          disabled={cancellingOrderId === order.id || acceptingOrderId === order.id || rejectingOrderId === order.id}
-                          className="w-full h-9 bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 text-xs font-bold rounded-xl border border-orange-500/20"
-                          data-testid={`button-cancel-order-${item.id}`}
-                        >
-                          {cancellingOrderId === order.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : (
-                            <><X className="w-3.5 h-3.5 me-1" />{t("إلغاء الطلب", "Cancel Order")}</>
-                          )}
-                        </Button>
+                      <div className="flex gap-2 pt-1">
                         <Button
                           onClick={() => onAcceptWhatsAppOrder(order)}
                           disabled={acceptingOrderId === order.id || rejectingOrderId === order.id || cancellingOrderId === order.id}
-                          className={`w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl ${acceptingOrderId === order.id ? "" : "accept-glow"}`}
+                          className={`flex-1 h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl ${acceptingOrderId === order.id ? "" : "accept-glow"}`}
                           data-testid={`button-accept-order-${item.id}`}
                         >
-                          {acceptingOrderId === order.id ? <Loader2 className="w-4 h-4 animate-spin" /> : (
-                            <><CheckCircle className="w-4 h-4 me-1.5" />{t("قبول ✅", "Accept ✅")}</>
+                          {acceptingOrderId === order.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : (
+                            <><CheckCircle className="w-3.5 h-3.5 me-1" />{t("قبول ✅", "Accept ✅")}</>
                           )}
+                        </Button>
+                        <Button
+                          onClick={() => onCancelWhatsAppOrder(order)}
+                          disabled={cancellingOrderId === order.id || acceptingOrderId === order.id || rejectingOrderId === order.id}
+                          className="h-9 w-9 p-0 bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 rounded-xl border border-orange-500/20 shrink-0"
+                          data-testid={`button-cancel-order-${item.id}`}
+                          title={t("إلغاء الطلب", "Cancel Order")}
+                        >
+                          {cancellingOrderId === order.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />}
                         </Button>
                       </div>
 
@@ -2560,7 +2559,7 @@ function OverviewView({
                   data-testid={`card-active-order-${item.id}`}
                 >
                   <WatermarkIcon category={item.orderCategory} />
-                  <div className="flex items-center justify-between px-4 pt-4 pb-2">
+                  <div className="flex items-center justify-between px-4 pt-3 pb-2">
                     <div className="flex items-center gap-2">
                       <Globe className="w-4 h-4 text-red-400" />
                       <span className="text-xl font-extrabold text-white tracking-tight" data-testid={`text-order-num-${item.id}`}>
@@ -2573,16 +2572,26 @@ function OverviewView({
                         </Badge>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       <TypeBadge category={item.orderCategory} />
                       <Badge className={`rounded-full text-[10px] px-2 py-0.5 ${sc.bg} ${sc.text} border ${sc.border}`}>
                         {sc.label}
                       </Badge>
                       <LiveOrderTimer createdAt={item.createdAt} lang={lang} isNew={isNewStatus} />
+                      {printReceiptsEnabled && (
+                        <button
+                          onClick={() => handlePrint(waOrder)}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg bg-white/[0.06] hover:bg-white/[0.12] text-white/50 hover:text-white/80 transition-colors"
+                          data-testid={`button-print-${item.id}`}
+                          title={t("طباعة", "Print")}
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
 
-                  <CardContent className="px-4 pb-4 pt-0 space-y-3 relative z-[1]">
+                  <CardContent className="px-4 pb-3 pt-0 space-y-2 relative z-[1]">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2 text-xs text-white/50 flex-wrap min-w-0 flex-1">
                         <span className="font-semibold text-white/55">{waOrder.customerName}</span>
@@ -2622,7 +2631,7 @@ function OverviewView({
                       </div>
                     </div>
 
-                    <div className="space-y-1.5 bg-white/[0.02] rounded-xl p-3 border border-white/[0.04]">
+                    <div className="space-y-0.5 bg-white/[0.02] rounded-xl p-2.5 border border-white/[0.04] max-h-[130px] overflow-y-auto">
                       {waOrder.items.map((itm: any, idx: number) => {
                         const parsed = parseItemExtras(itm.name);
                         const structuredExtras: string[] = itm.extras && itm.extras.length > 0 ? itm.extras : (parsed.extras ? [parsed.extras] : []);
@@ -2630,19 +2639,19 @@ function OverviewView({
                         const displayVariant = itm.selectedVariant || parsed.variant;
                         return (
                           <div key={idx} data-testid={`order-item-${item.id}-${idx}`}>
-                            <div className="flex items-start justify-between">
-                              <p className="text-sm font-bold text-white">
-                                <span className="text-white/40 me-1.5">{itm.quantity}×</span>
+                            <div className="flex items-center justify-between gap-1">
+                              <p className="text-xs font-semibold text-white leading-tight">
+                                <span className="text-white/40 me-1">{itm.quantity}×</span>
                                 {parsed.baseName}
-                                {displayVariant && <span className="text-white/40 text-xs ms-1">({displayVariant})</span>}
+                                {displayVariant && <span className="text-white/35 text-[10px] ms-1">({displayVariant})</span>}
                               </p>
-                              <span className="text-xs text-white/50 font-mono shrink-0">{itm.price.toFixed(0)} SAR</span>
+                              <span className="text-[11px] text-white/45 font-mono shrink-0">{itm.price.toFixed(0)}</span>
                             </div>
                             {structuredExtras.length > 0 && (
-                              <p className="text-[11px] text-emerald-400/70 ps-5 mt-0.5">+ {structuredExtras.join(", ")}</p>
+                              <p className="text-[10px] text-emerald-400/70 ps-4 leading-tight">+ {structuredExtras.join(", ")}</p>
                             )}
                             {structuredRemovals.length > 0 && (
-                              <p className="text-[11px] text-amber-400/70 ps-5 mt-0.5">— {t("بدون", "No")} {structuredRemovals.join(", ")}</p>
+                              <p className="text-[10px] text-amber-400/70 ps-4 leading-tight">— {t("بدون", "No")} {structuredRemovals.join(", ")}</p>
                             )}
                           </div>
                         );
@@ -2686,16 +2695,6 @@ function OverviewView({
                     </div>
 
                     <div className="flex gap-2">
-                      {printReceiptsEnabled && (
-                      <Button
-                        size="sm"
-                        onClick={() => handlePrint(waOrder)}
-                        className="h-9 px-3 bg-white/[0.06] hover:bg-white/[0.1] text-white/60 rounded-xl border border-white/10"
-                        data-testid={`button-print-${item.id}`}
-                      >
-                        <Printer className="w-3.5 h-3.5" />
-                      </Button>
-                      )}
                       {waOrder.diningType === "delivery" && (
                         <Button
                           size="sm"
