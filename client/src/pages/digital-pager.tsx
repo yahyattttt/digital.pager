@@ -614,7 +614,7 @@ export default function DigitalPagerPage() {
             }}
           >
             <Share2 className="w-4 h-4 shrink-0" />
-            <span className="text-sm font-semibold">خل أحبابك يتبعون معك الطلب</span>
+            <span className="text-sm font-semibold">شاركهم اللحظة 🔗</span>
           </button>
         </div>
       )}
