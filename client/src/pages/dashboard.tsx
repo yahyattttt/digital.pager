@@ -1079,17 +1079,133 @@ export default function DashboardPage() {
     if (!merchant?.uid) return;
     setQrLoading(true);
     try {
-      const response = await fetch(`/api/qr/${merchant.uid}?t=${Date.now()}`);
-      if (!response.ok) throw new Error("Failed to fetch QR");
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `store-qr-${merchant.uid}.png`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      // Load the raw QR image first
+      const qrImg = new Image();
+      qrImg.crossOrigin = "anonymous";
+      await new Promise<void>((resolve, reject) => {
+        qrImg.onload = () => resolve();
+        qrImg.onerror = reject;
+        qrImg.src = `/api/qr/${merchant.uid}?t=${Date.now()}`;
+      });
+
+      // Canvas dimensions (2× for retina sharpness)
+      const W = 440, H = 590, S = 2;
+      const canvas = document.createElement("canvas");
+      canvas.width = W * S;
+      canvas.height = H * S;
+      const ctx = canvas.getContext("2d")!;
+      ctx.scale(S, S);
+
+      // Helper: draw rounded rect path
+      const rr = (x: number, y: number, w: number, h: number, r: number) => {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + w - r, y);
+        ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+        ctx.lineTo(x + w, y + h - r);
+        ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+        ctx.lineTo(x + r, y + h);
+        ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+        ctx.lineTo(x, y + r);
+        ctx.quadraticCurveTo(x, y, x + r, y);
+        ctx.closePath();
+      };
+
+      // ── Body background ──────────────────────────────────────────
+      const bodyGrad = ctx.createLinearGradient(0, 0, 0, H);
+      bodyGrad.addColorStop(0, "#160505");
+      bodyGrad.addColorStop(1, "#060000");
+      rr(0, 0, W, H, 38);
+      ctx.fillStyle = bodyGrad;
+      ctx.fill();
+
+      // Outer glow border (red brand)
+      rr(3, 3, W - 6, H - 6, 36);
+      ctx.strokeStyle = "rgba(200, 30, 30, 0.75)";
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+
+      // Inner subtle border
+      rr(9, 9, W - 18, H - 18, 31);
+      ctx.strokeStyle = "rgba(255, 60, 60, 0.12)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // ── Top label ────────────────────────────────────────────────
+      ctx.fillStyle = "rgba(200, 40, 40, 0.9)";
+      ctx.font = "bold 12px Arial, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("DIGITAL PAGER", W / 2, 34);
+
+      // Top LED strip (7 LEDs)
+      const ledRowY = 52;
+      [0.18, 0.4, 0.85, 1, 0.85, 0.4, 0.18].forEach((bright, i) => {
+        const cx = W / 2 + (i - 3) * 24;
+        const grad = ctx.createRadialGradient(cx, ledRowY, 0, cx, ledRowY, 6);
+        grad.addColorStop(0, `rgba(255,30,0,${bright})`);
+        grad.addColorStop(1, "rgba(80,0,0,0)");
+        ctx.fillStyle = grad;
+        ctx.beginPath(); ctx.arc(cx, ledRowY, 6, 0, Math.PI * 2); ctx.fill();
+      });
+
+      // ── QR "screen" panel (white) ─────────────────────────────────
+      const qrX = 40, qrY = 70, qrSize = W - 80;
+      rr(qrX - 10, qrY - 10, qrSize + 20, qrSize + 20, 14);
+      ctx.fillStyle = "#ffffff";
+      ctx.fill();
+
+      // Draw QR code inside screen
+      ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
+
+      // Screen bezel top notch (tiny detail line)
+      ctx.strokeStyle = "rgba(200,30,30,0.25)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(qrX + 20, qrY - 10);
+      ctx.lineTo(qrX + qrSize - 20, qrY - 10);
+      ctx.stroke();
+
+      // ── Bottom LED strip ──────────────────────────────────────────
+      const botLedY = qrY + qrSize + 30;
+      [0.18, 0.4, 0.85, 1, 0.85, 0.4, 0.18].forEach((bright, i) => {
+        const cx = W / 2 + (i - 3) * 24;
+        const grad = ctx.createRadialGradient(cx, botLedY, 0, cx, botLedY, 6);
+        grad.addColorStop(0, `rgba(255,30,0,${bright})`);
+        grad.addColorStop(1, "rgba(80,0,0,0)");
+        ctx.fillStyle = grad;
+        ctx.beginPath(); ctx.arc(cx, botLedY, 6, 0, Math.PI * 2); ctx.fill();
+      });
+
+      // ── Bottom Arabic text ────────────────────────────────────────
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 21px Arial, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("امسح وتابع طلبك 📱", W / 2, botLedY + 36);
+
+      // Store name sub-label
+      const sName = merchant.storeName || "";
+      if (sName) {
+        ctx.fillStyle = "rgba(200,60,60,0.65)";
+        ctx.font = "13px Arial, sans-serif";
+        ctx.fillText(sName, W / 2, botLedY + 58);
+      }
+
+      // Bottom accent line
+      ctx.strokeStyle = "rgba(200, 30, 30, 0.35)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(60, H - 22);
+      ctx.lineTo(W - 60, H - 22);
+      ctx.stroke();
+
+      // ── Download ──────────────────────────────────────────────────
+      const link = document.createElement("a");
+      link.download = `pager-qr-${merchant.uid}.png`;
+      link.href = canvas.toDataURL("image/png");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
       toast({
         title: t("تم التحميل", "Downloaded"),
         description: t("تم تحميل رمز QR بنجاح", "QR code downloaded successfully"),
@@ -5402,18 +5518,88 @@ function SettingsView({
       {/* ── QR Code & Utilities ── */}
       <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
         <CardContent className="p-6">
-          <h3 className="font-semibold mb-4">{t("رمز QR", "QR Code")}</h3>
-          <div className="flex flex-col items-center gap-4 mb-4">
-            <div className="bg-white p-4 rounded-2xl" data-testid="qr-preview-container">
-              <img
-                src={`/api/qr/${merchant.uid}?t=${Date.now()}`}
-                alt="Store QR Code"
-                className="w-48 h-48"
-                data-testid="img-qr-preview"
-              />
+          <h3 className="font-semibold mb-5">{t("رمز QR", "QR Code")}</h3>
+          {/* ── Pager-style QR frame ── */}
+          <div className="flex flex-col items-center gap-5 mb-5">
+            <div
+              data-testid="qr-preview-container"
+              style={{
+                background: "linear-gradient(160deg, #160505 0%, #060000 100%)",
+                border: "2px solid rgba(200,30,30,0.65)",
+                boxShadow: "0 0 36px rgba(180,0,0,0.35), inset 0 0 24px rgba(0,0,0,0.6)",
+              }}
+              className="relative flex flex-col items-center rounded-[28px] px-5 pt-5 pb-5 w-64"
+            >
+              {/* Top brand label */}
+              <span className="text-[10px] font-bold tracking-[0.28em] text-red-600/80 uppercase mb-3 select-none">
+                DIGITAL PAGER
+              </span>
+
+              {/* Top LED strip */}
+              <div className="flex items-center gap-[10px] mb-3" aria-hidden="true">
+                {[0.15, 0.35, 0.8, 1, 0.8, 0.35, 0.15].map((op, i) => (
+                  <span
+                    key={i}
+                    className="block rounded-full"
+                    style={{
+                      width: 7, height: 7,
+                      background: `rgba(255,30,0,${op})`,
+                      boxShadow: op > 0.5 ? `0 0 6px 2px rgba(255,20,0,${op * 0.7})` : "none",
+                    }}
+                  />
+                ))}
+              </div>
+
+              {/* QR Screen – white panel */}
+              <div
+                className="rounded-xl overflow-hidden"
+                style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.8), inset 0 0 0 1px rgba(200,30,30,0.18)" }}
+              >
+                <img
+                  src={`/api/qr/${merchant.uid}?t=${Date.now()}`}
+                  alt="Store QR Code"
+                  className="w-48 h-48 block"
+                  data-testid="img-qr-preview"
+                  style={{ background: "#fff" }}
+                />
+              </div>
+
+              {/* Bottom LED strip */}
+              <div className="flex items-center gap-[10px] mt-3" aria-hidden="true">
+                {[0.15, 0.35, 0.8, 1, 0.8, 0.35, 0.15].map((op, i) => (
+                  <span
+                    key={i}
+                    className="block rounded-full"
+                    style={{
+                      width: 7, height: 7,
+                      background: `rgba(255,30,0,${op})`,
+                      boxShadow: op > 0.5 ? `0 0 6px 2px rgba(255,20,0,${op * 0.7})` : "none",
+                    }}
+                  />
+                ))}
+              </div>
+
+              {/* Arabic scan label */}
+              <p className="mt-3 text-sm font-bold text-white text-center leading-snug select-none">
+                امسح وتابع طلبك 📱
+              </p>
+
+              {/* Store name */}
+              {merchant.storeName && (
+                <p className="mt-0.5 text-[10px] text-red-500/60 text-center font-medium select-none">
+                  {merchant.storeName}
+                </p>
+              )}
+
+              {/* Corner accent dots */}
+              <span className="absolute top-3 left-3 w-1.5 h-1.5 rounded-full bg-red-700/40" aria-hidden="true" />
+              <span className="absolute top-3 right-3 w-1.5 h-1.5 rounded-full bg-red-700/40" aria-hidden="true" />
+              <span className="absolute bottom-3 left-3 w-1.5 h-1.5 rounded-full bg-red-700/40" aria-hidden="true" />
+              <span className="absolute bottom-3 right-3 w-1.5 h-1.5 rounded-full bg-red-700/40" aria-hidden="true" />
             </div>
-            <p className="text-xs text-muted-foreground text-center">
-              {t("امسح هذا الرمز لفتح صفحة المتجر", "Scan this code to open your store page")}
+
+            <p className="text-[11px] text-muted-foreground text-center">
+              {t("اضغط تحميل للحصول على صورة كاملة بتصميم الباجر", "Tap download for the full branded pager image")}
             </p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
