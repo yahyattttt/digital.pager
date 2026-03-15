@@ -2185,8 +2185,8 @@ function OverviewView({
                 return (
                   <Card
                     key={`wa-new-${item.id}`}
-                    className={`relative rounded-2xl overflow-hidden transition-all duration-500 border new-order-pulse ${isOverdueCard ? "ring-2 ring-red-500/60 shadow-[0_0_20px_rgba(239,68,68,0.25)]" : ""} ${isFlying ? "opacity-0 -translate-y-20 scale-75" : ""}`}
-                    style={cardStyle(item.orderCategory)}
+                    className={`relative rounded-2xl overflow-hidden transition-all duration-500 border new-order-pulse ${isOverdueCard ? "ring-2 ring-red-500/60 shadow-[0_0_20px_rgba(239,68,68,0.25)]" : ""} ${order.is_waiting_outside ? "ring-2 ring-orange-500/70 shadow-[0_0_28px_rgba(255,140,0,0.4)]" : ""} ${isFlying ? "opacity-0 -translate-y-20 scale-75" : ""}`}
+                    style={order.is_waiting_outside ? { ...cardStyle(item.orderCategory), borderInlineStart: "6px solid rgba(255,140,0,0.85)" } : cardStyle(item.orderCategory)}
                     data-testid={`card-wa-order-${item.id}`}
                   >
                     {isOverdueCard && (
@@ -2290,19 +2290,6 @@ function OverviewView({
                         </div>
                       )}
 
-                      {order.is_waiting_outside && (
-                        <div
-                          className="p-3 rounded-xl border animate-pulse"
-                          style={{ background: "rgba(255,160,0,0.12)", borderColor: "rgba(255,160,0,0.4)" }}
-                          data-testid={`alert-curbside-${item.id}`}
-                        >
-                          <p className="text-sm font-extrabold text-amber-300 mb-1">⚠️ {t("العميل في الخارج! قم بتسليم الطلب", "Customer is outside! Deliver the order")}</p>
-                          {order.car_plate_number && (
-                            <p className="text-xs text-amber-200/80">{t("رقم اللوحة:", "Plate:")} <span className="font-bold text-amber-200">{order.car_plate_number}</span></p>
-                          )}
-                        </div>
-                      )}
-
                       {order.customerNotes && (
                         <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20" data-testid={`text-customer-notes-${item.id}`}>
                           <p className="text-[11px] text-amber-300 font-bold mb-0.5">{t("ملاحظة العميل", "Customer Note")}</p>
@@ -2347,6 +2334,24 @@ function OverviewView({
                           )}
                         </Button>
                       </div>
+
+                      {order.is_waiting_outside && (
+                        <div
+                          className="-mx-4 -mb-4 mt-2 px-4 py-3 flex items-start gap-3"
+                          style={{ background: "rgba(255,120,0,0.14)", borderTop: "1px solid rgba(255,140,0,0.35)" }}
+                          data-testid={`banner-curbside-${item.id}`}
+                        >
+                          <span className="text-lg leading-none mt-0.5">🚗</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-black text-orange-300" dir="rtl">⚠️ {t("العميل بالخارج - استلام سيارة", "Customer Outside — Curbside Pickup")}</p>
+                            {order.car_plate_number && (
+                              <p className="text-base font-black text-white mt-0.5" dir="rtl" data-testid={`text-plate-${item.id}`}>
+                                {t("رقم اللوحة:", "Plate:")} <span className="text-orange-200 tracking-widest font-mono">{order.car_plate_number}</span>
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 );
@@ -2441,8 +2446,8 @@ function OverviewView({
               return (
                 <Card
                   key={`wa-${item.id}`}
-                  className={`relative rounded-2xl overflow-hidden transition-all duration-500 border border-red-500/30 shadow-[0_0_15px_rgba(239,0,0,0.08)] ${isFlying ? "opacity-0 -translate-y-20 scale-75" : ""}`}
-                  style={cardStyle(item.orderCategory)}
+                  className={`relative rounded-2xl overflow-hidden transition-all duration-500 border ${waOrder.is_waiting_outside ? "border-orange-500/50 ring-2 ring-orange-500/60 shadow-[0_0_28px_rgba(255,140,0,0.38)]" : "border-red-500/30 shadow-[0_0_15px_rgba(239,0,0,0.08)]"} ${isFlying ? "opacity-0 -translate-y-20 scale-75" : ""}`}
+                  style={waOrder.is_waiting_outside ? { ...cardStyle(item.orderCategory), borderInlineStart: "6px solid rgba(255,140,0,0.85)" } : cardStyle(item.orderCategory)}
                   data-testid={`card-active-order-${item.id}`}
                 >
                   <WatermarkIcon category={item.orderCategory} />
@@ -2641,6 +2646,24 @@ function OverviewView({
                         </>
                       )}
                     </div>
+
+                    {waOrder.is_waiting_outside && (
+                      <div
+                        className="-mx-4 -mb-4 mt-2 px-4 py-3 flex items-start gap-3"
+                        style={{ background: "rgba(255,120,0,0.14)", borderTop: "1px solid rgba(255,140,0,0.35)" }}
+                        data-testid={`banner-curbside-active-${item.id}`}
+                      >
+                        <span className="text-lg leading-none mt-0.5">🚗</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-black text-orange-300" dir="rtl">⚠️ {t("العميل بالخارج - استلام سيارة", "Customer Outside — Curbside Pickup")}</p>
+                          {waOrder.car_plate_number && (
+                            <p className="text-base font-black text-white mt-0.5" dir="rtl" data-testid={`text-plate-active-${item.id}`}>
+                              {t("رقم اللوحة:", "Plate:")} <span className="text-orange-200 tracking-widest font-mono">{waOrder.car_plate_number}</span>
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               );
