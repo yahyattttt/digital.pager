@@ -1079,14 +1079,23 @@ export default function DashboardPage() {
     if (!merchant?.uid) return;
     setQrLoading(true);
     try {
-      // Load the raw QR image first
+      // Step 1: Fetch QR as blob (avoids canvas taint from crossOrigin restrictions)
+      const qrEndpoint = `/api/qr/${merchant.uid}?t=${Date.now()}`;
+      const qrFetchRes = await fetch(qrEndpoint);
+      if (!qrFetchRes.ok) {
+        throw new Error(`QR fetch failed — HTTP ${qrFetchRes.status} from ${qrEndpoint}`);
+      }
+      const qrBlob = await qrFetchRes.blob();
+      const qrObjectUrl = URL.createObjectURL(qrBlob);
+
+      // Step 2: Load blob URL into an Image element (same-origin blob → no taint)
       const qrImg = new Image();
-      qrImg.crossOrigin = "anonymous";
       await new Promise<void>((resolve, reject) => {
         qrImg.onload = () => resolve();
-        qrImg.onerror = reject;
-        qrImg.src = `/api/qr/${merchant.uid}?t=${Date.now()}`;
+        qrImg.onerror = (e) => reject(new Error(`Image element failed to load blob URL: ${String(e)}`));
+        qrImg.src = qrObjectUrl;
       });
+      URL.revokeObjectURL(qrObjectUrl); // clean up blob URL after image loads
 
       // Canvas dimensions (2× for retina sharpness)
       const W = 440, H = 590, S = 2;
@@ -1210,10 +1219,12 @@ export default function DashboardPage() {
         title: t("تم التحميل", "Downloaded"),
         description: t("تم تحميل رمز QR بنجاح", "QR code downloaded successfully"),
       });
-    } catch {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("[PagerQR] Download failed:", msg);
       toast({
-        title: t("خطأ", "Error"),
-        description: t("فشل في تحميل رمز QR", "Failed to download QR code"),
+        title: t("خطأ في التحميل", "Download Error"),
+        description: msg || t("فشل في تحميل رمز QR", "Failed to download QR code"),
         variant: "destructive",
       });
     } finally {

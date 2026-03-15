@@ -521,8 +521,9 @@ export async function registerRoutes(
 
       res.set({
         "Content-Type": "image/png",
-        "Content-Disposition": `attachment; filename="store-qr-${storeId}.png"`,
+        "Content-Disposition": "inline",
         "Cache-Control": "no-cache",
+        "Access-Control-Allow-Origin": "*",
       });
       res.send(qrBuffer);
     } catch (error) {
