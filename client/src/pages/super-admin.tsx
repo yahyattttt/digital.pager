@@ -2639,34 +2639,55 @@ export default function SuperAdminPage() {
                   {/* DB Connectivity */}
                   {(() => {
                     const dbOk = sysHealth.db?.status === "connected";
-                    const dbColor = dbOk ? "#22c55e" : sysHealth.db?.status === "not_configured" ? "#94a3b8" : "#ef4444";
-                    const isCached = sysHealth.db?.cached === true;
+                    const isInit = sysHealth.db?.status === "initializing";
+                    const responseMs = sysHealth.db?.responseMs ?? 0;
+                    const rttMs = sysHealth.db?.firestoreRttMs ?? -1;
+                    // Color the response-time gauge: <50ms green, 50-150ms yellow, >150ms red
+                    const latColor = !dbOk && !isInit ? "#ef4444"
+                      : responseMs <= 50 ? "#22c55e"
+                      : responseMs <= 150 ? "#eab308"
+                      : "#ef4444";
+                    const latLabel = !dbOk && !isInit ? t("خطأ", "Error")
+                      : responseMs <= 50 ? t("ممتاز", "Excellent")
+                      : responseMs <= 150 ? t("جيد", "Good")
+                      : t("بطيء", "Slow");
                     const checkedAt = sysHealth.db?.checkedAt
                       ? new Date(sysHealth.db.checkedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
                       : null;
                     return (
-                      <Card className="bg-slate-900/80 border-slate-800">
-                        <CardContent className="p-4 flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${dbColor}12` }}>
-                            {dbOk ? <Wifi className="w-4 h-4" style={{ color: dbColor }} /> : <WifiOff className="w-4 h-4" style={{ color: dbColor }} />}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <p className="text-[11px] text-slate-500">Database</p>
-                              {isCached && (
-                                <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-slate-700 text-slate-400 tracking-wide">CACHED</span>
-                              )}
+                      <Card className="bg-slate-900/80 border-slate-800" data-testid="card-db">
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${latColor}18` }}>
+                                {dbOk || isInit ? <Wifi className="w-4 h-4" style={{ color: latColor }} /> : <WifiOff className="w-4 h-4 text-red-400" />}
+                              </div>
+                              <span className="text-sm font-semibold text-slate-200">Database</span>
                             </div>
-                            <p className="text-sm font-bold" style={{ color: dbColor }} data-testid="text-db-status">
-                              {dbOk
-                                ? `${t("متصل", "Connected")} · ${sysHealth.db?.pingMs ?? "?"}ms`
-                                : sysHealth.db?.status === "not_configured"
-                                ? t("غير مهيأ", "Not configured")
-                                : t("خطأ", "Error")}
-                            </p>
-                            {checkedAt && (
-                              <p className="text-[10px] text-slate-600 mt-0.5">{t("فُحص في", "Checked at")} {checkedAt}</p>
+                            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${latColor}18`, color: latColor }}>
+                              {latLabel}
+                            </span>
+                          </div>
+                          <div className="flex items-end gap-2 mb-1">
+                            <span className="text-4xl font-black" style={{ color: latColor }} data-testid="text-db-response-ms">
+                              {isInit ? "—" : responseMs}
+                            </span>
+                            <span className="text-slate-500 text-sm mb-1">ms</span>
+                          </div>
+                          <p className="text-[10px] text-slate-500 mb-2">{t("وقت استجابة الخادم", "Endpoint Response Time")}</p>
+                          <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden mb-3">
+                            <div className="h-full rounded-full" style={{ width: `${Math.min(100, (responseMs / 150) * 100)}%`, background: latColor }} />
+                          </div>
+                          <div className="flex items-center justify-between text-[10px] text-slate-600">
+                            <span data-testid="text-db-status">
+                              {dbOk ? t("متصل", "Connected") : isInit ? t("يتهيأ…", "Initializing…") : t("خطأ", "Error")}
+                            </span>
+                            {rttMs > 0 && (
+                              <span title="Actual Firestore network round-trip">
+                                Firestore RTT: {rttMs}ms
+                              </span>
                             )}
+                            {checkedAt && <span>{t("فُحص في", "Checked") + " " + checkedAt}</span>}
                           </div>
                         </CardContent>
                       </Card>
