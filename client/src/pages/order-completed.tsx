@@ -139,7 +139,7 @@ export default function OrderCompletedPage() {
 <body>
   <div class="header">
     <h1>${merchantName || "Digital Pager"}</h1>
-    <p>فاتورة</p>
+    <p>فاتورة ضريبية / Tax Invoice</p>
   </div>
   <div class="meta">
     <span>رقم الطلب: <strong>#${num}</strong></span>
@@ -161,8 +161,9 @@ export default function OrderCompletedPage() {
       <div class="total-row"><span>المجموع الفرعي</span><span>${subtotal.toFixed(2)} ر.س</span></div>
       <div class="total-row"><span>رسوم التوصيل</span><span>${deliveryFee.toFixed(2)} ر.س</span></div>
     ` : ""}
+    <div class="total-row"><span>ضريبة القيمة المضافة (VAT)</span><span>0.00 ر.س</span></div>
     <div class="total-row grand"><span>الإجمالي</span><span>${total.toFixed(2)} ر.س</span></div>
-    <div class="tax-disclaimer">المؤسسة غير خاضعة للضريبة</div>
+    <div class="tax-disclaimer">المنصة غير خاضعة لضريبة القيمة المضافة</div>
   </div>
   ` : `<p style="color:#888;text-align:center;padding:24px;">لا توجد تفاصيل للطلب</p>`}
   <div class="footer">

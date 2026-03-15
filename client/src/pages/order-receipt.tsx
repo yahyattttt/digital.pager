@@ -116,7 +116,8 @@ export default function OrderReceiptPage() {
             <h1 className="text-xl font-bold text-gray-900 mb-1" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }} data-testid="text-receipt-store-name">
               {merchant.storeName}
             </h1>
-            <p className="text-gray-400 text-xs font-bold tracking-wider uppercase mb-3">إيصال طلب</p>
+            <p className="text-gray-800 text-sm font-black tracking-wider mb-1" dir="rtl">فاتورة ضريبية</p>
+            <p className="text-gray-400 text-[10px] font-bold tracking-widest uppercase mb-3">Tax Invoice</p>
 
             <div className="flex items-center justify-center gap-4 text-xs text-gray-500">
               <span data-testid="text-receipt-order-id" className="font-mono font-bold text-gray-700">{order.displayOrderId || `#${orderId.slice(-6)}`}</span>
@@ -163,6 +164,10 @@ export default function OrderReceiptPage() {
               </div>
             )}
 
+            <div className="flex justify-between text-sm text-gray-500 mb-1.5" dir="rtl">
+              <span>ضريبة القيمة المضافة (VAT 0%)</span>
+              <span className="font-mono">0.00 SAR</span>
+            </div>
             <div className="flex justify-between items-center pt-3 mt-2 border-t-2 border-dashed border-gray-300" dir="rtl" data-testid="receipt-final-total">
               <span className="text-lg font-bold text-gray-900">الإجمالي</span>
               <span className="text-2xl font-extrabold text-gray-900 font-mono">{finalTotal.toFixed(2)} <span className="text-sm text-gray-500">SAR</span></span>
@@ -191,14 +196,20 @@ export default function OrderReceiptPage() {
                 data-testid="img-receipt-qr"
               />
               <p className="text-[10px] text-gray-400 text-center">امسح الرمز للتحقق من الطلب</p>
+              <p className="text-[11px] text-gray-600 font-semibold text-center mt-2" dir="rtl" data-testid="text-vat-disclaimer-qr">
+                المنصة غير خاضعة لضريبة القيمة المضافة
+              </p>
             </div>
           )}
 
           <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 text-center">
-            <p className="text-[10px] text-gray-400 leading-relaxed" dir="rtl" data-testid="text-receipt-legal-note">
-              هذا الإيصال لا يشمل ضريبة القيمة المضافة لعدم تسجيل المتجر فيها حالياً
+            <p className="text-[11px] text-gray-600 font-semibold leading-relaxed" dir="rtl" data-testid="text-receipt-legal-note">
+              المنصة غير خاضعة لضريبة القيمة المضافة
             </p>
-            <p className="text-[9px] text-gray-300 mt-1.5">Digital Pager • إيصال إلكتروني</p>
+            <p className="text-[10px] text-gray-400 mt-1" dir="rtl">
+              هذه الفاتورة الضريبية تم إنشاؤها إلكترونياً
+            </p>
+            <p className="text-[9px] text-gray-300 mt-1.5">Digital Pager • فاتورة ضريبية إلكترونية</p>
           </div>
         </div>
       </div>

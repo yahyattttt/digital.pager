@@ -2788,6 +2788,9 @@ function OverviewView({
         <div id="print-receipt" dir={lang === "ar" ? "rtl" : "ltr"}>
           <div className="receipt-header">
             <div className="receipt-store-name">{merchant?.storeName || "Digital Pager"}</div>
+            <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.04em", marginTop: "3px", marginBottom: "2px" }}>
+              {t("فاتورة ضريبية", "Tax Invoice")}
+            </div>
             <div className="receipt-order-id">{t("رقم الطلب", "Order")} #{printOrder.orderNumber || "---"}</div>
             <div className="receipt-datetime">{new Date(printOrder.createdAt).toLocaleString(lang === "ar" ? "ar-SA" : "en-US")}</div>
           </div>
@@ -2814,6 +2817,7 @@ function OverviewView({
           {printOrder.deliveryFee && printOrder.deliveryFee > 0 && (
             <div className="receipt-payment">{t("رسوم التوصيل", "Delivery Fee")}: {printOrder.deliveryFee.toFixed(2)} SAR</div>
           )}
+          <div className="receipt-payment">{t("ضريبة القيمة المضافة (VAT)", "VAT (0%)")}: 0.00 SAR</div>
           <div className="receipt-total">{t("الإجمالي", "Total")}: {printOrder.total.toFixed(2)} SAR</div>
           <div className="receipt-payment">{paymentLabel(printOrder.paymentMethod)}</div>
           {diningTypeLabel(printOrder.diningType) && (
@@ -2834,7 +2838,12 @@ function OverviewView({
               <div className="receipt-customer-notes-text">{printOrder.customerNotes}</div>
             </div>
           )}
-          <div className="receipt-footer">{t("شكراً لطلبكم", "Thank you for your order")}</div>
+          <div className="receipt-footer">
+            <div>{t("شكراً لطلبكم", "Thank you for your order")}</div>
+            <div style={{ marginTop: "6px", fontSize: "10px", fontStyle: "italic" }}>
+              {t("المنصة غير خاضعة لضريبة القيمة المضافة", "Platform not subject to VAT")}
+            </div>
+          </div>
         </div>
       )}
 
