@@ -596,7 +596,7 @@ export default function DigitalPagerPage() {
         {/* Browser disclaimer */}
         <p className="flex items-start justify-center gap-1.5 text-[15px] text-gray-400 mt-4 mb-1 leading-relaxed px-2" dir="rtl" data-testid="text-disclaimer">
           <span className="mt-0.5 shrink-0">⚠️</span>
-          <span>لضمان تنبيهك فور جهوزية الطلب، يرجى إبقاء هذه الصفحة مفتوحة.</span>
+          <span>بسبب قيود المتصفح، لا يمكننا تنبيهك خارج هذه الصفحة. يرجى إبقاؤها مفتوحة لضمان استلام التنبيه 📱</span>
         </p>
       </div>
 
