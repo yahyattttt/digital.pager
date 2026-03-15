@@ -84,9 +84,9 @@ export default function OrderCompletedPage() {
   async function downloadInvoice() {
     if (!order) return;
     const num = order.displayOrderId || order.orderNumber || orderId.slice(-6);
-    const date = order.createdAt
-      ? new Date(order.createdAt).toLocaleDateString("ar-SA", { year: "numeric", month: "long", day: "numeric" })
-      : new Date().toLocaleDateString("ar-SA", { year: "numeric", month: "long", day: "numeric" });
+    const dateObj = order.createdAt ? new Date(order.createdAt) : new Date();
+    const time = dateObj.toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" });
+    const date = dateObj.toLocaleDateString("ar-SA");
     const items = order.items || [];
     const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
     const deliveryFee = order.deliveryFee || 0;
@@ -94,13 +94,9 @@ export default function OrderCompletedPage() {
     const logoLetter = (merchantName || "D").charAt(0).toUpperCase();
 
     const diningTypeAr =
-      order.diningType === "delivery" ? "توصيل 🚚" :
-      order.diningType === "takeaway" ? "سفري 🛍" :
-      order.diningType === "dine_in"  ? "محلي 🪑" : "—";
-    const paymentAr =
-      !order.paymentMethod || order.paymentMethod === "cod" ? "دفع عند الاستلام" :
-      order.paymentMethod === "card"   ? "بطاقة ائتمان" :
-      order.paymentMethod === "online" ? "دفع إلكتروني" : order.paymentMethod;
+      order.diningType === "delivery" ? "توصيل" :
+      order.diningType === "takeaway" ? "سفري" :
+      order.diningType === "dine_in"  ? "محلي" : "محلي";
 
     // Fetch QR code
     let qrDataUrl = "";
@@ -116,10 +112,10 @@ export default function OrderCompletedPage() {
 
     const itemRows = items.map((item) => `
       <tr>
-        <td class="td-name">${item.name}</td>
-        <td class="td-center">${item.quantity}</td>
-        <td class="td-center">${item.price.toFixed(2)}</td>
-        <td class="td-total">${(item.price * item.quantity).toFixed(2)} ر.س</td>
+        <td class="col-name">${item.name}</td>
+        <td class="col-num">${item.quantity}</td>
+        <td class="col-num">${item.price.toFixed(2)}</td>
+        <td class="col-total">${(item.price * item.quantity).toFixed(2)} SAR</td>
       </tr>`).join("");
 
     const html = `<!DOCTYPE html>
@@ -131,119 +127,107 @@ export default function OrderCompletedPage() {
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap');
     *{margin:0;padding:0;box-sizing:border-box}
-    body{background:#fff;color:#111;font-family:'Tajawal',Arial,sans-serif;direction:rtl;max-width:760px;margin:0 auto;padding:36px 28px;font-size:13px;line-height:1.55;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    body{background:#fff;color:#111;font-family:'Tajawal',Arial,sans-serif;direction:rtl;max-width:680px;margin:0 auto;padding:28px 20px;font-size:13px;line-height:1.5;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 
-    /* ── Header ── */
-    .inv-header{display:flex;align-items:center;gap:16px;padding-bottom:20px;border-bottom:2px solid #e8e8e8;margin-bottom:22px}
-    .inv-logo{width:64px;height:64px;border-radius:50%;background:#fff0ee;border:2px solid #ffcccc;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:900;color:#cc2200;flex-shrink:0}
-    .inv-title-block{flex:1;text-align:center}
-    .inv-main-title{font-size:28px;font-weight:900;color:#cc2200;letter-spacing:-0.5px;line-height:1.1}
-    .inv-subtitle{font-size:11px;color:#aaa;letter-spacing:0.12em;text-transform:uppercase;margin-top:3px}
-    .inv-store-name{font-size:15px;font-weight:700;color:#333;margin-top:6px}
-    .inv-spacer{width:64px}
+    /* HEADER — centered stack */
+    .inv-header{text-align:center;padding-bottom:14px;border-bottom:2px solid #111;margin-bottom:16px}
+    .inv-logo{width:64px;height:64px;border-radius:50%;background:#cc2200;color:#fff;font-size:28px;font-weight:900;display:flex;align-items:center;justify-content:center;margin:0 auto 8px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .inv-store{font-size:18px;font-weight:700;color:#111;margin-bottom:4px}
+    .inv-title{font-size:15px;font-weight:900;color:#cc2200;letter-spacing:0.02em;margin-bottom:10px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .inv-meta-row{display:flex;justify-content:center;align-items:center;font-size:11px;color:#555;flex-wrap:wrap;gap:2px 0}
+    .inv-sep{padding:0 8px;color:#bbb}
 
-    /* ── Meta grid ── */
-    .inv-meta{display:grid;grid-template-columns:1fr 1fr;gap:10px 20px;margin-bottom:22px;padding:14px 18px;background:#fafafa;border:1px solid #efefef;border-radius:10px}
-    .inv-meta-cell{display:flex;flex-direction:column;gap:2px}
-    .inv-meta-label{font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:0.08em}
-    .inv-meta-value{font-size:13px;font-weight:700;color:#111}
+    /* DIVIDER */
+    .inv-divider{border:none;border-top:1px solid #ddd;margin:12px 0}
 
-    /* ── Items table ── */
-    .inv-table{width:100%;border-collapse:collapse;margin-bottom:20px}
-    .inv-table thead tr{background:#f5f5f5}
-    .inv-table thead th{padding:9px 12px;font-size:11px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:0.05em;border-bottom:2px solid #e8e8e8;white-space:nowrap}
-    .inv-table thead th:first-child{text-align:right}
-    .inv-table thead th:not(:first-child){text-align:center}
-    .inv-table thead th:last-child{text-align:left}
-    .td-name{padding:10px 12px;font-size:13px;color:#222;border-bottom:1px solid #f2f2f2}
-    .td-center{padding:10px 12px;font-size:13px;color:#666;text-align:center;border-bottom:1px solid #f2f2f2}
-    .td-total{padding:10px 12px;font-size:13px;font-weight:700;color:#111;text-align:left;border-bottom:1px solid #f2f2f2;white-space:nowrap}
+    /* TABLE */
+    .inv-table{width:100%;border-collapse:collapse;margin-bottom:14px}
+    .inv-table thead tr{background:#f5f5f5;border-top:1px solid #ddd;border-bottom:1px solid #ddd}
+    .inv-table thead th{padding:8px 10px;font-size:11px;font-weight:700;color:#444;letter-spacing:0.04em}
+    .col-name{text-align:right}
+    .col-num{text-align:center}
+    .col-total{text-align:left}
+    .inv-table tbody td{padding:9px 10px;font-size:13px;border-bottom:1px solid #f0f0f0}
+    .inv-table tbody td.col-name{font-weight:500;color:#111;text-align:right}
+    .inv-table tbody td.col-num{color:#555;text-align:center}
+    .inv-table tbody td.col-total{font-weight:700;color:#111;text-align:left;white-space:nowrap}
     .inv-table tbody tr:last-child td{border-bottom:none}
-    .inv-table tbody tr:hover{background:#fafafa}
 
-    /* ── Totals ── */
-    .inv-totals{background:#fafafa;border:1px solid #efefef;border-radius:10px;padding:14px 18px;margin-bottom:28px}
-    .inv-tot-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:13px;color:#666}
-    .inv-tot-row.grand{margin-top:12px;padding-top:12px;border-top:2px solid #e8e8e8;font-size:20px;font-weight:900;color:#cc2200}
-    .vat-badge{display:inline-block;background:#f0faf0;color:#2e7d32;border:1px solid #c8e6c9;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-right:4px}
+    /* TOTALS */
+    .inv-totals{border:1px solid #e0e0e0;border-radius:6px;padding:12px 14px;margin-bottom:18px;background:#fafafa}
+    .inv-tot-row{display:flex;justify-content:space-between;padding:4px 0;font-size:12px;color:#666}
+    .inv-tot-grand{display:flex;justify-content:space-between;align-items:center;padding:10px 0 2px;margin-top:8px;border-top:2px solid #111;font-size:19px;font-weight:900;color:#111}
 
-    /* ── QR + Footer ── */
-    .inv-footer{text-align:center;padding-top:24px;border-top:2px dashed #e8e8e8;margin-top:4px}
-    .inv-qr{width:130px;height:130px;margin:0 auto 8px;display:block}
-    .inv-qr-label{font-size:11px;color:#bbb;margin-bottom:14px}
-    .inv-disclaimer{display:inline-block;padding:9px 22px;background:#fff8f8;border:1.5px solid #ffcccc;border-radius:8px;font-size:14px;font-weight:700;color:#cc2200;margin-bottom:18px}
-    .inv-thankyou{font-size:17px;font-weight:700;color:#111;margin-bottom:5px}
-    .inv-generated{font-size:10px;color:#ccc}
+    /* FOOTER BADGE ROW */
+    .inv-badge-row{display:flex;align-items:center;gap:10px;background:#f5f5f5;border:1px solid #e0e0e0;border-radius:6px;padding:8px 14px;margin-bottom:18px;font-size:12px}
+    .inv-badge{background:#222;color:#fff;border-radius:4px;padding:2px 10px;font-size:11px;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .inv-badge-text{color:#555}
 
-    @media print{
-      body{max-width:100%;padding:16px}
-      .inv-logo{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-      .inv-disclaimer{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    }
-    @media(max-width:480px){
-      body{padding:16px 12px}
-      .inv-header{flex-direction:column;text-align:center}
-      .inv-spacer{display:none}
-      .inv-meta{grid-template-columns:1fr}
-    }
+    /* QR */
+    .inv-qr-wrap{text-align:center;margin-bottom:14px}
+    .inv-qr{width:148px;height:148px;display:block;margin:0 auto 8px}
+    .inv-qr-hint{font-size:11px;color:#999}
+
+    /* DISCLAIMER */
+    .inv-disclaimer{text-align:center;font-size:13px;font-weight:700;color:#cc2200;padding-top:12px;border-top:1px dashed #ddd;margin-top:4px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+
+    @media print{body{max-width:100%;padding:10px 8px}}
+    @media(max-width:480px){body{padding:14px 10px}}
   </style>
 </head>
 <body>
+
+  <!-- HEADER -->
   <div class="inv-header">
     <div class="inv-logo">${logoLetter}</div>
-    <div class="inv-title-block">
-      <div class="inv-main-title">فاتورة ضريبية</div>
-      <div class="inv-subtitle">Tax Invoice</div>
-      <div class="inv-store-name">${merchantName || "Digital Pager"}</div>
-    </div>
-    <div class="inv-spacer"></div>
-  </div>
-
-  <div class="inv-meta">
-    <div class="inv-meta-cell">
-      <span class="inv-meta-label">رقم الطلب</span>
-      <span class="inv-meta-value">#${num}</span>
-    </div>
-    <div class="inv-meta-cell">
-      <span class="inv-meta-label">التاريخ</span>
-      <span class="inv-meta-value">${date}</span>
-    </div>
-    <div class="inv-meta-cell">
-      <span class="inv-meta-label">نوع الطلب</span>
-      <span class="inv-meta-value">${diningTypeAr}</span>
-    </div>
-    <div class="inv-meta-cell">
-      <span class="inv-meta-label">طريقة الدفع</span>
-      <span class="inv-meta-value">${paymentAr}</span>
+    <div class="inv-store">${merchantName || "Digital Pager"}</div>
+    <div class="inv-title">فاتورة ضريبية / TAX INVOICE</div>
+    <div class="inv-meta-row">
+      <span>${time}</span>
+      <span class="inv-sep">|</span>
+      <span>${date}</span>
+      <span class="inv-sep">|</span>
+      <span>#${num}</span>
     </div>
   </div>
 
+  <!-- ITEMS TABLE -->
   ${items.length > 0 ? `
   <table class="inv-table">
     <thead>
       <tr>
-        <th>المنتج</th>
-        <th>الكمية</th>
-        <th>السعر</th>
-        <th>الإجمالي</th>
+        <th class="col-name">الصنف</th>
+        <th class="col-num">الكمية</th>
+        <th class="col-num">السعر</th>
+        <th class="col-total">المجموع</th>
       </tr>
     </thead>
     <tbody>${itemRows}</tbody>
   </table>
-  <div class="inv-totals">
-    ${deliveryFee > 0 ? `
-    <div class="inv-tot-row"><span>المجموع الفرعي</span><span>${subtotal.toFixed(2)} ر.س</span></div>
-    <div class="inv-tot-row"><span>رسوم التوصيل</span><span>${deliveryFee.toFixed(2)} ر.س</span></div>` : ""}
-    <div class="inv-tot-row"><span>ضريبة القيمة المضافة <span class="vat-badge">0%</span></span><span>0.00 ر.س</span></div>
-    <div class="inv-tot-row grand"><span>الإجمالي الكلي</span><span>${total.toFixed(2)} ر.س</span></div>
-  </div>` : `<p style="color:#aaa;text-align:center;padding:28px 0">لا توجد تفاصيل للطلب</p>`}
 
-  <div class="inv-footer">
-    ${qrDataUrl ? `<img src="${qrDataUrl}" alt="QR" class="inv-qr"><p class="inv-qr-label">امسح الرمز للتحقق من الطلب</p>` : ""}
-    <div class="inv-disclaimer">المنصة غير خاضعة لضريبة القيمة المضافة</div>
-    <div class="inv-thankyou">شكراً لزيارتكم! 🙏</div>
-    <div class="inv-generated">فاتورة ضريبية إلكترونية • Digital Pager</div>
+  <!-- TOTALS -->
+  <div class="inv-totals">
+    <div class="inv-tot-row"><span>مجموع الأصناف</span><span>${subtotal.toFixed(2)} SAR</span></div>
+    ${deliveryFee > 0 ? `<div class="inv-tot-row"><span>رسوم التوصيل</span><span>${deliveryFee.toFixed(2)} SAR</span></div>` : ""}
+    <div class="inv-tot-row"><span>ضريبة القيمة المضافة (VAT 0%)</span><span>SAR 0.00</span></div>
+    <div class="inv-tot-grand"><span>الإجمالي</span><span>${total.toFixed(2)} SAR</span></div>
+  </div>` : `<p style="color:#aaa;text-align:center;padding:24px 0">لا توجد تفاصيل للطلب</p>`}
+
+  <!-- FOOTER BADGE -->
+  <div class="inv-badge-row">
+    <span class="inv-badge">${diningTypeAr}</span>
+    ${order.customerName ? `<span class="inv-badge-text">العميل: ${order.customerName}</span>` : ""}
   </div>
+
+  <!-- QR CODE -->
+  <div class="inv-qr-wrap">
+    ${qrDataUrl ? `<img src="${qrDataUrl}" class="inv-qr" alt="QR Code">` : ""}
+    <p class="inv-qr-hint">امسح الرمز للتحقق من الطلب</p>
+  </div>
+
+  <!-- LEGAL DISCLAIMER -->
+  <div class="inv-disclaimer">المنصة غير خاضعة لضريبة القيمة المضافة</div>
+
 </body>
 </html>`;
 

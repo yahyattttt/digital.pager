@@ -1781,6 +1781,7 @@ function OverviewView({
   isApproved: boolean;
 }) {
   const [printOrder, setPrintOrder] = useState<WhatsAppOrder | null>(null);
+  const [printQrDataUrl, setPrintQrDataUrl] = useState<string>("");
   const [uncollectedConfirmOrder, setUncollectedConfirmOrder] = useState<WhatsAppOrder | null>(null);
   const [customerNoShowMap, setCustomerNoShowMap] = useState<Record<string, number>>({});
   const [customerOrderCounts, setCustomerOrderCounts] = useState<Record<string, number>>({});
@@ -1816,12 +1817,24 @@ function OverviewView({
     return () => clearInterval(iv);
   }, [merchant?.uid]);
 
-  const handlePrint = (order: WhatsAppOrder) => {
+  const handlePrint = async (order: WhatsAppOrder) => {
+    // Fetch QR code before printing
+    let qrUrl = "";
+    try {
+      const qrContent = `${window.location.origin}/receipt/${order.id}?m=${order.merchantId}`;
+      const qrRes = await fetch("/api/receipt-qr", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: qrContent }),
+      });
+      if (qrRes.ok) { const d = await qrRes.json(); qrUrl = d.dataUrl || ""; }
+    } catch {}
+    setPrintQrDataUrl(qrUrl);
     setPrintOrder(order);
     setTimeout(() => {
       window.print();
-      setTimeout(() => setPrintOrder(null), 500);
-    }, 100);
+      setTimeout(() => { setPrintOrder(null); setPrintQrDataUrl(""); }, 500);
+    }, 250);
   };
 
   const safeTime = (ts: string) => { const t = new Date(ts).getTime(); return isNaN(t) ? Date.now() : t; };
@@ -2784,107 +2797,123 @@ function OverviewView({
 
       </div>
 
-      {printOrder && (
-        <div id="print-receipt" dir={lang === "ar" ? "rtl" : "ltr"}>
-          {/* ── Header ── */}
-          <div className="receipt-header">
-            <div className="receipt-store-name">{merchant?.storeName || "Digital Pager"}</div>
-            <div className="receipt-tax-title">{t("فاتورة ضريبية", "Tax Invoice")}</div>
-            <div className="receipt-order-id">
-              {t("رقم الطلب", "Order #")}{printOrder.displayOrderId || printOrder.orderNumber || "---"}
+      {printOrder && (() => {
+        const pDateObj = new Date(printOrder.createdAt);
+        const pTime = pDateObj.toLocaleTimeString(lang === "ar" ? "ar-SA" : "en-US", { hour: "2-digit", minute: "2-digit" });
+        const pDate = pDateObj.toLocaleDateString(lang === "ar" ? "ar-SA" : "en-US");
+        const pNum = printOrder.displayOrderId || printOrder.orderNumber || "---";
+        const pSubtotal = printOrder.items.reduce((s, i) => s + i.price * i.quantity, 0);
+        const pDelivery = printOrder.deliveryFee || 0;
+        const logoLetter = (merchant?.storeName || "D").charAt(0).toUpperCase();
+        const pDining = printOrder.diningType === "delivery" ? t("توصيل","Delivery") :
+                        printOrder.diningType === "takeaway" ? t("سفري","Takeaway") : t("محلي","Dine-in");
+        return (
+          <div id="print-receipt" dir={lang === "ar" ? "rtl" : "ltr"}>
+            {/* HEADER */}
+            <div className="receipt-header">
+              <div className="receipt-logo">{logoLetter}</div>
+              <div className="receipt-store-name">{merchant?.storeName || "Digital Pager"}</div>
+              <div className="receipt-tax-title">{t("فاتورة ضريبية / TAX INVOICE","TAX INVOICE / فاتورة ضريبية")}</div>
+              <div className="receipt-meta-row">
+                <span>{pTime}</span>
+                <span className="receipt-meta-sep">|</span>
+                <span>{pDate}</span>
+                <span className="receipt-meta-sep">|</span>
+                <span>#{pNum}</span>
+              </div>
             </div>
-            <div className="receipt-datetime">
-              {new Date(printOrder.createdAt).toLocaleString(lang === "ar" ? "ar-SA" : "en-US", { dateStyle: "short", timeStyle: "short" })}
-            </div>
-            {diningTypeLabel(printOrder.diningType) && (
-              <div className="receipt-order-type">{t("النوع", "Type")}: {diningTypeLabel(printOrder.diningType)}</div>
-            )}
-          </div>
 
-          {/* ── Customer ── */}
-          <div className="receipt-customer">
-            <div><strong>{t("العميل", "Customer")}:</strong> {printOrder.customerName}</div>
-            <div dir="ltr" style={{ textAlign: lang === "ar" ? "right" : "left" }}>
-              <strong>{t("الجوال", "Phone")}:</strong> {printOrder.customerPhone}
+            {/* CUSTOMER */}
+            <div className="receipt-customer">
+              <div><strong>{t("العميل","Customer")}:</strong> {printOrder.customerName}</div>
+              <div dir="ltr" style={{ textAlign: lang === "ar" ? "right" : "left" }}>
+                <strong>{t("الجوال","Phone")}:</strong> {printOrder.customerPhone}
+              </div>
+              <div className="receipt-payment-method">{paymentLabel(printOrder.paymentMethod)}</div>
             </div>
-            <div className="receipt-payment-method">{paymentLabel(printOrder.paymentMethod)}</div>
-          </div>
 
-          {/* ── Items ── */}
-          <div className="receipt-items">
-            {printOrder.items.map((itm, idx) => {
-              const parsed = parseItemExtras(itm.name);
-              const lineTotal = (itm.price * itm.quantity).toFixed(2);
-              return (
-                <div key={idx} className="receipt-item-block">
-                  <div className="receipt-item-name">
-                    {itm.quantity}× {parsed.baseName}{parsed.variant ? ` (${parsed.variant})` : ""}
+            {/* ITEMS TABLE */}
+            <div className="receipt-items">
+              <div className="receipt-table-header">
+                <span className="rth-name">{t("الصنف","Item")}</span>
+                <span className="rth-qty">{t("الكمية","Qty")}</span>
+                <span className="rth-price">{t("السعر","Price")}</span>
+                <span className="rth-total">{t("المجموع","Total")}</span>
+              </div>
+              {printOrder.items.map((itm, idx) => {
+                const parsed = parseItemExtras(itm.name);
+                return (
+                  <div key={idx}>
+                    <div className="receipt-table-row">
+                      <span className="rth-name">{parsed.baseName}{parsed.variant ? ` (${parsed.variant})` : ""}</span>
+                      <span className="rth-qty">{itm.quantity}</span>
+                      <span className="rth-price">{itm.price.toFixed(2)}</span>
+                      <span className="rth-total">{(itm.price * itm.quantity).toFixed(2)}</span>
+                    </div>
+                    {parsed.extras && <div className="receipt-item-extras">+ {parsed.extras}</div>}
                   </div>
-                  <div className="receipt-item-price-row">
-                    <span className="receipt-item-unit">{itm.price.toFixed(2)} × {itm.quantity}</span>
-                    <span className="receipt-item-total">{lineTotal} SAR</span>
-                  </div>
-                  {parsed.extras && (
-                    <div className="receipt-item-extras">+ {parsed.extras}</div>
-                  )}
+                );
+              })}
+            </div>
+
+            {/* TOTALS */}
+            <div className="receipt-totals">
+              <div className="receipt-totals-row">
+                <span>{t("مجموع الأصناف","Items Total")}</span>
+                <span>{pSubtotal.toFixed(2)} SAR</span>
+              </div>
+              {pDelivery > 0 && (
+                <div className="receipt-totals-row">
+                  <span>{t("رسوم التوصيل","Delivery")}</span>
+                  <span>{pDelivery.toFixed(2)} SAR</span>
                 </div>
-              );
-            })}
-          </div>
-
-          {/* ── Totals ── */}
-          <div className="receipt-totals">
-            {printOrder.deliveryFee && printOrder.deliveryFee > 0 && (
+              )}
               <div className="receipt-totals-row">
-                <span>{t("المجموع الفرعي", "Subtotal")}</span>
-                <span>{printOrder.items.reduce((s, i) => s + i.price * i.quantity, 0).toFixed(2)} SAR</span>
+                <span>{t("ضريبة القيمة المضافة (VAT 0%)","VAT 0%")}</span>
+                <span>0.00 SAR</span>
+              </div>
+              <div className="receipt-totals-grand">
+                <span>{t("الإجمالي","Total")}</span>
+                <span>{printOrder.total.toFixed(2)} SAR</span>
+              </div>
+            </div>
+
+            {/* NOTES */}
+            {printOrder.diningType === "delivery" && (printOrder.deliveryMapLink || printOrder.deliveryAddress) && (
+              <div className="receipt-customer-notes">
+                <div className="receipt-customer-notes-label">{t("موقع التوصيل","Delivery Location")}</div>
+                <div className="receipt-customer-notes-text">
+                  {printOrder.deliveryAddress && <div>{printOrder.deliveryAddress}</div>}
+                  {printOrder.deliveryMapLink && <div style={{ fontSize: "10px", wordBreak: "break-all", marginTop: "2px" }}>{printOrder.deliveryMapLink}</div>}
+                </div>
               </div>
             )}
-            {printOrder.deliveryFee && printOrder.deliveryFee > 0 && (
-              <div className="receipt-totals-row">
-                <span>{t("رسوم التوصيل", "Delivery")}</span>
-                <span>{printOrder.deliveryFee.toFixed(2)} SAR</span>
+            {printOrder.customerNotes && (
+              <div className="receipt-customer-notes">
+                <div className="receipt-customer-notes-label">{t("ملاحظة العميل","Customer Note")}</div>
+                <div className="receipt-customer-notes-text">{printOrder.customerNotes}</div>
               </div>
             )}
-            <div className="receipt-totals-row">
-              <span>{t("ضريبة (VAT)", "VAT")} 0%</span>
-              <span>0.00 SAR</span>
+
+            {/* FOOTER BADGE */}
+            <div className="receipt-badge-row">
+              <span className="receipt-badge">{pDining}</span>
+              <span className="receipt-badge-text">{t("العميل","Customer")}: {printOrder.customerName}</span>
             </div>
-            <div className="receipt-totals-grand">
-              <span>{t("الإجمالي", "Total")}</span>
-              <span>{printOrder.total.toFixed(2)} SAR</span>
+
+            {/* QR CODE */}
+            <div className="receipt-qr-wrap">
+              {printQrDataUrl && <img src={printQrDataUrl} className="receipt-qr" alt="QR" />}
+              <div className="receipt-qr-hint">{t("امسح الرمز للتحقق من الطلب","Scan to verify order")}</div>
+            </div>
+
+            {/* DISCLAIMER */}
+            <div className="receipt-disclaimer">
+              {t("المنصة غير خاضعة لضريبة القيمة المضافة","Platform not subject to VAT")}
             </div>
           </div>
-
-          {/* ── Notes / Delivery ── */}
-          {printOrder.diningType === "delivery" && (printOrder.deliveryMapLink || printOrder.deliveryAddress) && (
-            <div className="receipt-customer-notes">
-              <div className="receipt-customer-notes-label">{t("موقع التوصيل", "Delivery Location")}</div>
-              <div className="receipt-customer-notes-text">
-                {printOrder.deliveryAddress && <div>{printOrder.deliveryAddress}</div>}
-                {printOrder.deliveryMapLink && (
-                  <div style={{ fontSize: "10px", wordBreak: "break-all", marginTop: "3px" }}>{printOrder.deliveryMapLink}</div>
-                )}
-              </div>
-            </div>
-          )}
-          {printOrder.customerNotes && (
-            <div className="receipt-customer-notes">
-              <div className="receipt-customer-notes-label">{t("ملاحظة العميل", "Customer Note")}</div>
-              <div className="receipt-customer-notes-text">{printOrder.customerNotes}</div>
-            </div>
-          )}
-
-          {/* ── Footer ── */}
-          <div className="receipt-footer">
-            <div className="receipt-vat-disclaimer">
-              {t("المنصة غير خاضعة لضريبة القيمة المضافة", "Not subject to VAT")}
-            </div>
-            <div className="receipt-thankyou">{t("شكراً لزيارتكم!", "Thank you for visiting!")}</div>
-            <div style={{ marginTop: "4px", fontSize: "9px", color: "#aaa" }}>Digital Pager • فاتورة ضريبية</div>
-          </div>
-        </div>
-      )}
+        );
+      })()}
 
       <Dialog open={!!uncollectedConfirmOrder} onOpenChange={(open) => !open && setUncollectedConfirmOrder(null)}>
         <DialogContent className="bg-[#111] border-white/10 text-white max-w-sm" data-testid="dialog-uncollected-confirm">
