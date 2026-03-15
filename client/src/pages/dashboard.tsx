@@ -1999,15 +1999,27 @@ function OverviewView({
         <div className="sticky top-0 z-10 bg-[#0d0d0d] pb-3 -mt-1 pt-1 space-y-3" data-testid="filter-bar">
 
           <div className="flex items-center gap-2 pb-2.5 border-b border-white/[0.04]" data-testid="quick-add-bar">
-            <Button
-              onClick={handleShiftAdd}
-              disabled={manualAddLoading}
-              className="h-9 px-3.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl active:scale-[0.96] transition-all shrink-0"
-              data-testid="button-shift-add"
-            >
-              {manualAddLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin me-1.5" /> : <Plus className="w-3.5 h-3.5 me-1.5" />}
-              {t("توليد رقم تلقائي", "Auto Generate")}
-            </Button>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                onClick={handleShiftAdd}
+                disabled={manualAddLoading}
+                className="h-9 px-3.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl active:scale-[0.96] transition-all"
+                data-testid="button-shift-add"
+              >
+                {manualAddLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin me-1.5" /> : <Plus className="w-3.5 h-3.5 me-1.5" />}
+                {t("توليد رقم تلقائي", "Auto Generate")}
+              </Button>
+              <Button
+                onClick={() => { setShiftConfigInput(String(lastShiftNumber)); setShowShiftConfig(true); }}
+                size="sm"
+                variant="ghost"
+                className="h-9 w-10 p-0 text-white/35 hover:text-white/80 hover:bg-white/[0.06] rounded-xl transition-colors"
+                title={t("إعداد الوردية", "Shift Setup")}
+                data-testid="button-shift-config-open"
+              >
+                <Settings className="w-8 h-8" />
+              </Button>
+            </div>
 
             <div className="flex items-center gap-1.5 shrink-0">
               <Input
@@ -2060,16 +2072,6 @@ function OverviewView({
                 {lastShiftNumber > 0 && (
                   <span className="text-[10px] text-white/20 font-mono hidden sm:inline" data-testid="text-shift-counter">#{lastShiftNumber}→{lastShiftNumber + 1}</span>
                 )}
-                <Button
-                  onClick={() => { setShiftConfigInput(String(lastShiftNumber)); setShowShiftConfig(true); }}
-                  size="sm"
-                  variant="ghost"
-                  className="h-9 w-9 p-0 text-white/20 hover:text-white/60 rounded-xl"
-                  title={t("إعداد الوردية", "Shift Setup")}
-                  data-testid="button-shift-config-open"
-                >
-                  <Settings className="w-3.5 h-3.5" />
-                </Button>
               </div>
             )}
           </div>
