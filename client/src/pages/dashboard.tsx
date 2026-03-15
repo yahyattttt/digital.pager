@@ -2578,16 +2578,6 @@ function OverviewView({
                         {sc.label}
                       </Badge>
                       <LiveOrderTimer createdAt={item.createdAt} lang={lang} isNew={isNewStatus} />
-                      {printReceiptsEnabled && (
-                        <button
-                          onClick={() => handlePrint(waOrder)}
-                          className="w-7 h-7 flex items-center justify-center rounded-lg bg-white/[0.06] hover:bg-white/[0.12] text-white/50 hover:text-white/80 transition-colors"
-                          data-testid={`button-print-${item.id}`}
-                          title={t("طباعة", "Print")}
-                        >
-                          <Printer className="w-3.5 h-3.5" />
-                        </button>
-                      )}
                     </div>
                   </div>
 
@@ -2631,32 +2621,34 @@ function OverviewView({
                       </div>
                     </div>
 
-                    <div className="space-y-0.5 bg-white/[0.02] rounded-xl p-2.5 border border-white/[0.04] max-h-[130px] overflow-y-auto">
-                      {waOrder.items.map((itm: any, idx: number) => {
-                        const parsed = parseItemExtras(itm.name);
-                        const structuredExtras: string[] = itm.extras && itm.extras.length > 0 ? itm.extras : (parsed.extras ? [parsed.extras] : []);
-                        const structuredRemovals: string[] = itm.removals || [];
-                        const displayVariant = itm.selectedVariant || parsed.variant;
-                        return (
-                          <div key={idx} data-testid={`order-item-${item.id}-${idx}`}>
-                            <div className="flex items-center justify-between gap-1">
-                              <p className="text-xs font-semibold text-white leading-tight">
-                                <span className="text-white/40 me-1">{itm.quantity}×</span>
-                                {parsed.baseName}
-                                {displayVariant && <span className="text-white/35 text-[10px] ms-1">({displayVariant})</span>}
-                              </p>
-                              <span className="text-[11px] text-white/45 font-mono shrink-0">{itm.price.toFixed(0)}</span>
+                    {waOrder.diningType === "delivery" && (
+                      <div className="space-y-0.5 bg-white/[0.02] rounded-xl p-2.5 border border-white/[0.04] max-h-[130px] overflow-y-auto">
+                        {waOrder.items.map((itm: any, idx: number) => {
+                          const parsed = parseItemExtras(itm.name);
+                          const structuredExtras: string[] = itm.extras && itm.extras.length > 0 ? itm.extras : (parsed.extras ? [parsed.extras] : []);
+                          const structuredRemovals: string[] = itm.removals || [];
+                          const displayVariant = itm.selectedVariant || parsed.variant;
+                          return (
+                            <div key={idx} data-testid={`order-item-${item.id}-${idx}`}>
+                              <div className="flex items-center justify-between gap-1">
+                                <p className="text-xs font-semibold text-white leading-tight">
+                                  <span className="text-white/40 me-1">{itm.quantity}×</span>
+                                  {parsed.baseName}
+                                  {displayVariant && <span className="text-white/35 text-[10px] ms-1">({displayVariant})</span>}
+                                </p>
+                                <span className="text-[11px] text-white/45 font-mono shrink-0">{itm.price.toFixed(0)}</span>
+                              </div>
+                              {structuredExtras.length > 0 && (
+                                <p className="text-[10px] text-emerald-400/70 ps-4 leading-tight">+ {structuredExtras.join(", ")}</p>
+                              )}
+                              {structuredRemovals.length > 0 && (
+                                <p className="text-[10px] text-amber-400/70 ps-4 leading-tight">— {t("بدون", "No")} {structuredRemovals.join(", ")}</p>
+                              )}
                             </div>
-                            {structuredExtras.length > 0 && (
-                              <p className="text-[10px] text-emerald-400/70 ps-4 leading-tight">+ {structuredExtras.join(", ")}</p>
-                            )}
-                            {structuredRemovals.length > 0 && (
-                              <p className="text-[10px] text-amber-400/70 ps-4 leading-tight">— {t("بدون", "No")} {structuredRemovals.join(", ")}</p>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
+                          );
+                        })}
+                      </div>
+                    )}
 
                     {waOrder.diningType === "delivery" && (waOrder.deliveryMapLink || waOrder.deliveryLat != null) && (
                       <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20" data-testid={`text-delivery-address-${item.id}`}>
@@ -2672,7 +2664,7 @@ function OverviewView({
                       </div>
                     )}
 
-                    {waOrder.customerNotes && (
+                    {waOrder.customerNotes && waOrder.diningType === "delivery" && (
                       <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20" data-testid={`text-customer-notes-${item.id}`}>
                         <p className="text-[11px] text-amber-300 font-bold mb-0.5">{t("ملاحظة العميل", "Customer Note")}</p>
                         <p className="text-xs text-white/80 leading-relaxed">{waOrder.customerNotes}</p>
@@ -2695,6 +2687,17 @@ function OverviewView({
                     </div>
 
                     <div className="flex gap-2">
+                      {printReceiptsEnabled && (
+                        <Button
+                          size="sm"
+                          onClick={() => handlePrint(waOrder)}
+                          className="h-9 w-9 p-0 bg-white/[0.06] hover:bg-white/[0.12] text-white/55 hover:text-white/90 rounded-xl border border-white/10 shrink-0"
+                          data-testid={`button-print-${item.id}`}
+                          title={t("طباعة", "Print")}
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
                       {waOrder.diningType === "delivery" && (
                         <Button
                           size="sm"
