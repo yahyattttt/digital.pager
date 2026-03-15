@@ -1102,14 +1102,15 @@ export default function DashboardPage() {
       });
       console.log("[PagerQR] data URL prefix:", qrDataUrl.slice(0, 30));
 
-      // ── Step 3: load data URL into Image ──────────────────────────
-      const qrImg = new Image();
+      // ── Step 3: load data URL into HTMLImageElement ───────────────
+      // NOTE: use window.Image — the local `Image` import (lucide/UI) shadows the native constructor
+      const qrImg = new window.Image();
       await new Promise<void>((resolve, reject) => {
         qrImg.onload = () => resolve();
-        qrImg.onerror = () => reject(new Error("[PagerQR] Image.onload failed for data URL"));
+        qrImg.onerror = () => reject(new Error("[PagerQR] HTMLImageElement failed to load data URL"));
         qrImg.src = qrDataUrl;
       });
-      console.log("[PagerQR] Image loaded — natural size:", qrImg.naturalWidth, "×", qrImg.naturalHeight);
+      console.log("[PagerQR] image loaded — natural size:", qrImg.naturalWidth, "×", qrImg.naturalHeight);
 
       // ── Step 4: draw pager frame onto canvas ──────────────────────
       const W = 440, H = 590, S = 2;
