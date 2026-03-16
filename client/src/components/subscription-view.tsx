@@ -1,0 +1,460 @@
+import { useState, useEffect, useRef } from "react";
+import { collection, getDocs, query, where } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
+import type { Merchant } from "@shared/schema";
+import {
+  CheckCircle2,
+  Clock,
+  Upload,
+  X,
+  Copy,
+  Users,
+  Gift,
+  Crown,
+  Zap,
+  Rocket,
+  Star,
+  FileText,
+  ImageIcon,
+  AlertCircle,
+  ChevronRight,
+  Share2,
+} from "lucide-react";
+
+const PLANS = [
+  {
+    id: "trial",
+    price: 99,
+    days: 30,
+    icon: Star,
+    color: "from-slate-700 to-slate-600",
+    borderColor: "border-slate-500",
+    accentColor: "text-slate-300",
+    badgeColor: "bg-slate-600/40 text-slate-300 border-slate-500/50",
+    nameAr: "باقة البداية",
+    nameEn: "Starter",
+    durationAr: "شهر واحد",
+    features: ["بيجر رقمي لاسلكي", "QR كود مخصص", "إشعارات فورية", "تقارير أساسية"],
+  },
+  {
+    id: "basic",
+    price: 269,
+    days: 90,
+    icon: Zap,
+    color: "from-blue-900 to-blue-800",
+    borderColor: "border-blue-500",
+    accentColor: "text-blue-300",
+    badgeColor: "bg-blue-600/30 text-blue-300 border-blue-500/50",
+    nameAr: "باقة النمو",
+    nameEn: "Growth",
+    durationAr: "٣ أشهر",
+    features: ["كل مزايا البداية", "نظام الطلبات الذكي", "CRM العملاء", "كوبونات الخصم"],
+  },
+  {
+    id: "premium",
+    price: 499,
+    days: 180,
+    icon: Rocket,
+    color: "from-red-900 to-rose-900",
+    borderColor: "border-red-500",
+    accentColor: "text-red-300",
+    badgeColor: "bg-red-600/30 text-red-300 border-red-500/50",
+    nameAr: "باقة التميز",
+    nameEn: "Premium",
+    durationAr: "٦ أشهر",
+    popular: true,
+    features: ["كل مزايا النمو", "تحليلات متقدمة", "تتبع العملاء", "دعم ذو أولوية"],
+  },
+  {
+    id: "enterprise",
+    price: 999,
+    days: 365,
+    icon: Crown,
+    color: "from-amber-900 to-yellow-900",
+    borderColor: "border-amber-400",
+    accentColor: "text-amber-300",
+    badgeColor: "bg-amber-500/20 text-amber-300 border-amber-400/50",
+    nameAr: "باقة المؤسسات",
+    nameEn: "Enterprise",
+    durationAr: "سنة كاملة",
+    features: ["كل المزايا", "مدير حساب مخصص", "تكاملات متقدمة", "SLA مضمون"],
+  },
+];
+
+interface Props {
+  merchant: Merchant & { subscriptionStartAt?: string | null };
+  t: (ar: string, en: string) => string;
+  lang: string;
+}
+
+export default function SubscriptionView({ merchant, t, lang }: Props) {
+  const { toast } = useToast();
+  const [selectedPlan, setSelectedPlan] = useState<string>(merchant.subscriptionRequestedPlan || merchant.plan || "trial");
+  const [uploadedDocs, setUploadedDocs] = useState<string[]>(merchant.subscriptionDocuments || []);
+  const [notes, setNotes] = useState(merchant.subscriptionRequestNotes || "");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [referralStats, setReferralStats] = useState({ joined: 0, monthsEarned: 0 });
+  const [referralLoading, setReferralLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const referralLink = `${window.location.origin}/register?ref=${merchant.uid}`;
+  const isPending = merchant.subscriptionRequestStatus === "pending" && !submitted;
+  const isAlreadyActive = merchant.subscriptionStatus === "active";
+
+  useEffect(() => {
+    async function fetchReferrals() {
+      try {
+        const q = query(collection(db, "merchants"), where("referredBy", "==", merchant.uid));
+        const snap = await getDocs(q);
+        const joined = snap.size;
+        const monthsEarned = snap.docs.filter(
+          (d) => d.data().subscriptionRequestStatus === "approved"
+        ).length;
+        setReferralStats({ joined, monthsEarned });
+      } catch {
+      } finally {
+        setReferralLoading(false);
+      }
+    }
+    fetchReferrals();
+  }, [merchant.uid]);
+
+  async function handleDocUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (uploadedDocs.length >= 5) {
+      toast({ title: t("الحد الأقصى ٥ ملفات", "Max 5 files"), variant: "destructive" });
+      return;
+    }
+    setUploadingDoc(true);
+    try {
+      const formData = new FormData();
+      formData.append("doc", file);
+      const res = await fetch("/api/upload-subscription-doc", { method: "POST", body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      setUploadedDocs((prev) => [...prev, data.url]);
+      toast({ title: t("تم رفع الملف", "File uploaded") });
+    } catch (err: any) {
+      toast({ title: t("فشل الرفع", "Upload failed"), description: err.message, variant: "destructive" });
+    } finally {
+      setUploadingDoc(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  function removeDoc(url: string) {
+    setUploadedDocs((prev) => prev.filter((u) => u !== url));
+  }
+
+  async function handleSubmit() {
+    if (!selectedPlan) {
+      toast({ title: t("اختر الباقة أولاً", "Please select a plan"), variant: "destructive" });
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/merchant/subscription-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          merchantId: merchant.uid,
+          plan: selectedPlan,
+          documents: uploadedDocs,
+          notes,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      setSubmitted(true);
+      toast({
+        title: t("تم إرسال الطلب", "Request submitted"),
+        description: t("سيتم مراجعة طلبك قريباً", "Your request will be reviewed soon"),
+      });
+    } catch (err: any) {
+      toast({ title: t("فشل الإرسال", "Submission failed"), description: err.message, variant: "destructive" });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function copyReferral() {
+    navigator.clipboard.writeText(referralLink).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  const planDetails = PLANS.find((p) => p.id === selectedPlan);
+
+  return (
+    <div className="p-4 md:p-6 space-y-8 max-w-4xl mx-auto" dir={lang === "ar" ? "rtl" : "ltr"}>
+
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center">
+          <Crown className="w-5 h-5 text-primary" />
+        </div>
+        <div>
+          <h1 className="text-xl font-bold" data-testid="text-subscription-title">
+            {t("اشتراكي", "My Subscription")}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {t("اختر الباقة المناسبة لمتجرك", "Choose the right plan for your store")}
+          </p>
+        </div>
+      </div>
+
+      {/* Referral Discount Banner */}
+      {merchant.referralDiscount && (
+        <div className="flex items-center gap-3 p-4 rounded-xl border border-amber-500/40 bg-amber-500/10">
+          <Gift className="w-5 h-5 text-amber-400 shrink-0" />
+          <p className="text-sm text-amber-300 font-medium">
+            {t("لديك خصم 50% على أول شهر — هدية دعوة الصديق!", "You have a 50% discount on your first month — referral gift!")}
+          </p>
+        </div>
+      )}
+
+      {/* Active Subscription Status */}
+      {isAlreadyActive && (
+        <div className="flex items-center gap-3 p-4 rounded-xl border border-green-500/40 bg-green-500/10">
+          <CheckCircle2 className="w-5 h-5 text-green-400 shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-green-400">
+              {t("اشتراكك نشط", "Your subscription is active")}
+            </p>
+            {merchant.subscriptionExpiry && (
+              <p className="text-xs text-green-400/70 mt-0.5">
+                {t("ينتهي في", "Expires")} {new Date(merchant.subscriptionExpiry).toLocaleDateString(lang === "ar" ? "ar-SA" : "en-US")}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Pending Review Banner */}
+      {(isPending || submitted) && (
+        <div className="flex items-center gap-3 p-4 rounded-xl border border-yellow-500/40 bg-yellow-500/10">
+          <Clock className="w-5 h-5 text-yellow-400 shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-yellow-300">
+              {t("طلبك قيد المراجعة", "Your request is under review")}
+            </p>
+            <p className="text-xs text-yellow-400/70 mt-0.5">
+              {t("سيتواصل معك الفريق قريباً", "Our team will contact you soon")}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Plan Cards */}
+      <div>
+        <h2 className="text-base font-semibold mb-4" data-testid="text-plans-heading">
+          {t("اختر الباقة", "Choose Your Plan")}
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {PLANS.map((plan) => {
+            const Icon = plan.icon;
+            const isSelected = selectedPlan === plan.id;
+            return (
+              <button
+                key={plan.id}
+                data-testid={`card-plan-${plan.id}`}
+                onClick={() => !isPending && !submitted && setSelectedPlan(plan.id)}
+                className={`relative text-start rounded-2xl border-2 p-4 transition-all duration-200 bg-gradient-to-br ${plan.color} ${
+                  isSelected
+                    ? `${plan.borderColor} shadow-lg shadow-black/30 scale-[1.02]`
+                    : "border-transparent opacity-70 hover:opacity-90 hover:scale-[1.01]"
+                } ${isPending || submitted ? "cursor-default" : "cursor-pointer"}`}
+              >
+                {plan.popular && (
+                  <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 text-[10px] font-bold px-3 py-0.5 rounded-full bg-primary text-white border border-primary/50 whitespace-nowrap">
+                    {t("الأكثر طلباً", "Most Popular")}
+                  </span>
+                )}
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-8 h-8 rounded-lg bg-black/20 flex items-center justify-center`}>
+                      <Icon className={`w-4 h-4 ${plan.accentColor}`} />
+                    </div>
+                    <div>
+                      <p className="font-bold text-sm text-white">{plan.nameAr}</p>
+                      <p className="text-xs text-white/60">{plan.durationAr}</p>
+                    </div>
+                  </div>
+                  {isSelected && (
+                    <CheckCircle2 className="w-5 h-5 text-white shrink-0 mt-0.5" />
+                  )}
+                </div>
+                <div className="mb-3">
+                  <span className="text-2xl font-extrabold text-white">{plan.price}</span>
+                  <span className="text-sm text-white/60 ms-1">{t("ريال", "SAR")}</span>
+                </div>
+                <ul className="space-y-1">
+                  {plan.features.map((f) => (
+                    <li key={f} className="flex items-center gap-1.5 text-xs text-white/80">
+                      <ChevronRight className={`w-3 h-3 ${plan.accentColor} shrink-0`} />
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Document Upload */}
+      {!submitted && !isPending && (
+        <div>
+          <h2 className="text-base font-semibold mb-1">{t("رفع المستندات الرسمية", "Upload Official Documents")}</h2>
+          <p className="text-xs text-muted-foreground mb-3">
+            {t("السجل التجاري، الهوية الوطنية، أو أي وثائق مطلوبة (صور أو PDF، بحد أقصى ٥ ملفات)", "Commercial register, national ID, or required documents (images or PDF, max 5 files)")}
+          </p>
+
+          {/* Uploaded files list */}
+          {uploadedDocs.length > 0 && (
+            <div className="space-y-2 mb-3">
+              {uploadedDocs.map((url) => {
+                const isPdf = url.endsWith(".pdf");
+                const name = url.split("/").pop() || url;
+                return (
+                  <div key={url} className="flex items-center gap-2 p-2 rounded-lg bg-white/5 border border-white/10">
+                    {isPdf
+                      ? <FileText className="w-4 h-4 text-red-400 shrink-0" />
+                      : <ImageIcon className="w-4 h-4 text-blue-400 shrink-0" />}
+                    <a href={url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline truncate flex-1">{name}</a>
+                    <button onClick={() => removeDoc(url)} className="text-muted-foreground hover:text-red-400 transition-colors" data-testid={`btn-remove-doc`}>
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {uploadedDocs.length < 5 && (
+            <button
+              data-testid="btn-upload-doc"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploadingDoc}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-white/20 hover:border-primary/60 hover:bg-primary/5 transition-all text-sm text-muted-foreground hover:text-primary w-full justify-center"
+            >
+              <Upload className="w-4 h-4" />
+              {uploadingDoc ? t("جاري الرفع...", "Uploading...") : t("رفع مستند", "Upload Document")}
+            </button>
+          )}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,application/pdf"
+            className="hidden"
+            onChange={handleDocUpload}
+            data-testid="input-doc-file"
+          />
+
+          {/* Notes */}
+          <div className="mt-3">
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder={t("ملاحظات إضافية (اختياري)", "Additional notes (optional)")}
+              rows={2}
+              className="w-full rounded-xl border border-white/10 bg-white/5 p-3 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-primary/50 placeholder:text-muted-foreground"
+              data-testid="input-subscription-notes"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Submit Button */}
+      {!submitted && !isPending && (
+        <Button
+          data-testid="btn-submit-subscription"
+          onClick={handleSubmit}
+          disabled={submitting || !selectedPlan}
+          className="w-full h-12 text-base font-bold rounded-xl bg-primary hover:bg-primary/90"
+        >
+          {submitting ? t("جاري الإرسال...", "Submitting...") : t("تأكيد وإرسال الطلب", "Confirm & Submit Request")}
+        </Button>
+      )}
+
+      {/* Divider */}
+      <div className="border-t border-white/10" />
+
+      {/* Referral Section */}
+      <div>
+        <div className="flex items-center gap-2 mb-4">
+          <Gift className="w-5 h-5 text-primary" />
+          <h2 className="text-base font-semibold">{t("برنامج الإحالة", "Referral Program")}</h2>
+        </div>
+
+        {/* Stats row */}
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-center">
+            <Users className="w-5 h-5 text-blue-400 mx-auto mb-1" />
+            <p className="text-2xl font-extrabold text-white" data-testid="text-referral-joined">
+              {referralLoading ? "—" : referralStats.joined}
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">{t("أصدقاء انضموا", "Friends Joined")}</p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-center">
+            <Gift className="w-5 h-5 text-amber-400 mx-auto mb-1" />
+            <p className="text-2xl font-extrabold text-white" data-testid="text-referral-months">
+              {referralLoading ? "—" : referralStats.monthsEarned}
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">{t("أشهر مكتسبة", "Months Earned")}</p>
+          </div>
+        </div>
+
+        {/* How it works */}
+        <div className="rounded-xl border border-white/10 bg-white/5 p-4 mb-4 space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+            {t("كيف يعمل البرنامج؟", "How does it work?")}
+          </p>
+          <div className="flex items-start gap-2 text-xs text-muted-foreground">
+            <Share2 className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
+            <span>{t("شارك رابط دعوتك مع أصحاب المطاعم والمقاهي", "Share your invite link with restaurant & café owners")}</span>
+          </div>
+          <div className="flex items-start gap-2 text-xs text-muted-foreground">
+            <Users className="w-3.5 h-3.5 text-blue-400 shrink-0 mt-0.5" />
+            <span>{t("كل متجر يسجّل عبر رابطك يحصل على خصم 50% لأول شهر", "Each store that registers via your link gets 50% off the first month")}</span>
+          </div>
+          <div className="flex items-start gap-2 text-xs text-muted-foreground">
+            <Gift className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+            <span>{t("عند تفعيل اشتراكهم، تُضاف 30 يومًا تلقائياً لاشتراكك", "When their subscription is activated, 30 days are automatically added to yours")}</span>
+          </div>
+        </div>
+
+        {/* Referral link */}
+        <div className="flex items-center gap-2">
+          <div className="flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-xs text-muted-foreground truncate" data-testid="text-referral-link">
+            {referralLink}
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={copyReferral}
+            className="shrink-0 rounded-xl border-white/20"
+            data-testid="btn-copy-referral"
+          >
+            {copied ? <CheckCircle2 className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+          </Button>
+        </div>
+        {copied && (
+          <p className="text-xs text-green-400 mt-1.5 text-center" data-testid="text-copied-confirm">
+            {t("تم نسخ الرابط!", "Link copied!")}
+          </p>
+        )}
+      </div>
+
+      <AlertCircle className="hidden" />
+    </div>
+  );
+}

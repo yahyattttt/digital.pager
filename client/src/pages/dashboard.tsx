@@ -106,6 +106,7 @@ import {
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import ArchiveView from "@/pages/order-archive";
+import SubscriptionView from "@/components/subscription-view";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -120,7 +121,7 @@ const businessTypeLabelsEn: Record<string, string> = {
 
 const ADMIN_WHATSAPP = "https://wa.me/966500000000";
 
-type DashboardView = "overview" | "menu" | "feedback" | "analytics" | "tracking" | "customers" | "coupons" | "financial" | "settings" | "archive";
+type DashboardView = "overview" | "menu" | "feedback" | "analytics" | "tracking" | "customers" | "coupons" | "financial" | "settings" | "archive" | "subscription";
 
 function SubscriptionRequiredScreen({
   storeName,
@@ -1253,6 +1254,7 @@ export default function DashboardPage() {
     { id: "coupons", icon: Ticket, label: t("الكوبونات", "Coupons") },
     { id: "financial", icon: DollarSign, label: t("الإدارة المالية", "Financial") },
     { id: "archive", icon: FolderArchive, label: t("أرشيف الطلبات", "Order Archive") },
+    { id: "subscription", icon: CreditCard, label: t("اشتراكي", "My Subscription") },
     { id: "settings", icon: Settings, label: t("الإعدادات", "Settings") },
   ];
 
@@ -1583,6 +1585,14 @@ export default function DashboardPage() {
                   window.open(`/receipt/${orderId}?m=${merchant.uid}`, "_blank");
                 }}
                 onNavigateToActive={() => setCurrentView("overview")}
+              />
+            )}
+
+            {currentView === "subscription" && (
+              <SubscriptionView
+                merchant={merchant as any}
+                t={t}
+                lang={lang}
               />
             )}
 

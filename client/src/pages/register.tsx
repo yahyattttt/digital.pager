@@ -41,6 +41,9 @@ const businessTypeLabelsEn: Record<string, string> = {
 
 export default function RegisterPage() {
   const [, setLocation] = useLocation();
+  const referralCode = typeof window !== "undefined"
+    ? new URLSearchParams(window.location.search).get("ref") || ""
+    : "";
   const { toast } = useToast();
   const { login } = useAuth();
   const { t, toggleLanguage, isRTL, lang } = useLanguage();
@@ -342,7 +345,7 @@ export default function RegisterPage() {
         return;
       }
 
-      const merchantData = {
+      const merchantData: Record<string, any> = {
         id: firebaseUid,
         uid: firebaseUid,
         storeName: data.storeName,
@@ -357,8 +360,13 @@ export default function RegisterPage() {
         status: "pending",
         subscriptionStatus: "pending",
         plan: "trial",
+        referralCode: firebaseUid,
         createdAt: new Date().toISOString(),
       };
+      if (referralCode) {
+        merchantData.referredBy = referralCode;
+        merchantData.referralDiscount = true;
+      }
 
       try {
         await signInWithCustomToken(auth, customToken!);

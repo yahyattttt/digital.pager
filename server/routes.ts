@@ -63,6 +63,34 @@ const crUpload = multer({
   },
 });
 
+const subDocUploadDir = path.join(process.cwd(), "client", "public", "uploads", "subscription_docs");
+if (!fs.existsSync(subDocUploadDir)) {
+  fs.mkdirSync(subDocUploadDir, { recursive: true });
+}
+const subDocStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => { cb(null, subDocUploadDir); },
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase() || ".pdf";
+    cb(null, `${randomUUID()}${ext}`);
+  },
+});
+const subDocUpload = multer({
+  storage: subDocStorage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+    if (allowed.includes(file.mimetype)) cb(null, true);
+    else cb(new Error("يُسمح بملفات الصور و PDF فقط"));
+  },
+});
+
+const PLAN_DAYS: Record<string, number> = {
+  trial: 30,
+  basic: 90,
+  premium: 180,
+  enterprise: 365,
+};
+
 async function logSystemError(merchantId: string, errorType: string, errorMessage: string): Promise<void> {
   const baseUrl = getApiKeyBaseUrl();
   if (!baseUrl || !getApiKey()) return;
@@ -558,6 +586,128 @@ export async function registerRoutes(
 
   app.post("/api/upload-image", (req, res) => {
     upload.single("image")(req, res, (err) => handleUploadError(err, res, "image", req));
+  });
+
+  app.post("/api/upload-subscription-doc", (req, res) => {
+    subDocUpload.single("doc")(req, res, (err) => {
+      if (err) return res.status(400).json({ message: err.message || "Upload failed" });
+      if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+      return res.json({ url: `/uploads/subscription_docs/${req.file.filename}` });
+    });
+  });
+
+  // ── Merchant: submit subscription request ──────────────────────────────────
+  app.post("/api/merchant/subscription-request", async (req, res) => {
+    try {
+      const { merchantId, plan, documents, notes } = req.body;
+      if (!merchantId || !plan) return res.status(400).json({ message: "merchantId and plan are required" });
+
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
+
+      const patchUrl = `${baseUrl}/merchants/${merchantId}?updateMask.fieldPaths=subscriptionRequestStatus&updateMask.fieldPaths=subscriptionRequestedPlan&updateMask.fieldPaths=subscriptionRequestedAt&updateMask.fieldPaths=subscriptionDocuments&updateMask.fieldPaths=subscriptionRequestNotes`;
+      const body: any = {
+        fields: {
+          subscriptionRequestStatus: { stringValue: "pending" },
+          subscriptionRequestedPlan: { stringValue: plan },
+          subscriptionRequestedAt: { stringValue: new Date().toISOString() },
+          subscriptionDocuments: {
+            arrayValue: { values: (documents || []).map((u: string) => ({ stringValue: u })) },
+          },
+          subscriptionRequestNotes: { stringValue: notes || "" },
+        },
+      };
+      const patchRes = await apikeyFetch(patchUrl, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!patchRes.ok) {
+        const errText = await patchRes.text();
+        console.error("[SUBSCRIPTION-REQUEST] patch failed:", errText);
+        return res.status(500).json({ message: "Failed to submit request" });
+      }
+      return res.json({ success: true });
+    } catch (error) {
+      console.error("[SUBSCRIPTION-REQUEST] error:", error);
+      return res.status(500).json({ message: "Failed to submit request" });
+    }
+  });
+
+  // ── Admin: activate subscription request (with referral bonus) ─────────────
+  app.post("/api/admin/activate-subscription-request/:merchantId", async (req, res) => {
+    try {
+      if (!(await isAdminRequest(req))) return res.status(403).json({ message: "Unauthorized" });
+      const { merchantId } = req.params;
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
+
+      const merchantRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}`, {});
+      if (!merchantRes.ok) return res.status(404).json({ message: "Merchant not found" });
+      const merchantData = await merchantRes.json();
+      const fields = merchantData.fields || {};
+
+      const plan = fields.subscriptionRequestedPlan?.stringValue || "trial";
+      const days = PLAN_DAYS[plan] ?? 30;
+      const now = new Date();
+      const expiry = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+      const startStr = now.toISOString();
+      const expiryStr = expiry.toISOString();
+
+      const updateFields = `updateMask.fieldPaths=subscriptionStatus&updateMask.fieldPaths=subscriptionStartAt&updateMask.fieldPaths=subscriptionExpiry&updateMask.fieldPaths=plan&updateMask.fieldPaths=status&updateMask.fieldPaths=subscriptionRequestStatus`;
+      const patchRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}?${updateFields}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fields: {
+            subscriptionStatus: { stringValue: "active" },
+            subscriptionStartAt: { stringValue: startStr },
+            subscriptionExpiry: { stringValue: expiryStr },
+            plan: { stringValue: plan },
+            status: { stringValue: "approved" },
+            subscriptionRequestStatus: { stringValue: "approved" },
+          },
+        }),
+      });
+      if (!patchRes.ok) {
+        const errText = await patchRes.text();
+        console.error("[ACTIVATE-REQUEST] patch failed:", errText);
+        return res.status(500).json({ message: "Activation failed" });
+      }
+
+      // ── Referral bonus: add 30 days to referrer ────────────────────────────
+      const referrerId = fields.referredBy?.stringValue;
+      if (referrerId) {
+        try {
+          const referrerRes = await apikeyFetch(`${baseUrl}/merchants/${referrerId}`, {});
+          if (referrerRes.ok) {
+            const referrerData = await referrerRes.json();
+            const rf = referrerData.fields || {};
+            const currentExpiry = rf.subscriptionExpiry?.stringValue;
+            const base = currentExpiry && new Date(currentExpiry) > new Date()
+              ? new Date(currentExpiry)
+              : new Date();
+            const newExpiry = new Date(base.getTime() + 30 * 24 * 60 * 60 * 1000);
+            const refMask = "updateMask.fieldPaths=subscriptionExpiry";
+            await apikeyFetch(`${baseUrl}/merchants/${referrerId}?${refMask}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                fields: { subscriptionExpiry: { stringValue: newExpiry.toISOString() } },
+              }),
+            });
+            console.log(`[REFERRAL] Added 30 days to referrer ${referrerId}`);
+          }
+        } catch (refErr) {
+          console.error("[REFERRAL] Failed to add bonus days:", refErr);
+        }
+      }
+
+      return res.json({ success: true, plan, days, startStr, expiryStr });
+    } catch (error) {
+      console.error("[ACTIVATE-REQUEST] error:", error);
+      return res.status(500).json({ message: "Activation failed" });
+    }
   });
 
   // ── Public footer info (no auth — only returns fields toggled visible) ──

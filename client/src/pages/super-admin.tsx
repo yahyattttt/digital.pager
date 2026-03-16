@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
-import { collection, getDocs, doc, updateDoc, deleteDoc, getDoc, setDoc } from "firebase/firestore";
+import { collection, getDocs, doc, updateDoc, deleteDoc, getDoc, setDoc, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/hooks/use-auth";
 import { useLanguage } from "@/hooks/use-language";
@@ -379,6 +379,10 @@ export default function SuperAdminPage() {
   const [expenseSaving, setExpenseSaving] = useState(false);
   const [renewalData, setRenewalData] = useState<any>(null);
   const [activeSection, setActiveSection] = useState<"home" | "stores" | "subscriptions" | "finance" | "tracking" | "settings" | "sysmonitor">("home");
+  const [pendingSubRequests, setPendingSubRequests] = useState<any[]>([]);
+  const [activatingRequestId, setActivatingRequestId] = useState<string | null>(null);
+  const pendingSubCountRef = useRef(0);
+  const adminAlertAudioRef = useRef<HTMLAudioElement | null>(null);
   const [sysHealth, setSysHealth] = useState<any>(null);
   const [sysHealthLoading, setSysHealthLoading] = useState(false);
   const [sysAlerts, setSysAlerts] = useState<{ time: string; message: string; level: "warn" | "critical" }[]>([]);
@@ -892,6 +896,55 @@ export default function SuperAdminPage() {
     }
   }, [authLoading, user]);
 
+  // Real-time listener for pending subscription requests → audio alert
+  useEffect(() => {
+    if (authLoading || !isAdminEmail(user?.email)) return;
+    const q = query(collection(db, "merchants"), where("subscriptionRequestStatus", "==", "pending"));
+    const unsub = onSnapshot(q, (snap) => {
+      const requests = snap.docs.map((d) => ({ uid: d.id, ...d.data() }));
+      setPendingSubRequests(requests);
+      const newCount = requests.length;
+      if (newCount > pendingSubCountRef.current) {
+        if (!adminAlertAudioRef.current) {
+          adminAlertAudioRef.current = new Audio("/merchant_premium_alert.mp3");
+        }
+        adminAlertAudioRef.current.currentTime = 0;
+        adminAlertAudioRef.current.play().catch(() => {});
+        setTimeout(() => adminAlertAudioRef.current?.pause(), 4000);
+      }
+      pendingSubCountRef.current = newCount;
+    });
+    return () => unsub();
+  }, [authLoading, user]);
+
+  async function handleActivateSubscriptionRequest(merchantData: any) {
+    setActivatingRequestId(merchantData.uid);
+    try {
+      const res = await fetch(`/api/admin/activate-subscription-request/${merchantData.uid}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-admin-token": "true" },
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      toast({
+        title: t("تم تفعيل المتجر", "Store Activated"),
+        description: t(`تم تفعيل اشتراك ${merchantData.storeName} بنجاح`, `${merchantData.storeName} subscription activated`),
+      });
+      setMerchants((prev) =>
+        prev.map((m) =>
+          m.uid === merchantData.uid
+            ? { ...m, status: "approved", subscriptionStatus: "active", plan: data.plan, subscriptionExpiry: data.expiryStr, subscriptionStartAt: data.startStr }
+            : m
+        )
+      );
+    } catch (err: any) {
+      toast({ title: t("فشل التفعيل", "Activation Failed"), description: err.message, variant: "destructive" });
+    } finally {
+      setActivatingRequestId(null);
+    }
+  }
+
   async function handleActivate(merchant: Merchant) {
     setActionLoading(merchant.uid);
     try {
@@ -1275,7 +1328,7 @@ export default function SuperAdminPage() {
           {([
             { key: "home",          icon: Activity,    labelAr: "الرئيسية",       action: () => { setActiveSection("home"); if (!globalMonitorData) fetchGlobalMonitor(); } },
             { key: "stores",        icon: Store,       labelAr: "إدارة المتاجر",  action: () => setActiveSection("stores") },
-            { key: "subscriptions", icon: CreditCard,  labelAr: "الاشتراكات",     action: () => setActiveSection("subscriptions") },
+            { key: "subscriptions", icon: CreditCard,  labelAr: "الاشتراكات",     action: () => setActiveSection("subscriptions"), badge: pendingSubRequests.length },
             { key: "finance",       icon: DollarSign,  labelAr: "المالية",        action: () => { setActiveSection("finance"); if (!platformFinanceData) fetchPlatformFinance(); } },
             { key: "tracking",      icon: TrendingUp,  labelAr: "تتبع العملاء",   action: () => setActiveSection("tracking") },
             ...(user?.email?.toLowerCase() === PRIMARY_ADMIN_EMAIL.toLowerCase() ? [{ key: "sysmonitor" as const, icon: Gauge, labelAr: "مراقب الأداء", action: () => setActiveSection("sysmonitor" as any) }] : []),
@@ -1297,6 +1350,11 @@ export default function SuperAdminPage() {
               {key === "home" && globalMonitorData && (globalMonitorData.summary.totalPreparing ?? 0) > 0 && (
                 <span className="text-[9px] font-bold bg-amber-400/20 text-amber-400 rounded-full px-1.5 py-0.5">
                   {globalMonitorData.summary.totalPreparing}
+                </span>
+              )}
+              {key === "subscriptions" && pendingSubRequests.length > 0 && (
+                <span className="text-[9px] font-bold bg-red-500/30 text-red-400 rounded-full px-1.5 py-0.5 animate-pulse">
+                  {pendingSubRequests.length}
                 </span>
               )}
             </button>
@@ -1924,6 +1982,89 @@ export default function SuperAdminPage() {
               </h2>
               <p className="text-sm text-slate-500 mb-5">Subscription plans, expiry dates and payment status</p>
             </div>
+
+            {/* ── Pending Subscription Requests ── */}
+            {pendingSubRequests.length > 0 && (
+              <div className="space-y-3" data-testid="section-pending-requests">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                  <h3 className="text-base font-bold text-red-400" dir="rtl" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}>
+                    طلبات الاشتراك المعلقة ({pendingSubRequests.length})
+                  </h3>
+                </div>
+                {pendingSubRequests.map((req: any) => {
+                  const planLabelsAr: Record<string, string> = { trial: "البداية - 99 ريال", basic: "النمو - 269 ريال", premium: "التميز - 499 ريال", enterprise: "المؤسسات - 999 ريال" };
+                  const docs: string[] = req.subscriptionDocuments || [];
+                  return (
+                    <div key={req.uid} className="rounded-2xl p-4 space-y-3" style={{ background: "rgba(239,68,68,0.05)", border: "1px solid rgba(239,68,68,0.2)" }} data-testid={`request-card-${req.uid}`}>
+                      <div className="flex items-start justify-between gap-3" dir="rtl">
+                        <div>
+                          <p className="font-bold text-white text-sm">{req.storeName || req.uid}</p>
+                          <p className="text-xs text-slate-400 mt-0.5">{req.email}</p>
+                          {req.ownerPhone && <p className="text-xs text-slate-500">{req.ownerPhone}</p>}
+                          <div className="flex flex-wrap gap-1.5 mt-1.5">
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/25">
+                              {planLabelsAr[req.subscriptionRequestedPlan] || req.subscriptionRequestedPlan}
+                            </span>
+                            {req.referredBy && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/25">
+                                مُحال من متجر آخر
+                              </span>
+                            )}
+                            {req.referralDiscount && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/15 text-green-400 border border-green-500/25">
+                                خصم 50% مفعّل
+                              </span>
+                            )}
+                          </div>
+                          {req.subscriptionRequestNotes && (
+                            <p className="text-xs text-slate-400 mt-2 italic">"{req.subscriptionRequestNotes}"</p>
+                          )}
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => handleActivateSubscriptionRequest(req)}
+                          disabled={activatingRequestId === req.uid}
+                          className="shrink-0 bg-green-600 hover:bg-green-500 text-white rounded-xl text-xs font-bold"
+                          data-testid={`btn-activate-${req.uid}`}
+                        >
+                          {activatingRequestId === req.uid ? "..." : t("تفعيل المتجر", "Activate Store")}
+                        </Button>
+                      </div>
+                      {/* Documents */}
+                      {docs.length > 0 && (
+                        <div>
+                          <p className="text-[10px] text-slate-500 mb-1.5">{t("المستندات المرفوعة", "Uploaded Documents")} ({docs.length})</p>
+                          <div className="flex flex-wrap gap-2">
+                            {docs.map((url, i) => {
+                              const isPdf = url.endsWith(".pdf");
+                              return (
+                                <a
+                                  key={i}
+                                  href={url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] transition-colors"
+                                  style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.7)" }}
+                                  data-testid={`link-doc-${req.uid}-${i}`}
+                                >
+                                  {isPdf ? "📄" : "🖼️"} {t("مستند", "Doc")} {i + 1}
+                                </a>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                      {req.subscriptionRequestedAt && (
+                        <p className="text-[10px] text-slate-600">
+                          {t("طُلب في", "Requested at")}: {new Date(req.subscriptionRequestedAt).toLocaleString(lang === "ar" ? "ar-SA" : "en-US")}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             {/* Summary cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
