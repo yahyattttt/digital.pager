@@ -177,7 +177,7 @@ export default function LandingPage() {
 
       {/* ── HERO ── */}
       <section style={{ position: "relative", zIndex: 10 }}>
-        <div className="max-w-7xl mx-auto px-5 pt-16 pb-20">
+        <div className="max-w-7xl mx-auto px-5 pt-16 pb-16">
           <div
             className="flex flex-col lg:flex-row items-center gap-14"
             style={{ flexDirection: isRTL ? "row-reverse" : "row" }}
@@ -250,20 +250,6 @@ export default function LandingPage() {
                 <NeonBtn variant="ghost" size="lg" onClick={() => setLocation("/login")} testId="button-hero-login">
                   {t("تسجيل الدخول", "Sign In")}
                 </NeonBtn>
-              </div>
-
-              {/* Stat pills */}
-              <div className="flex items-center gap-4 mt-8 flex-wrap">
-                {[
-                  { n: "500+", label: t("متجر نشط", "Active Stores") },
-                  { n: "99.9%", label: t("وقت التشغيل", "Uptime") },
-                  { n: "< 1ث", label: t("سرعة الإشعار", "Alert Speed") },
-                ].map(s => (
-                  <div key={s.n} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-                    <span style={{ fontSize: 20, fontWeight: 800, color: "#ff6030" }}>{s.n}</span>
-                    <span style={{ fontSize: 11, color: "rgba(180,160,150,0.7)", marginTop: 1 }}>{s.label}</span>
-                  </div>
-                ))}
               </div>
             </div>
 
