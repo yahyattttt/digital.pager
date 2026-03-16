@@ -26,7 +26,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB — generous for high-res PNGs
   fileFilter: (_req, file, cb) => {
     const allowed = ["image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml"];
     if (allowed.includes(file.mimetype)) {
@@ -434,20 +434,26 @@ export async function registerRoutes(
   // so newly uploaded files are immediately accessible without a server restart.
   app.use("/uploads", express.static(uploadDir, { maxAge: 0, etag: false }));
 
-  app.post("/api/upload-logo", upload.single("logo"), (req, res) => {
+  function handleUploadError(err: any, res: any, fieldName: string, req: any) {
+    if (err) {
+      if (err.code === "LIMIT_FILE_SIZE") {
+        return res.status(400).json({ message: `File too large. Maximum size is 20MB.` });
+      }
+      return res.status(400).json({ message: err.message || "Upload failed" });
+    }
     if (!req.file) {
       return res.status(400).json({ message: "No file uploaded" });
     }
     const url = `/uploads/${req.file.filename}`;
     return res.json({ url });
+  }
+
+  app.post("/api/upload-logo", (req, res) => {
+    upload.single("logo")(req, res, (err) => handleUploadError(err, res, "logo", req));
   });
 
-  app.post("/api/upload-image", upload.single("image"), (req, res) => {
-    if (!req.file) {
-      return res.status(400).json({ message: "No file uploaded" });
-    }
-    const url = `/uploads/${req.file.filename}`;
-    return res.json({ url });
+  app.post("/api/upload-image", (req, res) => {
+    upload.single("image")(req, res, (err) => handleUploadError(err, res, "image", req));
   });
 
   // ── Public footer info (no auth — only returns fields toggled visible) ──

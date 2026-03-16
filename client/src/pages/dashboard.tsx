@@ -5102,17 +5102,58 @@ function SettingsView({
     setTaxNumberEdit((merchant as any)?.taxNumber || "");
   }, [merchant?.storeName, merchant?.whatsappNumber, merchant?.logoUrl, (merchant as any)?.ownerPhone, (merchant as any)?.commercialRegisterNumber, (merchant as any)?.taxNumber]);
 
+  async function compressImage(file: File, maxDimension = 1024, quality = 0.88): Promise<File> {
+    return new Promise((resolve) => {
+      const url = URL.createObjectURL(file);
+      const img = new window.Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        let { width, height } = img;
+        if (width <= maxDimension && height <= maxDimension && file.size <= 2 * 1024 * 1024) {
+          resolve(file);
+          return;
+        }
+        const scale = Math.min(maxDimension / width, maxDimension / height, 1);
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d")!;
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) { resolve(file); return; }
+            resolve(new File([blob], file.name.replace(/\.[^.]+$/, ".jpg"), { type: "image/jpeg" }));
+          },
+          "image/jpeg",
+          quality
+        );
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+      img.src = url;
+    });
+  }
+
   async function handleLogoUpload(file: File) {
     setLogoUploading(true);
     try {
+      const compressed = await compressImage(file);
       const formData = new FormData();
-      formData.append("image", file);
+      formData.append("image", compressed);
       const res = await fetch("/api/upload-image", { method: "POST", body: formData });
-      if (!res.ok) throw new Error("Upload failed");
       const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.message || "Upload failed");
+      }
       setLogoUrlEdit(data.url);
-    } catch (err) {
-      toast({ title: t("خطأ", "Error"), description: t("فشل رفع الشعار", "Logo upload failed"), variant: "destructive" });
+    } catch (err: any) {
+      console.error("[Logo Upload] Error:", err);
+      toast({
+        title: t("خطأ في رفع الشعار", "Logo upload error"),
+        description: err?.message || t("فشل رفع الشعار، يرجى المحاولة مرة أخرى", "Logo upload failed, please try again"),
+        variant: "destructive",
+      });
     } finally {
       setLogoUploading(false);
     }
