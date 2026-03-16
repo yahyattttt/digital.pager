@@ -157,6 +157,7 @@ export const merchantSchema = z.object({
   sharesCount: z.number().default(0),
   googleMapsClicks: z.number().default(0),
   qrScans: z.number().default(0),
+  performanceLevel: z.enum(["strong", "medium", "weak"]).optional(),
   createdAt: z.string(),
 });
 

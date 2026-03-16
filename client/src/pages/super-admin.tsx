@@ -13,6 +13,13 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
@@ -385,10 +392,51 @@ export default function SuperAdminPage() {
 
   const [detailsMerchant, setDetailsMerchant] = useState<Merchant | null>(null);
   const [editMerchant, setEditMerchant] = useState<Merchant | null>(null);
-  const [editFields, setEditFields] = useState({ storeName: "", ownerName: "", ownerPhone: "", commercialRegisterNumber: "", taxNumber: "" });
+  const [editFields, setEditFields] = useState({ storeName: "", ownerName: "", ownerPhone: "", commercialRegisterNumber: "", taxNumber: "", performanceLevel: "" });
   const [editSaving, setEditSaving] = useState(false);
 
   const btLabels = lang === "ar" ? businessTypeLabels : businessTypeLabelsEn;
+
+  const PERFORMANCE_LEVELS = [
+    {
+      value: "strong",
+      labelAr: "أداء قوي",
+      labelEn: "Strong",
+      bg: "rgba(52,211,153,0.12)",
+      border: "rgba(52,211,153,0.30)",
+      color: "#34d399",
+    },
+    {
+      value: "medium",
+      labelAr: "أداء متوسط",
+      labelEn: "Medium",
+      bg: "rgba(251,146,60,0.12)",
+      border: "rgba(251,146,60,0.30)",
+      color: "#fb923c",
+    },
+    {
+      value: "weak",
+      labelAr: "أداء ضعيف",
+      labelEn: "Weak",
+      bg: "rgba(148,163,184,0.10)",
+      border: "rgba(148,163,184,0.25)",
+      color: "#94a3b8",
+    },
+  ] as const;
+
+  function getPerformanceBadge(level?: string | null) {
+    if (!level) return null;
+    const def = PERFORMANCE_LEVELS.find((p) => p.value === level);
+    if (!def) return null;
+    return (
+      <span
+        className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold"
+        style={{ background: def.bg, border: `1px solid ${def.border}`, color: def.color }}
+      >
+        {lang === "ar" ? def.labelAr : def.labelEn}
+      </span>
+    );
+  }
 
   const filteredMerchants = (() => {
     let list = [...merchants];
@@ -1016,6 +1064,7 @@ export default function SuperAdminPage() {
       ownerPhone: (merchant as any).ownerPhone || "",
       commercialRegisterNumber: (merchant as any).commercialRegisterNumber || "",
       taxNumber: (merchant as any).taxNumber || "",
+      performanceLevel: (merchant as any).performanceLevel || "",
     });
   }
 
@@ -1023,17 +1072,21 @@ export default function SuperAdminPage() {
     if (!editMerchant) return;
     setEditSaving(true);
     try {
-      await updateDoc(doc(db, "merchants", editMerchant.uid), {
+      const updatePayload: Record<string, any> = {
         storeName: editFields.storeName.trim() || editMerchant.storeName,
         ownerName: editFields.ownerName.trim(),
         ownerPhone: editFields.ownerPhone.trim(),
         commercialRegisterNumber: editFields.commercialRegisterNumber.trim(),
         taxNumber: editFields.taxNumber.trim(),
-      });
+      };
+      if (editFields.performanceLevel) {
+        updatePayload.performanceLevel = editFields.performanceLevel;
+      }
+      await updateDoc(doc(db, "merchants", editMerchant.uid), updatePayload);
       setMerchants((prev) =>
         prev.map((m) =>
           m.uid === editMerchant.uid
-            ? { ...m, storeName: editFields.storeName.trim() || m.storeName, ownerName: editFields.ownerName.trim(), ...(editFields as any) }
+            ? { ...m, ...updatePayload }
             : m
         )
       );
@@ -1500,6 +1553,9 @@ export default function SuperAdminPage() {
                           <TableHead className="text-slate-500 font-medium text-xs uppercase tracking-wider py-3">
                             {t("الحالة", "Status")}
                           </TableHead>
+                          <TableHead className="text-slate-500 font-medium text-xs uppercase tracking-wider py-3">
+                            {t("مستوى الأداء", "Performance")}
+                          </TableHead>
                           <TableHead className="text-slate-500 font-medium text-xs uppercase tracking-wider py-3 min-w-[160px]">
                             {t("الاشتراك والانتهاء", "Sub & Expiry")}
                           </TableHead>
@@ -1609,7 +1665,14 @@ export default function SuperAdminPage() {
                                 </div>
                               </TableCell>
 
-                              {/* Column 4: Subscription & Expiry */}
+                              {/* Column 4: Performance Level */}
+                              <TableCell data-testid={`badge-performance-${merchant.uid}`}>
+                                {getPerformanceBadge((merchant as any).performanceLevel) ?? (
+                                  <span className="text-xs text-slate-700 select-none">—</span>
+                                )}
+                              </TableCell>
+
+                              {/* Column 5: Subscription & Expiry */}
                               <TableCell data-testid={`badge-sub-${merchant.uid}`}>
                                 <div className="space-y-1">
                                   <span className="text-xs font-medium text-slate-300">{pLabel}</span>
@@ -2926,6 +2989,7 @@ export default function SuperAdminPage() {
                     {planLabels[detailsMerchant.plan] ? (lang === "ar" ? planLabels[detailsMerchant.plan].ar : planLabels[detailsMerchant.plan].en) : detailsMerchant.plan}
                   </Badge>
                 )}
+                {getPerformanceBadge((detailsMerchant as any).performanceLevel)}
               </div>
 
               {/* Contact Info */}
@@ -3116,6 +3180,44 @@ export default function SuperAdminPage() {
                 dir="ltr"
                 data-testid="input-edit-tax-number"
               />
+            </div>
+
+            {/* Performance Level */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-400 flex items-center gap-2">
+                <TrendingUp className="w-3 h-3" />
+                {t("مستوى الأداء", "Performance Level")}
+              </label>
+              <Select
+                value={editFields.performanceLevel || "none"}
+                onValueChange={(v) => setEditFields((f) => ({ ...f, performanceLevel: v === "none" ? "" : v }))}
+                dir={lang === "ar" ? "rtl" : "ltr"}
+              >
+                <SelectTrigger className="bg-slate-900/60 border-slate-700" data-testid="select-performance-level">
+                  <SelectValue placeholder={t("اختر مستوى الأداء", "Select performance level")} />
+                </SelectTrigger>
+                <SelectContent className="bg-[#0d1117] border-slate-700">
+                  <SelectItem value="none" className="text-slate-400">
+                    {t("— غير محدد —", "— Not set —")}
+                  </SelectItem>
+                  {PERFORMANCE_LEVELS.map((p) => (
+                    <SelectItem key={p.value} value={p.value}>
+                      <span className="flex items-center gap-2">
+                        <span
+                          className="inline-block w-2 h-2 rounded-full"
+                          style={{ background: p.color }}
+                        />
+                        {lang === "ar" ? p.labelAr : p.labelEn}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {editFields.performanceLevel && editFields.performanceLevel !== "none" && (
+                <div className="pt-1">
+                  {getPerformanceBadge(editFields.performanceLevel)}
+                </div>
+              )}
             </div>
           </div>
           <div className="flex gap-2 mt-4">
