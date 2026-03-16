@@ -452,7 +452,12 @@ function DeliveryTrackingView({
     >
       <div className="flex flex-col items-center gap-5 w-full max-w-sm animate-in fade-in duration-700 flex-1">
         {merchant && (
-          <p className="text-white/30 text-xs font-medium tracking-wide">{merchant.storeName}</p>
+          <div className="flex items-center justify-center gap-2">
+            {merchant.logoUrl && (
+              <img src={merchant.logoUrl} alt={merchant.storeName} className="w-8 h-8 rounded-full object-cover border border-white/10" />
+            )}
+            <p className="text-white/30 text-xs font-medium tracking-wide">{merchant.storeName}</p>
+          </div>
         )}
 
         <div className="w-20 h-20 rounded-full border-2 border-emerald-500/30 bg-emerald-500/5 flex items-center justify-center" style={{ boxShadow: "0 0 40px rgba(16,185,129,0.15)" }}>
@@ -1001,9 +1006,16 @@ export default function OrderTrackingPage() {
   if (order.status === "pending_verification" || order.status === "awaiting_confirmation") {
     return (
       <div className="h-[100dvh] flex flex-col items-center justify-center px-5 text-center" style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }} data-testid="tracking-awaiting-screen">
-        <div className="w-full flex-shrink-0 mb-6">
-          <p className="text-white/40 text-[14px] font-medium tracking-[0.3em] uppercase mb-0.5">DIGITAL PAGER</p>
-          {merchant && <h2 className="text-white text-[26px] font-bold" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>{merchant.storeName}</h2>}
+        <div className="w-full flex-shrink-0 mb-6 flex flex-col items-center gap-1">
+          <p className="text-white/40 text-[14px] font-medium tracking-[0.3em] uppercase">DIGITAL PAGER</p>
+          {merchant && (
+            <div className="flex items-center justify-center gap-2.5">
+              {merchant.logoUrl && (
+                <img src={merchant.logoUrl} alt={merchant.storeName} className="w-10 h-10 rounded-full object-cover border border-white/10" />
+              )}
+              <h2 className="text-white text-[26px] font-bold" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>{merchant.storeName}</h2>
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col items-center gap-5 w-full max-w-sm">
@@ -1076,9 +1088,16 @@ export default function OrderTrackingPage() {
         style={{ background: "linear-gradient(180deg, #0a0000 0%, #1a0000 30%, #0d0000 70%, #000 100%)" }}
         data-testid="tracking-ready-screen"
       >
-        <div className="w-full">
-          <p className="text-white/40 text-[13px] font-medium tracking-[0.3em] uppercase mb-1">DIGITAL PAGER</p>
-          {merchant && <h2 className="text-white text-xl font-bold" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>{merchant.storeName}</h2>}
+        <div className="w-full flex flex-col items-center gap-1">
+          <p className="text-white/40 text-[13px] font-medium tracking-[0.3em] uppercase">DIGITAL PAGER</p>
+          {merchant && (
+            <div className="flex items-center justify-center gap-2">
+              {merchant.logoUrl && (
+                <img src={merchant.logoUrl} alt={merchant.storeName} className="w-8 h-8 rounded-full object-cover border border-white/10" />
+              )}
+              <h2 className="text-white text-xl font-bold" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>{merchant.storeName}</h2>
+            </div>
+          )}
         </div>
 
         <div className="flex-1 flex flex-col items-center justify-center min-h-0 gap-5">
@@ -1189,9 +1208,16 @@ export default function OrderTrackingPage() {
       style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }}
       data-testid="tracking-preparing-screen"
     >
-      <div className="w-full">
-        <p className="text-white/40 text-[13px] font-medium tracking-[0.3em] uppercase mb-1">DIGITAL PAGER</p>
-        {merchant && <h2 className="text-white text-xl font-bold" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>{merchant.storeName}</h2>}
+      <div className="w-full flex flex-col items-center gap-1">
+        <p className="text-white/40 text-[13px] font-medium tracking-[0.3em] uppercase">DIGITAL PAGER</p>
+        {merchant && (
+          <div className="flex items-center justify-center gap-2">
+            {merchant.logoUrl && (
+              <img src={merchant.logoUrl} alt={merchant.storeName} className="w-8 h-8 rounded-full object-cover border border-white/10" />
+            )}
+            <h2 className="text-white text-xl font-bold" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>{merchant.storeName}</h2>
+          </div>
+        )}
       </div>
 
       <div className="flex-1 flex flex-col items-center justify-center min-h-0 gap-5">

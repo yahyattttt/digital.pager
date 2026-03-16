@@ -98,6 +98,7 @@ import {
   Filter,
   FolderArchive,
   Save,
+  ImagePlus,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import ArchiveView from "@/pages/order-archive";
@@ -5084,11 +5085,30 @@ function SettingsView({
   const [storeNameEdit, setStoreNameEdit] = useState<string>(merchant?.storeName || "");
   const [whatsappEdit, setWhatsappEdit] = useState<string>(merchant?.whatsappNumber || "");
   const [branchInfoSaving, setBranchInfoSaving] = useState(false);
+  const [logoUrlEdit, setLogoUrlEdit] = useState<string>(merchant?.logoUrl || "");
+  const [logoUploading, setLogoUploading] = useState(false);
 
   useEffect(() => {
     setStoreNameEdit(merchant?.storeName || "");
     setWhatsappEdit(merchant?.whatsappNumber || "");
-  }, [merchant?.storeName, merchant?.whatsappNumber]);
+    setLogoUrlEdit(merchant?.logoUrl || "");
+  }, [merchant?.storeName, merchant?.whatsappNumber, merchant?.logoUrl]);
+
+  async function handleLogoUpload(file: File) {
+    setLogoUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("image", file);
+      const res = await fetch("/api/upload-image", { method: "POST", body: formData });
+      if (!res.ok) throw new Error("Upload failed");
+      const data = await res.json();
+      setLogoUrlEdit(data.url);
+    } catch (err) {
+      toast({ title: t("خطأ", "Error"), description: t("فشل رفع الشعار", "Logo upload failed"), variant: "destructive" });
+    } finally {
+      setLogoUploading(false);
+    }
+  }
 
   const cityCodeOptions = [
     { code: "01", labelAr: "الرياض", labelEn: "Riyadh" },
@@ -5145,6 +5165,7 @@ function SettingsView({
       await setDoc(merchantRef, {
         storeName: storeNameEdit.trim() || merchant.storeName,
         whatsappNumber: whatsappEdit.trim(),
+        logoUrl: logoUrlEdit,
       }, { merge: true });
       toast({
         title: t("تم الحفظ", "Saved"),
@@ -5256,6 +5277,55 @@ function SettingsView({
           </h3>
           <p className="text-xs text-muted-foreground mb-4">{t("اسم المتجر ورقم التواصل الظاهر للعملاء", "Store name and contact number shown to customers")}</p>
           <div className="space-y-4">
+            {/* Logo Upload */}
+            <div className="space-y-2">
+              <label className="text-xs text-muted-foreground">{t("شعار المتجر", "Store Logo")}</label>
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-2xl border border-white/10 bg-white/[0.03] flex items-center justify-center overflow-hidden flex-shrink-0">
+                  {logoUrlEdit ? (
+                    <img src={logoUrlEdit} alt="logo" className="w-full h-full object-cover" data-testid="img-logo-preview" />
+                  ) : (
+                    <ImagePlus className="w-6 h-6 text-white/20" />
+                  )}
+                </div>
+                <div className="flex-1 space-y-2">
+                  <label
+                    className="flex items-center justify-center gap-2 h-10 px-4 rounded-xl border border-white/10 bg-white/[0.03] hover:bg-white/[0.06] cursor-pointer transition-colors text-sm font-medium text-white/70 hover:text-white"
+                    data-testid="label-logo-upload"
+                  >
+                    {logoUploading ? (
+                      <><Loader2 className="w-4 h-4 animate-spin" /><span>{t("جاري الرفع...", "Uploading...")}</span></>
+                    ) : (
+                      <><ImagePlus className="w-4 h-4" /><span>{t("رفع شعار", "Upload Logo")}</span></>
+                    )}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={logoUploading}
+                      onChange={(e) => { const f = e.target.files?.[0]; if (f) handleLogoUpload(f); }}
+                      data-testid="input-logo-upload"
+                    />
+                  </label>
+                  {logoUrlEdit && (
+                    <button
+                      onClick={() => setLogoUrlEdit("")}
+                      className="w-full text-xs text-red-400/60 hover:text-red-400 transition-colors"
+                      data-testid="button-remove-logo"
+                    >
+                      {t("إزالة الشعار", "Remove logo")}
+                    </button>
+                  )}
+                </div>
+              </div>
+              <p className="text-[11px] text-muted-foreground leading-relaxed" dir="rtl">
+                {t(
+                  "المواصفات المقترحة: قياس 512x512 بكسل، صيغة PNG بخلفية شفافة، وجودة عالية لضمان وضوح علامتك التجارية.",
+                  "Recommended: 512×512 px, PNG with transparent background, high quality."
+                )}
+              </p>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className="text-xs text-muted-foreground">{t("اسم المتجر", "Store Name")}</label>
