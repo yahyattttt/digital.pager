@@ -1230,6 +1230,10 @@ export default function DashboardPage() {
   const isExpiringSoon = daysUntilExpiry !== null && daysUntilExpiry >= 0 && daysUntilExpiry <= 7;
   // A merchant is "subscription-locked" (date expired but still marked active in Firestore)
   const isSubscriptionExpiredByDate = effectiveSubscriptionStatus === "active" && isExpiredByDate;
+  // Admin-suspended stores are locked to subscription tab only (can still see dashboard to resubmit)
+  const isAdminSuspended = merchant.status === "suspended";
+  // Combined content lock: either date-expired or admin-suspended
+  const isContentLocked = isSubscriptionExpiredByDate || isAdminSuspended;
 
   if (effectiveSubscriptionStatus !== "active") {
     return (
@@ -1246,7 +1250,8 @@ export default function DashboardPage() {
     );
   }
 
-  const isPending = merchant.status !== "approved";
+  // isPending shows the "under review" yellow banner — suspended stores are handled separately
+  const isPending = merchant.status === "pending" || merchant.status === "rejected";
   const waitingPagers = pagers.filter((p) => p.status === "waiting");
   const notifiedPagers = pagers.filter((p) => p.status === "notified");
   const unreadFeedbackCount = feedbacks.filter(f => !f.read).length;
@@ -1447,7 +1452,7 @@ export default function DashboardPage() {
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = currentView === item.id;
-              const isLocked = isSubscriptionExpiredByDate && item.id !== "subscription";
+              const isLocked = isContentLocked && item.id !== "subscription";
               return (
                 <button
                   key={item.id}
@@ -1554,7 +1559,7 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* Rejection Banner — shown on all views when subscription request is rejected */}
+          {/* Rejection / Suspension Banner — shown on all views when store is rejected or suspended */}
           {(merchant as any).subscriptionRequestStatus === "rejected" && (
             <div className="mx-4 mt-4 md:mx-6 rounded-xl border-2 border-red-500/50 bg-red-500/10 p-4 flex items-start gap-3" data-testid="banner-rejection-dashboard">
               <div className="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center shrink-0 mt-0.5">
@@ -1562,11 +1567,19 @@ export default function DashboardPage() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-bold text-red-400">
-                  {t("تم رفض طلب التفعيل", "Activation Request Rejected")}
+                  {isAdminSuspended
+                    ? t("تم إيقاف متجرك من قِبَل الإدارة", "Your store has been suspended by admin")
+                    : t("تم رفض طلب التفعيل", "Activation Request Rejected")}
                 </p>
                 {(merchant as any).subscriptionRequestRejectionReason && (
                   <p className="text-xs text-white/80 mt-1 leading-relaxed">
-                    {t("السبب", "Reason")}: {(merchant as any).subscriptionRequestRejectionReason}
+                    <span className="text-red-300 font-semibold">{t("السبب", "Reason")}:</span>{" "}
+                    {(merchant as any).subscriptionRequestRejectionReason}
+                  </p>
+                )}
+                {isAdminSuspended && (
+                  <p className="text-xs text-white/50 mt-1.5">
+                    {t("يمكنك إعادة تقديم طلبك بعد تصحيح المشكلة المذكورة أعلاه.", "You can resubmit your request after correcting the issue mentioned above.")}
                   </p>
                 )}
               </div>
@@ -1582,17 +1595,19 @@ export default function DashboardPage() {
 
           <div className="p-4 md:p-6 max-w-6xl mx-auto">
             {/* Subscription expiry content lock — force subscription view when expired */}
-            {isSubscriptionExpiredByDate && currentView !== "subscription" && (
+            {isContentLocked && currentView !== "subscription" && (
               <div className="flex flex-col items-center justify-center py-24 gap-6 text-center">
                 <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center">
                   <Lock className="w-7 h-7 text-red-400" />
                 </div>
                 <div>
                   <p className="text-base font-bold text-white/80">
-                    {t("الوصول مقيد بسبب انتهاء الاشتراك", "Access restricted due to expired subscription")}
+                    {isAdminSuspended
+                      ? t("تم إيقاف المتجر من قِبَل الإدارة", "Store has been suspended by admin")
+                      : t("الوصول مقيد بسبب انتهاء الاشتراك", "Access restricted due to expired subscription")}
                   </p>
                   <p className="text-sm text-white/40 mt-1">
-                    {t("يمكنك فقط الوصول إلى صفحة الاشتراك لتجديد خطتك", "You can only access the subscription page to renew your plan")}
+                    {t("يمكنك فقط الوصول إلى صفحة الاشتراك", "You can only access the subscription page")}
                   </p>
                 </div>
                 <button
@@ -1604,7 +1619,7 @@ export default function DashboardPage() {
                 </button>
               </div>
             )}
-            {currentView === "overview" && !isSubscriptionExpiredByDate && (
+            {currentView === "overview" && !isContentLocked && (
               <OverviewView
                 merchant={merchant}
                 waitingPagers={waitingPagers}
@@ -1651,11 +1666,11 @@ export default function DashboardPage() {
               />
             )}
 
-            {!isSubscriptionExpiredByDate && currentView === "menu" && (
+            {!isContentLocked && currentView === "menu" && (
               <MenuView merchant={merchant} t={t} lang={lang} />
             )}
 
-            {!isSubscriptionExpiredByDate && currentView === "feedback" && (
+            {!isContentLocked && currentView === "feedback" && (
               <FeedbackView
                 feedbacks={feedbacks}
                 feedbackLoading={feedbackLoading}
@@ -1667,7 +1682,7 @@ export default function DashboardPage() {
               />
             )}
 
-            {!isSubscriptionExpiredByDate && currentView === "analytics" && (
+            {!isContentLocked && currentView === "analytics" && (
               <AnalyticsView
                 merchant={merchant}
                 waitingPagers={waitingPagers}
@@ -1680,23 +1695,23 @@ export default function DashboardPage() {
               />
             )}
 
-            {!isSubscriptionExpiredByDate && currentView === "tracking" && (
+            {!isContentLocked && currentView === "tracking" && (
               <TrackingView merchant={merchant} t={t} lang={lang} />
             )}
 
-            {!isSubscriptionExpiredByDate && currentView === "customers" && (
+            {!isContentLocked && currentView === "customers" && (
               <CustomersView merchant={merchant} t={t} lang={lang} />
             )}
 
-            {!isSubscriptionExpiredByDate && currentView === "coupons" && (
+            {!isContentLocked && currentView === "coupons" && (
               <CouponsView merchant={merchant} t={t} lang={lang} />
             )}
 
-            {!isSubscriptionExpiredByDate && currentView === "financial" && (
+            {!isContentLocked && currentView === "financial" && (
               <FinancialView merchant={merchant} t={t} lang={lang} />
             )}
 
-            {!isSubscriptionExpiredByDate && currentView === "archive" && (
+            {!isContentLocked && currentView === "archive" && (
               <ArchiveView
                 merchant={merchant}
                 t={t}

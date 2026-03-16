@@ -745,6 +745,49 @@ export async function registerRoutes(
     }
   });
 
+  // ── Admin: deactivate an active store with reason (suspend + rejection reason) ─
+  app.post("/api/admin/deactivate-store/:merchantId", async (req, res) => {
+    try {
+      if (!(await isAdminRequest(req))) return res.status(403).json({ message: "Unauthorized" });
+      const { merchantId } = req.params;
+      const { reason } = req.body;
+      if (!reason || !reason.trim()) return res.status(400).json({ message: "Deactivation reason is required" });
+
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
+
+      // Suspend store + mark request as rejected + store reason
+      // subscriptionStatus is NOT changed so the merchant can still see dashboard & resubmit
+      const mask = [
+        "updateMask.fieldPaths=status",
+        "updateMask.fieldPaths=subscriptionRequestStatus",
+        "updateMask.fieldPaths=subscriptionRequestRejectionReason",
+      ].join("&");
+
+      const patchRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}?${mask}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fields: {
+            status: { stringValue: "suspended" },
+            subscriptionRequestStatus: { stringValue: "rejected" },
+            subscriptionRequestRejectionReason: { stringValue: reason.trim() },
+          },
+        }),
+      });
+      if (!patchRes.ok) {
+        const errText = await patchRes.text();
+        console.error("[DEACTIVATE-STORE] patch failed:", errText);
+        return res.status(500).json({ message: "Deactivation failed" });
+      }
+      console.log(`[DEACTIVATE-STORE] Deactivated merchant ${merchantId}: "${reason.trim()}"`);
+      return res.json({ success: true });
+    } catch (error) {
+      console.error("[DEACTIVATE-STORE] error:", error);
+      return res.status(500).json({ message: "Deactivation failed" });
+    }
+  });
+
   // ── Public footer info (no auth — only returns fields toggled visible) ──
   app.get("/api/public/footer-info", async (_req, res) => {
     try {

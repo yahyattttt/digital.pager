@@ -385,6 +385,9 @@ export default function SuperAdminPage() {
   const [rejectDialogMerchant, setRejectDialogMerchant] = useState<any | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [deactivateDialogMerchant, setDeactivateDialogMerchant] = useState<any | null>(null);
+  const [deactivateReason, setDeactivateReason] = useState("");
+  const [deactivatingStoreId, setDeactivatingStoreId] = useState<string | null>(null);
   const pendingSubCountRef = useRef(0);
   const adminAlertAudioRef = useRef<HTMLAudioElement | null>(null);
   const [sysHealth, setSysHealth] = useState<any>(null);
@@ -1065,6 +1068,39 @@ export default function SuperAdminPage() {
       });
     } finally {
       setActionLoading(null);
+    }
+  }
+
+  async function handleDeactivateStore() {
+    if (!deactivateDialogMerchant || !deactivateReason.trim()) return;
+    setDeactivatingStoreId(deactivateDialogMerchant.uid);
+    try {
+      const res = await fetch(`/api/admin/deactivate-store/${deactivateDialogMerchant.uid}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: deactivateReason.trim() }),
+      });
+      if (!res.ok) throw new Error((await res.json()).message);
+      setMerchants((prev) =>
+        prev.map((m) =>
+          m.uid === deactivateDialogMerchant.uid
+            ? { ...m, status: "suspended" as any, subscriptionRequestStatus: "rejected" as any, subscriptionRequestRejectionReason: deactivateReason.trim() }
+            : m
+        )
+      );
+      toast({
+        title: t("تم رفض المتجر وإيقافه", "Store rejected & suspended"),
+        description: t(
+          `تم إيقاف متجر "${deactivateDialogMerchant.storeName}" وإشعار المالك بالسبب`,
+          `Store "${deactivateDialogMerchant.storeName}" suspended — owner notified with reason`
+        ),
+      });
+      setDeactivateDialogMerchant(null);
+      setDeactivateReason("");
+    } catch (err: any) {
+      toast({ title: t("فشل الإيقاف", "Deactivation Failed"), description: err.message, variant: "destructive" });
+    } finally {
+      setDeactivatingStoreId(null);
     }
   }
 
@@ -1871,13 +1907,13 @@ export default function SuperAdminPage() {
                                   ) : (
                                     <Button
                                       size="sm"
-                                      onClick={() => handleSuspend(merchant)}
-                                      className="h-7 px-2 text-xs bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700"
+                                      onClick={() => { setDeactivateDialogMerchant(merchant); setDeactivateReason(""); }}
+                                      className="h-7 px-2 text-xs bg-red-900/30 text-red-400 border border-red-500/30 hover:bg-red-900/50"
                                       variant="outline"
-                                      data-testid={`button-suspend-${merchant.uid}`}
+                                      data-testid={`button-deactivate-${merchant.uid}`}
                                     >
                                       <XCircle className="w-3 h-3 me-1" />
-                                      {t("إيقاف", "Suspend")}
+                                      {t("رفض / إيقاف", "Reject")}
                                     </Button>
                                   )}
 
@@ -3890,6 +3926,61 @@ export default function SuperAdminPage() {
               </p>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Deactivate Active Store Dialog ── */}
+      <Dialog open={!!deactivateDialogMerchant} onOpenChange={(open) => { if (!open) { setDeactivateDialogMerchant(null); setDeactivateReason(""); } }}>
+        <DialogContent className="max-w-md" data-testid="dialog-deactivate-store">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-400" dir="rtl" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}>
+              <XCircle className="w-5 h-5" />
+              <span>رفض وإيقاف المتجر</span>
+            </DialogTitle>
+            <DialogDescription dir="rtl" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}>
+              {deactivateDialogMerchant?.storeName && (
+                <span>المتجر: <strong className="text-white">{deactivateDialogMerchant.storeName}</strong></span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2" dir="rtl">
+            <div className="rounded-xl bg-red-950/30 border border-red-500/20 p-3 text-xs text-red-300" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}>
+              سيتم إيقاف المتجر فوراً وإشعار المالك بسبب الإيقاف. يمكن للمالك إعادة التقديم بعد تصحيح المشكلة.
+            </div>
+            <div>
+              <label className="text-sm text-slate-400 mb-1.5 block" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}>
+                سبب الرفض / الإيقاف <span className="text-red-400">*</span>
+              </label>
+              <Textarea
+                value={deactivateReason}
+                onChange={(e) => setDeactivateReason(e.target.value)}
+                placeholder="مثال: المتجر يقدم خدمات مخالفة، أو الوثائق المقدمة غير صحيحة، أو انتهاك شروط الاستخدام..."
+                rows={4}
+                className="resize-none rounded-xl border-white/10 bg-white/5 text-sm"
+                data-testid="input-deactivate-reason"
+                style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}
+              />
+              <p className="text-[11px] text-slate-500 mt-1">سيظهر هذا السبب للمتجر في لوحة التحكم الخاصة به</p>
+            </div>
+            <div className="flex items-center gap-2 justify-start">
+              <Button
+                onClick={handleDeactivateStore}
+                disabled={!deactivateReason.trim() || deactivatingStoreId === deactivateDialogMerchant?.uid}
+                className="bg-red-600 hover:bg-red-500 text-white rounded-xl font-bold text-sm"
+                data-testid="btn-confirm-deactivate"
+              >
+                {deactivatingStoreId === deactivateDialogMerchant?.uid ? t("جارٍ الإيقاف...", "Deactivating...") : t("تأكيد الإيقاف", "Confirm Deactivation")}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => { setDeactivateDialogMerchant(null); setDeactivateReason(""); }}
+                className="rounded-xl text-sm border-white/10"
+                data-testid="btn-cancel-deactivate"
+              >
+                {t("إلغاء", "Cancel")}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
