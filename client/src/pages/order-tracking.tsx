@@ -32,9 +32,10 @@ function SmartRatingScreen({
   const isDelivery = diningType === "delivery";
   const [selectedStars, setSelectedStars] = useState(0);
   const [hoveredStar, setHoveredStar] = useState(0);
-  const [phase, setPhase] = useState<"driver" | "rating" | "feedback" | "thankyou" | "redirecting" | "done">(isDelivery ? "driver" : "rating");
+  const [phase, setPhase] = useState<"driver" | "rating" | "done">(isDelivery ? "driver" : "rating");
   const [comment, setComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [doneType, setDoneType] = useState<"maps" | "low" | "high_no_maps">("low");
 
   function handleWhatsAppDriver() {
     const phone = (driverPhone || "").replace(/[^\d+]/g, "");
@@ -49,39 +50,31 @@ function SmartRatingScreen({
 
   function handleStarClick(star: number) {
     setSelectedStars(star);
-    if (star >= 4 && googleMapsReviewUrl) {
-      setPhase("redirecting");
-      fetch("/api/store-internal-review", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ merchantId, stars: star, comment: "", orderNumber }),
-      }).catch(() => {});
-    } else if (star >= 4) {
-      fetch("/api/store-internal-review", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ merchantId, stars: star, comment: "", orderNumber }),
-      }).catch(() => {});
-      setPhase("done");
-    } else {
-      setPhase("feedback");
-    }
   }
 
-  function handleConfirmMapsRedirect() {
-    try { fetch(`/api/track/gmaps/${merchantId}`, { method: "POST" }); } catch {}
-    window.open(googleMapsReviewUrl, "_blank");
-    setPhase("done");
-  }
-
-  async function handleSubmitFeedback() {
+  async function handleSubmitReview() {
+    if (!selectedStars) return;
     setSubmitting(true);
     try {
-      await fetch("/api/store-internal-review", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ merchantId, stars: selectedStars, comment: comment.trim(), orderNumber }),
-      });
+      if (selectedStars >= 4 && googleMapsReviewUrl) {
+        fetch(`/api/track/gmaps/${merchantId}`, { method: "POST" }).catch(() => {});
+        window.open(googleMapsReviewUrl, "_blank");
+        setDoneType("maps");
+      } else if (selectedStars >= 4) {
+        await fetch("/api/store-internal-review", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ merchantId, stars: selectedStars, comment: "", orderNumber }),
+        });
+        setDoneType("high_no_maps");
+      } else {
+        await fetch("/api/store-internal-review", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ merchantId, stars: selectedStars, comment: comment.trim(), orderNumber }),
+        });
+        setDoneType("low");
+      }
     } catch {}
     setSubmitting(false);
     setPhase("done");
@@ -193,92 +186,38 @@ function SmartRatingScreen({
                     </button>
                   ))}
                 </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
 
-        {phase === "feedback" && (
-          <div className="flex flex-col items-center gap-4 w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <Card className="w-full bg-[#111] border-white/[0.06] rounded-2xl">
-              <CardContent className="p-6 flex flex-col items-center gap-4">
-                <div className="flex items-center justify-center gap-2">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <Star
-                      key={star}
-                      className={`w-8 h-8 ${star <= selectedStars ? "fill-yellow-400 text-yellow-400" : "text-zinc-700"}`}
+                {selectedStars > 0 && selectedStars <= 3 && (
+                  <div className="w-full space-y-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <p className="text-white/60 text-xs text-center" dir="rtl">ما الذي يمكننا تحسينه؟ (اختياري)</p>
+                    <Textarea
+                      value={comment}
+                      onChange={(e) => setComment(e.target.value)}
+                      placeholder="اكتب ملاحظاتك هنا..."
+                      className="w-full text-sm resize-none bg-black border-zinc-700 text-white placeholder:text-zinc-600"
+                      rows={3}
+                      dir="rtl"
+                      data-testid="textarea-feedback"
                     />
-                  ))}
-                </div>
-                <p className="text-white/80 text-sm font-medium" dir="rtl" data-testid="text-feedback-prompt">
-                  نأسف لذلك! ما الذي يمكننا تحسينه؟
-                </p>
-                <p className="text-white/40 text-xs" data-testid="text-feedback-prompt-en">
-                  We're sorry! What can we improve?
-                </p>
-                <Textarea
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  placeholder="اكتب ملاحظاتك هنا... / Write your feedback here..."
-                  className="w-full text-sm resize-none bg-black border-zinc-700 text-white placeholder:text-zinc-600"
-                  rows={3}
-                  dir="rtl"
-                  data-testid="textarea-feedback"
-                />
-                <Button
-                  onClick={handleSubmitFeedback}
-                  disabled={submitting}
-                  className="w-full h-12 font-bold text-base bg-red-600 hover:bg-red-700 text-white rounded-xl"
-                  data-testid="button-submit-feedback"
-                >
-                  {submitting ? <Loader2 className="w-5 h-5 me-2 animate-spin" /> : <Send className="w-5 h-5 me-2" />}
-                  <span dir="rtl">{submitting ? "جاري الإرسال..." : "إرسال الملاحظات"}</span>
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-        )}
+                  </div>
+                )}
 
-        {phase === "redirecting" && (
-          <div className="flex flex-col items-center gap-4 w-full animate-in fade-in duration-500">
-            <Card className="w-full border-amber-500/20 rounded-2xl" style={{ background: "rgba(251,191,36,0.06)" }}>
-              <CardContent className="p-6 flex flex-col items-center gap-4">
-                <div className="flex items-center justify-center gap-1.5">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <Star
-                      key={star}
-                      className={`w-7 h-7 ${star <= selectedStars ? "fill-yellow-400 text-yellow-400" : "text-zinc-700"}`}
-                    />
-                  ))}
-                </div>
-                <div className="text-center space-y-1">
-                  <p className="text-white text-base font-bold leading-snug" dir="rtl" data-testid="text-rating-thankyou">
-                    شكراً لثقتك! 🌟
-                  </p>
-                  <p className="text-amber-300/80 text-sm leading-relaxed" dir="rtl">
-                    يسعدنا رضاك عن تجربتك — شارك رأيك على جوجل ماب وساعدنا في الوصول لمزيد من العملاء.
-                  </p>
-                  <p className="text-zinc-500 text-xs mt-1">
-                    Thank you! Share your experience on Google Maps.
-                  </p>
-                </div>
-                <button
-                  onClick={handleConfirmMapsRedirect}
-                  data-testid="button-confirm-maps-redirect"
-                  className="w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-95"
-                  style={{ background: "rgba(251,191,36,0.15)", border: "1px solid rgba(251,191,36,0.35)", color: "#fbbf24" }}
-                >
-                  <Star className="w-4 h-4 fill-amber-400" />
-                  <span dir="rtl">شاركنا تجربتك على جوجل ماب</span>
-                </button>
-                <button
-                  onClick={() => setPhase("done")}
-                  className="text-zinc-600 text-xs hover:text-zinc-400 transition-colors"
-                  data-testid="button-skip-maps-redirect"
-                >
-                  {/* skip */}
-                  تخطي
-                </button>
+                {selectedStars > 0 && (
+                  <Button
+                    onClick={handleSubmitReview}
+                    disabled={submitting}
+                    className="w-full h-12 font-bold text-base rounded-xl text-white animate-in fade-in duration-300"
+                    style={{
+                      background: selectedStars >= 4
+                        ? "linear-gradient(135deg, #d97706 0%, #f59e0b 100%)"
+                        : "linear-gradient(135deg, #dc2626 0%, #ef4444 100%)"
+                    }}
+                    data-testid="button-submit-review"
+                  >
+                    {submitting ? <Loader2 className="w-5 h-5 me-2 animate-spin" /> : <Send className="w-5 h-5 me-2" />}
+                    <span dir="rtl">{submitting ? "جاري الإرسال..." : "إرسال التقييم"}</span>
+                  </Button>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -286,18 +225,24 @@ function SmartRatingScreen({
 
         {phase === "done" && (
           <div className="flex flex-col items-center gap-3 w-full animate-in fade-in duration-500">
-            <Card className="w-full bg-[#111] border-white/[0.06] rounded-2xl">
+            <Card
+              className="w-full rounded-2xl"
+              style={{
+                background: doneType === "maps" ? "rgba(251,191,36,0.06)" : "rgba(17,17,17,1)",
+                border: doneType === "maps" ? "1px solid rgba(251,191,36,0.2)" : "1px solid rgba(255,255,255,0.06)",
+              }}
+            >
               <CardContent className="p-6 flex flex-col items-center gap-3">
-                <CheckCircle className="w-12 h-12 text-green-500" />
-                <p className="text-white text-lg font-bold" dir="rtl" data-testid="text-feedback-thankyou">
-                  {selectedStars <= 3
-                    ? "شكراً لملاحظاتك، نسعى دائماً للأفضل"
-                    : "شكراً لتقييمك!"}
+                <CheckCircle className={`w-12 h-12 ${doneType === "maps" ? "text-amber-400" : "text-green-500"}`} />
+                <p className="text-white text-base font-bold leading-snug" dir="rtl" data-testid="text-feedback-thankyou">
+                  {doneType === "maps"
+                    ? "شكراً لتقييمك الرائع! جاري تحويلك لجوجل ماب.."
+                    : "شكراً لملاحظاتك، سنعمل على تحسين تجربتك."}
                 </p>
-                <p className="text-zinc-400 text-sm" data-testid="text-feedback-thankyou-en">
-                  {selectedStars <= 3
-                    ? "Thank you for your feedback, we always strive to improve"
-                    : "Thank you for your rating!"}
+                <p className="text-zinc-400 text-xs" data-testid="text-feedback-thankyou-en">
+                  {doneType === "maps"
+                    ? "Thank you! Redirecting to Google Maps.."
+                    : "Thank you for your feedback!"}
                 </p>
               </CardContent>
             </Card>
@@ -340,9 +285,10 @@ function DeliveryTrackingView({
   const [showRating, setShowRating] = useState(false);
   const [selectedStars, setSelectedStars] = useState(0);
   const [hoveredStar, setHoveredStar] = useState(0);
-  const [ratingPhase, setRatingPhase] = useState<"stars" | "feedback" | "redirecting" | "done">("stars");
+  const [ratingPhase, setRatingPhase] = useState<"stars" | "done">("stars");
   const [comment, setComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [doneType, setDoneType] = useState<"maps" | "low" | "high_no_maps">("low");
   const [shareCopied, setShareCopied] = useState(false);
   const prevStatusRef = useRef(order.status);
 
@@ -376,39 +322,31 @@ function DeliveryTrackingView({
 
   function handleStarClick(star: number) {
     setSelectedStars(star);
-    if (star >= 4 && merchant?.googleMapsReviewUrl) {
-      setRatingPhase("redirecting");
-      fetch("/api/store-internal-review", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ merchantId, stars: star, comment: "", orderNumber: order.orderNumber }),
-      }).catch(() => {});
-    } else if (star >= 4) {
-      fetch("/api/store-internal-review", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ merchantId, stars: star, comment: "", orderNumber: order.orderNumber }),
-      }).catch(() => {});
-      setRatingPhase("done");
-    } else {
-      setRatingPhase("feedback");
-    }
   }
 
-  function handleConfirmMapsRedirectOnline() {
-    try { fetch(`/api/track/gmaps/${merchantId}`, { method: "POST" }); } catch {}
-    window.open(merchant!.googleMapsReviewUrl!, "_blank");
-    setRatingPhase("done");
-  }
-
-  async function handleSubmitFeedback() {
+  async function handleSubmitReview() {
+    if (!selectedStars) return;
     setSubmitting(true);
     try {
-      await fetch("/api/store-internal-review", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ merchantId, stars: selectedStars, comment: comment.trim(), orderNumber: order.orderNumber }),
-      });
+      if (selectedStars >= 4 && merchant?.googleMapsReviewUrl) {
+        fetch(`/api/track/gmaps/${merchantId}`, { method: "POST" }).catch(() => {});
+        window.open(merchant.googleMapsReviewUrl, "_blank");
+        setDoneType("maps");
+      } else if (selectedStars >= 4) {
+        await fetch("/api/store-internal-review", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ merchantId, stars: selectedStars, comment: "", orderNumber: order.orderNumber }),
+        });
+        setDoneType("high_no_maps");
+      } else {
+        await fetch("/api/store-internal-review", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ merchantId, stars: selectedStars, comment: comment.trim(), orderNumber: order.orderNumber }),
+        });
+        setDoneType("low");
+      }
     } catch {}
     setSubmitting(false);
     setRatingPhase("done");
@@ -563,7 +501,7 @@ function DeliveryTrackingView({
         {showRating && !isRejected && ratingPhase === "stars" && (
           <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
             <Card className="w-full bg-[#111] border-white/[0.06] rounded-2xl">
-              <CardContent className="p-5 flex flex-col items-center gap-3">
+              <CardContent className="p-5 flex flex-col items-center gap-4">
                 <p className="text-white/80 text-sm font-medium" dir="rtl" data-testid="text-delivery-rate-prompt">تقييم الخدمة</p>
                 <p className="text-white/40 text-xs">Rate your experience</p>
                 <div className="flex items-center justify-center gap-3" data-testid="star-rating-widget">
@@ -587,75 +525,38 @@ function DeliveryTrackingView({
                     </button>
                   ))}
                 </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
 
-        {showRating && ratingPhase === "feedback" && (
-          <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <Card className="w-full bg-[#111] border-white/[0.06] rounded-2xl">
-              <CardContent className="p-5 flex flex-col items-center gap-3">
-                <div className="flex items-center justify-center gap-2">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <Star key={star} className={`w-7 h-7 ${star <= selectedStars ? "fill-yellow-400 text-yellow-400" : "text-zinc-700"}`} />
-                  ))}
-                </div>
-                <p className="text-white/80 text-sm font-medium" dir="rtl">ما الذي يمكننا تحسينه؟</p>
-                <Textarea
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  placeholder="اكتب ملاحظاتك هنا..."
-                  className="w-full text-sm resize-none bg-black border-zinc-700 text-white placeholder:text-zinc-600"
-                  rows={3}
-                  dir="rtl"
-                  data-testid="textarea-delivery-feedback"
-                />
-                <Button
-                  onClick={handleSubmitFeedback}
-                  disabled={submitting}
-                  className="w-full h-11 font-bold text-sm bg-red-600 hover:bg-red-700 text-white rounded-xl"
-                  data-testid="button-submit-delivery-feedback"
-                >
-                  {submitting ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Send className="w-4 h-4 me-2" />}
-                  <span dir="rtl">{submitting ? "جاري الإرسال..." : "إرسال الملاحظات"}</span>
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-        )}
+                {selectedStars > 0 && selectedStars <= 3 && (
+                  <div className="w-full space-y-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <p className="text-white/60 text-xs text-center" dir="rtl">ما الذي يمكننا تحسينه؟ (اختياري)</p>
+                    <Textarea
+                      value={comment}
+                      onChange={(e) => setComment(e.target.value)}
+                      placeholder="اكتب ملاحظاتك هنا..."
+                      className="w-full text-sm resize-none bg-black border-zinc-700 text-white placeholder:text-zinc-600"
+                      rows={3}
+                      dir="rtl"
+                      data-testid="textarea-delivery-feedback"
+                    />
+                  </div>
+                )}
 
-        {showRating && ratingPhase === "redirecting" && (
-          <div className="w-full animate-in fade-in duration-500">
-            <Card className="w-full border-amber-500/20 rounded-2xl" style={{ background: "rgba(251,191,36,0.06)" }}>
-              <CardContent className="p-5 flex flex-col items-center gap-3">
-                <div className="flex items-center justify-center gap-1">
-                  {[1, 2, 3, 4, 5].map((s) => (
-                    <Star key={s} className={`w-6 h-6 ${s <= selectedStars ? "fill-yellow-400 text-yellow-400" : "text-zinc-700"}`} />
-                  ))}
-                </div>
-                <div className="text-center space-y-1">
-                  <p className="text-white text-sm font-bold" dir="rtl" data-testid="text-rating-thankyou">شكراً لثقتك! 🌟</p>
-                  <p className="text-amber-300/70 text-xs leading-relaxed" dir="rtl">
-                    يسعدنا رضاك — شارك تجربتك على جوجل ماب وساعدنا في الوصول لمزيد من العملاء.
-                  </p>
-                </div>
-                <button
-                  onClick={handleConfirmMapsRedirectOnline}
-                  data-testid="button-confirm-maps-redirect-online"
-                  className="w-full py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-95"
-                  style={{ background: "rgba(251,191,36,0.15)", border: "1px solid rgba(251,191,36,0.35)", color: "#fbbf24" }}
-                >
-                  <Star className="w-4 h-4 fill-amber-400" />
-                  <span dir="rtl">شاركنا تجربتك على جوجل ماب</span>
-                </button>
-                <button
-                  onClick={() => setRatingPhase("done")}
-                  className="text-zinc-600 text-xs hover:text-zinc-400 transition-colors"
-                  data-testid="button-skip-maps-redirect-online"
-                >
-                  تخطي
-                </button>
+                {selectedStars > 0 && (
+                  <Button
+                    onClick={handleSubmitReview}
+                    disabled={submitting}
+                    className="w-full h-11 font-bold text-sm rounded-xl text-white animate-in fade-in duration-300"
+                    style={{
+                      background: selectedStars >= 4
+                        ? "linear-gradient(135deg, #d97706 0%, #f59e0b 100%)"
+                        : "linear-gradient(135deg, #dc2626 0%, #ef4444 100%)"
+                    }}
+                    data-testid="button-submit-review"
+                  >
+                    {submitting ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Send className="w-4 h-4 me-2" />}
+                    <span dir="rtl">{submitting ? "جاري الإرسال..." : "إرسال التقييم"}</span>
+                  </Button>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -663,11 +564,19 @@ function DeliveryTrackingView({
 
         {showRating && ratingPhase === "done" && (
           <div className="w-full animate-in fade-in duration-500">
-            <Card className="w-full bg-[#111] border-white/[0.06] rounded-2xl">
+            <Card
+              className="w-full rounded-2xl"
+              style={{
+                background: doneType === "maps" ? "rgba(251,191,36,0.06)" : "rgba(17,17,17,1)",
+                border: doneType === "maps" ? "1px solid rgba(251,191,36,0.2)" : "1px solid rgba(255,255,255,0.06)",
+              }}
+            >
               <CardContent className="p-5 flex flex-col items-center gap-3">
-                <CheckCircle className="w-10 h-10 text-green-500" />
-                <p className="text-white text-base font-bold" dir="rtl">
-                  {selectedStars <= 3 ? "شكراً لملاحظاتك" : "شكراً لتقييمك!"}
+                <CheckCircle className={`w-10 h-10 ${doneType === "maps" ? "text-amber-400" : "text-green-500"}`} />
+                <p className="text-white text-sm font-bold leading-snug text-center" dir="rtl" data-testid="text-rating-thankyou">
+                  {doneType === "maps"
+                    ? "شكراً لتقييمك الرائع! جاري تحويلك لجوجل ماب.."
+                    : "شكراً لملاحظاتك، سنعمل على تحسين تجربتك."}
                 </p>
               </CardContent>
             </Card>
