@@ -165,6 +165,21 @@ export const systemSettingsSchema = z.object({
   platformTermsEnabled: z.boolean().default(false),
   platformTermsText: z.string().default(""),
   platformPrivacyText: z.string().default(""),
+  // ── Identity & Contact (footer) ──────────────────────────────────────────
+  instagram: z.string().default(""),
+  twitterX: z.string().default(""),
+  linkedin: z.string().default(""),
+  snapchat: z.string().default(""),
+  commercialRegister: z.string().default(""),
+  taxNumber: z.string().default(""),
+  location: z.string().default(""),
+  showInstagram: z.boolean().default(false),
+  showTwitterX: z.boolean().default(false),
+  showLinkedin: z.boolean().default(false),
+  showSnapchat: z.boolean().default(false),
+  showCommercialRegister: z.boolean().default(false),
+  showTaxNumber: z.boolean().default(false),
+  showLocation: z.boolean().default(false),
 });
 
 export type SystemSettings = z.infer<typeof systemSettingsSchema>;

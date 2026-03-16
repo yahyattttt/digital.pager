@@ -297,6 +297,10 @@ export default function SuperAdminPage() {
     platformTermsEnabled: false,
     platformTermsText: "",
     platformPrivacyText: "",
+    instagram: "", twitterX: "", linkedin: "", snapchat: "",
+    commercialRegister: "", taxNumber: "", location: "",
+    showInstagram: false, showTwitterX: false, showLinkedin: false, showSnapchat: false,
+    showCommercialRegister: false, showTaxNumber: false, showLocation: false,
   });
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [settingsSaving, setSettingsSaving] = useState(false);
@@ -792,6 +796,20 @@ export default function SuperAdminPage() {
           platformTermsEnabled: data.platformTermsEnabled || false,
           platformTermsText: data.platformTermsText || "",
           platformPrivacyText: data.platformPrivacyText || "",
+          instagram: data.instagram || "",
+          twitterX: data.twitterX || "",
+          linkedin: data.linkedin || "",
+          snapchat: data.snapchat || "",
+          commercialRegister: data.commercialRegister || "",
+          taxNumber: data.taxNumber || "",
+          location: data.location || "",
+          showInstagram: data.showInstagram || false,
+          showTwitterX: data.showTwitterX || false,
+          showLinkedin: data.showLinkedin || false,
+          showSnapchat: data.showSnapchat || false,
+          showCommercialRegister: data.showCommercialRegister || false,
+          showTaxNumber: data.showTaxNumber || false,
+          showLocation: data.showLocation || false,
         });
       }
     } catch {
@@ -2475,6 +2493,101 @@ export default function SuperAdminPage() {
                         <Save className="w-4 h-4 me-1.5" />
                       )}
                       {t("حفظ الإعدادات", "Save Settings")}
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* ── Identity & Contact Settings ── */}
+            <Card data-testid="card-identity-settings">
+              <CardHeader className="flex flex-row items-center gap-2 pb-4">
+                <Globe className="w-5 h-5 text-primary" />
+                <h2 className="font-bold text-lg">
+                  {t("إعدادات الهوية والتواصل", "Identity & Contact Settings")}
+                </h2>
+              </CardHeader>
+              <CardContent>
+                {settingsLoading ? (
+                  <div className="flex items-center justify-center py-10">
+                    <Loader2 className="w-6 h-6 text-primary animate-spin" />
+                  </div>
+                ) : (
+                  <div className="space-y-6 max-w-lg">
+
+                    {/* ── Social media links ── */}
+                    <div>
+                      <p className="text-sm font-semibold text-muted-foreground mb-3">{t("روابط التواصل الاجتماعي", "Social Media Links")}</p>
+                      <div className="space-y-3">
+                        {([ 
+                          { key: "instagram",  showKey: "showInstagram",  label: "Instagram",  placeholder: "https://instagram.com/yourbrand", testId: "instagram" },
+                          { key: "twitterX",   showKey: "showTwitterX",   label: "X (Twitter)", placeholder: "https://x.com/yourbrand",          testId: "twitterx" },
+                          { key: "linkedin",   showKey: "showLinkedin",   label: "LinkedIn",   placeholder: "https://linkedin.com/in/yourbrand", testId: "linkedin" },
+                          { key: "snapchat",   showKey: "showSnapchat",   label: "Snapchat",   placeholder: "https://snapchat.com/add/yourbrand", testId: "snapchat" },
+                        ] as const).map(({ key, showKey, label, placeholder, testId }) => (
+                          <div key={key} className="flex items-center gap-3">
+                            <div className="flex-1 space-y-1">
+                              <Label className="text-xs text-muted-foreground">{label}</Label>
+                              <Input
+                                value={(settings as any)[key] ?? ""}
+                                onChange={e => setSettings(s => ({ ...s, [key]: e.target.value }))}
+                                placeholder={placeholder}
+                                dir="ltr"
+                                data-testid={`input-${testId}`}
+                              />
+                            </div>
+                            <div className="flex flex-col items-center gap-1 pt-5">
+                              <Switch
+                                checked={(settings as any)[showKey] ?? false}
+                                onCheckedChange={v => setSettings(s => ({ ...s, [showKey]: v }))}
+                                data-testid={`switch-show-${testId}`}
+                              />
+                              <span className="text-[9px] text-muted-foreground">{t("ظاهر", "Show")}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* ── Business info ── */}
+                    <div className="pt-4 border-t border-border/30">
+                      <p className="text-sm font-semibold text-muted-foreground mb-3">{t("معلومات الشركة", "Business Information")}</p>
+                      <div className="space-y-3">
+                        {([
+                          { key: "commercialRegister", showKey: "showCommercialRegister", labelAr: "السجل التجاري",  labelEn: "Commercial Register", placeholder: "1234567890", testId: "cr" },
+                          { key: "taxNumber",          showKey: "showTaxNumber",          labelAr: "الرقم الضريبي", labelEn: "Tax Number",           placeholder: "300000000000003", testId: "tax" },
+                          { key: "location",           showKey: "showLocation",           labelAr: "الموقع",        labelEn: "Location",             placeholder: t("الرياض، المملكة العربية السعودية", "Riyadh, Saudi Arabia"), testId: "location" },
+                        ] as const).map(({ key, showKey, labelAr, labelEn, placeholder, testId }) => (
+                          <div key={key} className="flex items-center gap-3">
+                            <div className="flex-1 space-y-1">
+                              <Label className="text-xs text-muted-foreground">{t(labelAr, labelEn)}</Label>
+                              <Input
+                                value={(settings as any)[key] ?? ""}
+                                onChange={e => setSettings(s => ({ ...s, [key]: e.target.value }))}
+                                placeholder={placeholder}
+                                data-testid={`input-${testId}`}
+                              />
+                            </div>
+                            <div className="flex flex-col items-center gap-1 pt-5">
+                              <Switch
+                                checked={(settings as any)[showKey] ?? false}
+                                onCheckedChange={v => setSettings(s => ({ ...s, [showKey]: v }))}
+                                data-testid={`switch-show-${testId}`}
+                              />
+                              <span className="text-[9px] text-muted-foreground">{t("ظاهر", "Show")}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <Button
+                      onClick={handleSaveSettings}
+                      disabled={settingsSaving}
+                      data-testid="button-save-identity-settings"
+                    >
+                      {settingsSaving ? <Loader2 className="w-4 h-4 me-1.5 animate-spin" /> : <Save className="w-4 h-4 me-1.5" />}
+                      {t("حفظ", "Save")}
                     </Button>
                   </div>
                 )}

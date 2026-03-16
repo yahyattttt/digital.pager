@@ -446,6 +446,31 @@ export async function registerRoutes(
     return res.json({ url });
   });
 
+  // ── Public footer info (no auth — only returns fields toggled visible) ──
+  app.get("/api/public/footer-info", async (_req, res) => {
+    try {
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.json({});
+      const docRes = await apikeyFetch(`${baseUrl}/systemSettings/global`);
+      if (!docRes.ok) return res.json({});
+      const body = await docRes.json();
+      const fields = body?.fields ?? {};
+      const str = (f: string) => fields[f]?.stringValue ?? "";
+      const bool = (f: string) => fields[f]?.booleanValue ?? false;
+      const result: Record<string, string | boolean> = {};
+      if (bool("showInstagram")  && str("instagram"))         result.instagram         = str("instagram");
+      if (bool("showTwitterX")   && str("twitterX"))          result.twitterX          = str("twitterX");
+      if (bool("showLinkedin")   && str("linkedin"))          result.linkedin          = str("linkedin");
+      if (bool("showSnapchat")   && str("snapchat"))          result.snapchat          = str("snapchat");
+      if (bool("showCommercialRegister") && str("commercialRegister")) result.commercialRegister = str("commercialRegister");
+      if (bool("showTaxNumber")  && str("taxNumber"))         result.taxNumber         = str("taxNumber");
+      if (bool("showLocation")   && str("location"))          result.location          = str("location");
+      return res.json(result);
+    } catch {
+      return res.json({});
+    }
+  });
+
   app.post("/api/upload-cr", crUpload.single("cr"), (req, res) => {
     if (!req.file) {
       return res.status(400).json({ message: "No file uploaded" });

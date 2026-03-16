@@ -1,20 +1,39 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useLanguage } from "@/hooks/use-language";
-import { Globe, Maximize, Minimize, ArrowLeft, ArrowRight } from "lucide-react";
+import { Globe, Maximize, Minimize, ArrowLeft, ArrowRight, MapPin } from "lucide-react";
+import { SiInstagram, SiLinkedin, SiSnapchat } from "react-icons/si";
 import neonBellLogo from "@assets/image0_(1)_1773118136698.png";
+
+type FooterInfo = {
+  instagram?: string;
+  twitterX?: string;
+  linkedin?: string;
+  snapchat?: string;
+  commercialRegister?: string;
+  taxNumber?: string;
+  location?: string;
+};
 
 export default function LandingPage() {
   const [, setLocation] = useLocation();
   const { t, toggleLanguage, isRTL } = useLanguage();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [tick, setTick] = useState(0);
+  const [footerInfo, setFooterInfo] = useState<FooterInfo>({});
   const pagerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const onChange = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener("fullscreenchange", onChange);
     return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/public/footer-info")
+      .then(r => r.ok ? r.json() : {})
+      .then(data => setFooterInfo(data ?? {}))
+      .catch(() => {});
   }, []);
 
   // Animate queue number cycling on the pager screen
@@ -310,14 +329,110 @@ export default function LandingPage() {
 
       {/* ── FOOTER ── */}
       <footer style={{ position: "relative", zIndex: 10, borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-        <div className="max-w-7xl mx-auto px-5 py-5 flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-2">
-            <img src={neonBellLogo} alt="Digital Pager" className="h-8 w-auto object-contain" style={{ mixBlendMode: "screen" }} />
-            <span style={{ fontWeight: 700, fontSize: 14, color: "rgba(255,255,255,0.6)" }}>Digital Pager</span>
+        <div className="max-w-7xl mx-auto px-5 py-5">
+
+          {/* Dynamic info row — only rendered when there's something to show */}
+          {(footerInfo.instagram || footerInfo.twitterX || footerInfo.linkedin || footerInfo.snapchat ||
+            footerInfo.commercialRegister || footerInfo.taxNumber || footerInfo.location) && (
+            <div
+              style={{
+                display: "flex", flexWrap: "wrap", alignItems: "center",
+                gap: "16px 24px",
+                paddingBottom: 12,
+                marginBottom: 12,
+                borderBottom: "1px solid rgba(255,255,255,0.04)",
+              }}
+            >
+              {/* Social icons */}
+              {(footerInfo.instagram || footerInfo.twitterX || footerInfo.linkedin || footerInfo.snapchat) && (
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  {footerInfo.instagram && (
+                    <a href={footerInfo.instagram} target="_blank" rel="noopener noreferrer"
+                      data-testid="link-footer-instagram"
+                      style={{ color: "rgba(255,255,255,0.4)", transition: "color 0.2s", fontSize: 15 }}
+                      onMouseOver={e => (e.currentTarget.style.color = "rgba(255,100,60,0.85)")}
+                      onMouseOut={e => (e.currentTarget.style.color = "rgba(255,255,255,0.4)")}
+                      title="Instagram"
+                    >
+                      <SiInstagram />
+                    </a>
+                  )}
+                  {footerInfo.twitterX && (
+                    <a href={footerInfo.twitterX} target="_blank" rel="noopener noreferrer"
+                      data-testid="link-footer-twitter"
+                      style={{ color: "rgba(255,255,255,0.4)", transition: "color 0.2s", fontSize: 14, fontWeight: 800, lineHeight: 1 }}
+                      onMouseOver={e => (e.currentTarget.style.color = "rgba(255,100,60,0.85)")}
+                      onMouseOut={e => (e.currentTarget.style.color = "rgba(255,255,255,0.4)")}
+                      title="X"
+                    >
+                      𝕏
+                    </a>
+                  )}
+                  {footerInfo.linkedin && (
+                    <a href={footerInfo.linkedin} target="_blank" rel="noopener noreferrer"
+                      data-testid="link-footer-linkedin"
+                      style={{ color: "rgba(255,255,255,0.4)", transition: "color 0.2s", fontSize: 15 }}
+                      onMouseOver={e => (e.currentTarget.style.color = "rgba(255,100,60,0.85)")}
+                      onMouseOut={e => (e.currentTarget.style.color = "rgba(255,255,255,0.4)")}
+                      title="LinkedIn"
+                    >
+                      <SiLinkedin />
+                    </a>
+                  )}
+                  {footerInfo.snapchat && (
+                    <a href={footerInfo.snapchat} target="_blank" rel="noopener noreferrer"
+                      data-testid="link-footer-snapchat"
+                      style={{ color: "rgba(255,255,255,0.4)", transition: "color 0.2s", fontSize: 15 }}
+                      onMouseOver={e => (e.currentTarget.style.color = "rgba(255,100,60,0.85)")}
+                      onMouseOut={e => (e.currentTarget.style.color = "rgba(255,255,255,0.4)")}
+                      title="Snapchat"
+                    >
+                      <SiSnapchat />
+                    </a>
+                  )}
+                </div>
+              )}
+
+              {/* Business info — CR + Tax on one line if both present */}
+              {(footerInfo.commercialRegister || footerInfo.taxNumber) && (
+                <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                  {footerInfo.commercialRegister && (
+                    <span data-testid="text-footer-cr"
+                      style={{ fontSize: 11, color: "rgba(200,185,178,0.45)", letterSpacing: "0.03em" }}>
+                      {t("س.ت", "CR")}: {footerInfo.commercialRegister}
+                    </span>
+                  )}
+                  {footerInfo.taxNumber && (
+                    <span data-testid="text-footer-tax"
+                      style={{ fontSize: 11, color: "rgba(200,185,178,0.45)", letterSpacing: "0.03em" }}>
+                      {t("الرقم الضريبي", "VAT")}: {footerInfo.taxNumber}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Location */}
+              {footerInfo.location && (
+                <span data-testid="text-footer-location"
+                  style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "rgba(200,185,178,0.45)" }}>
+                  <MapPin style={{ width: 11, height: 11 }} />
+                  {footerInfo.location}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Bottom row: logo + copyright */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+            <div className="flex items-center gap-2">
+              <img src={neonBellLogo} alt="Digital Pager" className="h-8 w-auto object-contain" style={{ mixBlendMode: "screen" }} />
+              <span style={{ fontWeight: 700, fontSize: 13, color: "rgba(255,255,255,0.5)" }}>Digital Pager</span>
+            </div>
+            <p style={{ fontSize: 12, color: "rgba(200,190,185,0.38)" }}>
+              &copy; {new Date().getFullYear()} Digital Pager. {t("جميع الحقوق محفوظة.", "All rights reserved.")}
+            </p>
           </div>
-          <p style={{ fontSize: 13, color: "rgba(200,190,185,0.45)" }}>
-            &copy; {new Date().getFullYear()} Digital Pager. {t("جميع الحقوق محفوظة.", "All rights reserved.")}
-          </p>
+
         </div>
       </footer>
 
