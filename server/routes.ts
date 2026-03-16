@@ -480,11 +480,16 @@ export async function registerRoutes(
       const fields = mDoc.fields || {};
       const storeName = (fields.storeName?.stringValue || "Digital Pager").replace(/"/g, "&quot;");
       const rawLogo = fields.logoUrl?.stringValue || "";
-      const host = `${req.protocol}://${req.get("host")}`;
+      // Use x-forwarded-proto when behind Replit's reverse proxy so the
+      // logo URL is absolute https:// — plain req.protocol can return "http"
+      const xProto = ((req.headers["x-forwarded-proto"] as string) || "").split(",")[0].trim();
+      const protocol = xProto || req.protocol;
+      const host = `${protocol}://${req.get("host")}`;
       const fullLogoUrl = rawLogo.startsWith("http") ? rawLogo : rawLogo ? `${host}${rawLogo}` : `${host}/icon-192x192.png`;
       const title = storeName;
       const description = "تابع طلبي معك ولا تنسى تذكرني 🍔✨";
-      const cleanUrl = `${host}/digital-pager/${req.params.orderId}?m=${merchantId}`;
+      const typeParam = req.query.type ? `&type=${req.query.type}` : "";
+      const cleanUrl = `${host}/digital-pager/${req.params.orderId}?m=${merchantId}${typeParam}`;
 
       const html = `<!DOCTYPE html>
 <html lang="ar" dir="rtl">

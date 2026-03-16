@@ -219,7 +219,8 @@ export default function DigitalPagerPage() {
 
   useEffect(() => {
     if (!merchantName) return;
-    const cleanUrl = `${window.location.origin}${window.location.pathname}?m=${merchantId}`;
+    const typeParam = isManual ? "&type=manual" : "";
+    const cleanUrl = `${window.location.origin}${window.location.pathname}?m=${merchantId}${typeParam}`;
     document.title = merchantName;
     const setMeta = (sel: string, val: string) => {
       const el = document.querySelector(sel);
@@ -396,16 +397,20 @@ export default function DigitalPagerPage() {
   }
 
   async function handleShare() {
-    const cleanUrl = `${window.location.origin}${window.location.pathname}?m=${merchantId}`;
+    // Preserve type=manual so friends who open the link land on the correct pager collection
+    const typeParam = isManual ? "&type=manual" : "";
+    const cleanUrl = `${window.location.origin}${window.location.pathname}?m=${merchantId}${typeParam}`;
     const storeName = merchantName || "المتجر";
-    const text = `تابع طلبي معك ولا تنسى تذكرني 🍔✨\n${storeName}\n${cleanUrl}`;
+    // text does NOT include the URL — navigator.share appends url automatically,
+    // preventing the duplicate-link issue seen in WhatsApp and similar apps
+    const shareText = `تابع طلبي معك ولا تنسى تذكرني 🍔✨\n${storeName}`;
     if (navigator.share) {
       try {
-        await navigator.share({ title: storeName, text, url: cleanUrl });
+        await navigator.share({ title: storeName, text: shareText, url: cleanUrl });
       } catch {}
     } else {
       try {
-        await navigator.clipboard.writeText(text);
+        await navigator.clipboard.writeText(`${shareText}\n${cleanUrl}`);
         toast({ description: "تم نسخ رابط اللحظة! شاركه مع من تحب 💛", duration: 2500 });
       } catch {}
     }
