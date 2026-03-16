@@ -97,6 +97,14 @@ import {
   WifiOff,
   CircleDot,
   Gauge,
+  Phone,
+  Hash,
+  Receipt,
+  Eye,
+  Edit2,
+  ExternalLink,
+  Building2,
+  UserCheck,
 } from "lucide-react";
 
 const PRIMARY_ADMIN_EMAIL = import.meta.env.VITE_SUPER_ADMIN_EMAIL || "yahiatohary@hotmail.com";
@@ -375,6 +383,11 @@ export default function SuperAdminPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
 
+  const [detailsMerchant, setDetailsMerchant] = useState<Merchant | null>(null);
+  const [editMerchant, setEditMerchant] = useState<Merchant | null>(null);
+  const [editFields, setEditFields] = useState({ storeName: "", ownerName: "", ownerPhone: "", commercialRegisterNumber: "", taxNumber: "" });
+  const [editSaving, setEditSaving] = useState(false);
+
   const btLabels = lang === "ar" ? businessTypeLabels : businessTypeLabelsEn;
 
   const filteredMerchants = (() => {
@@ -385,7 +398,9 @@ export default function SuperAdminPage() {
         (m) =>
           (m.storeName || "").toLowerCase().includes(q) ||
           (m.ownerName || "").toLowerCase().includes(q) ||
-          (m.email || "").toLowerCase().includes(q)
+          (m.email || "").toLowerCase().includes(q) ||
+          ((m as any).commercialRegisterNumber || "").toLowerCase().includes(q) ||
+          ((m as any).ownerPhone || "").includes(q)
       );
     }
     if (statusFilter !== "all") {
@@ -993,6 +1008,44 @@ export default function SuperAdminPage() {
     }
   }
 
+  function openEditMerchant(merchant: Merchant) {
+    setEditMerchant(merchant);
+    setEditFields({
+      storeName: merchant.storeName || "",
+      ownerName: merchant.ownerName || "",
+      ownerPhone: (merchant as any).ownerPhone || "",
+      commercialRegisterNumber: (merchant as any).commercialRegisterNumber || "",
+      taxNumber: (merchant as any).taxNumber || "",
+    });
+  }
+
+  async function handleSaveEditedMerchant() {
+    if (!editMerchant) return;
+    setEditSaving(true);
+    try {
+      await updateDoc(doc(db, "merchants", editMerchant.uid), {
+        storeName: editFields.storeName.trim() || editMerchant.storeName,
+        ownerName: editFields.ownerName.trim(),
+        ownerPhone: editFields.ownerPhone.trim(),
+        commercialRegisterNumber: editFields.commercialRegisterNumber.trim(),
+        taxNumber: editFields.taxNumber.trim(),
+      });
+      setMerchants((prev) =>
+        prev.map((m) =>
+          m.uid === editMerchant.uid
+            ? { ...m, storeName: editFields.storeName.trim() || m.storeName, ownerName: editFields.ownerName.trim(), ...(editFields as any) }
+            : m
+        )
+      );
+      toast({ title: t("تم الحفظ", "Saved"), description: t("تم تحديث بيانات المتجر", "Store info updated") });
+      setEditMerchant(null);
+    } catch {
+      toast({ title: t("خطأ", "Error"), description: t("فشل في الحفظ", "Save failed"), variant: "destructive" });
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
   function getDaysRemaining(expiryDate: string | null | undefined): number | null {
     if (!expiryDate) return null;
     const now = new Date();
@@ -1368,7 +1421,7 @@ export default function SuperAdminPage() {
                       <div className="relative flex-1">
                         <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                         <Input
-                          placeholder={t("بحث بالاسم، المالك، أو البريد...", "Search by store name, owner, or email...")}
+                          placeholder={t("بحث بالاسم، المالك، البريد، أو رقم السجل التجاري...", "Search by store name, owner, email, or CR number...")}
                           value={searchQuery}
                           onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
                           className="ps-9 pe-9"
@@ -1474,35 +1527,20 @@ export default function SuperAdminPage() {
                     <Table>
                       <TableHeader>
                         <TableRow className="border-slate-800/60 hover:bg-transparent">
-                          <TableHead className="text-slate-500 font-medium text-xs uppercase tracking-wider py-3">
-                            {t("اسم المتجر", "Store")}
+                          <TableHead className="text-slate-500 font-medium text-xs uppercase tracking-wider py-3 min-w-[200px]">
+                            {t("المتجر", "Store")}
                           </TableHead>
-                          <TableHead className="text-slate-500 font-medium text-xs uppercase tracking-wider py-3">
-                            {t("المالك", "Owner")}
+                          <TableHead className="text-slate-500 font-medium text-xs uppercase tracking-wider py-3 min-w-[200px]">
+                            {t("التواصل والبيانات", "Contact & Info")}
                           </TableHead>
                           <TableHead className="text-slate-500 font-medium text-xs uppercase tracking-wider py-3">
                             {t("الحالة", "Status")}
                           </TableHead>
-                          <TableHead className="text-slate-500 font-medium text-xs uppercase tracking-wider py-3">
-                            {t("الاشتراك", "Sub")}
+                          <TableHead className="text-slate-500 font-medium text-xs uppercase tracking-wider py-3 min-w-[160px]">
+                            {t("الاشتراك والانتهاء", "Sub & Expiry")}
                           </TableHead>
-                          <TableHead className="text-slate-500 font-medium text-xs uppercase tracking-wider py-3">
-                            {t("الانتهاء", "Expiry")}
-                          </TableHead>
-                          <TableHead className="text-slate-500 font-medium text-xs uppercase tracking-wider py-3 text-center">
-                            {t("مشاركات", "Shares")}
-                          </TableHead>
-                          <TableHead className="text-slate-500 font-medium text-xs uppercase tracking-wider py-3 text-center">
-                            {t("خرائط", "Maps")}
-                          </TableHead>
-                          <TableHead className="text-slate-500 font-medium text-xs uppercase tracking-wider py-3 text-center">
-                            QR
-                          </TableHead>
-                          <TableHead className="text-slate-500 font-medium text-xs uppercase tracking-wider py-3 text-center">
-                            {t("شكاوى", "Issues")}
-                          </TableHead>
-                          <TableHead className="text-slate-500 font-medium text-xs uppercase tracking-wider py-3 text-center">
-                            {t("إجراءات", "Actions")}
+                          <TableHead className="text-slate-500 font-medium text-xs uppercase tracking-wider py-3 text-center min-w-[220px]">
+                            {t("الإجراءات", "Actions")}
                           </TableHead>
                         </TableRow>
                       </TableHeader>
@@ -1523,174 +1561,194 @@ export default function SuperAdminPage() {
                               className={`border-slate-800/40 hover:bg-slate-800/20 transition-colors ${expiringSoon ? "bg-red-500/[0.06]" : ""}`}
                               data-testid={`row-store-${merchant.uid}`}
                             >
+                              {/* Column 1: Store */}
                               <TableCell>
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-3">
                                   {merchant.logoUrl ? (
                                     <img
                                       src={merchant.logoUrl}
                                       alt=""
-                                      className="w-8 h-8 rounded-full object-cover border border-border"
+                                      className="w-10 h-10 rounded-full object-cover border border-border flex-shrink-0"
                                     />
                                   ) : (
-                                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                                      <Store className="w-4 h-4 text-primary" />
+                                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                      <Store className="w-5 h-5 text-primary" />
                                     </div>
                                   )}
                                   <div>
-                                    <span className="font-medium block" data-testid={`text-store-name-${merchant.uid}`}>
+                                    <span className="font-semibold block text-sm" data-testid={`text-store-name-${merchant.uid}`}>
                                       {highlightMatch(merchant.storeName || "")}
                                     </span>
                                     <span className="text-xs text-muted-foreground">
                                       {btLabels[merchant.businessType] || merchant.businessType}
                                     </span>
+                                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                      {(merchant.sharesCount || 0) > 0 && (
+                                        <span className="inline-flex items-center gap-0.5 text-[10px] text-slate-500">
+                                          <Share2 className="w-2.5 h-2.5" />{merchant.sharesCount}
+                                        </span>
+                                      )}
+                                      {(merchant.qrScans || 0) > 0 && (
+                                        <span className="inline-flex items-center gap-0.5 text-[10px] text-slate-500">
+                                          <QrCode className="w-2.5 h-2.5" />{merchant.qrScans}
+                                        </span>
+                                      )}
+                                      {(merchant.googleMapsClicks || 0) > 0 && (
+                                        <span className="inline-flex items-center gap-0.5 text-[10px] text-slate-500">
+                                          <MapPin className="w-2.5 h-2.5" />{merchant.googleMapsClicks}
+                                        </span>
+                                      )}
+                                      {(complaintsMap[merchant.uid] || 0) > 0 && (
+                                        <button
+                                          onClick={() => handleOpenFeedbackDialog(merchant)}
+                                          className="inline-flex items-center gap-0.5 text-[10px] text-red-400 hover:text-red-300 font-semibold"
+                                          data-testid={`button-complaints-${merchant.uid}`}
+                                        >
+                                          <MessageSquare className="w-2.5 h-2.5" />{complaintsMap[merchant.uid]}
+                                        </button>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
                               </TableCell>
+
+                              {/* Column 2: Contact & CR */}
                               <TableCell>
-                                <div>
-                                  <span className="block" data-testid={`text-owner-${merchant.uid}`}>
-                                    {highlightMatch(merchant.ownerName || "")}
-                                  </span>
-                                  <span className="text-xs text-muted-foreground" dir="ltr" data-testid={`text-email-${merchant.uid}`}>
-                                    {highlightMatch(merchant.email || "")}
-                                  </span>
-                                  {merchant.commercialRegisterURL && (
-                                    <a
-                                      href={merchant.commercialRegisterURL}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 mt-1 transition-colors"
-                                      data-testid={`link-cr-${merchant.uid}`}
-                                    >
-                                      <FileText className="w-3 h-3" />
-                                      {t("السجل التجاري", "Commercial Register")}
-                                    </a>
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-1.5 text-sm" data-testid={`text-owner-${merchant.uid}`}>
+                                    <UserCheck className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                                    <span>{highlightMatch(merchant.ownerName || "—")}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground" dir="ltr" data-testid={`text-email-${merchant.uid}`}>
+                                    <span className="truncate max-w-[160px]">{highlightMatch(merchant.email || "—")}</span>
+                                  </div>
+                                  {(merchant as any).ownerPhone && (
+                                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                      <Phone className="w-3 h-3 flex-shrink-0" />
+                                      <span dir="ltr">{(merchant as any).ownerPhone}</span>
+                                    </div>
+                                  )}
+                                  {(merchant as any).commercialRegisterNumber && (
+                                    <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                                      <Hash className="w-3 h-3 flex-shrink-0" />
+                                      <span>{highlightMatch((merchant as any).commercialRegisterNumber)}</span>
+                                    </div>
                                   )}
                                 </div>
                               </TableCell>
+
+                              {/* Column 3: Status */}
                               <TableCell data-testid={`badge-status-${merchant.uid}`}>
-                                {getStatusBadge(merchant.status, t)}
-                              </TableCell>
-                              <TableCell data-testid={`badge-sub-${merchant.uid}`}>
-                                <div className="flex flex-col gap-1">
+                                <div className="space-y-1.5">
+                                  {getStatusBadge(merchant.status, t)}
                                   {getSubBadge(merchant.subscriptionStatus, t)}
-                                  <span className="text-[10px] text-muted-foreground">{pLabel}</span>
+                                </div>
+                              </TableCell>
+
+                              {/* Column 4: Subscription & Expiry */}
+                              <TableCell data-testid={`badge-sub-${merchant.uid}`}>
+                                <div className="space-y-1">
+                                  <span className="text-xs font-medium text-slate-300">{pLabel}</span>
                                   {expiringSoon && (
-                                    <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-[10px]" data-testid={`badge-expiring-soon-${merchant.uid}`}>
-                                      <AlertTriangle className="w-3 h-3 me-1" />
-                                      {t(`ينتهي خلال ${daysLeft} يوم`, `Expires in ${daysLeft} day(s)`)}
+                                    <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-[10px] flex items-center gap-1" data-testid={`badge-expiring-soon-${merchant.uid}`}>
+                                      <AlertTriangle className="w-2.5 h-2.5" />
+                                      {t(`${daysLeft} يوم`, `${daysLeft}d left`)}
                                     </Badge>
                                   )}
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                {editingExpiry === merchant.uid ? (
-                                  <div className="flex flex-col gap-1.5">
-                                    <div className="flex items-center gap-1">
-                                      <Input
-                                        type="number"
-                                        min="1"
-                                        placeholder={t("عدد الأيام", "Days")}
-                                        value={expiryDays}
-                                        onChange={(e) => setExpiryDays(e.target.value)}
-                                        className="w-20 text-xs"
-                                        data-testid={`input-expiry-days-${merchant.uid}`}
-                                      />
-                                      <Button
-                                        size="icon"
-                                        variant="ghost"
-                                        onClick={() => handleSaveExpiry(merchant)}
-                                        disabled={actionLoading === merchant.uid}
-                                        data-testid={`button-save-expiry-${merchant.uid}`}
-                                      >
-                                        <Save className="w-4 h-4" />
-                                      </Button>
-                                      <Button
-                                        size="icon"
-                                        variant="ghost"
-                                        onClick={() => { setEditingExpiry(null); setExpiryDays(""); }}
-                                        data-testid={`button-cancel-expiry-${merchant.uid}`}
-                                      >
-                                        <XCircle className="w-4 h-4" />
-                                      </Button>
-                                    </div>
-                                    <div className="flex items-center gap-1">
-                                      {[30, 90, 365].map((d) => (
-                                        <Button
-                                          key={d}
-                                          size="sm"
-                                          variant={expiryDays === String(d) ? "default" : "outline"}
-                                          onClick={() => setExpiryDays(String(d))}
-                                          className="text-[10px] px-2"
-                                          data-testid={`button-preset-${d}-${merchant.uid}`}
-                                        >
-                                          {d}{t(" يوم", "d")}
+                                  {editingExpiry === merchant.uid ? (
+                                    <div className="flex flex-col gap-1 mt-1">
+                                      <div className="flex items-center gap-1">
+                                        <Input
+                                          type="number"
+                                          min="1"
+                                          placeholder={t("أيام", "Days")}
+                                          value={expiryDays}
+                                          onChange={(e) => setExpiryDays(e.target.value)}
+                                          className="w-16 text-xs h-6"
+                                          data-testid={`input-expiry-days-${merchant.uid}`}
+                                        />
+                                        <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => handleSaveExpiry(merchant)} disabled={actionLoading === merchant.uid} data-testid={`button-save-expiry-${merchant.uid}`}>
+                                          <Save className="w-3 h-3" />
                                         </Button>
-                                      ))}
+                                        <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => { setEditingExpiry(null); setExpiryDays(""); }} data-testid={`button-cancel-expiry-${merchant.uid}`}>
+                                          <XCircle className="w-3 h-3" />
+                                        </Button>
+                                      </div>
+                                      <div className="flex items-center gap-1">
+                                        {[30, 90, 365].map((d) => (
+                                          <Button key={d} size="sm" variant={expiryDays === String(d) ? "default" : "outline"} onClick={() => setExpiryDays(String(d))} className="text-[9px] px-1.5 h-5" data-testid={`button-preset-${d}-${merchant.uid}`}>
+                                            {d}{t("ي", "d")}
+                                          </Button>
+                                        ))}
+                                      </div>
                                     </div>
-                                  </div>
-                                ) : (
-                                  <button
-                                    className={`text-sm cursor-pointer hover:underline ${expiringSoon ? "text-red-400 font-semibold" : "text-muted-foreground"}`}
-                                    onClick={() => {
-                                      setEditingExpiry(merchant.uid);
-                                      setExpiryDays("");
-                                    }}
-                                    data-testid={`text-expiry-${merchant.uid}`}
-                                  >
-                                    {merchant.subscriptionExpiry
-                                      ? (() => {
-                                          const dateStr = new Date(merchant.subscriptionExpiry).toLocaleDateString();
-                                          if (daysLeft !== null && daysLeft >= 0) {
-                                            return `${dateStr} (${daysLeft} ${t("يوم", "days")})`;
-                                          }
-                                          return dateStr;
-                                        })()
-                                      : t("غير محدد", "Not set")}
-                                  </button>
-                                )}
-                              </TableCell>
-                              <TableCell className="text-center" data-testid={`text-shares-${merchant.uid}`}>
-                                <div className="flex items-center justify-center gap-1">
-                                  <Share2 className="w-3 h-3 text-muted-foreground" />
-                                  <span>{merchant.sharesCount || 0}</span>
+                                  ) : (
+                                    <button
+                                      className={`text-xs cursor-pointer hover:underline block ${expiringSoon ? "text-red-400 font-semibold" : "text-muted-foreground"}`}
+                                      onClick={() => { setEditingExpiry(merchant.uid); setExpiryDays(""); }}
+                                      data-testid={`text-expiry-${merchant.uid}`}
+                                    >
+                                      {merchant.subscriptionExpiry
+                                        ? (() => {
+                                            const dateStr = new Date(merchant.subscriptionExpiry).toLocaleDateString();
+                                            return daysLeft !== null && daysLeft >= 0 ? `${dateStr} (${daysLeft}${t("ي", "d")})` : dateStr;
+                                          })()
+                                        : t("غير محدد", "Not set")}
+                                    </button>
+                                  )}
                                 </div>
                               </TableCell>
-                              <TableCell className="text-center" data-testid={`text-gmaps-${merchant.uid}`}>
-                                <div className="flex items-center justify-center gap-1">
-                                  <MapPin className="w-3 h-3 text-muted-foreground" />
-                                  <span>{merchant.googleMapsClicks || 0}</span>
-                                </div>
-                              </TableCell>
+
+                              {/* Column 5: Actions */}
                               <TableCell>
-                                <div className="flex items-center justify-center gap-1">
-                                  <QrCode className="w-3.5 h-3.5 text-muted-foreground" />
-                                  <span>{merchant.qrScans || 0}</span>
-                                </div>
-                              </TableCell>
-                              <TableCell className="text-center">
-                                {(complaintsMap[merchant.uid] || 0) > 0 ? (
-                                  <button
-                                    onClick={() => handleOpenFeedbackDialog(merchant)}
-                                    className="inline-flex items-center gap-1 cursor-pointer hover:underline text-red-400 font-semibold"
-                                    data-testid={`button-complaints-${merchant.uid}`}
+                                <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                                  {/* View Details */}
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 px-2 text-xs text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 gap-1"
+                                    onClick={() => setDetailsMerchant(merchant)}
+                                    data-testid={`button-view-details-${merchant.uid}`}
+                                    title={t("عرض التفاصيل", "View Details")}
                                   >
-                                    <MessageSquare className="w-3 h-3" />
-                                    <span>{complaintsMap[merchant.uid]}</span>
-                                  </button>
-                                ) : (
-                                  <span className="text-muted-foreground" data-testid={`text-complaints-${merchant.uid}`}>0</span>
-                                )}
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex items-center justify-center gap-1.5">
+                                    <Eye className="w-3.5 h-3.5" />
+                                    {t("عرض", "View")}
+                                  </Button>
+
+                                  {/* Edit */}
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 px-2 text-xs text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 gap-1"
+                                    onClick={() => openEditMerchant(merchant)}
+                                    data-testid={`button-edit-merchant-${merchant.uid}`}
+                                    title={t("تعديل", "Edit")}
+                                  >
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                    {t("تعديل", "Edit")}
+                                  </Button>
+
+                                  {/* Login As */}
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 px-2 text-xs text-violet-400 hover:text-violet-300 hover:bg-violet-500/10 gap-1"
+                                    onClick={() => handleImpersonate(merchant)}
+                                    data-testid={`button-impersonate-${merchant.uid}`}
+                                    title={t("دخول كتاجر", "Login As")}
+                                  >
+                                    <LogIn className="w-3.5 h-3.5" />
+                                    {t("دخول", "Login")}
+                                  </Button>
+
+                                  {/* Activate / Suspend */}
                                   {actionLoading === merchant.uid ? (
-                                    <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />
                                   ) : merchant.status !== "approved" ? (
                                     <Button
                                       size="sm"
                                       onClick={() => handleActivate(merchant)}
-                                      className="h-7 px-2.5 text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 hover:text-emerald-300"
+                                      className="h-7 px-2 text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20"
                                       variant="outline"
                                       data-testid={`button-activate-${merchant.uid}`}
                                     >
@@ -1701,7 +1759,7 @@ export default function SuperAdminPage() {
                                     <Button
                                       size="sm"
                                       onClick={() => handleSuspend(merchant)}
-                                      className="h-7 px-2.5 text-xs bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700 hover:text-slate-200"
+                                      className="h-7 px-2 text-xs bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700"
                                       variant="outline"
                                       data-testid={`button-suspend-${merchant.uid}`}
                                     >
@@ -1709,6 +1767,8 @@ export default function SuperAdminPage() {
                                       {t("إيقاف", "Suspend")}
                                     </Button>
                                   )}
+
+                                  {/* More dropdown */}
                                   <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                       <Button
@@ -1754,14 +1814,6 @@ export default function SuperAdminPage() {
                                       >
                                         <Settings className="w-3.5 h-3.5 me-2" />
                                         {t("الميزات", "Features")}
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem
-                                        onClick={() => handleImpersonate(merchant)}
-                                        className="cursor-pointer"
-                                        data-testid={`button-impersonate-${merchant.uid}`}
-                                      >
-                                        <LogIn className="w-3.5 h-3.5 me-2" />
-                                        {t("دخول كتاجر", "Login As")}
                                       </DropdownMenuItem>
                                       <DropdownMenuItem
                                         onClick={() => handleDownloadQR(merchant)}
@@ -2959,6 +3011,252 @@ export default function SuperAdminPage() {
         </aside>
 
       </main>
+
+      {/* ─── Store Details Modal ─── */}
+      <Dialog open={!!detailsMerchant} onOpenChange={(open) => { if (!open) setDetailsMerchant(null); }}>
+        <DialogContent className="bg-[#0d1117] border-slate-800 max-w-lg max-h-[90vh] overflow-y-auto" data-testid="dialog-store-details">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3">
+              {detailsMerchant?.logoUrl ? (
+                <img src={detailsMerchant.logoUrl} alt="" className="w-10 h-10 rounded-full object-cover border border-border" />
+              ) : (
+                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Store className="w-5 h-5 text-primary" />
+                </div>
+              )}
+              <div>
+                <span className="block">{detailsMerchant?.storeName}</span>
+                <span className="text-xs text-muted-foreground font-normal">
+                  {detailsMerchant ? (btLabels[(detailsMerchant as any).businessType] || (detailsMerchant as any).businessType) : ""}
+                </span>
+              </div>
+            </DialogTitle>
+          </DialogHeader>
+
+          {detailsMerchant && (
+            <div className="space-y-4 mt-2">
+              {/* Status Row */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {getStatusBadge(detailsMerchant.status, t)}
+                {getSubBadge(detailsMerchant.subscriptionStatus, t)}
+                {detailsMerchant.plan && (
+                  <Badge variant="outline" className="text-xs border-slate-600 text-slate-400">
+                    {planLabels[detailsMerchant.plan] ? (lang === "ar" ? planLabels[detailsMerchant.plan].ar : planLabels[detailsMerchant.plan].en) : detailsMerchant.plan}
+                  </Badge>
+                )}
+              </div>
+
+              {/* Contact Info */}
+              <div className="rounded-lg border border-slate-800 p-4 space-y-3">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+                  <UserCheck className="w-3.5 h-3.5" />
+                  {t("بيانات التواصل", "Contact Info")}
+                </h4>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-[10px] text-muted-foreground mb-0.5">{t("اسم المالك", "Owner Name")}</p>
+                    <p className="text-slate-200">{detailsMerchant.ownerName || "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground mb-0.5">{t("البريد الإلكتروني", "Email")}</p>
+                    <p className="text-slate-200 break-all text-xs" dir="ltr">{detailsMerchant.email || "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground mb-0.5">{t("رقم الجوال", "Phone")}</p>
+                    <p className="text-slate-200" dir="ltr">{(detailsMerchant as any).ownerPhone || "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground mb-0.5">{t("تاريخ التسجيل", "Registered")}</p>
+                    <p className="text-slate-200 text-xs">{detailsMerchant.createdAt ? new Date(detailsMerchant.createdAt).toLocaleDateString() : "—"}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Legal Info */}
+              <div className="rounded-lg border border-slate-800 p-4 space-y-3">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+                  <Building2 className="w-3.5 h-3.5" />
+                  {t("البيانات القانونية والرسمية", "Legal & Business Info")}
+                </h4>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-[10px] text-muted-foreground mb-0.5 flex items-center gap-1"><Hash className="w-2.5 h-2.5" />{t("رقم السجل التجاري", "CR Number")}</p>
+                    <p className="text-slate-200">{(detailsMerchant as any).commercialRegisterNumber || "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground mb-0.5 flex items-center gap-1"><Receipt className="w-2.5 h-2.5" />{t("الرقم الضريبي", "Tax Number")}</p>
+                    <p className="text-slate-200">{(detailsMerchant as any).taxNumber || "—"}</p>
+                  </div>
+                </div>
+                {detailsMerchant.commercialRegisterURL && (
+                  <a
+                    href={detailsMerchant.commercialRegisterURL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 text-xs text-primary hover:text-primary/80 transition-colors mt-1"
+                    data-testid="link-cr-document"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    {t("فتح وثيقة السجل التجاري", "Open CR Document")}
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+              </div>
+
+              {/* Stats */}
+              <div className="rounded-lg border border-slate-800 p-4 space-y-3">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+                  <Activity className="w-3.5 h-3.5" />
+                  {t("الإحصائيات", "Statistics")}
+                </h4>
+                <div className="grid grid-cols-4 gap-2">
+                  {[
+                    { label: t("مشاركات", "Shares"), value: detailsMerchant.sharesCount || 0, icon: <Share2 className="w-3.5 h-3.5" /> },
+                    { label: t("QR", "QR"), value: detailsMerchant.qrScans || 0, icon: <QrCode className="w-3.5 h-3.5" /> },
+                    { label: t("خرائط", "Maps"), value: (detailsMerchant as any).googleMapsClicks || 0, icon: <MapPin className="w-3.5 h-3.5" /> },
+                    { label: t("شكاوى", "Issues"), value: complaintsMap[detailsMerchant.uid] || 0, icon: <MessageSquare className="w-3.5 h-3.5" /> },
+                  ].map(({ label, value, icon }) => (
+                    <div key={label} className="bg-slate-900/60 rounded-lg p-2.5 text-center">
+                      <div className="flex items-center justify-center text-muted-foreground mb-1">{icon}</div>
+                      <p className="text-lg font-semibold text-slate-100">{value}</p>
+                      <p className="text-[10px] text-muted-foreground">{label}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Subscription */}
+              <div className="rounded-lg border border-slate-800 p-4 space-y-2">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+                  <CreditCard className="w-3.5 h-3.5" />
+                  {t("الاشتراك", "Subscription")}
+                </h4>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-[10px] text-muted-foreground mb-0.5">{t("تاريخ الانتهاء", "Expiry Date")}</p>
+                    <p className={`text-sm ${isExpiringSoon(detailsMerchant) ? "text-red-400 font-semibold" : "text-slate-200"}`}>
+                      {detailsMerchant.subscriptionExpiry ? new Date(detailsMerchant.subscriptionExpiry).toLocaleDateString() : "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground mb-0.5">{t("الأيام المتبقية", "Days Left")}</p>
+                    <p className="text-slate-200">
+                      {getDaysRemaining(detailsMerchant.subscriptionExpiry) ?? "—"}
+                      {getDaysRemaining(detailsMerchant.subscriptionExpiry) !== null ? t(" يوم", " days") : ""}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Actions */}
+              <div className="flex gap-2 pt-1">
+                <Button
+                  size="sm"
+                  className="flex-1 gap-2 bg-violet-500/10 text-violet-400 border border-violet-500/20 hover:bg-violet-500/20"
+                  variant="outline"
+                  onClick={() => { setDetailsMerchant(null); handleImpersonate(detailsMerchant); }}
+                  data-testid="button-details-impersonate"
+                >
+                  <LogIn className="w-4 h-4" />
+                  {t("دخول كتاجر", "Login As Merchant")}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="flex-1 gap-2 border-slate-700 text-slate-300 hover:bg-slate-800"
+                  onClick={() => { openEditMerchant(detailsMerchant); setDetailsMerchant(null); }}
+                  data-testid="button-details-edit"
+                >
+                  <Edit2 className="w-4 h-4" />
+                  {t("تعديل البيانات", "Edit Info")}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Edit Merchant Modal ─── */}
+      <Dialog open={!!editMerchant} onOpenChange={(open) => { if (!open) setEditMerchant(null); }}>
+        <DialogContent className="bg-[#0d1117] border-slate-800 max-w-md" data-testid="dialog-edit-merchant">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit2 className="w-4 h-4 text-amber-400" />
+              {t("تعديل بيانات المتجر", "Edit Store Info")}
+            </DialogTitle>
+            <p className="text-xs text-muted-foreground">{editMerchant?.storeName}</p>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-400">{t("اسم المتجر", "Store Name")}</label>
+              <Input
+                value={editFields.storeName}
+                onChange={(e) => setEditFields((f) => ({ ...f, storeName: e.target.value }))}
+                className="bg-slate-900/60 border-slate-700"
+                data-testid="input-edit-store-name"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-400">{t("اسم المالك", "Owner Name")}</label>
+              <Input
+                value={editFields.ownerName}
+                onChange={(e) => setEditFields((f) => ({ ...f, ownerName: e.target.value }))}
+                className="bg-slate-900/60 border-slate-700"
+                data-testid="input-edit-owner-name"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-400 flex items-center gap-1.5"><Phone className="w-3 h-3" />{t("رقم الجوال", "Phone")}</label>
+              <Input
+                value={editFields.ownerPhone}
+                onChange={(e) => setEditFields((f) => ({ ...f, ownerPhone: e.target.value }))}
+                className="bg-slate-900/60 border-slate-700"
+                dir="ltr"
+                data-testid="input-edit-owner-phone"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-400 flex items-center gap-1.5"><Hash className="w-3 h-3" />{t("رقم السجل التجاري", "CR Number")}</label>
+              <Input
+                value={editFields.commercialRegisterNumber}
+                onChange={(e) => setEditFields((f) => ({ ...f, commercialRegisterNumber: e.target.value }))}
+                className="bg-slate-900/60 border-slate-700"
+                dir="ltr"
+                data-testid="input-edit-cr-number"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-400 flex items-center gap-1.5"><Receipt className="w-3 h-3" />{t("الرقم الضريبي", "Tax Number")}</label>
+              <Input
+                value={editFields.taxNumber}
+                onChange={(e) => setEditFields((f) => ({ ...f, taxNumber: e.target.value }))}
+                className="bg-slate-900/60 border-slate-700"
+                dir="ltr"
+                data-testid="input-edit-tax-number"
+              />
+            </div>
+          </div>
+          <div className="flex gap-2 mt-4">
+            <Button
+              className="flex-1 gap-2"
+              onClick={handleSaveEditedMerchant}
+              disabled={editSaving}
+              data-testid="button-save-edit-merchant"
+            >
+              {editSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              {t("حفظ التغييرات", "Save Changes")}
+            </Button>
+            <Button
+              variant="outline"
+              className="border-slate-700"
+              onClick={() => setEditMerchant(null)}
+              data-testid="button-cancel-edit-merchant"
+            >
+              {t("إلغاء", "Cancel")}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
         <AlertDialogContent className="border-red-500/30 bg-background">
