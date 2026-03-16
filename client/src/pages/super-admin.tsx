@@ -2366,27 +2366,101 @@ export default function SuperAdminPage() {
                   const conversion = totalVisits > 0 ? Math.round((totals.completedOrders / totalVisits) * 100) : 0;
                   return (
                     <div className="space-y-6">
-                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                      {/* ── Row 1: Traffic metrics ── */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         {[
-                          { label: t("زيارات الرابط", "Link Visits"),        value: totals.linkVisits,        color: "text-blue-400",    bg: "rgba(59,130,246,0.08)",   border: "rgba(59,130,246,0.20)",  icon: <TrendingUp className="w-5 h-5" /> },
-                          { label: t("مسح QR", "QR Scans"),                  value: totals.qrScans,           color: "text-purple-400",  bg: "rgba(168,85,247,0.08)",   border: "rgba(168,85,247,0.20)",  icon: <QrCode className="w-5 h-5" /> },
-                          { label: t("نقرات رابط التقييم", "Maps Clicks"),   value: totals.googleMapsClicks,  color: "text-emerald-400", bg: "rgba(52,211,153,0.08)",   border: "rgba(52,211,153,0.20)",  icon: <MapPin className="w-5 h-5" /> },
-                          { label: t("طلبات مكتملة", "Completed Orders"),    value: totals.completedOrders,   color: "text-sky-400",     bg: "rgba(56,189,248,0.08)",   border: "rgba(56,189,248,0.20)",  icon: <CheckCircle className="w-5 h-5" /> },
-                          { label: t("سلات متروكة", "Abandoned Carts"),      value: abandoned,                color: "text-amber-400",   bg: "rgba(251,191,36,0.08)",   border: "rgba(251,191,36,0.20)",  icon: <AlertTriangle className="w-5 h-5" /> },
-                        ].map(({ label, value, color, bg, border, icon }) => (
-                          <div key={label} className="rounded-xl p-4 text-center space-y-2" style={{ background: bg, border: `1px solid ${border}` }}>
-                            <div className={`flex justify-center ${color} opacity-60`}>{icon}</div>
-                            <p className={`text-3xl font-black ${color}`} data-testid={`stat-${label}`}>{value.toLocaleString()}</p>
-                            <p className="text-xs text-muted-foreground leading-tight">{label}</p>
+                          {
+                            label: t("زيارات الرابط", "Link Visits"),
+                            sublabel: t("زيارات صفحة المنيو", "Menu page visits"),
+                            value: totals.linkVisits,
+                            color: "text-blue-400",
+                            bg: "rgba(59,130,246,0.08)",
+                            border: "rgba(59,130,246,0.22)",
+                            icon: <TrendingUp className="w-5 h-5" />,
+                            testId: "stat-link-visits",
+                          },
+                          {
+                            label: t("مسح QR", "QR Scans"),
+                            sublabel: t("مسح رمز الجلسة", "Table QR scans"),
+                            value: totals.qrScans,
+                            color: "text-purple-400",
+                            bg: "rgba(168,85,247,0.08)",
+                            border: "rgba(168,85,247,0.22)",
+                            icon: <QrCode className="w-5 h-5" />,
+                            testId: "stat-qr-scans",
+                          },
+                          {
+                            label: t("نقرات رابط التقييم", "Review Link Clicks"),
+                            sublabel: t("نقرات خرائط جوجل", "Google Maps review clicks"),
+                            value: totals.googleMapsClicks,
+                            color: "text-amber-400",
+                            bg: "rgba(251,191,36,0.10)",
+                            border: "rgba(251,191,36,0.35)",
+                            icon: <Star className="w-5 h-5" />,
+                            testId: "stat-maps-clicks",
+                          },
+                        ].map(({ label, sublabel, value, color, bg, border, icon, testId }) => (
+                          <div key={label} className="rounded-xl p-5 text-center space-y-2" style={{ background: bg, border: `1px solid ${border}` }}>
+                            <div className={`flex justify-center mb-1 ${color}`} style={{ opacity: 0.7 }}>{icon}</div>
+                            <p className={`text-4xl font-black tabular-nums ${color}`} data-testid={testId}>{value.toLocaleString()}</p>
+                            <p className="text-sm font-semibold text-slate-200">{label}</p>
+                            <p className="text-[11px] text-slate-500">{sublabel}</p>
                           </div>
                         ))}
                       </div>
-                      <div className="rounded-xl p-4 bg-blue-500/5 border border-blue-500/20 flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-muted-foreground">{t("معدل التحويل الإجمالي", "Overall Conversion Rate")}</p>
-                          <p className="text-4xl font-black text-blue-300 mt-1">{conversion}%</p>
-                        </div>
-                        <TrendingUp className="w-12 h-12 text-blue-500/20" />
+
+                      {/* ── Row 2: Order metrics ── */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        {[
+                          {
+                            label: t("طلبات مكتملة", "Completed Orders"),
+                            sublabel: t("طلبات أُنجزت بنجاح", "Successfully fulfilled"),
+                            value: totals.completedOrders,
+                            color: "text-emerald-400",
+                            bg: "rgba(52,211,153,0.08)",
+                            border: "rgba(52,211,153,0.22)",
+                            icon: <CheckCircle className="w-5 h-5" />,
+                            testId: "stat-completed-orders",
+                          },
+                          {
+                            label: t("سلات متروكة", "Abandoned Carts"),
+                            sublabel: t("طلبات لم تُكتمل", "Sessions without order"),
+                            value: abandoned,
+                            color: "text-rose-400",
+                            bg: "rgba(251,113,133,0.08)",
+                            border: "rgba(251,113,133,0.22)",
+                            icon: <XCircle className="w-5 h-5" />,
+                            testId: "stat-abandoned-carts",
+                          },
+                          {
+                            label: t("معدل التحويل", "Conversion Rate"),
+                            sublabel: t("طلبات ÷ زيارات", "Orders ÷ visits"),
+                            value: `${conversion}%`,
+                            color: conversion >= 10 ? "text-emerald-400" : conversion >= 5 ? "text-amber-400" : "text-rose-400",
+                            bg: "rgba(99,102,241,0.08)",
+                            border: "rgba(99,102,241,0.22)",
+                            icon: <TrendingUp className="w-5 h-5" />,
+                            testId: "stat-conversion-rate",
+                          },
+                        ].map(({ label, sublabel, value, color, bg, border, icon, testId }) => (
+                          <div key={label} className="rounded-xl p-5 text-center space-y-2" style={{ background: bg, border: `1px solid ${border}` }}>
+                            <div className={`flex justify-center mb-1 ${color}`} style={{ opacity: 0.7 }}>{icon}</div>
+                            <p className={`text-4xl font-black tabular-nums ${color}`} data-testid={testId}>{typeof value === "number" ? value.toLocaleString() : value}</p>
+                            <p className="text-sm font-semibold text-slate-200">{label}</p>
+                            <p className="text-[11px] text-slate-500">{sublabel}</p>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* ── Maps card highlight note ── */}
+                      <div className="rounded-xl px-5 py-3 flex items-center gap-3" style={{ background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.18)" }}>
+                        <Star className="w-4 h-4 text-amber-400 shrink-0" />
+                        <p className="text-xs text-amber-300/80">
+                          {t(
+                            "نقرات رابط التقييم تُعدّ منفصلة تماماً عن زيارات الرابط — يتم تسجيلها فقط عند ضغط العميل على رابط جوجل ماب في صفحة تتبع الطلب.",
+                            "Review link clicks are counted separately from Link Visits — they are only recorded when a customer taps the Google Maps link on the order tracking page."
+                          )}
+                        </p>
                       </div>
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm" data-testid="table-tracking-merchants">
