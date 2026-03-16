@@ -184,31 +184,31 @@ export default function LandingPage() {
           >
             {/* Left: Text */}
             <div className="flex-1 min-w-0" style={{ textAlign: isRTL ? "right" : "left" }}>
-              {/* Badge */}
+              {/* Badge — smaller than headline to anchor the hierarchy */}
               <div
-                className="inline-flex items-center gap-2 mb-7"
+                className="inline-flex items-center gap-2 mb-6"
                 style={{
-                  padding: "6px 14px", borderRadius: 999,
+                  padding: "5px 13px", borderRadius: 999,
                   border: "1px solid rgba(255,69,0,0.35)",
                   background: "rgba(255,69,0,0.08)",
-                  fontSize: 13, fontWeight: 700, color: "#ff7040",
-                  letterSpacing: "0.05em",
+                  fontSize: 11, fontWeight: 600, color: "#ff7040",
+                  letterSpacing: "0.1em", textTransform: "uppercase",
                 }}
               >
                 <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#ff4500", display: "inline-block", boxShadow: "0 0 8px #ff4500" }} />
                 {t("الحل العصري لإدارة قوائم الانتظار", "The Modern Waitlist Solution")}
               </div>
 
-              {/* Main title */}
+              {/* Main title — ExtraBold/Black, largest text on the page */}
               <h1
                 data-testid="text-hero-title"
                 style={{
-                  fontSize: "clamp(2rem, 5vw, 3.5rem)",
+                  fontSize: "clamp(2.5rem, 6vw, 4.4rem)",
                   fontWeight: 900,
-                  lineHeight: 1.22,
+                  lineHeight: 1.18,
                   color: "#f0f0f0",
-                  marginBottom: 20,
-                  letterSpacing: "-0.01em",
+                  marginBottom: 24,
+                  letterSpacing: "-0.02em",
                 }}
               >
                 {t("تخلص من البيجر التقليدي.", "Ditch the Old Pagers.")}
@@ -223,14 +223,15 @@ export default function LandingPage() {
                 </span>
               </h1>
 
-              {/* Description */}
+              {/* Description — Regular weight contrasts sharply with the Black headline */}
               <p
                 data-testid="text-hero-subtitle"
                 style={{
-                  fontSize: "clamp(0.95rem, 1.8vw, 1.1rem)",
+                  fontSize: "clamp(0.95rem, 1.6vw, 1.05rem)",
+                  fontWeight: 400,
                   color: "rgba(220,210,205,0.75)",
                   lineHeight: 1.8,
-                  marginBottom: 32,
+                  marginBottom: 36,
                   maxWidth: 520,
                 }}
               >
@@ -278,11 +279,11 @@ export default function LandingPage() {
       <section style={{ position: "relative", zIndex: 10, paddingBottom: 80 }}>
         <div className="max-w-7xl mx-auto px-5">
           {/* Section label */}
-          <div style={{ textAlign: "center", marginBottom: 40 }}>
-            <p style={{ fontSize: 12, letterSpacing: "0.18em", color: "#ff4500", fontWeight: 700, textTransform: "uppercase", marginBottom: 8 }}>
+          <div style={{ textAlign: "center", marginBottom: 48 }}>
+            <p style={{ fontSize: 11, letterSpacing: "0.2em", color: "#ff4500", fontWeight: 600, textTransform: "uppercase", marginBottom: 10 }}>
               {t("المميزات", "FEATURES")}
             </p>
-            <h2 style={{ fontSize: "clamp(1.5rem,3vw,2rem)", fontWeight: 800, color: "#f0f0f0" }}>
+            <h2 style={{ fontSize: "clamp(1.5rem, 3vw, 2.1rem)", fontWeight: 800, color: "#f0f0f0", lineHeight: 1.3 }}>
               {t("كل ما تحتاجه في مكان واحد", "Everything You Need In One Place")}
             </h2>
           </div>
@@ -308,7 +309,7 @@ export default function LandingPage() {
           <h2 data-testid="text-cta-title" style={{ fontSize: "clamp(1.4rem,3vw,2rem)", fontWeight: 800, color: "#f0f0f0", marginBottom: 14 }}>
             {t("مستعد لتطوير نظام الانتظار لديك؟", "Ready to upgrade your waitlist?")}
           </h2>
-          <p style={{ color: "rgba(200,185,178,0.65)", fontSize: 15, lineHeight: 1.7, maxWidth: 480, margin: "0 auto 32px" }}>
+          <p style={{ color: "rgba(200,185,178,0.65)", fontSize: 15, fontWeight: 400, lineHeight: 1.8, maxWidth: 480, margin: "0 auto 36px" }}>
             {t(
               "انضم إلى مئات المتاجر التي تثق بـ Digital Pager لتقديم تجربة سلسة لعملائها.",
               "Join hundreds of businesses that trust Digital Pager to deliver a seamless customer experience."
@@ -416,10 +417,12 @@ export default function LandingPage() {
           background: rgba(255,255,255,0.025);
           border: 1px solid rgba(255,69,0,0.12);
           border-radius: 16px;
-          padding: 24px 20px;
+          padding: 28px 24px;          /* uniform on all four sides */
           transition: all 0.28s ease;
           position: relative;
           overflow: hidden;
+          display: flex;
+          flex-direction: column;      /* stack icon → title → description evenly */
         }
         .feature-card::before {
           content: '';
@@ -638,19 +641,38 @@ function FeatureCard({ icon, title, description, index }: {
 }) {
   return (
     <div className="feature-card" data-testid={`card-feature-${index}`}>
+      {/* Icon — uniform 52 × 52, fixed bottom margin */}
       <div style={{
-        width: 52, height: 52, marginBottom: 16,
+        width: 52, height: 52, marginBottom: 20,
         filter: "drop-shadow(0 0 10px rgba(255,69,0,0.4))",
+        flexShrink: 0,
       }}>
         {icon}
       </div>
+
+      {/* Title — 700 weight so it pops above the body text without fighting the hero h1 */}
       <h3
         data-testid={`text-feature-title-${index}`}
-        style={{ fontSize: 15, fontWeight: 800, color: "#f0ebe8", marginBottom: 8, lineHeight: 1.4 }}
+        style={{
+          fontSize: 15,
+          fontWeight: 700,
+          color: "#f0ebe8",
+          marginBottom: 10,
+          lineHeight: 1.45,
+          letterSpacing: "0.01em",
+        }}
       >
         {title}
       </h3>
-      <p style={{ fontSize: 13, color: "rgba(200,188,182,0.65)", lineHeight: 1.75 }}>
+
+      {/* Description — Regular weight, reduced opacity for clear contrast with title */}
+      <p style={{
+        fontSize: 13,
+        fontWeight: 400,
+        color: "rgba(200,188,182,0.65)",
+        lineHeight: 1.8,
+        opacity: 0.9,
+      }}>
         {description}
       </p>
     </div>
