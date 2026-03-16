@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { AlertTriangle, CheckCircle, Loader2, Star, Banknote, Phone, MessageCircle, Send, XCircle, Truck, MapPin, Package, Clock, Link2 } from "lucide-react";
+import { SiWhatsapp } from "react-icons/si";
 import { useToast } from "@/hooks/use-toast";
 import type { WhatsAppOrder } from "@shared/schema";
 
@@ -132,15 +133,17 @@ function SmartRatingScreen({
 
         {isDelivery && phase === "driver" && (
           <div className="flex flex-col items-center gap-4 w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {driverPhone && (
             <Button
               onClick={handleWhatsAppDriver}
               className="w-full h-14 font-bold text-base rounded-xl gap-3"
               style={{ background: "linear-gradient(135deg, #25d366 0%, #128c7e 100%)" }}
               data-testid="button-whatsapp-driver"
             >
-              <MessageCircle className="w-6 h-6" />
-              <span dir="rtl">تواصل مع المندوب لتتبع طلبك 🟢</span>
+              <SiWhatsapp className="w-5 h-5" />
+              <span dir="rtl">مندوب التوصيل</span>
             </Button>
+            )}
 
             <button
               onClick={() => setPhase("rating")}
@@ -155,15 +158,15 @@ function SmartRatingScreen({
 
         {phase === "rating" && (
           <div className="flex flex-col items-center gap-4 w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
-            {isDelivery && (
+            {isDelivery && driverPhone && (
               <Button
                 onClick={handleWhatsAppDriver}
                 variant="outline"
                 className="w-full h-12 font-bold text-sm rounded-xl gap-2 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300 bg-transparent"
                 data-testid="button-whatsapp-driver-small"
               >
-                <MessageCircle className="w-5 h-5" />
-                <span dir="rtl">تواصل مع المندوب 🟢</span>
+                <SiWhatsapp className="w-5 h-5" />
+                <span dir="rtl">مندوب التوصيل</span>
               </Button>
             )}
             <Card className="w-full bg-[#111] border-white/[0.06] rounded-2xl">
@@ -479,15 +482,15 @@ function DeliveryTrackingView({
           </div>
         )}
 
-        {!isRejected && (
+        {!isRejected && driverPhone && (
           <Button
             onClick={handleWhatsAppDriver}
             className="w-full h-14 font-bold text-base rounded-xl gap-3"
             style={{ background: "linear-gradient(135deg, #25d366 0%, #128c7e 100%)" }}
             data-testid="button-whatsapp-driver"
           >
-            <MessageCircle className="w-6 h-6" />
-            <span dir="rtl">تواصل مع المندوب لتتبع طلبك 🟢</span>
+            <SiWhatsapp className="w-5 h-5" />
+            <span dir="rtl">مندوب التوصيل</span>
           </Button>
         )}
 
