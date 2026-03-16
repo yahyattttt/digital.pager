@@ -1156,6 +1156,35 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/track/tableqr/:storeId", async (req, res) => {
+    try {
+      const { storeId } = req.params;
+      const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
+      if (!projectId || !getApiKey()) {
+        return res.status(500).json({ message: "Firestore not configured" });
+      }
+      const commitUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:commit`;
+      const docPath = `projects/${projectId}/databases/(default)/documents/merchants/${storeId}`;
+      await fetch(commitUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          writes: [{
+            transform: {
+              document: docPath,
+              fieldTransforms: [{ fieldPath: "tableQrClicks", increment: { integerValue: "1" } }],
+            },
+          }],
+        }),
+      });
+      incrementDailyTracking(storeId, "tableQrClicks").catch(() => {});
+      return res.json({ success: true });
+    } catch (error) {
+      console.error("Track table QR error:", error);
+      return res.status(500).json({ message: "Failed to track table QR click" });
+    }
+  });
+
   app.post("/api/track/qrscan/:storeId", async (req, res) => {
     try {
       const { storeId } = req.params;
@@ -1259,10 +1288,11 @@ export async function registerRoutes(
       const cartSessions = parseInt(fields.cartSessions?.integerValue || "0");
       const completedOrders = parseInt(fields.completedOrders?.integerValue || "0");
       const googleMapsClicks = parseInt(fields.googleMapsClicks?.integerValue || "0");
+      const tableQrClicks = parseInt(fields.tableQrClicks?.integerValue || "0");
       const abandonedCarts = Math.max(0, cartSessions - completedOrders);
       const totalVisits = linkVisits + qrScans;
       const conversionRate = totalVisits > 0 ? Math.round((completedOrders / totalVisits) * 100) : 0;
-      return res.json({ linkVisits, qrScans, cartSessions, completedOrders, abandonedCarts, conversionRate, googleMapsClicks });
+      return res.json({ linkVisits, qrScans, cartSessions, completedOrders, abandonedCarts, conversionRate, googleMapsClicks, tableQrClicks });
     } catch (error) {
       console.error("Merchant tracking error:", error);
       return res.status(500).json({ message: "Failed to get tracking data" });
@@ -1303,7 +1333,7 @@ export async function registerRoutes(
         )
       );
 
-      let linkVisits = 0, qrScans = 0, googleMapsClicks = 0, cartSessions = 0, completedOrders = 0;
+      let linkVisits = 0, qrScans = 0, googleMapsClicks = 0, cartSessions = 0, completedOrders = 0, tableQrClicks = 0;
       for (const doc of docs) {
         if (!doc?.fields) continue;
         const f = doc.fields;
@@ -1312,13 +1342,14 @@ export async function registerRoutes(
         googleMapsClicks+= parseInt(f.googleMapsClicks?.integerValue|| "0");
         cartSessions    += parseInt(f.cartSessions?.integerValue     || "0");
         completedOrders += parseInt(f.completedOrders?.integerValue  || "0");
+        tableQrClicks   += parseInt(f.tableQrClicks?.integerValue    || "0");
       }
 
       const abandonedCarts = Math.max(0, cartSessions - completedOrders);
       const totalVisits = linkVisits + qrScans;
       const conversionRate = totalVisits > 0 ? Math.round((completedOrders / totalVisits) * 100) : 0;
 
-      return res.json({ linkVisits, qrScans, googleMapsClicks, cartSessions, completedOrders, abandonedCarts, conversionRate, isRangeData: true });
+      return res.json({ linkVisits, qrScans, googleMapsClicks, cartSessions, completedOrders, abandonedCarts, conversionRate, tableQrClicks, isRangeData: true });
     } catch (error) {
       console.error("Merchant tracking range error:", error);
       return res.status(500).json({ message: "Failed to get range tracking data" });

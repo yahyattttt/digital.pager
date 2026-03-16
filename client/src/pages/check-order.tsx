@@ -33,6 +33,11 @@ export default function CheckOrderPage() {
 
   useEffect(() => {
     if (!merchantId) return;
+    fetch(`/api/track/tableqr/${merchantId}`, { method: "POST" }).catch(() => {});
+  }, [merchantId]);
+
+  useEffect(() => {
+    if (!merchantId) return;
     const pagersRef = collection(db, "merchants", merchantId, "pagers");
     const q = query(pagersRef, where("status", "==", "waiting"));
     const unsub = onSnapshot(q, (snap) => {

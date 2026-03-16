@@ -4004,6 +4004,7 @@ function TrackingView({
   const abandonedCarts = data?.abandonedCarts ?? 0;
   const conversionRate = data?.conversionRate ?? 0;
   const googleMapsClicks = data?.googleMapsClicks ?? 0;
+  const tableQrClicks = data?.tableQrClicks ?? 0;
   const isRangeData = data?.isRangeData ?? false;
 
   const topCards = [
@@ -4059,6 +4060,16 @@ function TrackingView({
       bg: "rgba(248,113,113,0.07)",
       Icon: ShoppingBag,
       testId: "track-abandoned-carts",
+    },
+    {
+      label: t("دخول طلبات الطاولة", "Table QR Entries"),
+      sublabel: t("عبر كيو آر الطاولة", "Via table QR code"),
+      value: tableQrClicks,
+      color: "#fb923c",
+      border: "rgba(251,146,60,0.20)",
+      bg: "rgba(251,146,60,0.07)",
+      Icon: QrCode,
+      testId: "track-table-qr-clicks",
     },
   ];
 
@@ -4170,8 +4181,8 @@ function TrackingView({
             {topCards.map(renderCard)}
           </div>
 
-          {/* ── Row 2: 2 order cards ── */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* ── Row 2: 3 order cards ── */}
+          <div className="grid grid-cols-3 gap-3">
             {bottomCards.map(renderCard)}
           </div>
 

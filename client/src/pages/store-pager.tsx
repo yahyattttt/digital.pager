@@ -189,6 +189,11 @@ export default function StorePagerPage() {
   }, [storeId]);
 
   useEffect(() => {
+    if (!storeId) return;
+    fetch(`/api/track/tableqr/${storeId}`, { method: "POST" }).catch(() => {});
+  }, [storeId]);
+
+  useEffect(() => {
     if (!storeId || phase !== "selection") return;
     const pagersRef = collection(db, "merchants", storeId, "pagers");
     const q = query(pagersRef, where("status", "==", "waiting"));
