@@ -8,7 +8,6 @@ import type { Merchant } from "@shared/schema";
 import {
   CheckCircle2,
   Clock,
-  Upload,
   X,
   Copy,
   Users,
@@ -17,13 +16,11 @@ import {
   Zap,
   Rocket,
   Star,
-  FileText,
-  ImageIcon,
-  AlertCircle,
   ChevronRight,
   Share2,
   RefreshCw,
   XCircle,
+  Send,
 } from "lucide-react";
 
 const PLANS = [
@@ -95,15 +92,11 @@ interface Props {
 export default function SubscriptionView({ merchant, t, lang }: Props) {
   const { toast } = useToast();
   const [selectedPlan, setSelectedPlan] = useState<string>(merchant.subscriptionRequestedPlan || merchant.plan || "trial");
-  const [uploadedDocs, setUploadedDocs] = useState<string[]>(merchant.subscriptionDocuments || []);
-  const [notes, setNotes] = useState(merchant.subscriptionRequestNotes || "");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [uploadingDoc, setUploadingDoc] = useState(false);
   const [referralStats, setReferralStats] = useState({ joined: 0, monthsEarned: 0 });
   const [referralLoading, setReferralLoading] = useState(true);
   const [copied, setCopied] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [resubmitMode, setResubmitMode] = useState(false);
   const prevSubscriptionStatusRef = useRef<string>(merchant.subscriptionStatus || "pending");
@@ -148,34 +141,6 @@ export default function SubscriptionView({ merchant, t, lang }: Props) {
     fetchReferrals();
   }, [merchant.uid]);
 
-  async function handleDocUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (uploadedDocs.length >= 5) {
-      toast({ title: t("الحد الأقصى ٥ ملفات", "Max 5 files"), variant: "destructive" });
-      return;
-    }
-    setUploadingDoc(true);
-    try {
-      const formData = new FormData();
-      formData.append("doc", file);
-      const res = await fetch("/api/upload-subscription-doc", { method: "POST", body: formData });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
-      setUploadedDocs((prev) => [...prev, data.url]);
-      toast({ title: t("تم رفع الملف", "File uploaded") });
-    } catch (err: any) {
-      toast({ title: t("فشل الرفع", "Upload failed"), description: err.message, variant: "destructive" });
-    } finally {
-      setUploadingDoc(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  }
-
-  function removeDoc(url: string) {
-    setUploadedDocs((prev) => prev.filter((u) => u !== url));
-  }
-
   async function handleSubmit() {
     if (!selectedPlan) {
       toast({ title: t("اختر الباقة أولاً", "Please select a plan"), variant: "destructive" });
@@ -189,8 +154,8 @@ export default function SubscriptionView({ merchant, t, lang }: Props) {
         body: JSON.stringify({
           merchantId: merchant.uid,
           plan: selectedPlan,
-          documents: uploadedDocs,
-          notes,
+          documents: [],
+          notes: "",
         }),
       });
       const data = await res.json();
@@ -198,8 +163,11 @@ export default function SubscriptionView({ merchant, t, lang }: Props) {
       setSubmitted(true);
       setResubmitMode(false);
       toast({
-        title: t("تم إرسال الطلب", "Request submitted"),
-        description: t("سيتم مراجعة طلبك قريباً", "Your request will be reviewed soon"),
+        title: t("تم إرسال الطلب بنجاح", "Request submitted"),
+        description: t(
+          "تم إرسال طلب تفعيل الباقة بنجاح. سنراجع بيانات متجرك ونفعل الاشتراك قريباً.",
+          "Your activation request has been submitted. We'll review your store details and activate your subscription soon."
+        ),
       });
     } catch (err: any) {
       toast({ title: t("فشل الإرسال", "Submission failed"), description: err.message, variant: "destructive" });
@@ -341,15 +309,13 @@ export default function SubscriptionView({ merchant, t, lang }: Props) {
           <Button
             onClick={() => {
               setResubmitMode(true);
-              setUploadedDocs([]);
-              setNotes("");
               setSubmitted(false);
             }}
             className="w-full h-10 rounded-xl bg-white/10 hover:bg-white/15 text-white border border-white/20 font-bold text-sm gap-2"
             data-testid="btn-resubmit"
           >
             <RefreshCw className="w-4 h-4" />
-            {t("إعادة رفع المستندات وإرسال الطلب", "Re-upload Documents & Resubmit")}
+            {t("إعادة إرسال الطلب", "Resubmit Request")}
           </Button>
         </div>
       )}
@@ -374,7 +340,7 @@ export default function SubscriptionView({ merchant, t, lang }: Props) {
         <div className="flex items-center gap-3 p-3 rounded-xl border border-blue-500/40 bg-blue-500/10">
           <RefreshCw className="w-4 h-4 text-blue-400 shrink-0" />
           <p className="text-sm text-blue-300 font-medium">
-            {t("وضع إعادة الإرسال — ارفع المستندات المطلوبة ثم أرسل الطلب مجدداً", "Resubmission mode — upload the required documents then resubmit")}
+            {t("وضع إعادة الإرسال — اختر الباقة ثم أرسل الطلب مجدداً", "Resubmission mode — select a plan and resubmit your request")}
           </p>
           <button onClick={() => setResubmitMode(false)} className="ms-auto text-blue-400/60 hover:text-blue-400">
             <X className="w-4 h-4" />
@@ -439,78 +405,16 @@ export default function SubscriptionView({ merchant, t, lang }: Props) {
         </div>
       </div>
 
-      {/* Document Upload */}
-      {!isLocked && !isRejected && (
-        <div>
-          <h2 className="text-base font-semibold mb-1">{t("رفع المستندات الرسمية", "Upload Official Documents")}</h2>
-          <p className="text-xs text-muted-foreground mb-3">
-            {t("السجل التجاري، الهوية الوطنية، أو أي وثائق مطلوبة (صور أو PDF، بحد أقصى ٥ ملفات)", "Commercial register, national ID, or required documents (images or PDF, max 5 files)")}
-          </p>
-
-          {/* Uploaded files list */}
-          {uploadedDocs.length > 0 && (
-            <div className="space-y-2 mb-3">
-              {uploadedDocs.map((url) => {
-                const isPdf = url.endsWith(".pdf");
-                const name = url.split("/").pop() || url;
-                return (
-                  <div key={url} className="flex items-center gap-2 p-2 rounded-lg bg-white/5 border border-white/10">
-                    {isPdf
-                      ? <FileText className="w-4 h-4 text-red-400 shrink-0" />
-                      : <ImageIcon className="w-4 h-4 text-blue-400 shrink-0" />}
-                    <a href={url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline truncate flex-1">{name}</a>
-                    <button onClick={() => removeDoc(url)} className="text-muted-foreground hover:text-red-400 transition-colors" data-testid={`btn-remove-doc`}>
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {uploadedDocs.length < 5 && (
-            <button
-              data-testid="btn-upload-doc"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploadingDoc}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-white/20 hover:border-primary/60 hover:bg-primary/5 transition-all text-sm text-muted-foreground hover:text-primary w-full justify-center"
-            >
-              <Upload className="w-4 h-4" />
-              {uploadingDoc ? t("جاري الرفع...", "Uploading...") : t("رفع مستند", "Upload Document")}
-            </button>
-          )}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp,application/pdf"
-            className="hidden"
-            onChange={handleDocUpload}
-            data-testid="input-doc-file"
-          />
-
-          {/* Notes */}
-          <div className="mt-3">
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder={t("ملاحظات إضافية (اختياري)", "Additional notes (optional)")}
-              rows={2}
-              className="w-full rounded-xl border border-white/10 bg-white/5 p-3 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-primary/50 placeholder:text-muted-foreground"
-              data-testid="input-subscription-notes"
-            />
-          </div>
-        </div>
-      )}
-
       {/* Submit Button */}
       {!isLocked && !isRejected && (
         <Button
           data-testid="btn-submit-subscription"
           onClick={handleSubmit}
           disabled={submitting || !selectedPlan}
-          className="w-full h-12 text-base font-bold rounded-xl bg-primary hover:bg-primary/90"
+          className="w-full h-12 text-base font-bold rounded-xl bg-primary hover:bg-primary/90 gap-2"
         >
-          {submitting ? t("جاري الإرسال...", "Submitting...") : t("تأكيد وإرسال الطلب", "Confirm & Submit Request")}
+          <Send className="w-4 h-4" />
+          {submitting ? t("جاري الإرسال...", "Submitting...") : t("طلب تفعيل الباقة", "Request Plan Activation")}
         </Button>
       )}
 
@@ -583,7 +487,6 @@ export default function SubscriptionView({ merchant, t, lang }: Props) {
         )}
       </div>
 
-      <AlertCircle className="hidden" />
     </div>
   );
 }
