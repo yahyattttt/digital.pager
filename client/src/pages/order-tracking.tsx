@@ -52,32 +52,34 @@ function SmartRatingScreen({
     setSelectedStars(star);
   }
 
-  async function handleSubmitReview() {
+  function handleSubmitReview() {
     if (!selectedStars) return;
-    setSubmitting(true);
-    try {
-      if (selectedStars >= 4 && googleMapsReviewUrl) {
-        fetch(`/api/track/gmaps/${merchantId}`, { method: "POST" }).catch(() => {});
-        window.open(googleMapsReviewUrl, "_blank");
-        setDoneType("maps");
-      } else if (selectedStars >= 4) {
-        await fetch("/api/store-internal-review", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ merchantId, stars: selectedStars, comment: "", orderNumber }),
+
+    if (selectedStars >= 4 && googleMapsReviewUrl) {
+      // Open Maps FIRST — synchronous, no await — guaranteed to pass browser popup check
+      window.open(googleMapsReviewUrl, "_blank");
+      fetch(`/api/track/gmaps/${merchantId}`, { method: "POST" }).catch(() => {});
+      setDoneType("maps");
+      setPhase("done");
+    } else {
+      setSubmitting(true);
+      fetch("/api/store-internal-review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          merchantId,
+          stars: selectedStars,
+          comment: comment.trim(),
+          orderNumber,
+        }),
+      })
+        .catch(() => {})
+        .finally(() => {
+          setSubmitting(false);
+          setDoneType(selectedStars >= 4 ? "high_no_maps" : "low");
+          setPhase("done");
         });
-        setDoneType("high_no_maps");
-      } else {
-        await fetch("/api/store-internal-review", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ merchantId, stars: selectedStars, comment: comment.trim(), orderNumber }),
-        });
-        setDoneType("low");
-      }
-    } catch {}
-    setSubmitting(false);
-    setPhase("done");
+    }
   }
 
   function handleCloseAndReturn() {
@@ -324,32 +326,34 @@ function DeliveryTrackingView({
     setSelectedStars(star);
   }
 
-  async function handleSubmitReview() {
+  function handleSubmitReview() {
     if (!selectedStars) return;
-    setSubmitting(true);
-    try {
-      if (selectedStars >= 4 && merchant?.googleMapsReviewUrl) {
-        fetch(`/api/track/gmaps/${merchantId}`, { method: "POST" }).catch(() => {});
-        window.open(merchant.googleMapsReviewUrl, "_blank");
-        setDoneType("maps");
-      } else if (selectedStars >= 4) {
-        await fetch("/api/store-internal-review", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ merchantId, stars: selectedStars, comment: "", orderNumber: order.orderNumber }),
+
+    if (selectedStars >= 4 && merchant?.googleMapsReviewUrl) {
+      // Open Maps FIRST — synchronous, no await — guaranteed to pass browser popup check
+      window.open(merchant.googleMapsReviewUrl, "_blank");
+      fetch(`/api/track/gmaps/${merchantId}`, { method: "POST" }).catch(() => {});
+      setDoneType("maps");
+      setRatingPhase("done");
+    } else {
+      setSubmitting(true);
+      fetch("/api/store-internal-review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          merchantId,
+          stars: selectedStars,
+          comment: comment.trim(),
+          orderNumber: order.orderNumber,
+        }),
+      })
+        .catch(() => {})
+        .finally(() => {
+          setSubmitting(false);
+          setDoneType(selectedStars >= 4 ? "high_no_maps" : "low");
+          setRatingPhase("done");
         });
-        setDoneType("high_no_maps");
-      } else {
-        await fetch("/api/store-internal-review", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ merchantId, stars: selectedStars, comment: comment.trim(), orderNumber: order.orderNumber }),
-        });
-        setDoneType("low");
-      }
-    } catch {}
-    setSubmitting(false);
-    setRatingPhase("done");
+    }
   }
 
   async function handleShareTracking() {
