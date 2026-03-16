@@ -3,6 +3,7 @@ import { useParams } from "wouter";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { ChefHat, Truck, MapPin, CheckCircle2, Star, BadgeCheck, Send, MapPinned, Link2 } from "lucide-react";
+import { SiWhatsapp } from "react-icons/si";
 import { motion, AnimatePresence } from "framer-motion";
 import confetti from "canvas-confetti";
 
@@ -220,6 +221,7 @@ export default function DeliveryTrackerPage() {
   const [merchantName, setMerchantName] = useState("");
   const [merchantLogo, setMerchantLogo] = useState("");
   const [googleMapsUrl, setGoogleMapsUrl] = useState("");
+  const [driverPhone, setDriverPhone] = useState("");
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
@@ -241,6 +243,7 @@ export default function DeliveryTrackerPage() {
         if (data?.storeName) setMerchantName(data.storeName);
         if (data?.logoUrl) setMerchantLogo(data.logoUrl);
         if (data?.googleMapsReviewUrl) setGoogleMapsUrl(data.googleMapsReviewUrl);
+        if (data?.driverPhone) setDriverPhone(data.driverPhone);
       })
       .catch(() => {});
   }, [merchantId]);
@@ -533,6 +536,32 @@ export default function DeliveryTrackerPage() {
             )}
           </AnimatePresence>
         </div>
+
+        <AnimatePresence>
+          {driverPhone && status !== "cancelled" && (
+            <motion.a
+              key="whatsapp-driver-btn"
+              href={`https://wa.me/${driverPhone.replace(/[^\d]/g, "")}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 6 }}
+              transition={{ duration: 0.35, ease: "easeOut" }}
+              className="w-full max-w-sm flex items-center justify-center gap-3 rounded-2xl py-3.5 font-bold text-base"
+              style={{
+                background: "linear-gradient(135deg, #25d366 0%, #128c7e 100%)",
+                boxShadow: "0 0 20px rgba(37,211,102,0.18)",
+                color: "#fff",
+                textDecoration: "none",
+              }}
+              data-testid="button-whatsapp-driver"
+            >
+              <SiWhatsapp className="w-5 h-5 flex-shrink-0" />
+              <span style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}>مندوب التوصيل</span>
+            </motion.a>
+          )}
+        </AnimatePresence>
 
         <AnimatePresence>
           {status === "preparing" && false && (

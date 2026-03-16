@@ -3300,6 +3300,7 @@ export async function registerRoutes(
         logoUrl: mf.logoUrl?.stringValue || "",
         googleMapsReviewUrl: mf.googleMapsReviewUrl?.stringValue || "",
         curbsideEnabled: mf.curbsideEnabled?.booleanValue === true,
+        driverPhone: mf.driverPhone?.stringValue || "",
       });
     } catch (error) {
       console.error("Merchant public fetch error:", error);
