@@ -217,6 +217,28 @@ export default function DigitalPagerPage() {
       .catch(() => {});
   }, [merchantId]);
 
+  useEffect(() => {
+    if (!merchantName) return;
+    const title = `${merchantName} - تابع حالة الطلب`;
+    document.title = title;
+    const setMeta = (sel: string, val: string) => {
+      const el = document.querySelector(sel);
+      if (el) el.setAttribute("content", val);
+    };
+    setMeta('meta[property="og:title"]', title);
+    setMeta('meta[property="og:description"]', "تابع طلبي معك ولا تنسى تذكرني 🍔✨");
+    if (merchantLogo) {
+      const host = window.location.origin;
+      const fullLogo = merchantLogo.startsWith("http") ? merchantLogo : `${host}${merchantLogo}`;
+      setMeta('meta[property="og:image"]', fullLogo);
+      setMeta('meta[name="twitter:image"]', fullLogo);
+    }
+    setMeta('meta[property="og:url"]', window.location.href);
+    setMeta('meta[name="twitter:title"]', title);
+    setMeta('meta[name="twitter:description"]', "تابع طلبي معك ولا تنسى تذكرني 🍔✨");
+    return () => { document.title = "Digital Pager"; };
+  }, [merchantName, merchantLogo]);
+
   // Used ONLY for the activation button — unlocks browser session audio
   const playBell = useCallback(() => {
     try {
@@ -376,14 +398,14 @@ export default function DigitalPagerPage() {
   async function handleShare() {
     const url = window.location.href;
     const storeName = merchantName || "المتجر";
-    const text = `شوف طلبي في ${storeName} وهو يجهز الآن على الطاولة.. عقبالك! 🍔`;
+    const text = `تابع طلبي معك ولا تنسى تذكرني 🍔✨\n${storeName}\n${url}`;
     if (navigator.share) {
       try {
-        await navigator.share({ title: text, text, url });
+        await navigator.share({ title: `${storeName} - تابع حالة الطلب`, text, url });
       } catch {}
     } else {
       try {
-        await navigator.clipboard.writeText(`${text}\n${url}`);
+        await navigator.clipboard.writeText(text);
         toast({ description: "تم نسخ رابط اللحظة! شاركه مع من تحب 💛", duration: 2500 });
       } catch {}
     }
@@ -602,10 +624,7 @@ export default function DigitalPagerPage() {
       </div>
 
       {/* Share button — visible during any active (non-ready) preparation state */}
-      {!isReady && status !== "done" && status !== "cancelled" && (() => {
-        console.log("Share button rendered — status:", status, "isManual:", isManual);
-        return true;
-      })() && (
+      {!isReady && status !== "done" && status !== "cancelled" && (
         <div
           id="share-moment-btn"
           className="w-full max-w-xs px-4 mt-4 mb-1"

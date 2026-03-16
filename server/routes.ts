@@ -461,6 +461,60 @@ export async function registerRoutes(
   // so newly uploaded files are immediately accessible without a server restart.
   app.use("/uploads", express.static(uploadDir, { maxAge: 0, etag: false }));
 
+  // OG meta route for /digital-pager — social crawlers (WhatsApp, Telegram, etc.) don't run JS,
+  // so we intercept their requests and serve a static HTML shell with dynamic store branding.
+  app.get("/digital-pager/:orderId", async (req, res, next) => {
+    const ua = req.headers["user-agent"] || "";
+    const isCrawler = /WhatsApp|facebookexternalhit|Twitterbot|TelegramBot|Slackbot|LinkedInBot|Discordbot|vkShare|Googlebot/i.test(ua);
+    if (!isCrawler) return next();
+
+    const merchantId = req.query.m as string;
+    if (!merchantId) return next();
+
+    try {
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return next();
+      const mRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}`, { headers: {} });
+      if (!mRes.ok) return next();
+      const mDoc = await mRes.json();
+      const fields = mDoc.fields || {};
+      const storeName = (fields.storeName?.stringValue || "Digital Pager").replace(/"/g, "&quot;");
+      const rawLogo = fields.logoUrl?.stringValue || "";
+      const host = `${req.protocol}://${req.get("host")}`;
+      const fullLogoUrl = rawLogo.startsWith("http") ? rawLogo : rawLogo ? `${host}${rawLogo}` : `${host}/icon-192x192.png`;
+      const title = `${storeName} - تابع حالة الطلب`;
+      const description = "تابع طلبي معك ولا تنسى تذكرني 🍔✨";
+      const pageUrl = `${host}${req.originalUrl}`;
+
+      const html = `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <title>${title}</title>
+  <meta name="description" content="${description}" />
+  <meta property="og:title" content="${title}" />
+  <meta property="og:description" content="${description}" />
+  <meta property="og:image" content="${fullLogoUrl}" />
+  <meta property="og:image:width" content="400" />
+  <meta property="og:image:height" content="400" />
+  <meta property="og:url" content="${pageUrl}" />
+  <meta property="og:type" content="website" />
+  <meta property="og:locale" content="ar_AR" />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="${title}" />
+  <meta name="twitter:description" content="${description}" />
+  <meta name="twitter:image" content="${fullLogoUrl}" />
+</head>
+<body style="margin:0;background:#000;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;text-align:center">
+  <div><p style="font-size:18px;opacity:0.7">${title}</p></div>
+</body>
+</html>`;
+      return res.status(200).set({ "Content-Type": "text/html; charset=utf-8" }).end(html);
+    } catch {
+      return next();
+    }
+  });
+
   function handleUploadError(err: any, res: any, fieldName: string, req: any) {
     if (err) {
       if (err.code === "LIMIT_FILE_SIZE") {
