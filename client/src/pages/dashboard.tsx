@@ -103,6 +103,9 @@ import {
   Receipt,
   CalendarDays,
   ExternalLink,
+  FileText,
+  CloudUpload,
+  RefreshCw,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import ArchiveView from "@/pages/order-archive";
@@ -5439,6 +5442,9 @@ function SettingsView({
   const [crNumberEdit, setCrNumberEdit] = useState<string>((merchant as any)?.commercialRegisterNumber || "");
   const [taxNumberEdit, setTaxNumberEdit] = useState<string>((merchant as any)?.taxNumber || "");
   const [googleMapsUrlEdit, setGoogleMapsUrlEdit] = useState<string>((merchant as any)?.googleMapsReviewUrl || "");
+  const [crPdfUrlEdit, setCrPdfUrlEdit] = useState<string>((merchant as any)?.commercialRegisterURL || "");
+  const [crPdfUploading, setCrPdfUploading] = useState(false);
+  const crPdfInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setStoreNameEdit(merchant?.storeName || "");
@@ -5448,7 +5454,8 @@ function SettingsView({
     setCrNumberEdit((merchant as any)?.commercialRegisterNumber || "");
     setTaxNumberEdit((merchant as any)?.taxNumber || "");
     setGoogleMapsUrlEdit((merchant as any)?.googleMapsReviewUrl || "");
-  }, [merchant?.storeName, merchant?.whatsappNumber, merchant?.logoUrl, (merchant as any)?.ownerPhone, (merchant as any)?.commercialRegisterNumber, (merchant as any)?.taxNumber, (merchant as any)?.googleMapsReviewUrl]);
+    setCrPdfUrlEdit((merchant as any)?.commercialRegisterURL || "");
+  }, [merchant?.storeName, merchant?.whatsappNumber, merchant?.logoUrl, (merchant as any)?.ownerPhone, (merchant as any)?.commercialRegisterNumber, (merchant as any)?.taxNumber, (merchant as any)?.googleMapsReviewUrl, (merchant as any)?.commercialRegisterURL]);
 
   async function compressImage(file: File, maxDimension = 1024, quality = 0.88): Promise<File> {
     return new Promise((resolve) => {
@@ -5567,6 +5574,7 @@ function SettingsView({
         commercialRegisterNumber: crNumberEdit.trim(),
         taxNumber: taxNumberEdit.trim(),
         googleMapsReviewUrl: googleMapsUrlEdit.trim(),
+        commercialRegisterURL: crPdfUrlEdit.trim(),
       }, { merge: true });
       toast({
         title: t("تم الحفظ", "Saved"),
@@ -5581,6 +5589,39 @@ function SettingsView({
       });
     } finally {
       setBranchInfoSaving(false);
+    }
+  }
+
+  async function handleCrPdfUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.type !== "application/pdf") {
+      toast({ title: t("نوع الملف غير مدعوم", "Unsupported file type"), description: t("يُقبل فقط ملفات PDF", "Only PDF files are accepted"), variant: "destructive" });
+      return;
+    }
+    setCrPdfUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("cr", file);
+      const res = await fetch("/api/upload-cr", { method: "POST", body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Upload failed");
+      const newUrl = data.url as string;
+      setCrPdfUrlEdit(newUrl);
+      const uid = merchant?.uid;
+      if (uid) {
+        const merchantRef = doc(db, "merchants", uid);
+        await setDoc(merchantRef, { commercialRegisterURL: newUrl }, { merge: true });
+      }
+      toast({
+        title: t("تم رفع ملف السجل التجاري", "Commercial Register Uploaded"),
+        description: t("تم حفظ ملف PDF بنجاح وربطه بملف متجرك", "PDF saved and linked to your store profile successfully"),
+      });
+    } catch (err: any) {
+      toast({ title: t("فشل الرفع", "Upload failed"), description: err.message, variant: "destructive" });
+    } finally {
+      setCrPdfUploading(false);
+      if (crPdfInputRef.current) crPdfInputRef.current.value = "";
     }
   }
 
@@ -5822,6 +5863,89 @@ function SettingsView({
                     />
                   </div>
                 </div>
+              </div>
+
+              {/* ── Commercial Register PDF Upload ── */}
+              <div className="space-y-2 pt-1">
+                <label className="text-xs text-muted-foreground flex items-center gap-1.5">
+                  <FileText className="w-3.5 h-3.5 text-amber-400" />
+                  {t("إرفاق السجل التجاري (PDF)", "Attach Commercial Register (PDF)")}
+                  <span className="text-muted-foreground/50 text-[10px]">{t("(إن وجد)", "(optional)")}</span>
+                </label>
+
+                {crPdfUrlEdit ? (
+                  /* File already uploaded — show preview row */
+                  <div className="flex items-center gap-2 p-3 rounded-xl border border-white/10 bg-white/[0.03]">
+                    <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                      <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.2)" }}>
+                        <FileText className="w-4 h-4 text-red-400" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-white truncate" data-testid="text-cr-pdf-name">
+                          {crPdfUrlEdit.split("/").pop() || "commercial_register.pdf"}
+                        </p>
+                        <p className="text-[10px] text-green-400 flex items-center gap-1 mt-0.5">
+                          <CheckCircle className="w-3 h-3" />
+                          {t("تم الرفع بنجاح", "Uploaded successfully")}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex gap-1.5 shrink-0">
+                      <a
+                        href={crPdfUrlEdit}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-colors"
+                        style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.6)", border: "1px solid rgba(255,255,255,0.1)" }}
+                        data-testid="btn-preview-cr-pdf"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        {t("معاينة", "Preview")}
+                      </a>
+                      <button
+                        onClick={() => crPdfInputRef.current?.click()}
+                        disabled={crPdfUploading}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-colors"
+                        style={{ background: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.2)" }}
+                        data-testid="btn-replace-cr-pdf"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        {t("استبدال", "Replace")}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* No file yet — show upload dropzone */
+                  <button
+                    type="button"
+                    onClick={() => crPdfInputRef.current?.click()}
+                    disabled={crPdfUploading}
+                    className="w-full flex flex-col items-center justify-center gap-2 py-5 rounded-xl border-2 border-dashed transition-all"
+                    style={{ borderColor: "rgba(251,191,36,0.25)", background: "rgba(251,191,36,0.03)" }}
+                    data-testid="btn-upload-cr-pdf"
+                  >
+                    {crPdfUploading ? (
+                      <Loader2 className="w-6 h-6 animate-spin text-amber-400" />
+                    ) : (
+                      <CloudUpload className="w-6 h-6 text-amber-400/70" />
+                    )}
+                    <div className="text-center">
+                      <p className="text-sm font-semibold text-amber-400/80">
+                        {crPdfUploading ? t("جارٍ الرفع...", "Uploading...") : t("اضغط لرفع ملف PDF", "Click to upload PDF")}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">{t("يُقبل ملفات PDF فقط، بحد أقصى 10MB", "PDF files only, max 10MB")}</p>
+                    </div>
+                  </button>
+                )}
+
+                <input
+                  ref={crPdfInputRef}
+                  type="file"
+                  accept="application/pdf"
+                  className="hidden"
+                  onChange={handleCrPdfUpload}
+                  data-testid="input-cr-pdf-file"
+                />
               </div>
             </div>
 
