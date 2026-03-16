@@ -388,6 +388,7 @@ export default function SuperAdminPage() {
   const [deactivateDialogMerchant, setDeactivateDialogMerchant] = useState<any | null>(null);
   const [deactivateReason, setDeactivateReason] = useState("");
   const [deactivatingStoreId, setDeactivatingStoreId] = useState<string | null>(null);
+  const [storeDetailsModal, setStoreDetailsModal] = useState<any | null>(null);
   const pendingSubCountRef = useRef(0);
   const adminAlertAudioRef = useRef<HTMLAudioElement | null>(null);
   const [sysHealth, setSysHealth] = useState<any>(null);
@@ -2086,6 +2087,16 @@ export default function SuperAdminPage() {
                           )}
                         </div>
                         <div className="flex flex-col gap-1.5 shrink-0">
+                          <Button
+                            size="sm"
+                            onClick={() => setStoreDetailsModal(req)}
+                            className="rounded-xl text-xs font-bold gap-1.5"
+                            style={{ background: "rgba(99,102,241,0.18)", color: "#a5b4fc", border: "1px solid rgba(99,102,241,0.35)" }}
+                            data-testid={`btn-view-store-${req.uid}`}
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            {t("عرض بيانات المتجر", "View Store")}
+                          </Button>
                           <Button
                             size="sm"
                             onClick={() => handleActivateSubscriptionRequest(req)}
@@ -4080,6 +4091,206 @@ export default function SuperAdminPage() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Store Details Modal ── */}
+      <Dialog open={!!storeDetailsModal} onOpenChange={(open) => { if (!open) setStoreDetailsModal(null); }}>
+        <DialogContent
+          className="max-w-lg w-full rounded-2xl p-0 overflow-hidden"
+          style={{ background: "#0e0e0f", border: "1px solid rgba(255,255,255,0.08)" }}
+          data-testid="dialog-store-details"
+        >
+          {storeDetailsModal && (() => {
+            const m = storeDetailsModal;
+            const planLabelsAr: Record<string, string> = { trial: "البداية", basic: "النمو", premium: "التميز", enterprise: "المؤسسات" };
+            const btLabels: Record<string, string> = { restaurant: "مطعم", cafe: "كافيه", clinic: "عيادة", other: "أخرى" };
+            const crUrl: string = (m.commercialRegisterURL || "").trim();
+            const crNum: string = (m.commercialRegisterNumber || "").trim();
+            const regDate = m.createdAt ? new Date(m.createdAt).toLocaleDateString(lang === "ar" ? "ar-SA" : "en-US", { year: "numeric", month: "long", day: "numeric" }) : "—";
+            const isPdf = crUrl.toLowerCase().endsWith(".pdf");
+            return (
+              <>
+                {/* Header band */}
+                <div className="px-6 pt-5 pb-4" style={{ background: "rgba(99,102,241,0.08)", borderBottom: "1px solid rgba(99,102,241,0.18)" }}>
+                  <div className="flex items-start justify-between gap-3" dir="rtl">
+                    <div className="flex items-center gap-3">
+                      <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(99,102,241,0.2)" }}>
+                        <Store className="w-5 h-5" style={{ color: "#a5b4fc" }} />
+                      </div>
+                      <div>
+                        <p className="font-extrabold text-white text-base leading-snug" data-testid="text-detail-storename">{m.storeName || m.uid}</p>
+                        <div className="flex flex-wrap gap-1.5 mt-1">
+                          {m.businessType && (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: "rgba(99,102,241,0.2)", color: "#a5b4fc", border: "1px solid rgba(99,102,241,0.3)" }}>
+                              {btLabels[m.businessType] || m.businessType}
+                            </span>
+                          )}
+                          {m.subscriptionRequestedPlan && (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: "rgba(251,191,36,0.15)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.3)" }}>
+                              باقة {planLabelsAr[m.subscriptionRequestedPlan] || m.subscriptionRequestedPlan}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setStoreDetailsModal(null)}
+                      className="text-slate-500 hover:text-white transition-colors mt-0.5"
+                      data-testid="btn-close-store-details"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Body */}
+                <div className="px-6 py-5 space-y-5" dir="rtl">
+
+                  {/* Section: Basic Info */}
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                      <Store className="w-3 h-3" /> {t("المعلومات الأساسية", "Basic Information")}
+                    </p>
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                        <p className="text-[10px] text-slate-500 mb-1">{t("اسم المتجر", "Store Name")}</p>
+                        <p className="text-sm font-semibold text-white" data-testid="text-detail-name">{m.storeName || "—"}</p>
+                      </div>
+                      <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                        <p className="text-[10px] text-slate-500 mb-1">{t("اسم المالك", "Owner Name")}</p>
+                        <p className="text-sm font-semibold text-white" data-testid="text-detail-owner">{m.ownerName || "—"}</p>
+                      </div>
+                      <div className="rounded-xl p-3 col-span-2" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                        <p className="text-[10px] text-slate-500 mb-1">{t("نوع النشاط", "Business Type")}</p>
+                        <p className="text-sm font-semibold text-white">{btLabels[m.businessType] || m.businessType || "—"}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section: Contact */}
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                      <Phone className="w-3 h-3" /> {t("معلومات التواصل", "Contact Information")}
+                    </p>
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                        <p className="text-[10px] text-slate-500 mb-1">{t("رقم الجوال", "Phone")}</p>
+                        <p className="text-sm font-semibold text-white ltr" data-testid="text-detail-phone" dir="ltr">{m.ownerPhone || m.phone || "—"}</p>
+                      </div>
+                      <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                        <p className="text-[10px] text-slate-500 mb-1">{t("البريد الإلكتروني", "Email")}</p>
+                        <p className="text-sm font-semibold text-white truncate" data-testid="text-detail-email" dir="ltr">{m.email || "—"}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section: Legal */}
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                      <FileText className="w-3 h-3" /> {t("البيانات الرسمية", "Official Information")}
+                    </p>
+                    <div className="space-y-2.5">
+                      <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                        <p className="text-[10px] text-slate-500 mb-1">{t("رقم السجل التجاري", "Commercial Register No.")}</p>
+                        <p className="text-sm font-bold text-amber-300 ltr" data-testid="text-detail-cr-number" dir="ltr">{crNum || "—"}</p>
+                      </div>
+                      {crUrl ? (
+                        <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                          <p className="text-[10px] text-slate-500 mb-2">{t("صورة / ملف السجل التجاري", "CR Document")}</p>
+                          {isPdf ? (
+                            <a
+                              href={crUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold transition-colors"
+                              style={{ background: "rgba(239,68,68,0.12)", color: "#f87171", border: "1px solid rgba(239,68,68,0.25)" }}
+                              data-testid="link-cr-pdf"
+                            >
+                              <FileText className="w-4 h-4 shrink-0" />
+                              {t("فتح ملف PDF", "Open PDF File")}
+                              <ExternalLink className="w-3.5 h-3.5 ms-auto" />
+                            </a>
+                          ) : (
+                            <a href={crUrl} target="_blank" rel="noopener noreferrer" data-testid="link-cr-image">
+                              <img
+                                src={crUrl}
+                                alt="Commercial Register"
+                                className="w-full max-h-40 object-cover rounded-lg border cursor-zoom-in hover:opacity-90 transition-opacity"
+                                style={{ borderColor: "rgba(255,255,255,0.1)" }}
+                              />
+                              <p className="text-[10px] text-slate-500 mt-1.5 flex items-center gap-1">
+                                <ExternalLink className="w-3 h-3" />
+                                {t("اضغط للعرض بالحجم الكامل", "Click to view full size")}
+                              </p>
+                            </a>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.08)" }}>
+                          <p className="text-xs text-slate-600 text-center">{t("لا يوجد مستند مرفق", "No document attached")}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Section: System */}
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                      <CalendarDays className="w-3 h-3" /> {t("معلومات النظام", "System Information")}
+                    </p>
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                        <p className="text-[10px] text-slate-500 mb-1">{t("تاريخ التسجيل", "Registration Date")}</p>
+                        <p className="text-xs font-semibold text-slate-300" data-testid="text-detail-regdate">{regDate}</p>
+                      </div>
+                      <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                        <p className="text-[10px] text-slate-500 mb-1">{t("رقم المتجر", "Store ID")}</p>
+                        <p className="text-[11px] font-mono text-slate-400 truncate" dir="ltr">{m.uid}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer actions */}
+                <div className="px-6 pb-5 flex gap-2.5" dir="rtl">
+                  <Button
+                    onClick={() => {
+                      setStoreDetailsModal(null);
+                      handleActivateSubscriptionRequest(m);
+                    }}
+                    disabled={activatingRequestId === m.uid}
+                    className="flex-1 bg-green-600 hover:bg-green-500 text-white rounded-xl font-bold text-sm gap-1.5"
+                    data-testid="btn-detail-activate"
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    {activatingRequestId === m.uid ? t("جارٍ التفعيل...", "Activating...") : t("تفعيل الاشتراك", "Activate")}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setStoreDetailsModal(null);
+                      setRejectDialogMerchant(m);
+                      setRejectReason("");
+                    }}
+                    className="flex-1 border-red-500/40 text-red-400 hover:bg-red-500/10 rounded-xl font-bold text-sm gap-1.5"
+                    data-testid="btn-detail-reject"
+                  >
+                    <XCircle className="w-4 h-4" />
+                    {t("رفض بسبب", "Reject")}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setStoreDetailsModal(null)}
+                    className="rounded-xl border-white/10 text-slate-400 hover:text-white text-sm"
+                    data-testid="btn-detail-close"
+                  >
+                    {t("إغلاق", "Close")}
+                  </Button>
+                </div>
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </div>
