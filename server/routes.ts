@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import express, { type Express } from "express";
 import { createServer, type Server } from "http";
 import multer from "multer";
 import path from "path";
@@ -430,6 +430,10 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  // Serve uploaded files directly via Express — bypasses Vite's cached publicDir middleware
+  // so newly uploaded files are immediately accessible without a server restart.
+  app.use("/uploads", express.static(uploadDir, { maxAge: 0, etag: false }));
+
   app.post("/api/upload-logo", upload.single("logo"), (req, res) => {
     if (!req.file) {
       return res.status(400).json({ message: "No file uploaded" });
