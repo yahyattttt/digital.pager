@@ -498,6 +498,20 @@ export async function registerRoutes(
         : path.resolve(process.cwd(), "client", "index.html");
       let page = await fs.promises.readFile(htmlPath, "utf-8");
 
+      // In dev, Vite normally injects the React Fast-Refresh preamble via
+      // transformIndexHtml(). Since we bypass that, inject it manually so
+      // @vitejs/plugin-react can detect it and React mounts correctly.
+      if (process.env.NODE_ENV !== "production") {
+        const preamble = `<script type="module">
+  import RefreshRuntime from "/@react-refresh"
+  RefreshRuntime.injectIntoGlobalHook(window)
+  window.$RefreshReg$ = () => {}
+  window.$RefreshSig$ = () => (type) => type
+  window.__vite_plugin_react_preamble_installed__ = true
+</script>`;
+        page = page.replace("<head>", `<head>\n  ${preamble}`);
+      }
+
       // Replace <title>
       page = page.replace(/<title>[^<]*<\/title>/, `<title>${storeName}</title>`);
 
