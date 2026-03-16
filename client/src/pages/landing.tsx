@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useLanguage } from "@/hooks/use-language";
-import { Globe, Maximize, Minimize, ArrowLeft, ArrowRight, MapPin } from "lucide-react";
+import { Globe, Maximize, Minimize, ArrowLeft, ArrowRight, MapPin, Share2, ShoppingBag, Users } from "lucide-react";
 import { SiInstagram, SiLinkedin, SiSnapchat } from "react-icons/si";
 import neonBellLogo from "@assets/image0_(1)_1773118136698.png";
 
@@ -56,19 +56,7 @@ export default function LandingPage() {
   const features = [
     {
       id: "shield",
-      svg: (
-        <svg viewBox="0 0 48 48" fill="none" className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <linearGradient id="sg1" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="#ff6b35" />
-              <stop offset="100%" stopColor="#ff2200" />
-            </linearGradient>
-          </defs>
-          <path d="M24 4L8 10v12c0 9 6.7 17.3 16 19.4C33.3 39.3 40 31 40 22V10L24 4z" fill="url(#sg1)" opacity="0.15" />
-          <path d="M24 4L8 10v12c0 9 6.7 17.3 16 19.4C33.3 39.3 40 31 40 22V10L24 4z" stroke="url(#sg1)" strokeWidth="1.5" strokeLinejoin="round" />
-          <path d="M17 24l5 5 9-10" stroke="#ff6b35" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      ),
+      svg: <MapPin className="w-full h-full" style={{ color: "#ff6b35" }} strokeWidth={1.5} />,
       boldText: t("رفع تقييمك على خرائط جوجل:", "Boost Your Google Maps Rating:"),
       bodyText: t(
         " يتم توجيه العميل تلقائياً بعد الانتهاء من الطلب إلى رابط التقييم الخاص بمتجرك، لتتصدر نتائج البحث وتكسب ثقة العملاء الجدد.",
@@ -77,19 +65,7 @@ export default function LandingPage() {
     },
     {
       id: "zap",
-      svg: (
-        <svg viewBox="0 0 48 48" fill="none" className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <linearGradient id="zg1" x1="0" y1="0" x2="0.5" y2="1">
-              <stop offset="0%" stopColor="#ffb347" />
-              <stop offset="100%" stopColor="#ff4500" />
-            </linearGradient>
-          </defs>
-          <polygon points="26,4 10,26 22,26 22,44 38,22 26,22" fill="url(#zg1)" opacity="0.18" />
-          <polygon points="26,4 10,26 22,26 22,44 38,22 26,22" stroke="url(#zg1)" strokeWidth="1.5" strokeLinejoin="round" />
-          <line x1="18" y1="26" x2="30" y2="26" stroke="#ffb347" strokeWidth="1" opacity="0.5" />
-        </svg>
-      ),
+      svg: <Share2 className="w-full h-full" style={{ color: "#ff6b35" }} strokeWidth={1.5} />,
       boldText: t("التسويق الفيروسي لمتجرك:", "Viral Marketing for Your Store:"),
       bodyText: t(
         " ميزة مشاركة رابط التتبع تتيح لعملائك مشاركة حماسهم مع أصدقائهم، مما يضمن لك انتشاراً واسعاً وزواراً جدد دون تكاليف إعلانية.",
@@ -98,20 +74,7 @@ export default function LandingPage() {
     },
     {
       id: "users",
-      svg: (
-        <svg viewBox="0 0 48 48" fill="none" className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <linearGradient id="ug1" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="#ff6b35" />
-              <stop offset="100%" stopColor="#cc2200" />
-            </linearGradient>
-          </defs>
-          <circle cx="18" cy="16" r="6" stroke="url(#ug1)" strokeWidth="1.5" fill="url(#ug1)" fillOpacity="0.12" />
-          <circle cx="32" cy="16" r="5" stroke="#ff4500" strokeWidth="1.2" fill="#ff4500" fillOpacity="0.08" />
-          <path d="M6 38c0-7 5.4-12 12-12h0c6.6 0 12 5 12 12" stroke="url(#ug1)" strokeWidth="1.5" strokeLinecap="round" />
-          <path d="M34 27c3.5 1 6 4.2 6 8.5" stroke="#ff4500" strokeWidth="1.2" strokeLinecap="round" />
-        </svg>
-      ),
+      svg: <ShoppingBag className="w-full h-full" style={{ color: "#ff6b35" }} strokeWidth={1.5} />,
       boldText: t("رابط خاص لطلبات الأونلاين:", "Your Own Online Order Link:"),
       bodyText: t(
         " ودّع الطرق التقليدية واستقبل طلبات المحلي والسفري مباشرة عبر رابطك الخاص وبدون أي عمولات، مع تجربة شراء عصرية ومباشرة.",
@@ -120,21 +83,7 @@ export default function LandingPage() {
     },
     {
       id: "bell",
-      svg: (
-        <svg viewBox="0 0 48 48" fill="none" className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <linearGradient id="bg1" x1="0.3" y1="0" x2="0.7" y2="1">
-              <stop offset="0%" stopColor="#ff6b35" />
-              <stop offset="100%" stopColor="#ff2200" />
-            </linearGradient>
-          </defs>
-          <path d="M24 6c-7.7 0-14 6.3-14 14v8l-3 5h34l-3-5V20C38 12.3 31.7 6 24 6z" fill="url(#bg1)" fillOpacity="0.14" stroke="url(#bg1)" strokeWidth="1.5" strokeLinejoin="round" />
-          <path d="M20 33c0 2.2 1.8 4 4 4s4-1.8 4-4" stroke="#ff6b35" strokeWidth="1.5" strokeLinecap="round" />
-          <circle cx="24" cy="6" r="2" fill="#ff6b35" />
-          <circle cx="37" cy="9" r="2.5" fill="#ff4500" />
-          <circle cx="37" cy="9" r="1.2" fill="#ffb347" />
-        </svg>
-      ),
+      svg: <Users className="w-full h-full" style={{ color: "#ff6b35" }} strokeWidth={1.5} />,
       boldText: t("قاعدة بيانات عملائك:", "Your Customer Database:"),
       bodyText: t(
         " ابنِ ثروتك الحقيقية بامتلاك بيانات عملائك بالكامل، مما يتيح لك فهم تفضيلاتهم وإعادة استهدافهم بعروض مخصصة تضمن عودتهم إليك.",
