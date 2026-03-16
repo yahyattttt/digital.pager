@@ -929,7 +929,7 @@ export default function SuperAdminPage() {
     try {
       const res = await fetch(`/api/admin/activate-subscription-request/${merchantData.uid}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-admin-token": "true" },
+        headers: { "Content-Type": "application/json", "x-admin-email": user?.email || "" },
         credentials: "include",
       });
       const data = await res.json();
@@ -958,7 +958,7 @@ export default function SuperAdminPage() {
     try {
       const res = await fetch(`/api/admin/reject-subscription-request/${rejectDialogMerchant.uid}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-admin-email": user?.email || "" },
         body: JSON.stringify({ reason: rejectReason.trim() }),
       });
       const data = await res.json();
@@ -1077,7 +1077,7 @@ export default function SuperAdminPage() {
     try {
       const res = await fetch(`/api/admin/deactivate-store/${deactivateDialogMerchant.uid}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-admin-email": user?.email || "" },
         body: JSON.stringify({ reason: deactivateReason.trim() }),
       });
       if (!res.ok) throw new Error((await res.json()).message);
@@ -3949,13 +3949,36 @@ export default function SuperAdminPage() {
             </div>
             <div>
               <label className="text-sm text-slate-400 mb-1.5 block" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}>
+                أسباب سريعة
+              </label>
+              <div className="flex flex-wrap gap-1.5 mb-3">
+                {[
+                  "المتجر مشترك مسبقاً يدوي",
+                  "انتهاك شروط الاستخدام",
+                  "نشاط مشبوه",
+                  "بيانات وهمية",
+                  "عدم الاستجابة للتحقق",
+                  "طلب المتجر الإيقاف",
+                ].map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => setDeactivateReason(r)}
+                    className={`text-[11px] px-2.5 py-1 rounded-lg border transition-colors ${deactivateReason === r ? "bg-red-600 border-red-500 text-white" : "bg-white/5 border-white/10 text-slate-400 hover:border-red-500/40 hover:text-red-300"}`}
+                    style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
+              <label className="text-sm text-slate-400 mb-1.5 block" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}>
                 سبب الرفض / الإيقاف <span className="text-red-400">*</span>
               </label>
               <Textarea
                 value={deactivateReason}
                 onChange={(e) => setDeactivateReason(e.target.value)}
                 placeholder="مثال: المتجر يقدم خدمات مخالفة، أو الوثائق المقدمة غير صحيحة، أو انتهاك شروط الاستخدام..."
-                rows={4}
+                rows={3}
                 className="resize-none rounded-xl border-white/10 bg-white/5 text-sm"
                 data-testid="input-deactivate-reason"
                 style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}
@@ -4000,13 +4023,36 @@ export default function SuperAdminPage() {
           <div className="space-y-4 py-2" dir="rtl">
             <div>
               <label className="text-sm text-slate-400 mb-1.5 block" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}>
+                أسباب سريعة
+              </label>
+              <div className="flex flex-wrap gap-1.5 mb-3">
+                {[
+                  "المتجر مشترك مسبقاً يدوي",
+                  "الوثائق غير واضحة",
+                  "السجل التجاري غير صحيح",
+                  "رقم الجوال غير مطابق",
+                  "الهوية الوطنية منتهية",
+                  "بيانات ناقصة",
+                ].map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => setRejectReason(r)}
+                    className={`text-[11px] px-2.5 py-1 rounded-lg border transition-colors ${rejectReason === r ? "bg-red-600 border-red-500 text-white" : "bg-white/5 border-white/10 text-slate-400 hover:border-red-500/40 hover:text-red-300"}`}
+                    style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
+              <label className="text-sm text-slate-400 mb-1.5 block" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}>
                 سبب الرفض <span className="text-red-400">*</span>
               </label>
               <Textarea
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
                 placeholder="مثال: يرجى إعادة تصوير الهوية بشكل أوضح، أو تحديد رقم السجل التجاري الصحيح..."
-                rows={4}
+                rows={3}
                 className="resize-none rounded-xl border-white/10 bg-white/5 text-sm"
                 data-testid="input-reject-reason"
                 style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}

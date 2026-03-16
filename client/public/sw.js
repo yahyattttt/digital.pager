@@ -1,9 +1,8 @@
 importScripts("https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js");
 importScripts("https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js");
 
-var CACHE_NAME = 'digital-pager-v3';
+var CACHE_NAME = 'digital-pager-v4';
 var PRECACHE_URLS = [
-  '/',
   '/alert.mp3',
   '/favicon.png',
   '/manifest.json',
@@ -46,18 +45,20 @@ self.addEventListener('fetch', function(event) {
 
   var url = new URL(event.request.url);
 
+  // Skip non-http(s) schemes (chrome-extension, etc.) to avoid errors
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
+
   if (url.pathname.startsWith('/api/')) return;
 
+  // Never cache HTML navigation responses — Vite injects the React preamble
+  // dynamically and a cached HTML would be missing it, causing preamble errors.
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request).then(function(response) {
-        var responseClone = response.clone();
-        caches.open(CACHE_NAME).then(function(cache) {
-          cache.put(event.request, responseClone);
+      fetch(event.request).catch(function() {
+        return new Response('Offline — please check your connection.', {
+          status: 503,
+          headers: { 'Content-Type': 'text/plain' },
         });
-        return response;
-      }).catch(function() {
-        return caches.match('/') || new Response('Offline', { status: 503 });
       })
     );
     return;
