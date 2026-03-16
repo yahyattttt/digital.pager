@@ -49,7 +49,6 @@ function SmartRatingScreen({
 
   function handleStarClick(star: number) {
     setSelectedStars(star);
-
     if (star >= 4 && googleMapsReviewUrl) {
       setPhase("redirecting");
       fetch("/api/store-internal-review", {
@@ -57,12 +56,6 @@ function SmartRatingScreen({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ merchantId, stars: star, comment: "", orderNumber }),
       }).catch(() => {});
-
-      setTimeout(() => {
-        try { fetch(`/api/track/gmaps/${merchantId}`, { method: "POST" }); } catch {}
-        window.open(googleMapsReviewUrl, "_blank");
-        setPhase("done");
-      }, 1500);
     } else if (star >= 4) {
       fetch("/api/store-internal-review", {
         method: "POST",
@@ -73,6 +66,12 @@ function SmartRatingScreen({
     } else {
       setPhase("feedback");
     }
+  }
+
+  function handleConfirmMapsRedirect() {
+    try { fetch(`/api/track/gmaps/${merchantId}`, { method: "POST" }); } catch {}
+    window.open(googleMapsReviewUrl, "_blank");
+    setPhase("done");
   }
 
   async function handleSubmitFeedback() {
@@ -242,24 +241,44 @@ function SmartRatingScreen({
 
         {phase === "redirecting" && (
           <div className="flex flex-col items-center gap-4 w-full animate-in fade-in duration-500">
-            <Card className="w-full bg-[#111] border-white/[0.06] rounded-2xl">
+            <Card className="w-full border-amber-500/20 rounded-2xl" style={{ background: "rgba(251,191,36,0.06)" }}>
               <CardContent className="p-6 flex flex-col items-center gap-4">
-                <div className="flex items-center justify-center gap-2">
+                <div className="flex items-center justify-center gap-1.5">
                   {[1, 2, 3, 4, 5].map((star) => (
                     <Star
                       key={star}
-                      className={`w-8 h-8 ${star <= selectedStars ? "fill-yellow-400 text-yellow-400" : "text-zinc-700"}`}
+                      className={`w-7 h-7 ${star <= selectedStars ? "fill-yellow-400 text-yellow-400" : "text-zinc-700"}`}
                     />
                   ))}
                 </div>
-                <CheckCircle className="w-10 h-10 text-green-500" />
-                <p className="text-white text-base font-bold" dir="rtl" data-testid="text-rating-thankyou">
-                  شكراً لك! جاري تحويلك لجوجل ماب...
-                </p>
-                <p className="text-zinc-400 text-xs" data-testid="text-rating-redirect">
-                  Thank you! Redirecting to Google Maps...
-                </p>
-                <Loader2 className="w-5 h-5 animate-spin text-zinc-400" />
+                <div className="text-center space-y-1">
+                  <p className="text-white text-base font-bold leading-snug" dir="rtl" data-testid="text-rating-thankyou">
+                    شكراً لثقتك! 🌟
+                  </p>
+                  <p className="text-amber-300/80 text-sm leading-relaxed" dir="rtl">
+                    يسعدنا رضاك عن تجربتك — شارك رأيك على جوجل ماب وساعدنا في الوصول لمزيد من العملاء.
+                  </p>
+                  <p className="text-zinc-500 text-xs mt-1">
+                    Thank you! Share your experience on Google Maps.
+                  </p>
+                </div>
+                <button
+                  onClick={handleConfirmMapsRedirect}
+                  data-testid="button-confirm-maps-redirect"
+                  className="w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-95"
+                  style={{ background: "rgba(251,191,36,0.15)", border: "1px solid rgba(251,191,36,0.35)", color: "#fbbf24" }}
+                >
+                  <Star className="w-4 h-4 fill-amber-400" />
+                  <span dir="rtl">شاركنا تجربتك على جوجل ماب</span>
+                </button>
+                <button
+                  onClick={() => setPhase("done")}
+                  className="text-zinc-600 text-xs hover:text-zinc-400 transition-colors"
+                  data-testid="button-skip-maps-redirect"
+                >
+                  {/* skip */}
+                  تخطي
+                </button>
               </CardContent>
             </Card>
           </div>
@@ -364,11 +383,6 @@ function DeliveryTrackingView({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ merchantId, stars: star, comment: "", orderNumber: order.orderNumber }),
       }).catch(() => {});
-      setTimeout(() => {
-        try { fetch(`/api/track/gmaps/${merchantId}`, { method: "POST" }); } catch {}
-        window.open(merchant!.googleMapsReviewUrl!, "_blank");
-        setRatingPhase("done");
-      }, 1500);
     } else if (star >= 4) {
       fetch("/api/store-internal-review", {
         method: "POST",
@@ -379,6 +393,12 @@ function DeliveryTrackingView({
     } else {
       setRatingPhase("feedback");
     }
+  }
+
+  function handleConfirmMapsRedirectOnline() {
+    try { fetch(`/api/track/gmaps/${merchantId}`, { method: "POST" }); } catch {}
+    window.open(merchant!.googleMapsReviewUrl!, "_blank");
+    setRatingPhase("done");
   }
 
   async function handleSubmitFeedback() {
@@ -607,11 +627,35 @@ function DeliveryTrackingView({
 
         {showRating && ratingPhase === "redirecting" && (
           <div className="w-full animate-in fade-in duration-500">
-            <Card className="w-full bg-[#111] border-white/[0.06] rounded-2xl">
+            <Card className="w-full border-amber-500/20 rounded-2xl" style={{ background: "rgba(251,191,36,0.06)" }}>
               <CardContent className="p-5 flex flex-col items-center gap-3">
-                <CheckCircle className="w-10 h-10 text-green-500" />
-                <p className="text-white text-sm font-bold" dir="rtl">شكراً لك! جاري تحويلك لجوجل ماب...</p>
-                <Loader2 className="w-5 h-5 animate-spin text-zinc-400" />
+                <div className="flex items-center justify-center gap-1">
+                  {[1, 2, 3, 4, 5].map((s) => (
+                    <Star key={s} className={`w-6 h-6 ${s <= selectedStars ? "fill-yellow-400 text-yellow-400" : "text-zinc-700"}`} />
+                  ))}
+                </div>
+                <div className="text-center space-y-1">
+                  <p className="text-white text-sm font-bold" dir="rtl" data-testid="text-rating-thankyou">شكراً لثقتك! 🌟</p>
+                  <p className="text-amber-300/70 text-xs leading-relaxed" dir="rtl">
+                    يسعدنا رضاك — شارك تجربتك على جوجل ماب وساعدنا في الوصول لمزيد من العملاء.
+                  </p>
+                </div>
+                <button
+                  onClick={handleConfirmMapsRedirectOnline}
+                  data-testid="button-confirm-maps-redirect-online"
+                  className="w-full py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-95"
+                  style={{ background: "rgba(251,191,36,0.15)", border: "1px solid rgba(251,191,36,0.35)", color: "#fbbf24" }}
+                >
+                  <Star className="w-4 h-4 fill-amber-400" />
+                  <span dir="rtl">شاركنا تجربتك على جوجل ماب</span>
+                </button>
+                <button
+                  onClick={() => setRatingPhase("done")}
+                  className="text-zinc-600 text-xs hover:text-zinc-400 transition-colors"
+                  data-testid="button-skip-maps-redirect-online"
+                >
+                  تخطي
+                </button>
               </CardContent>
             </Card>
           </div>

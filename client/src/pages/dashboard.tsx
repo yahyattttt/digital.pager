@@ -102,6 +102,7 @@ import {
   Hash,
   Receipt,
   CalendarDays,
+  ExternalLink,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import ArchiveView from "@/pages/order-archive";
@@ -5281,6 +5282,7 @@ function SettingsView({
   const [ownerPhoneEdit, setOwnerPhoneEdit] = useState<string>((merchant as any)?.ownerPhone || "");
   const [crNumberEdit, setCrNumberEdit] = useState<string>((merchant as any)?.commercialRegisterNumber || "");
   const [taxNumberEdit, setTaxNumberEdit] = useState<string>((merchant as any)?.taxNumber || "");
+  const [googleMapsUrlEdit, setGoogleMapsUrlEdit] = useState<string>((merchant as any)?.googleMapsReviewUrl || "");
 
   useEffect(() => {
     setStoreNameEdit(merchant?.storeName || "");
@@ -5289,7 +5291,8 @@ function SettingsView({
     setOwnerPhoneEdit((merchant as any)?.ownerPhone || "");
     setCrNumberEdit((merchant as any)?.commercialRegisterNumber || "");
     setTaxNumberEdit((merchant as any)?.taxNumber || "");
-  }, [merchant?.storeName, merchant?.whatsappNumber, merchant?.logoUrl, (merchant as any)?.ownerPhone, (merchant as any)?.commercialRegisterNumber, (merchant as any)?.taxNumber]);
+    setGoogleMapsUrlEdit((merchant as any)?.googleMapsReviewUrl || "");
+  }, [merchant?.storeName, merchant?.whatsappNumber, merchant?.logoUrl, (merchant as any)?.ownerPhone, (merchant as any)?.commercialRegisterNumber, (merchant as any)?.taxNumber, (merchant as any)?.googleMapsReviewUrl]);
 
   async function compressImage(file: File, maxDimension = 1024, quality = 0.88): Promise<File> {
     return new Promise((resolve) => {
@@ -5407,6 +5410,7 @@ function SettingsView({
         ownerPhone: ownerPhoneEdit.trim(),
         commercialRegisterNumber: crNumberEdit.trim(),
         taxNumber: taxNumberEdit.trim(),
+        googleMapsReviewUrl: googleMapsUrlEdit.trim(),
       }, { merge: true });
       toast({
         title: t("تم الحفظ", "Saved"),
@@ -5662,6 +5666,46 @@ function SettingsView({
                     />
                   </div>
                 </div>
+              </div>
+            </div>
+
+            {/* ── Google Maps Review Link ── */}
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center gap-2 pb-1 border-b border-white/[0.06]">
+                <Star className="w-4 h-4 text-amber-400" />
+                <h4 className="text-sm font-semibold text-white/80">{t("رابط تقييم جوجل ماب", "Google Maps Review Link")}</h4>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">{t("رابط صفحة تقييمك على جوجل ماب", "Your Google Maps review page URL")}</label>
+                <div className="relative">
+                  <MapPin className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-amber-400/60" />
+                  <Input
+                    value={googleMapsUrlEdit}
+                    onChange={(e) => setGoogleMapsUrlEdit(e.target.value)}
+                    placeholder="https://maps.google.com/..."
+                    dir="ltr"
+                    className="pr-9 h-11 bg-white/[0.03] border-white/10 font-mono text-sm placeholder:text-white/20"
+                    data-testid="input-google-maps-url"
+                  />
+                </div>
+                <p className="text-[11px] leading-relaxed" dir="rtl" style={{ color: "rgba(251,191,36,0.5)" }}>
+                  {t(
+                    "⭐ عند تقييم العملاء بـ 4 أو 5 نجوم، سيتم تحويلهم تلقائياً لهذا الرابط لمشاركة تجربتهم على جوجل ماب. التقييمات 1-3 نجوم تُحفظ داخلياً فقط.",
+                    "⭐ When customers rate 4 or 5 stars, they are automatically redirected here to share their experience on Google Maps. Ratings of 1-3 stars are saved internally only."
+                  )}
+                </p>
+                {googleMapsUrlEdit && (
+                  <a
+                    href={googleMapsUrlEdit}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 text-[11px] text-amber-400/70 hover:text-amber-400 transition-colors"
+                    data-testid="link-test-maps-url"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                    {t("اختبار الرابط", "Test link")}
+                  </a>
+                )}
               </div>
             </div>
 
