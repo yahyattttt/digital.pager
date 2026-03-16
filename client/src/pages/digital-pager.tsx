@@ -197,6 +197,7 @@ export default function DigitalPagerPage() {
   const [carPlate, setCarPlate] = useState("");
   const [curbsideSending, setCurbsideSending] = useState(false);
   const [curbsideDone, setCurbsideDone] = useState(false);
+  const [isStoreActive, setIsStoreActive] = useState<boolean | null>(null);
   const orderNumberToastedRef = useRef(false);
 
   const prevStatusRef = useRef<OrderStatus>("processing");
@@ -238,8 +239,10 @@ export default function DigitalPagerPage() {
         if (data?.storeName) setMerchantName(data.storeName);
         if (data?.logoUrl) setMerchantLogo(data.logoUrl);
         if (data?.curbsideEnabled) setCurbsideEnabled(true);
+        // null means still loading; false means store is paused
+        setIsStoreActive(data?.isStoreActive !== false);
       })
-      .catch(() => {});
+      .catch(() => { setIsStoreActive(true); });
   }, [merchantId]);
 
   useEffect(() => {
@@ -478,6 +481,40 @@ export default function DigitalPagerPage() {
           لم يتم العثور على الطلب
         </p>
         <p className="text-red-900/30 text-sm text-center">Order not found</p>
+      </div>
+    );
+  }
+
+  if (isStoreActive === false) {
+    return (
+      <div
+        className="h-[100dvh] flex flex-col items-center justify-center gap-6 px-6"
+        style={{ background: bg, fontFamily: "'Tajawal','Cairo',sans-serif" }}
+        data-testid="screen-store-paused"
+      >
+        {merchantLogo && (
+          <img src={merchantLogo} alt="" className="w-20 h-20 rounded-2xl object-cover opacity-40" />
+        )}
+        <div
+          className="w-20 h-20 rounded-full flex items-center justify-center"
+          style={{ background: "rgba(80,0,0,0.4)", border: "2px solid rgba(180,0,0,0.3)" }}
+        >
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="rgba(200,50,50,0.8)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
+          </svg>
+        </div>
+        <div className="text-center space-y-2">
+          <p className="text-xl font-bold text-red-400/90" data-testid="text-store-paused-ar">
+            عذراً، المتجر متوقف حالياً
+          </p>
+          <p className="text-sm text-white/30" data-testid="text-store-paused-en">
+            This store is currently unavailable
+          </p>
+        </div>
+        {merchantName && (
+          <p className="text-xs text-white/20">{merchantName}</p>
+        )}
       </div>
     );
   }

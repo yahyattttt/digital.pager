@@ -1221,6 +1221,16 @@ export default function DashboardPage() {
 
   const effectiveSubscriptionStatus = merchant.subscriptionStatus || "pending";
 
+  // Check if subscription has expired by date (status still "active" in Firestore but date passed)
+  const subscriptionExpiryDate = merchant.subscriptionExpiry ? new Date(merchant.subscriptionExpiry) : null;
+  const isExpiredByDate = subscriptionExpiryDate !== null && subscriptionExpiryDate < new Date();
+  const daysUntilExpiry = subscriptionExpiryDate
+    ? Math.ceil((subscriptionExpiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+    : null;
+  const isExpiringSoon = daysUntilExpiry !== null && daysUntilExpiry >= 0 && daysUntilExpiry <= 7;
+  // A merchant is "subscription-locked" (date expired but still marked active in Firestore)
+  const isSubscriptionExpiredByDate = effectiveSubscriptionStatus === "active" && isExpiredByDate;
+
   if (effectiveSubscriptionStatus !== "active") {
     return (
       <SubscriptionRequiredScreen
@@ -1437,24 +1447,32 @@ export default function DashboardPage() {
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = currentView === item.id;
+              const isLocked = isSubscriptionExpiredByDate && item.id !== "subscription";
               return (
                 <button
                   key={item.id}
                   onClick={() => {
+                    if (isLocked) { setCurrentView("subscription"); setSidebarOpen(false); return; }
                     setCurrentView(item.id);
                     setSidebarOpen(false);
                   }}
                   aria-current={isActive ? "page" : undefined}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                    isActive
+                    isLocked
+                      ? "text-white/20 cursor-not-allowed"
+                      : isActive
                       ? "bg-primary/10 text-primary"
                       : "text-muted-foreground hover:text-foreground hover:bg-white/[0.04]"
                   }`}
                   data-testid={`nav-${item.id}`}
                 >
-                  <Icon className="w-[18px] h-[18px] flex-shrink-0" />
+                  {isLocked ? (
+                    <Lock className="w-[18px] h-[18px] flex-shrink-0 opacity-40" />
+                  ) : (
+                    <Icon className="w-[18px] h-[18px] flex-shrink-0" />
+                  )}
                   <span className="flex-1 text-start">{item.label}</span>
-                  {item.badge !== undefined && item.badge > 0 && (
+                  {!isLocked && item.badge !== undefined && item.badge > 0 && (
                     <Badge
                       className={`h-5 min-w-[20px] px-1.5 text-[10px] font-bold ${
                         item.id === "feedback"
@@ -1483,6 +1501,59 @@ export default function DashboardPage() {
         </aside>
 
         <main className="flex-1 overflow-y-auto bg-[#0a0a0a]">
+          {/* Subscription Expired Banner — kill-switch for expired subscriptions */}
+          {isSubscriptionExpiredByDate && (
+            <div className="mx-4 mt-4 md:mx-6 rounded-xl border-2 border-red-600/60 bg-red-600/10 p-4 flex items-start gap-3" data-testid="banner-subscription-expired">
+              <div className="w-8 h-8 rounded-lg bg-red-600/20 flex items-center justify-center shrink-0 mt-0.5">
+                <Lock className="w-4 h-4 text-red-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-red-400">
+                  {t("انتهى اشتراكك — المتجر متوقف حالياً", "Subscription Expired — Store is Paused")}
+                </p>
+                <p className="text-xs text-white/60 mt-1">
+                  {t(
+                    "انتهى تاريخ صلاحية اشتراكك. يرجى تجديد الاشتراك لاستئناف الخدمة.",
+                    "Your subscription has expired. Please renew to resume service."
+                  )}
+                </p>
+              </div>
+              <button
+                onClick={() => setCurrentView("subscription")}
+                className="shrink-0 text-xs font-bold text-red-300 border border-red-600/40 px-3 py-1.5 rounded-lg hover:bg-red-600/20 transition-colors whitespace-nowrap"
+                data-testid="btn-renew-subscription"
+              >
+                {t("تجديد الاشتراك", "Renew Now")}
+              </button>
+            </div>
+          )}
+
+          {/* Expiring Soon Banner — 7-day countdown */}
+          {isExpiringSoon && !isSubscriptionExpiredByDate && (
+            <div className="mx-4 mt-4 md:mx-6 rounded-xl border border-amber-500/40 bg-amber-500/8 p-4 flex items-start gap-3" data-testid="banner-expiring-soon">
+              <div className="w-8 h-8 rounded-lg bg-amber-500/15 flex items-center justify-center shrink-0 mt-0.5">
+                <CalendarDays className="w-4 h-4 text-amber-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-amber-400">
+                  {daysUntilExpiry === 0
+                    ? t("تنبيه: اشتراكك ينتهي اليوم!", "Alert: Your subscription expires today!")
+                    : t(`تنبيه: اشتراكك ينتهي خلال ${daysUntilExpiry} أيام`, `Alert: Your subscription expires in ${daysUntilExpiry} days`)}
+                </p>
+                <p className="text-xs text-white/50 mt-0.5">
+                  {t("يرجى التجديد لضمان استمرار الخدمة", "Please renew to ensure service continuity")}
+                </p>
+              </div>
+              <button
+                onClick={() => setCurrentView("subscription")}
+                className="shrink-0 text-xs font-bold text-amber-300 border border-amber-500/40 px-3 py-1.5 rounded-lg hover:bg-amber-500/15 transition-colors whitespace-nowrap"
+                data-testid="btn-renew-expiring"
+              >
+                {t("تجديد", "Renew")}
+              </button>
+            </div>
+          )}
+
           {/* Rejection Banner — shown on all views when subscription request is rejected */}
           {(merchant as any).subscriptionRequestStatus === "rejected" && (
             <div className="mx-4 mt-4 md:mx-6 rounded-xl border-2 border-red-500/50 bg-red-500/10 p-4 flex items-start gap-3" data-testid="banner-rejection-dashboard">
@@ -1510,7 +1581,30 @@ export default function DashboardPage() {
           )}
 
           <div className="p-4 md:p-6 max-w-6xl mx-auto">
-            {currentView === "overview" && (
+            {/* Subscription expiry content lock — force subscription view when expired */}
+            {isSubscriptionExpiredByDate && currentView !== "subscription" && (
+              <div className="flex flex-col items-center justify-center py-24 gap-6 text-center">
+                <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+                  <Lock className="w-7 h-7 text-red-400" />
+                </div>
+                <div>
+                  <p className="text-base font-bold text-white/80">
+                    {t("الوصول مقيد بسبب انتهاء الاشتراك", "Access restricted due to expired subscription")}
+                  </p>
+                  <p className="text-sm text-white/40 mt-1">
+                    {t("يمكنك فقط الوصول إلى صفحة الاشتراك لتجديد خطتك", "You can only access the subscription page to renew your plan")}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setCurrentView("subscription")}
+                  className="px-6 py-2.5 rounded-xl bg-primary text-black font-bold text-sm hover:bg-primary/90 transition-colors"
+                  data-testid="btn-goto-subscription-locked"
+                >
+                  {t("اذهب إلى صفحة الاشتراك", "Go to Subscription")}
+                </button>
+              </div>
+            )}
+            {currentView === "overview" && !isSubscriptionExpiredByDate && (
               <OverviewView
                 merchant={merchant}
                 waitingPagers={waitingPagers}
@@ -1557,11 +1651,11 @@ export default function DashboardPage() {
               />
             )}
 
-            {currentView === "menu" && (
+            {!isSubscriptionExpiredByDate && currentView === "menu" && (
               <MenuView merchant={merchant} t={t} lang={lang} />
             )}
 
-            {currentView === "feedback" && (
+            {!isSubscriptionExpiredByDate && currentView === "feedback" && (
               <FeedbackView
                 feedbacks={feedbacks}
                 feedbackLoading={feedbackLoading}
@@ -1573,7 +1667,7 @@ export default function DashboardPage() {
               />
             )}
 
-            {currentView === "analytics" && (
+            {!isSubscriptionExpiredByDate && currentView === "analytics" && (
               <AnalyticsView
                 merchant={merchant}
                 waitingPagers={waitingPagers}
@@ -1586,23 +1680,23 @@ export default function DashboardPage() {
               />
             )}
 
-            {currentView === "tracking" && (
+            {!isSubscriptionExpiredByDate && currentView === "tracking" && (
               <TrackingView merchant={merchant} t={t} lang={lang} />
             )}
 
-            {currentView === "customers" && (
+            {!isSubscriptionExpiredByDate && currentView === "customers" && (
               <CustomersView merchant={merchant} t={t} lang={lang} />
             )}
 
-            {currentView === "coupons" && (
+            {!isSubscriptionExpiredByDate && currentView === "coupons" && (
               <CouponsView merchant={merchant} t={t} lang={lang} />
             )}
 
-            {currentView === "financial" && (
+            {!isSubscriptionExpiredByDate && currentView === "financial" && (
               <FinancialView merchant={merchant} t={t} lang={lang} />
             )}
 
-            {currentView === "archive" && (
+            {!isSubscriptionExpiredByDate && currentView === "archive" && (
               <ArchiveView
                 merchant={merchant}
                 t={t}

@@ -3689,12 +3689,30 @@ export async function registerRoutes(
       const mDoc = await mRes.json();
       const mf = mDoc.fields || {};
 
+      const subStatus = mf.subscriptionStatus?.stringValue || "pending";
+      const subExpiry = mf.subscriptionExpiry?.stringValue || null;
+      const merchantStatus = mf.status?.stringValue || "pending";
+
+      // Compute whether the store is currently live:
+      // must be approved + subscriptionStatus active + expiry in the future
+      const now = new Date();
+      const expiryDate = subExpiry ? new Date(subExpiry) : null;
+      const isStoreActive =
+        merchantStatus === "approved" &&
+        subStatus === "active" &&
+        expiryDate !== null &&
+        expiryDate > now;
+
       return res.json({
         storeName: mf.storeName?.stringValue || "",
         logoUrl: mf.logoUrl?.stringValue || "",
         googleMapsReviewUrl: mf.googleMapsReviewUrl?.stringValue || "",
         curbsideEnabled: mf.curbsideEnabled?.booleanValue === true,
         driverPhone: mf.driverPhone?.stringValue || "",
+        subscriptionStatus: subStatus,
+        subscriptionExpiry: subExpiry,
+        status: merchantStatus,
+        isStoreActive,
       });
     } catch (error) {
       console.error("Merchant public fetch error:", error);

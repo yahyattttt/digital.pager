@@ -106,6 +106,23 @@ export default function SubscriptionView({ merchant, t, lang }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [resubmitMode, setResubmitMode] = useState(false);
+  const prevSubscriptionStatusRef = useRef<string>(merchant.subscriptionStatus || "pending");
+
+  // Show success toast when admin activates the plan (real-time onSnapshot update)
+  useEffect(() => {
+    const prev = prevSubscriptionStatusRef.current;
+    const current = merchant.subscriptionStatus || "pending";
+    if (prev !== "active" && current === "active") {
+      toast({
+        title: t("🎉 تم تفعيل اشتراكك بنجاح!", "🎉 Subscription activated!"),
+        description: t(
+          "مرحباً بك! متجرك الآن نشط ويمكنك استخدام جميع الميزات.",
+          "Welcome! Your store is now active and all features are unlocked."
+        ),
+      });
+    }
+    prevSubscriptionStatusRef.current = current;
+  }, [merchant.subscriptionStatus]);
 
   const referralLink = `${window.location.origin}/register?ref=${merchant.uid}`;
   const isRejected = merchant.subscriptionRequestStatus === "rejected" && !resubmitMode;
@@ -228,22 +245,77 @@ export default function SubscriptionView({ merchant, t, lang }: Props) {
         </div>
       )}
 
-      {/* Active Subscription Status */}
-      {isAlreadyActive && (
-        <div className="flex items-center gap-3 p-4 rounded-xl border border-green-500/40 bg-green-500/10">
-          <CheckCircle2 className="w-5 h-5 text-green-400 shrink-0" />
-          <div>
-            <p className="text-sm font-semibold text-green-400">
-              {t("اشتراكك نشط", "Your subscription is active")}
-            </p>
-            {merchant.subscriptionExpiry && (
-              <p className="text-xs text-green-400/70 mt-0.5">
-                {t("ينتهي في", "Expires")} {new Date(merchant.subscriptionExpiry).toLocaleDateString(lang === "ar" ? "ar-SA" : "en-US")}
-              </p>
+      {/* Active Subscription Status Card */}
+      {isAlreadyActive && (() => {
+        const activePlan = PLANS.find(p => p.id === merchant.plan) || PLANS[0];
+        const expiryDate = merchant.subscriptionExpiry ? new Date(merchant.subscriptionExpiry) : null;
+        const msLeft = expiryDate ? expiryDate.getTime() - Date.now() : null;
+        const daysLeft = msLeft !== null ? Math.max(0, Math.ceil(msLeft / (1000 * 60 * 60 * 24))) : null;
+        const isExpiredCard = expiryDate !== null && expiryDate < new Date();
+        const progressPct = (() => {
+          if (!merchant.subscriptionStartAt || !expiryDate) return 0;
+          const totalMs = expiryDate.getTime() - new Date(merchant.subscriptionStartAt).getTime();
+          const elapsedMs = Date.now() - new Date(merchant.subscriptionStartAt).getTime();
+          return Math.max(0, Math.min(100, (elapsedMs / totalMs) * 100));
+        })();
+        const PlanIcon = activePlan.icon;
+        return (
+          <div className={`rounded-2xl border p-5 space-y-4 ${isExpiredCard ? "border-red-500/40 bg-red-500/5" : "border-green-500/30 bg-green-500/5"}`} data-testid="card-active-subscription">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br ${activePlan.color}`}>
+                  <PlanIcon className={`w-5 h-5 ${activePlan.accentColor}`} />
+                </div>
+                <div>
+                  <p className="text-xs text-white/40 uppercase tracking-wider">{t("الباقة الحالية", "Current Plan")}</p>
+                  <p className="text-base font-bold text-white" data-testid="text-current-plan-name">
+                    {lang === "ar" ? activePlan.nameAr : activePlan.nameEn}
+                  </p>
+                </div>
+              </div>
+              {isExpiredCard ? (
+                <span className="text-xs font-bold text-red-400 border border-red-500/30 bg-red-500/10 px-2.5 py-1 rounded-lg" data-testid="badge-expired">
+                  {t("منتهي", "Expired")}
+                </span>
+              ) : (
+                <span className="text-xs font-bold text-green-400 border border-green-500/30 bg-green-500/10 px-2.5 py-1 rounded-lg" data-testid="badge-active">
+                  {t("نشط", "Active")}
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-xl bg-black/20 border border-white/[0.06] p-3">
+                <p className="text-[10px] text-white/40 uppercase tracking-wider mb-1">{t("تاريخ الانتهاء", "Expiry Date")}</p>
+                <p className={`text-sm font-bold ${isExpiredCard ? "text-red-400" : "text-white"}`} data-testid="text-expiry-date">
+                  {expiryDate ? expiryDate.toLocaleDateString(lang === "ar" ? "ar-SA" : "en-US", { year: "numeric", month: "short", day: "numeric" }) : "—"}
+                </p>
+              </div>
+              <div className="rounded-xl bg-black/20 border border-white/[0.06] p-3">
+                <p className="text-[10px] text-white/40 uppercase tracking-wider mb-1">{t("الأيام المتبقية", "Days Remaining")}</p>
+                <p className={`text-sm font-bold ${isExpiredCard ? "text-red-400" : daysLeft !== null && daysLeft <= 7 ? "text-amber-400" : "text-emerald-400"}`} data-testid="text-days-remaining">
+                  {isExpiredCard ? t("انتهى", "Expired") : daysLeft !== null ? `${daysLeft} ${t("يوم", "days")}` : "—"}
+                </p>
+              </div>
+            </div>
+
+            {!isExpiredCard && expiryDate && (
+              <div className="space-y-1.5">
+                <div className="flex justify-between text-[10px] text-white/30">
+                  <span>{t("المدة المستهلكة", "Elapsed")}</span>
+                  <span>{Math.round(progressPct)}%</span>
+                </div>
+                <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${progressPct > 80 ? "bg-amber-500" : "bg-emerald-500"}`}
+                    style={{ width: `${progressPct}%` }}
+                  />
+                </div>
+              </div>
             )}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Rejection Banner */}
       {isRejected && (
