@@ -335,20 +335,19 @@ export default function StorePagerPage() {
 
   const handleShare = useCallback(async () => {
     const label = merchant?.storeName || "";
-    const num = selectedPager?.displayOrderId || "";
-    const text = `متابعة طلبي ${num} من ${label}`;
+    const text = `خلك معي في اللحظة! 🍔 شوف طلبي في ${label} وهو يجهز الآن على الطاولة.. عقبالك!`;
     const url = window.location.href;
     if (navigator.share) {
       try { await navigator.share({ title: text, text, url }); } catch {}
     } else {
       try {
         await navigator.clipboard.writeText(`${text}\n${url}`);
-        toast({ title: "تم نسخ الرابط" });
+        toast({ title: "تم نسخ رابط اللحظة! شاركه مع من تحب 💛" });
       } catch {
         toast({ title: "خطأ", description: "تعذر نسخ الرابط", variant: "destructive" });
       }
     }
-  }, [merchant, selectedPager, toast]);
+  }, [merchant, toast]);
 
   async function handleSubmitFeedback() {
     if (!selectedPager || !storeId || rating === 0) return;
@@ -509,21 +508,23 @@ export default function StorePagerPage() {
         </div>
 
         <div className="w-full max-w-xs space-y-3">
-          <button
-            onClick={handleShare}
-            className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl border border-red-500/20 bg-gradient-to-r from-red-950/30 via-red-900/15 to-red-950/30 active:scale-[0.97] transition-all duration-200"
-            style={{ boxShadow: "0 0 15px rgba(255,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.03)" }}
-            data-testid="button-share"
-          >
-            {navigator.share ? (
-              <Share2 className="w-5 h-5 text-red-400/80" />
-            ) : (
-              <Copy className="w-5 h-5 text-red-400/80" />
-            )}
-            <span className="text-red-400/90 text-base font-bold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
-              مشاركة مع الأحباب 🔗
-            </span>
-          </button>
+          {selectedPager?.orderSource === "manual" && (
+            <button
+              onClick={handleShare}
+              className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl active:scale-[0.97] transition-all duration-200"
+              style={{
+                background: "linear-gradient(135deg, rgba(234,179,8,0.08) 0%, rgba(251,191,36,0.05) 50%, rgba(234,179,8,0.08) 100%)",
+                border: "1.5px solid rgba(251,191,36,0.45)",
+                boxShadow: "0 0 18px rgba(251,191,36,0.18), 0 0 6px rgba(251,191,36,0.10), inset 0 1px 0 rgba(255,255,255,0.04)",
+              }}
+              data-testid="button-share"
+            >
+              <Share2 className="w-5 h-5" style={{ color: "#fbbf24" }} />
+              <span className="text-base font-black" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif", color: "#fde68a" }}>
+                شاركهم اللحظة ✨
+              </span>
+            </button>
+          )}
 
           {!bellPrimed ? (
             <button
