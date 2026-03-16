@@ -161,6 +161,33 @@ async function apikeyFetch(url: string, options: RequestInit = {}): Promise<Resp
   return fetch(`${url}${sep}key=${apiKey}`, options);
 }
 
+function todayDateString(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+async function incrementDailyTracking(storeId: string, fieldName: string, dateStr?: string): Promise<void> {
+  try {
+    const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
+    const apiKey = getApiKey();
+    if (!projectId || !apiKey) return;
+    const date = dateStr || todayDateString();
+    const commitUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:commit?key=${apiKey}`;
+    const docPath = `projects/${projectId}/databases/(default)/documents/merchants/${storeId}/dailyTracking/${date}`;
+    await fetch(commitUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        writes: [
+          { transform: { document: docPath, fieldTransforms: [{ fieldPath: fieldName, increment: { integerValue: "1" } }] } },
+          { update: { name: docPath, fields: { date: { stringValue: date }, merchantId: { stringValue: storeId } } }, updateMask: { fieldPaths: ["date", "merchantId"] } },
+        ],
+      }),
+    });
+  } catch (e) {
+    console.error("[dailyTracking] increment error:", e);
+  }
+}
+
 async function generateOnlineOrderId(merchantId: string, _accessToken?: string, _baseUrl?: string): Promise<{ orderNumber: string; currentYY: string }> {
   const baseUrl = getApiKeyBaseUrl();
   if (!baseUrl) throw new Error("Firestore not configured");
@@ -1121,6 +1148,7 @@ export async function registerRoutes(
         }),
       });
 
+      incrementDailyTracking(storeId, "googleMapsClicks").catch(() => {});
       return res.json({ success: true });
     } catch (error) {
       console.error("Track gmaps error:", error);
@@ -1154,6 +1182,7 @@ export async function registerRoutes(
         }),
       });
 
+      incrementDailyTracking(storeId, "qrScans").catch(() => {});
       return res.json({ success: true });
     } catch (error) {
       console.error("Track QR scan error:", error);
@@ -1173,6 +1202,7 @@ export async function registerRoutes(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ writes: [{ transform: { document: docPath, fieldTransforms: [{ fieldPath: "linkVisits", increment: { integerValue: "1" } }] } }] }),
       });
+      incrementDailyTracking(storeId, "linkVisits").catch(() => {});
       return res.json({ success: true });
     } catch { return res.status(500).json({ message: "Failed to track link visit" }); }
   });
@@ -1189,6 +1219,7 @@ export async function registerRoutes(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ writes: [{ transform: { document: docPath, fieldTransforms: [{ fieldPath: "cartSessions", increment: { integerValue: "1" } }] } }] }),
       });
+      incrementDailyTracking(storeId, "cartSessions").catch(() => {});
       return res.json({ success: true });
     } catch { return res.status(500).json({ message: "Failed to track session start" }); }
   });
@@ -1205,6 +1236,7 @@ export async function registerRoutes(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ writes: [{ transform: { document: docPath, fieldTransforms: [{ fieldPath: "completedOrders", increment: { integerValue: "1" } }] } }] }),
       });
+      incrementDailyTracking(storeId, "completedOrders").catch(() => {});
       return res.json({ success: true });
     } catch { return res.status(500).json({ message: "Failed to track order completed" }); }
   });
@@ -1234,6 +1266,62 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Merchant tracking error:", error);
       return res.status(500).json({ message: "Failed to get tracking data" });
+    }
+  });
+
+  app.get("/api/merchant-tracking/:merchantId/range", async (req, res) => {
+    try {
+      const { merchantId } = req.params;
+      const merchantEmail = req.headers["x-merchant-email"] as string;
+      if (!merchantEmail) return res.status(401).json({ message: "Authentication required" });
+
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
+
+      const mRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}`, { headers: {} });
+      if (!mRes.ok) return res.status(404).json({ message: "Merchant not found" });
+      const mDoc = await mRes.json();
+      const mEmail = mDoc.fields?.email?.stringValue || "";
+      if (mEmail !== merchantEmail) return res.status(403).json({ message: "Unauthorized" });
+
+      const { startDate, endDate } = req.query as { startDate?: string; endDate?: string };
+      if (!startDate || !endDate) return res.status(400).json({ message: "startDate and endDate required (YYYY-MM-DD)" });
+
+      const dates: string[] = [];
+      const cur = new Date(startDate + "T00:00:00Z");
+      const end = new Date(endDate + "T00:00:00Z");
+      while (cur <= end) {
+        dates.push(cur.toISOString().slice(0, 10));
+        cur.setUTCDate(cur.getUTCDate() + 1);
+      }
+
+      const docs = await Promise.all(
+        dates.map(date =>
+          apikeyFetch(`${baseUrl}/merchants/${merchantId}/dailyTracking/${date}`, { headers: {} })
+            .then(r => (r.ok ? r.json() : null))
+            .catch(() => null)
+        )
+      );
+
+      let linkVisits = 0, qrScans = 0, googleMapsClicks = 0, cartSessions = 0, completedOrders = 0;
+      for (const doc of docs) {
+        if (!doc?.fields) continue;
+        const f = doc.fields;
+        linkVisits      += parseInt(f.linkVisits?.integerValue      || "0");
+        qrScans         += parseInt(f.qrScans?.integerValue         || "0");
+        googleMapsClicks+= parseInt(f.googleMapsClicks?.integerValue|| "0");
+        cartSessions    += parseInt(f.cartSessions?.integerValue     || "0");
+        completedOrders += parseInt(f.completedOrders?.integerValue  || "0");
+      }
+
+      const abandonedCarts = Math.max(0, cartSessions - completedOrders);
+      const totalVisits = linkVisits + qrScans;
+      const conversionRate = totalVisits > 0 ? Math.round((completedOrders / totalVisits) * 100) : 0;
+
+      return res.json({ linkVisits, qrScans, googleMapsClicks, cartSessions, completedOrders, abandonedCarts, conversionRate, isRangeData: true });
+    } catch (error) {
+      console.error("Merchant tracking range error:", error);
+      return res.status(500).json({ message: "Failed to get range tracking data" });
     }
   });
 

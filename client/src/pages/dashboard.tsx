@@ -101,6 +101,7 @@ import {
   ImagePlus,
   Hash,
   Receipt,
+  CalendarDays,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import ArchiveView from "@/pages/order-archive";
@@ -3948,15 +3949,52 @@ function TrackingView({
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  type Period = "thisMonth" | "lastMonth" | "custom";
+  const [period, setPeriod] = useState<Period>("thisMonth");
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
+  const [showCustom, setShowCustom] = useState(false);
+
+  function getMonthRange(offsetMonths: number): { startDate: string; endDate: string } {
+    const now = new Date();
+    const y = now.getUTCFullYear();
+    const m = now.getUTCMonth() + offsetMonths;
+    const start = new Date(Date.UTC(y, m, 1));
+    const end = new Date(Date.UTC(y, m + 1, 0));
+    return {
+      startDate: start.toISOString().slice(0, 10),
+      endDate: end.toISOString().slice(0, 10),
+    };
+  }
+
+  function fetchRange(startDate: string, endDate: string) {
     if (!merchant?.uid) return;
-    fetch(`/api/merchant-tracking/${merchant.uid}`, {
+    setLoading(true);
+    fetch(`/api/merchant-tracking/${merchant.uid}/range?startDate=${startDate}&endDate=${endDate}`, {
       headers: { "x-merchant-email": merchant.email || "" },
     })
       .then(r => r.ok ? r.json() : null)
       .then(d => { setData(d); setLoading(false); })
       .catch(() => setLoading(false));
-  }, [merchant?.uid]);
+  }
+
+  useEffect(() => {
+    if (!merchant?.uid) return;
+    if (period === "thisMonth") {
+      const { startDate, endDate } = getMonthRange(0);
+      fetchRange(startDate, endDate);
+    } else if (period === "lastMonth") {
+      const { startDate, endDate } = getMonthRange(-1);
+      fetchRange(startDate, endDate);
+    }
+  }, [merchant?.uid, period]);
+
+  function applyCustomRange() {
+    if (!customStart || !customEnd) return;
+    if (customStart > customEnd) return;
+    fetchRange(customStart, customEnd);
+    setShowCustom(false);
+  }
 
   const dir = lang === "ar" ? "rtl" : "ltr";
   const linkVisits = data?.linkVisits ?? 0;
@@ -3965,6 +4003,7 @@ function TrackingView({
   const abandonedCarts = data?.abandonedCarts ?? 0;
   const conversionRate = data?.conversionRate ?? 0;
   const googleMapsClicks = data?.googleMapsClicks ?? 0;
+  const isRangeData = data?.isRangeData ?? false;
 
   const topCards = [
     {
@@ -4033,11 +4072,90 @@ function TrackingView({
     </div>
   );
 
+  const periodLabels: Record<string, { ar: string; en: string }> = {
+    thisMonth:  { ar: "هذا الشهر",  en: "This Month"  },
+    lastMonth:  { ar: "الشهر الماضي", en: "Last Month" },
+    custom:     { ar: "مخصص",       en: "Custom"      },
+  };
+
   return (
     <div dir={dir} style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }} className="space-y-4 p-4 max-w-2xl mx-auto">
-      <div>
-        <h2 className="text-xl font-bold text-white">{t("تتبع عملاءك", "Customer Tracking")}</h2>
-        <p className="text-sm text-white/40 mt-0.5">{t("رصد الزيارات والسلوك الشرائي", "Monitor visits and purchase behaviour")}</p>
+
+      {/* ── Header + Filter bar ── */}
+      <div className="flex flex-col gap-3">
+        <div>
+          <h2 className="text-xl font-bold text-white">{t("تتبع عملاءك", "Customer Tracking")}</h2>
+          <p className="text-sm text-white/40 mt-0.5">{t("رصد الزيارات والسلوك الشرائي", "Monitor visits and purchase behaviour")}</p>
+        </div>
+
+        {/* Period filter */}
+        <div className="rounded-xl p-3 flex flex-col gap-2" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+          <div className="flex items-center gap-2 mb-0.5">
+            <CalendarDays className="w-3.5 h-3.5 text-white/40" />
+            <p className="text-xs text-white/40">{t("اختر الفترة الزمنية", "Select time period")}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {(["thisMonth", "lastMonth", "custom"] as const).map(p => (
+              <button
+                key={p}
+                data-testid={`period-btn-${p}`}
+                onClick={() => {
+                  setPeriod(p);
+                  if (p === "custom") setShowCustom(true);
+                }}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                style={period === p
+                  ? { background: "rgba(239,68,68,0.18)", border: "1px solid rgba(239,68,68,0.45)", color: "#fca5a5" }
+                  : { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)", color: "rgba(255,255,255,0.5)" }
+                }
+              >
+                {lang === "ar" ? periodLabels[p].ar : periodLabels[p].en}
+              </button>
+            ))}
+          </div>
+
+          {/* Custom range inputs */}
+          {(period === "custom" || showCustom) && (
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <input
+                type="date"
+                value={customStart}
+                onChange={e => setCustomStart(e.target.value)}
+                data-testid="input-custom-start"
+                className="rounded-lg px-3 py-1.5 text-xs text-white/80 outline-none"
+                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)" }}
+              />
+              <span className="text-white/30 text-xs">—</span>
+              <input
+                type="date"
+                value={customEnd}
+                onChange={e => setCustomEnd(e.target.value)}
+                data-testid="input-custom-end"
+                className="rounded-lg px-3 py-1.5 text-xs text-white/80 outline-none"
+                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)" }}
+              />
+              <button
+                onClick={applyCustomRange}
+                data-testid="btn-apply-range"
+                disabled={!customStart || !customEnd || customStart > customEnd}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-30"
+                style={{ background: "rgba(239,68,68,0.2)", border: "1px solid rgba(239,68,68,0.4)", color: "#fca5a5" }}
+              >
+                {t("تطبيق", "Apply")}
+              </button>
+            </div>
+          )}
+
+          {/* Period label chip */}
+          {!loading && data && (
+            <p className="text-[10px] text-white/25 mt-0.5">
+              {isRangeData
+                ? t("بيانات الفترة المحددة فقط (منذ تفعيل التتبع اليومي)", "Data for selected period only (since daily tracking activation)")
+                : t("إجمالي كل الأوقات", "All-time totals")
+              }
+            </p>
+          )}
+        </div>
       </div>
 
       {loading ? (
