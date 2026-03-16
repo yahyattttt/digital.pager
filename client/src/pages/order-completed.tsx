@@ -224,7 +224,9 @@ export default function OrderCompletedPage() {
 
   const showMapsButton =
     googleMapsReviewUrl &&
-    (order?.diningType === "dine_in" || order?.diningType === "takeaway");
+    (order?.diningType === "dine_in" ||
+      order?.diningType === "takeaway" ||
+      orderType === "manual");
 
   if (loading) {
     return (
@@ -366,9 +368,16 @@ export default function OrderCompletedPage() {
         )}
       </div>
 
-      {/* Google Maps Review Button — only for dine-in and takeaway */}
+      {/* Google Maps Review Button — dine-in, takeaway, and manual table orders */}
       {showMapsButton && (
-        <div className="w-full max-w-sm mb-4">
+        <div className="w-full max-w-sm mb-4 space-y-2">
+          <p
+            className="text-center text-xs font-medium"
+            dir="rtl"
+            style={{ color: "rgba(212,160,23,0.65)", fontFamily: "'Tajawal','Cairo',sans-serif" }}
+          >
+            رأيك يهمنا لتحسين خدمتنا
+          </p>
           <button
             onClick={handleGoogleMapsClick}
             data-testid="btn-google-maps-review"
