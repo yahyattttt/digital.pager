@@ -219,13 +219,13 @@ export default function DigitalPagerPage() {
 
   useEffect(() => {
     if (!merchantName) return;
-    const title = `${merchantName} - تابع حالة الطلب`;
-    document.title = title;
+    const cleanUrl = `${window.location.origin}${window.location.pathname}?m=${merchantId}`;
+    document.title = merchantName;
     const setMeta = (sel: string, val: string) => {
       const el = document.querySelector(sel);
       if (el) el.setAttribute("content", val);
     };
-    setMeta('meta[property="og:title"]', title);
+    setMeta('meta[property="og:title"]', merchantName);
     setMeta('meta[property="og:description"]', "تابع طلبي معك ولا تنسى تذكرني 🍔✨");
     if (merchantLogo) {
       const host = window.location.origin;
@@ -233,11 +233,11 @@ export default function DigitalPagerPage() {
       setMeta('meta[property="og:image"]', fullLogo);
       setMeta('meta[name="twitter:image"]', fullLogo);
     }
-    setMeta('meta[property="og:url"]', window.location.href);
-    setMeta('meta[name="twitter:title"]', title);
+    setMeta('meta[property="og:url"]', cleanUrl);
+    setMeta('meta[name="twitter:title"]', merchantName);
     setMeta('meta[name="twitter:description"]', "تابع طلبي معك ولا تنسى تذكرني 🍔✨");
     return () => { document.title = "Digital Pager"; };
-  }, [merchantName, merchantLogo]);
+  }, [merchantName, merchantLogo, merchantId]);
 
   // Used ONLY for the activation button — unlocks browser session audio
   const playBell = useCallback(() => {
@@ -396,12 +396,12 @@ export default function DigitalPagerPage() {
   }
 
   async function handleShare() {
-    const url = window.location.href;
+    const cleanUrl = `${window.location.origin}${window.location.pathname}?m=${merchantId}`;
     const storeName = merchantName || "المتجر";
-    const text = `تابع طلبي معك ولا تنسى تذكرني 🍔✨\n${storeName}\n${url}`;
+    const text = `تابع طلبي معك ولا تنسى تذكرني 🍔✨\n${storeName}\n${cleanUrl}`;
     if (navigator.share) {
       try {
-        await navigator.share({ title: `${storeName} - تابع حالة الطلب`, text, url });
+        await navigator.share({ title: storeName, text, url: cleanUrl });
       } catch {}
     } else {
       try {

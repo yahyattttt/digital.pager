@@ -482,9 +482,9 @@ export async function registerRoutes(
       const rawLogo = fields.logoUrl?.stringValue || "";
       const host = `${req.protocol}://${req.get("host")}`;
       const fullLogoUrl = rawLogo.startsWith("http") ? rawLogo : rawLogo ? `${host}${rawLogo}` : `${host}/icon-192x192.png`;
-      const title = `${storeName} - تابع حالة الطلب`;
+      const title = storeName;
       const description = "تابع طلبي معك ولا تنسى تذكرني 🍔✨";
-      const pageUrl = `${host}${req.originalUrl}`;
+      const cleanUrl = `${host}/digital-pager/${req.params.orderId}?m=${merchantId}`;
 
       const html = `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -497,7 +497,7 @@ export async function registerRoutes(
   <meta property="og:image" content="${fullLogoUrl}" />
   <meta property="og:image:width" content="400" />
   <meta property="og:image:height" content="400" />
-  <meta property="og:url" content="${pageUrl}" />
+  <meta property="og:url" content="${cleanUrl}" />
   <meta property="og:type" content="website" />
   <meta property="og:locale" content="ar_AR" />
   <meta name="twitter:card" content="summary" />
