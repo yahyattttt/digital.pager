@@ -206,6 +206,31 @@ export default function DigitalPagerPage() {
   const alertAudioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
+    window.scrollTo(0, 0);
+    // Lock body scroll for the entire lifetime of this page —
+    // prevents the 1-pixel "nudge" and viewport jump on mobile browsers
+    const b = document.body;
+    const h = document.documentElement;
+    const prev = { bOverflow: b.style.overflow, bPos: b.style.position, bWidth: b.style.width, bHeight: b.style.height, bOSB: b.style.overscrollBehavior, hOverflow: h.style.overflow, hOSB: h.style.overscrollBehavior };
+    b.style.overflow = "hidden";
+    b.style.position = "fixed";
+    b.style.width = "100%";
+    b.style.height = "100%";
+    b.style.overscrollBehavior = "none";
+    h.style.overflow = "hidden";
+    h.style.overscrollBehavior = "none";
+    return () => {
+      b.style.overflow = prev.bOverflow;
+      b.style.position = prev.bPos;
+      b.style.width = prev.bWidth;
+      b.style.height = prev.bHeight;
+      b.style.overscrollBehavior = prev.bOSB;
+      h.style.overflow = prev.hOverflow;
+      h.style.overscrollBehavior = prev.hOSB;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!merchantId) return;
     fetch(`/api/merchant-public/${merchantId}`)
       .then((r) => r.json())
@@ -523,8 +548,13 @@ export default function DigitalPagerPage() {
 
   return (
     <div
-      className="min-h-[100dvh] flex flex-col items-center"
-      style={{ background: bg, fontFamily: "'Tajawal','Cairo',sans-serif" }}
+      className="h-[100dvh] flex flex-col items-center overflow-y-auto overflow-x-hidden"
+      style={{
+        background: bg,
+        fontFamily: "'Tajawal','Cairo',sans-serif",
+        overscrollBehavior: "none",
+        WebkitOverflowScrolling: "touch",
+      }}
       data-testid="digital-pager-page"
     >
       <style>{`
@@ -739,7 +769,10 @@ export default function DigitalPagerPage() {
       )}
 
       {/* Activate alerts button */}
-      <div className="mt-5 w-full max-w-xs px-4 pb-8">
+      <div
+        className="mt-5 w-full max-w-xs px-4"
+        style={{ paddingBottom: "calc(20px + env(safe-area-inset-bottom))" }}
+      >
         <button
           onClick={handleActivateAlerts}
           data-testid="btn-activate-alerts"
