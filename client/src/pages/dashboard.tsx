@@ -3964,16 +3964,77 @@ function TrackingView({
   const completedOrders = data?.completedOrders ?? 0;
   const abandonedCarts = data?.abandonedCarts ?? 0;
   const conversionRate = data?.conversionRate ?? 0;
+  const googleMapsClicks = data?.googleMapsClicks ?? 0;
 
-  const cards = [
-    { label: t("زيارات الرابط", "Link Visits"), value: linkVisits, color: "#60a5fa", Icon: Globe },
-    { label: t("مسح الكيو آر", "QR Scans"), value: qrScans, color: "#a78bfa", Icon: QrCode },
-    { label: t("طلبات مكتملة", "Completed Orders"), value: completedOrders, color: "#34d399", Icon: CheckCircle },
-    { label: t("طلبات لم تكتمل", "Abandoned Carts"), value: abandonedCarts, color: "#fbbf24", Icon: ShoppingBag },
+  const topCards = [
+    {
+      label: t("زيارات الرابط", "Link Visits"),
+      sublabel: t("صفحة المنيو", "Menu page"),
+      value: linkVisits,
+      color: "#60a5fa",
+      border: "rgba(96,165,250,0.20)",
+      bg: "rgba(59,130,246,0.07)",
+      Icon: Globe,
+      testId: "track-link-visits",
+    },
+    {
+      label: t("مسح الكيو آر", "QR Scans"),
+      sublabel: t("رمز الطاولة", "Table code"),
+      value: qrScans,
+      color: "#a78bfa",
+      border: "rgba(167,139,250,0.20)",
+      bg: "rgba(139,92,246,0.07)",
+      Icon: QrCode,
+      testId: "track-qr-scans",
+    },
+    {
+      label: t("نقرات رابط التقييم", "Review Link Clicks"),
+      sublabel: t("خرائط جوجل", "Google Maps"),
+      value: googleMapsClicks,
+      color: "#fbbf24",
+      border: "rgba(251,191,36,0.35)",
+      bg: "rgba(251,191,36,0.09)",
+      Icon: Star,
+      testId: "track-maps-clicks",
+    },
   ];
 
+  const bottomCards = [
+    {
+      label: t("طلبات مكتملة", "Completed Orders"),
+      sublabel: t("أُنجزت بنجاح", "Fulfilled successfully"),
+      value: completedOrders,
+      color: "#34d399",
+      border: "rgba(52,211,153,0.20)",
+      bg: "rgba(52,211,153,0.07)",
+      Icon: CheckCircle,
+      testId: "track-completed-orders",
+    },
+    {
+      label: t("طلبات لم تكتمل", "Abandoned Carts"),
+      sublabel: t("غادرت دون طلب", "Left without ordering"),
+      value: abandonedCarts,
+      color: "#f87171",
+      border: "rgba(248,113,113,0.20)",
+      bg: "rgba(248,113,113,0.07)",
+      Icon: ShoppingBag,
+      testId: "track-abandoned-carts",
+    },
+  ];
+
+  const renderCard = ({ label, sublabel, value, color, border, bg, Icon, testId }: typeof topCards[0]) => (
+    <div key={label} className="rounded-2xl p-4 flex flex-col gap-2" style={{ background: bg, border: `1px solid ${border}` }}>
+      <div className="flex items-center gap-2">
+        <Icon className="w-4 h-4 shrink-0" style={{ color }} />
+        <p className="text-xs font-medium" style={{ color: "rgba(255,255,255,0.55)" }}>{label}</p>
+      </div>
+      <p className="text-3xl font-black tabular-nums" style={{ color }} data-testid={testId}>{value.toLocaleString()}</p>
+      <p className="text-[11px]" style={{ color: "rgba(255,255,255,0.25)" }}>{sublabel}</p>
+    </div>
+  );
+
   return (
-    <div dir={dir} style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }} className="space-y-6 p-4 max-w-2xl mx-auto">
+    <div dir={dir} style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }} className="space-y-4 p-4 max-w-2xl mx-auto">
       <div>
         <h2 className="text-xl font-bold text-white">{t("تتبع عملاءك", "Customer Tracking")}</h2>
         <p className="text-sm text-white/40 mt-0.5">{t("رصد الزيارات والسلوك الشرائي", "Monitor visits and purchase behaviour")}</p>
@@ -3985,27 +4046,37 @@ function TrackingView({
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3">
-            {cards.map(({ label, value, color, Icon }) => (
-              <div key={label} className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${color}28` }}>
-                <div className="flex items-center gap-2 mb-2">
-                  <Icon className="w-4 h-4" style={{ color }} />
-                  <p className="text-xs text-white/50">{label}</p>
-                </div>
-                <p className="text-3xl font-black" style={{ color }}>{value.toLocaleString()}</p>
-              </div>
-            ))}
+          {/* ── Row 1: 3 traffic cards ── */}
+          <div className="grid grid-cols-3 gap-3">
+            {topCards.map(renderCard)}
           </div>
 
-          <div className="rounded-2xl p-5" style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.2)" }}>
+          {/* ── Row 2: 2 order cards ── */}
+          <div className="grid grid-cols-2 gap-3">
+            {bottomCards.map(renderCard)}
+          </div>
+
+          {/* ── Conversion rate banner ── */}
+          <div className="rounded-2xl p-5" style={{ background: "rgba(59,130,246,0.06)", border: "1px solid rgba(59,130,246,0.18)" }}>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-white/50 mb-1">{t("معدل التحويل", "Conversion Rate")}</p>
-                <p className="text-5xl font-black text-blue-300">{conversionRate}%</p>
+                <p className="text-5xl font-black text-blue-300" data-testid="track-conversion-rate">{conversionRate}%</p>
                 <p className="text-xs text-white/30 mt-2">{t("نسبة الطلبات المكتملة من إجمالي الزيارات", "Completed orders / Total visits")}</p>
               </div>
               <Activity className="w-16 h-16 text-blue-500/10" />
             </div>
+          </div>
+
+          {/* ── Maps clicks note ── */}
+          <div className="rounded-xl px-4 py-3 flex items-start gap-2" style={{ background: "rgba(251,191,36,0.05)", border: "1px solid rgba(251,191,36,0.15)" }}>
+            <Star className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+            <p className="text-[11px] leading-relaxed" style={{ color: "rgba(251,191,36,0.7)" }}>
+              {t(
+                "نقرات رابط التقييم تُعدّ منفصلة تماماً — تُسجَّل فقط عند ضغط العميل على رابط تقييم جوجل في صفحة تتبع الطلب.",
+                "Review link clicks are tracked separately — recorded only when a customer taps the Google Maps review link on the order tracking page."
+              )}
+            </p>
           </div>
         </>
       )}

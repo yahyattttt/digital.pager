@@ -1226,10 +1226,11 @@ export async function registerRoutes(
       const qrScans = parseInt(fields.qrScans?.integerValue || "0");
       const cartSessions = parseInt(fields.cartSessions?.integerValue || "0");
       const completedOrders = parseInt(fields.completedOrders?.integerValue || "0");
+      const googleMapsClicks = parseInt(fields.googleMapsClicks?.integerValue || "0");
       const abandonedCarts = Math.max(0, cartSessions - completedOrders);
       const totalVisits = linkVisits + qrScans;
       const conversionRate = totalVisits > 0 ? Math.round((completedOrders / totalVisits) * 100) : 0;
-      return res.json({ linkVisits, qrScans, cartSessions, completedOrders, abandonedCarts, conversionRate });
+      return res.json({ linkVisits, qrScans, cartSessions, completedOrders, abandonedCarts, conversionRate, googleMapsClicks });
     } catch (error) {
       console.error("Merchant tracking error:", error);
       return res.status(500).json({ message: "Failed to get tracking data" });
