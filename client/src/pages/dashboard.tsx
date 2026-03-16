@@ -99,6 +99,8 @@ import {
   FolderArchive,
   Save,
   ImagePlus,
+  Hash,
+  Receipt,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import ArchiveView from "@/pages/order-archive";
@@ -5087,12 +5089,18 @@ function SettingsView({
   const [branchInfoSaving, setBranchInfoSaving] = useState(false);
   const [logoUrlEdit, setLogoUrlEdit] = useState<string>(merchant?.logoUrl || "");
   const [logoUploading, setLogoUploading] = useState(false);
+  const [ownerPhoneEdit, setOwnerPhoneEdit] = useState<string>((merchant as any)?.ownerPhone || "");
+  const [crNumberEdit, setCrNumberEdit] = useState<string>((merchant as any)?.commercialRegisterNumber || "");
+  const [taxNumberEdit, setTaxNumberEdit] = useState<string>((merchant as any)?.taxNumber || "");
 
   useEffect(() => {
     setStoreNameEdit(merchant?.storeName || "");
     setWhatsappEdit(merchant?.whatsappNumber || "");
     setLogoUrlEdit(merchant?.logoUrl || "");
-  }, [merchant?.storeName, merchant?.whatsappNumber, merchant?.logoUrl]);
+    setOwnerPhoneEdit((merchant as any)?.ownerPhone || "");
+    setCrNumberEdit((merchant as any)?.commercialRegisterNumber || "");
+    setTaxNumberEdit((merchant as any)?.taxNumber || "");
+  }, [merchant?.storeName, merchant?.whatsappNumber, merchant?.logoUrl, (merchant as any)?.ownerPhone, (merchant as any)?.commercialRegisterNumber, (merchant as any)?.taxNumber]);
 
   async function handleLogoUpload(file: File) {
     setLogoUploading(true);
@@ -5166,6 +5174,9 @@ function SettingsView({
         storeName: storeNameEdit.trim() || merchant.storeName,
         whatsappNumber: whatsappEdit.trim(),
         logoUrl: logoUrlEdit,
+        ownerPhone: ownerPhoneEdit.trim(),
+        commercialRegisterNumber: crNumberEdit.trim(),
+        taxNumber: taxNumberEdit.trim(),
       }, { merge: true });
       toast({
         title: t("تم الحفظ", "Saved"),
@@ -5350,6 +5361,65 @@ function SettingsView({
                 <p className="text-sm font-medium truncate" data-testid="text-business-type">{lang === "ar" ? businessTypeLabels[merchant.businessType] || merchant.businessType : businessTypeLabelsEn[merchant.businessType] || merchant.businessType}</p>
               </div>
             </div>
+
+            {/* ── Legal & Official Data Section ── */}
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center gap-2 pb-1 border-b border-white/[0.06]">
+                <Receipt className="w-4 h-4 text-amber-400" />
+                <h4 className="text-sm font-semibold text-white/80">{t("البيانات الرسمية والقانونية", "Legal & Official Data")}</h4>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground">{t("جوال المسؤول", "Manager Phone")}</label>
+                  <div className="relative">
+                    <Phone className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                    <Input
+                      value={ownerPhoneEdit}
+                      onChange={(e) => setOwnerPhoneEdit(e.target.value)}
+                      placeholder="966501234567"
+                      dir="ltr"
+                      className="pr-9 h-11 bg-white/[0.03] border-white/10 font-mono text-sm"
+                      data-testid="input-owner-phone-edit"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground">
+                    {t("رقم السجل التجاري", "Commercial Register No.")}
+                    <span className="text-destructive ms-1 text-[10px]">*</span>
+                  </label>
+                  <div className="relative">
+                    <Hash className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                    <Input
+                      value={crNumberEdit}
+                      onChange={(e) => setCrNumberEdit(e.target.value)}
+                      placeholder="1010XXXXXX"
+                      dir="ltr"
+                      className="pr-9 h-11 bg-white/[0.03] border-white/10 font-mono text-sm"
+                      data-testid="input-cr-number-edit"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground">
+                    {t("الرقم الضريبي للمنشأة", "Tax Registration No.")}
+                    <span className="text-muted-foreground/50 ms-1.5 text-[10px]">{t("(إن وجد)", "(optional)")}</span>
+                  </label>
+                  <div className="relative">
+                    <Receipt className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                    <Input
+                      value={taxNumberEdit}
+                      onChange={(e) => setTaxNumberEdit(e.target.value)}
+                      placeholder="3XXXXXXXXXXXXXXXXXXX"
+                      dir="ltr"
+                      className="pr-9 h-11 bg-white/[0.03] border-white/10 font-mono text-sm"
+                      data-testid="input-tax-number-edit"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <Button onClick={handleSaveAccountInfo} disabled={branchInfoSaving} className="w-full h-11 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-2xl disabled:opacity-30" data-testid="button-save-account-info">
               {branchInfoSaving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Save className="w-4 h-4 me-2" />}
               {t("حفظ معلومات الحساب", "Save Account Info")}
