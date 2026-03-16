@@ -461,13 +461,10 @@ export async function registerRoutes(
   // so newly uploaded files are immediately accessible without a server restart.
   app.use("/uploads", express.static(uploadDir, { maxAge: 0, etag: false }));
 
-  // OG meta route for /digital-pager — social crawlers (WhatsApp, Telegram, etc.) don't run JS,
-  // so we intercept their requests and serve a static HTML shell with dynamic store branding.
+  // SSR meta injection for /digital-pager — reads the real index.html and injects store-specific
+  // OG tags before serving it. Works for ALL visitors: crawlers get tags without running JS,
+  // browsers get the full React app with tags already in <head>.
   app.get("/digital-pager/:orderId", async (req, res, next) => {
-    const ua = req.headers["user-agent"] || "";
-    const isCrawler = /WhatsApp|facebookexternalhit|Twitterbot|TelegramBot|Slackbot|LinkedInBot|Discordbot|vkShare|Googlebot/i.test(ua);
-    if (!isCrawler) return next();
-
     const merchantId = req.query.m as string;
     if (!merchantId) return next();
 
@@ -478,43 +475,49 @@ export async function registerRoutes(
       if (!mRes.ok) return next();
       const mDoc = await mRes.json();
       const fields = mDoc.fields || {};
-      const storeName = (fields.storeName?.stringValue || "Digital Pager").replace(/"/g, "&quot;");
+
+      // Escape HTML special chars to prevent injection
+      const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      const storeName = esc(fields.storeName?.stringValue || "Digital Pager");
       const rawLogo = fields.logoUrl?.stringValue || "";
-      // Use x-forwarded-proto when behind Replit's reverse proxy so the
-      // logo URL is absolute https:// — plain req.protocol can return "http"
+
+      // Use x-forwarded-proto so logo URL is absolute https:// behind Replit's proxy
       const xProto = ((req.headers["x-forwarded-proto"] as string) || "").split(",")[0].trim();
       const protocol = xProto || req.protocol;
       const host = `${protocol}://${req.get("host")}`;
       const fullLogoUrl = rawLogo.startsWith("http") ? rawLogo : rawLogo ? `${host}${rawLogo}` : `${host}/icon-192x192.png`;
-      const title = storeName;
+
       const description = "تابع طلبي معك ولا تنسى تذكرني 🍔✨";
       const typeParam = req.query.type ? `&type=${req.query.type}` : "";
       const cleanUrl = `${host}/digital-pager/${req.params.orderId}?m=${merchantId}${typeParam}`;
 
-      const html = `<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-  <meta charset="UTF-8" />
-  <title>${title}</title>
-  <meta name="description" content="${description}" />
-  <meta property="og:title" content="${title}" />
-  <meta property="og:description" content="${description}" />
+      // Resolve index.html — prefer built production file, fall back to dev source
+      const distHtml = path.resolve(process.cwd(), "dist", "public", "index.html");
+      const devHtml  = path.resolve(process.cwd(), "client", "index.html");
+      const htmlPath = fs.existsSync(distHtml) ? distHtml : devHtml;
+      let page = await fs.promises.readFile(htmlPath, "utf-8");
+
+      // Replace <title>
+      page = page.replace(/<title>[^<]*<\/title>/, `<title>${storeName}</title>`);
+
+      // Replace existing og:title and og:description with store-specific values
+      page = page.replace(/<meta property="og:title"[^>]*\/>/, `<meta property="og:title" content="${storeName}" />`);
+      page = page.replace(/<meta property="og:description"[^>]*\/>/, `<meta property="og:description" content="${description}" />`);
+
+      // Inject og:image, og:url and Twitter card tags right before </head>
+      const ogBlock = `
   <meta property="og:image" content="${fullLogoUrl}" />
   <meta property="og:image:width" content="400" />
   <meta property="og:image:height" content="400" />
   <meta property="og:url" content="${cleanUrl}" />
-  <meta property="og:type" content="website" />
   <meta property="og:locale" content="ar_AR" />
   <meta name="twitter:card" content="summary" />
-  <meta name="twitter:title" content="${title}" />
+  <meta name="twitter:title" content="${storeName}" />
   <meta name="twitter:description" content="${description}" />
-  <meta name="twitter:image" content="${fullLogoUrl}" />
-</head>
-<body style="margin:0;background:#000;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;text-align:center">
-  <div><p style="font-size:18px;opacity:0.7">${title}</p></div>
-</body>
-</html>`;
-      return res.status(200).set({ "Content-Type": "text/html; charset=utf-8" }).end(html);
+  <meta name="twitter:image" content="${fullLogoUrl}" />`;
+      page = page.replace("</head>", `${ogBlock}\n</head>`);
+
+      return res.status(200).set({ "Content-Type": "text/html; charset=utf-8" }).end(page);
     } catch {
       return next();
     }
