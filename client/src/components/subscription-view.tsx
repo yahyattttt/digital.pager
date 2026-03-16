@@ -22,6 +22,8 @@ import {
   AlertCircle,
   ChevronRight,
   Share2,
+  RefreshCw,
+  XCircle,
 } from "lucide-react";
 
 const PLANS = [
@@ -103,9 +105,13 @@ export default function SubscriptionView({ merchant, t, lang }: Props) {
   const [copied, setCopied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [resubmitMode, setResubmitMode] = useState(false);
+
   const referralLink = `${window.location.origin}/register?ref=${merchant.uid}`;
+  const isRejected = merchant.subscriptionRequestStatus === "rejected" && !resubmitMode;
   const isPending = merchant.subscriptionRequestStatus === "pending" && !submitted;
   const isAlreadyActive = merchant.subscriptionStatus === "active";
+  const isLocked = (isPending || submitted) && !resubmitMode;
 
   useEffect(() => {
     async function fetchReferrals() {
@@ -173,6 +179,7 @@ export default function SubscriptionView({ merchant, t, lang }: Props) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
       setSubmitted(true);
+      setResubmitMode(false);
       toast({
         title: t("تم إرسال الطلب", "Request submitted"),
         description: t("سيتم مراجعة طلبك قريباً", "Your request will be reviewed soon"),
@@ -238,8 +245,45 @@ export default function SubscriptionView({ merchant, t, lang }: Props) {
         </div>
       )}
 
+      {/* Rejection Banner */}
+      {isRejected && (
+        <div className="rounded-xl border-2 border-red-500/50 bg-red-500/10 p-4 space-y-3" data-testid="banner-rejected">
+          <div className="flex items-start gap-3">
+            <XCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-bold text-red-400">
+                {t("تم رفض طلب التفعيل", "Activation Request Rejected")}
+              </p>
+              {merchant.subscriptionRequestRejectionReason && (
+                <div className="mt-2 p-3 rounded-lg bg-black/20 border border-red-500/20">
+                  <p className="text-[11px] text-red-300/60 mb-1 uppercase tracking-wider font-medium">
+                    {t("السبب", "Reason")}
+                  </p>
+                  <p className="text-sm text-white/90 leading-relaxed" data-testid="text-rejection-reason">
+                    {merchant.subscriptionRequestRejectionReason}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+          <Button
+            onClick={() => {
+              setResubmitMode(true);
+              setUploadedDocs([]);
+              setNotes("");
+              setSubmitted(false);
+            }}
+            className="w-full h-10 rounded-xl bg-white/10 hover:bg-white/15 text-white border border-white/20 font-bold text-sm gap-2"
+            data-testid="btn-resubmit"
+          >
+            <RefreshCw className="w-4 h-4" />
+            {t("إعادة رفع المستندات وإرسال الطلب", "Re-upload Documents & Resubmit")}
+          </Button>
+        </div>
+      )}
+
       {/* Pending Review Banner */}
-      {(isPending || submitted) && (
+      {(isPending || submitted) && !resubmitMode && (
         <div className="flex items-center gap-3 p-4 rounded-xl border border-yellow-500/40 bg-yellow-500/10">
           <Clock className="w-5 h-5 text-yellow-400 shrink-0" />
           <div>
@@ -250,6 +294,19 @@ export default function SubscriptionView({ merchant, t, lang }: Props) {
               {t("سيتواصل معك الفريق قريباً", "Our team will contact you soon")}
             </p>
           </div>
+        </div>
+      )}
+
+      {/* Re-submit Mode Banner */}
+      {resubmitMode && (
+        <div className="flex items-center gap-3 p-3 rounded-xl border border-blue-500/40 bg-blue-500/10">
+          <RefreshCw className="w-4 h-4 text-blue-400 shrink-0" />
+          <p className="text-sm text-blue-300 font-medium">
+            {t("وضع إعادة الإرسال — ارفع المستندات المطلوبة ثم أرسل الطلب مجدداً", "Resubmission mode — upload the required documents then resubmit")}
+          </p>
+          <button onClick={() => setResubmitMode(false)} className="ms-auto text-blue-400/60 hover:text-blue-400">
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
 
@@ -266,12 +323,12 @@ export default function SubscriptionView({ merchant, t, lang }: Props) {
               <button
                 key={plan.id}
                 data-testid={`card-plan-${plan.id}`}
-                onClick={() => !isPending && !submitted && setSelectedPlan(plan.id)}
+                onClick={() => !isLocked && !isRejected && setSelectedPlan(plan.id)}
                 className={`relative text-start rounded-2xl border-2 p-4 transition-all duration-200 bg-gradient-to-br ${plan.color} ${
                   isSelected
                     ? `${plan.borderColor} shadow-lg shadow-black/30 scale-[1.02]`
                     : "border-transparent opacity-70 hover:opacity-90 hover:scale-[1.01]"
-                } ${isPending || submitted ? "cursor-default" : "cursor-pointer"}`}
+                } ${isLocked || isRejected ? "cursor-default" : "cursor-pointer"}`}
               >
                 {plan.popular && (
                   <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 text-[10px] font-bold px-3 py-0.5 rounded-full bg-primary text-white border border-primary/50 whitespace-nowrap">
@@ -311,7 +368,7 @@ export default function SubscriptionView({ merchant, t, lang }: Props) {
       </div>
 
       {/* Document Upload */}
-      {!submitted && !isPending && (
+      {!isLocked && !isRejected && (
         <div>
           <h2 className="text-base font-semibold mb-1">{t("رفع المستندات الرسمية", "Upload Official Documents")}</h2>
           <p className="text-xs text-muted-foreground mb-3">
@@ -374,7 +431,7 @@ export default function SubscriptionView({ merchant, t, lang }: Props) {
       )}
 
       {/* Submit Button */}
-      {!submitted && !isPending && (
+      {!isLocked && !isRejected && (
         <Button
           data-testid="btn-submit-subscription"
           onClick={handleSubmit}

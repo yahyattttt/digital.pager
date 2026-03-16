@@ -44,6 +44,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -381,6 +382,9 @@ export default function SuperAdminPage() {
   const [activeSection, setActiveSection] = useState<"home" | "stores" | "subscriptions" | "finance" | "tracking" | "settings" | "sysmonitor">("home");
   const [pendingSubRequests, setPendingSubRequests] = useState<any[]>([]);
   const [activatingRequestId, setActivatingRequestId] = useState<string | null>(null);
+  const [rejectDialogMerchant, setRejectDialogMerchant] = useState<any | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
   const pendingSubCountRef = useRef(0);
   const adminAlertAudioRef = useRef<HTMLAudioElement | null>(null);
   const [sysHealth, setSysHealth] = useState<any>(null);
@@ -942,6 +946,30 @@ export default function SuperAdminPage() {
       toast({ title: t("فشل التفعيل", "Activation Failed"), description: err.message, variant: "destructive" });
     } finally {
       setActivatingRequestId(null);
+    }
+  }
+
+  async function handleRejectSubscriptionRequest() {
+    if (!rejectDialogMerchant || !rejectReason.trim()) return;
+    setRejectingId(rejectDialogMerchant.uid);
+    try {
+      const res = await fetch(`/api/admin/reject-subscription-request/${rejectDialogMerchant.uid}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: rejectReason.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      toast({
+        title: t("تم الرفض", "Request Rejected"),
+        description: t(`تم رفض طلب ${rejectDialogMerchant.storeName}`, `${rejectDialogMerchant.storeName} request rejected`),
+      });
+      setRejectDialogMerchant(null);
+      setRejectReason("");
+    } catch (err: any) {
+      toast({ title: t("فشل الرفض", "Rejection Failed"), description: err.message, variant: "destructive" });
+    } finally {
+      setRejectingId(null);
     }
   }
 
@@ -2021,15 +2049,26 @@ export default function SuperAdminPage() {
                             <p className="text-xs text-slate-400 mt-2 italic">"{req.subscriptionRequestNotes}"</p>
                           )}
                         </div>
-                        <Button
-                          size="sm"
-                          onClick={() => handleActivateSubscriptionRequest(req)}
-                          disabled={activatingRequestId === req.uid}
-                          className="shrink-0 bg-green-600 hover:bg-green-500 text-white rounded-xl text-xs font-bold"
-                          data-testid={`btn-activate-${req.uid}`}
-                        >
-                          {activatingRequestId === req.uid ? "..." : t("تفعيل المتجر", "Activate Store")}
-                        </Button>
+                        <div className="flex flex-col gap-1.5 shrink-0">
+                          <Button
+                            size="sm"
+                            onClick={() => handleActivateSubscriptionRequest(req)}
+                            disabled={activatingRequestId === req.uid}
+                            className="bg-green-600 hover:bg-green-500 text-white rounded-xl text-xs font-bold"
+                            data-testid={`btn-activate-${req.uid}`}
+                          >
+                            {activatingRequestId === req.uid ? "..." : t("تفعيل المتجر", "Activate Store")}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => { setRejectDialogMerchant(req); setRejectReason(""); }}
+                            className="border-red-500/40 text-red-400 hover:bg-red-500/10 rounded-xl text-xs font-bold"
+                            data-testid={`btn-reject-${req.uid}`}
+                          >
+                            {t("رفض بسبب", "Reject")}
+                          </Button>
+                        </div>
                       </div>
                       {/* Documents */}
                       {docs.length > 0 && (
@@ -3851,6 +3890,59 @@ export default function SuperAdminPage() {
               </p>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Reject Subscription Request Dialog ── */}
+      <Dialog open={!!rejectDialogMerchant} onOpenChange={(open) => { if (!open) { setRejectDialogMerchant(null); setRejectReason(""); } }}>
+        <DialogContent className="max-w-md" data-testid="dialog-reject-request">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-400" dir="rtl" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}>
+              <span>رفض طلب الاشتراك</span>
+            </DialogTitle>
+            <DialogDescription dir="rtl" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}>
+              {rejectDialogMerchant?.storeName && (
+                <span>المتجر: <strong className="text-white">{rejectDialogMerchant.storeName}</strong></span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2" dir="rtl">
+            <div>
+              <label className="text-sm text-slate-400 mb-1.5 block" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}>
+                سبب الرفض <span className="text-red-400">*</span>
+              </label>
+              <Textarea
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="مثال: يرجى إعادة تصوير الهوية بشكل أوضح، أو تحديد رقم السجل التجاري الصحيح..."
+                rows={4}
+                className="resize-none rounded-xl border-white/10 bg-white/5 text-sm"
+                data-testid="input-reject-reason"
+                style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}
+              />
+              <p className="text-[11px] text-slate-500 mt-1">
+                سيظهر هذا السبب للمتجر في لوحة التحكم الخاصة به
+              </p>
+            </div>
+            <div className="flex items-center gap-2 justify-start">
+              <Button
+                onClick={handleRejectSubscriptionRequest}
+                disabled={!rejectReason.trim() || rejectingId === rejectDialogMerchant?.uid}
+                className="bg-red-600 hover:bg-red-500 text-white rounded-xl font-bold text-sm"
+                data-testid="btn-confirm-reject"
+              >
+                {rejectingId === rejectDialogMerchant?.uid ? t("جارٍ الرفض...", "Rejecting...") : t("تأكيد الرفض", "Confirm Rejection")}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => { setRejectDialogMerchant(null); setRejectReason(""); }}
+                className="rounded-xl text-sm border-white/10"
+                data-testid="btn-cancel-reject"
+              >
+                {t("إلغاء", "Cancel")}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

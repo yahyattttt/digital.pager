@@ -710,6 +710,41 @@ export async function registerRoutes(
     }
   });
 
+  // ── Admin: reject subscription request with reason ─────────────────────────
+  app.post("/api/admin/reject-subscription-request/:merchantId", async (req, res) => {
+    try {
+      if (!(await isAdminRequest(req))) return res.status(403).json({ message: "Unauthorized" });
+      const { merchantId } = req.params;
+      const { reason } = req.body;
+      if (!reason || !reason.trim()) return res.status(400).json({ message: "Rejection reason is required" });
+
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
+
+      const mask = "updateMask.fieldPaths=subscriptionRequestStatus&updateMask.fieldPaths=subscriptionRequestRejectionReason";
+      const patchRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}?${mask}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fields: {
+            subscriptionRequestStatus: { stringValue: "rejected" },
+            subscriptionRequestRejectionReason: { stringValue: reason.trim() },
+          },
+        }),
+      });
+      if (!patchRes.ok) {
+        const errText = await patchRes.text();
+        console.error("[REJECT-REQUEST] patch failed:", errText);
+        return res.status(500).json({ message: "Rejection failed" });
+      }
+      console.log(`[REJECT-REQUEST] Rejected merchant ${merchantId}: "${reason.trim()}"`);
+      return res.json({ success: true });
+    } catch (error) {
+      console.error("[REJECT-REQUEST] error:", error);
+      return res.status(500).json({ message: "Rejection failed" });
+    }
+  });
+
   // ── Public footer info (no auth — only returns fields toggled visible) ──
   app.get("/api/public/footer-info", async (_req, res) => {
     try {

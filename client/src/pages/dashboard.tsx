@@ -1483,6 +1483,32 @@ export default function DashboardPage() {
         </aside>
 
         <main className="flex-1 overflow-y-auto bg-[#0a0a0a]">
+          {/* Rejection Banner — shown on all views when subscription request is rejected */}
+          {(merchant as any).subscriptionRequestStatus === "rejected" && (
+            <div className="mx-4 mt-4 md:mx-6 rounded-xl border-2 border-red-500/50 bg-red-500/10 p-4 flex items-start gap-3" data-testid="banner-rejection-dashboard">
+              <div className="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                <X className="w-4 h-4 text-red-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-red-400">
+                  {t("تم رفض طلب التفعيل", "Activation Request Rejected")}
+                </p>
+                {(merchant as any).subscriptionRequestRejectionReason && (
+                  <p className="text-xs text-white/80 mt-1 leading-relaxed">
+                    {t("السبب", "Reason")}: {(merchant as any).subscriptionRequestRejectionReason}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => setCurrentView("subscription")}
+                className="shrink-0 text-xs font-bold text-red-300 border border-red-500/40 px-3 py-1.5 rounded-lg hover:bg-red-500/20 transition-colors whitespace-nowrap"
+                data-testid="btn-goto-resubmit"
+              >
+                {t("إعادة الإرسال", "Resubmit")}
+              </button>
+            </div>
+          )}
+
           <div className="p-4 md:p-6 max-w-6xl mx-auto">
             {currentView === "overview" && (
               <OverviewView
