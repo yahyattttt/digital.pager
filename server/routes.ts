@@ -491,10 +491,11 @@ export async function registerRoutes(
       const typeParam = req.query.type ? `&type=${req.query.type}` : "";
       const cleanUrl = `${host}/digital-pager/${req.params.orderId}?m=${merchantId}${typeParam}`;
 
-      // Resolve index.html — prefer built production file, fall back to dev source
-      const distHtml = path.resolve(process.cwd(), "dist", "public", "index.html");
-      const devHtml  = path.resolve(process.cwd(), "client", "index.html");
-      const htmlPath = fs.existsSync(distHtml) ? distHtml : devHtml;
+      // Resolve index.html — always use dev source in development so Vite can serve
+      // the dynamic /src/main.tsx bundle; only use the built file in production.
+      const htmlPath = process.env.NODE_ENV === "production"
+        ? path.resolve(process.cwd(), "dist", "public", "index.html")
+        : path.resolve(process.cwd(), "client", "index.html");
       let page = await fs.promises.readFile(htmlPath, "utf-8");
 
       // Replace <title>
