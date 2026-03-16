@@ -4097,7 +4097,7 @@ export default function SuperAdminPage() {
       {/* ── Store Details Modal ── */}
       <Dialog open={!!storeDetailsModal} onOpenChange={(open) => { if (!open) setStoreDetailsModal(null); }}>
         <DialogContent
-          className="max-w-lg w-full rounded-2xl p-0 overflow-hidden"
+          className="max-w-lg w-full rounded-2xl p-0 flex flex-col max-h-[90vh]"
           style={{ background: "#0e0e0f", border: "1px solid rgba(255,255,255,0.08)" }}
           data-testid="dialog-store-details"
         >
@@ -4109,6 +4109,23 @@ export default function SuperAdminPage() {
             const crNum: string = (m.commercialRegisterNumber || "").trim();
             const regDate = m.createdAt ? new Date(m.createdAt).toLocaleDateString(lang === "ar" ? "ar-SA" : "en-US", { year: "numeric", month: "long", day: "numeric" }) : "—";
             const isPdf = crUrl.toLowerCase().endsWith(".pdf");
+            async function downloadPdf() {
+              try {
+                const res = await fetch(crUrl);
+                if (!res.ok) throw new Error("fetch failed");
+                const blob = await res.blob();
+                const objectUrl = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = objectUrl;
+                a.download = `commercial-register-${m.uid}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                setTimeout(() => URL.revokeObjectURL(objectUrl), 5000);
+              } catch {
+                window.open(crUrl, "_blank");
+              }
+            }
             return (
               <>
                 {/* Header band */}
@@ -4144,8 +4161,8 @@ export default function SuperAdminPage() {
                   </div>
                 </div>
 
-                {/* Body */}
-                <div className="px-6 py-5 space-y-5" dir="rtl">
+                {/* Body — scrollable */}
+                <div className="px-6 py-5 space-y-5 overflow-y-auto flex-1" dir="rtl">
 
                   {/* Section: Basic Info */}
                   <div>
@@ -4199,31 +4216,74 @@ export default function SuperAdminPage() {
                         <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
                           <p className="text-[10px] text-slate-500 mb-2">{t("صورة / ملف السجل التجاري", "CR Document")}</p>
                           {isPdf ? (
-                            <a
-                              href={crUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold transition-colors"
-                              style={{ background: "rgba(239,68,68,0.12)", color: "#f87171", border: "1px solid rgba(239,68,68,0.25)" }}
-                              data-testid="link-cr-pdf"
-                            >
-                              <FileText className="w-4 h-4 shrink-0" />
-                              {t("فتح ملف PDF", "Open PDF File")}
-                              <ExternalLink className="w-3.5 h-3.5 ms-auto" />
-                            </a>
+                            <div className="space-y-2">
+                              {/* Inline PDF preview */}
+                              <div className="rounded-lg overflow-hidden border" style={{ borderColor: "rgba(255,255,255,0.1)", height: "320px" }}>
+                                <iframe
+                                  src={crUrl}
+                                  title="Commercial Register PDF"
+                                  className="w-full h-full bg-white"
+                                  data-testid="iframe-cr-pdf"
+                                />
+                              </div>
+                              {/* PDF action buttons */}
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={downloadPdf}
+                                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold transition-colors"
+                                  style={{ background: "rgba(239,68,68,0.15)", color: "#f87171", border: "1px solid rgba(239,68,68,0.3)" }}
+                                  data-testid="btn-download-pdf"
+                                >
+                                  <Download className="w-4 h-4 shrink-0" />
+                                  {t("تحميل ملف PDF", "Download PDF")}
+                                </button>
+                                <a
+                                  href={crUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold transition-colors"
+                                  style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.6)", border: "1px solid rgba(255,255,255,0.1)" }}
+                                  data-testid="link-cr-pdf-newtab"
+                                >
+                                  <ExternalLink className="w-4 h-4 shrink-0" />
+                                  {t("فتح في تبويب جديد", "Open in New Tab")}
+                                </a>
+                              </div>
+                            </div>
                           ) : (
-                            <a href={crUrl} target="_blank" rel="noopener noreferrer" data-testid="link-cr-image">
-                              <img
-                                src={crUrl}
-                                alt="Commercial Register"
-                                className="w-full max-h-40 object-cover rounded-lg border cursor-zoom-in hover:opacity-90 transition-opacity"
-                                style={{ borderColor: "rgba(255,255,255,0.1)" }}
-                              />
-                              <p className="text-[10px] text-slate-500 mt-1.5 flex items-center gap-1">
-                                <ExternalLink className="w-3 h-3" />
-                                {t("اضغط للعرض بالحجم الكامل", "Click to view full size")}
-                              </p>
-                            </a>
+                            <div className="space-y-2">
+                              <a href={crUrl} target="_blank" rel="noopener noreferrer" data-testid="link-cr-image">
+                                <img
+                                  src={crUrl}
+                                  alt="Commercial Register"
+                                  className="w-full max-h-48 object-contain rounded-lg border cursor-zoom-in hover:opacity-90 transition-opacity"
+                                  style={{ borderColor: "rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)" }}
+                                />
+                              </a>
+                              <div className="flex gap-2">
+                                <a
+                                  href={crUrl}
+                                  download={`commercial-register-${m.uid}`}
+                                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold transition-colors"
+                                  style={{ background: "rgba(59,130,246,0.12)", color: "#93c5fd", border: "1px solid rgba(59,130,246,0.25)" }}
+                                  data-testid="btn-download-image"
+                                >
+                                  <Download className="w-4 h-4 shrink-0" />
+                                  {t("تحميل الصورة", "Download Image")}
+                                </a>
+                                <a
+                                  href={crUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold transition-colors"
+                                  style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.6)", border: "1px solid rgba(255,255,255,0.1)" }}
+                                  data-testid="link-cr-image-newtab"
+                                >
+                                  <ExternalLink className="w-4 h-4 shrink-0" />
+                                  {t("عرض بالحجم الكامل", "View Full Size")}
+                                </a>
+                              </div>
+                            </div>
                           )}
                         </div>
                       ) : (
