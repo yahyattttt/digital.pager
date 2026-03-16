@@ -50,10 +50,10 @@ export default function LandingPage() {
           <path d="M17 24l5 5 9-10" stroke="#ff6b35" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       ),
-      title: t("أمان متعدد المتاجر", "Multi-Tenant Security"),
-      description: t(
-        "بياناتك معزولة بالكامل. كل متجر يحصل على مساحة عمل آمنة خاصة به.",
-        "Your data is fully isolated. Each store gets its own secure workspace."
+      boldText: t("رفع تقييمك على خرائط جوجل:", "Boost Your Google Maps Rating:"),
+      bodyText: t(
+        " يتم توجيه العميل تلقائياً بعد الانتهاء من الطلب إلى رابط التقييم الخاص بمتجرك، لتتصدر نتائج البحث وتكسب ثقة العملاء الجدد.",
+        " Customers are automatically redirected after their order to your store's review link, so you rank higher in search and earn new customer trust."
       ),
     },
     {
@@ -71,10 +71,10 @@ export default function LandingPage() {
           <line x1="18" y1="26" x2="30" y2="26" stroke="#ffb347" strokeWidth="1" opacity="0.5" />
         </svg>
       ),
-      title: t("إعداد سريع", "Quick Setup"),
-      description: t(
-        "ابدأ في دقائق. لا تحتاج أجهزة إضافية — فقط هاتفك أو جهازك اللوحي.",
-        "Get started in minutes. No extra hardware needed — just your phone or tablet."
+      boldText: t("التسويق الفيروسي لمتجرك:", "Viral Marketing for Your Store:"),
+      bodyText: t(
+        " ميزة مشاركة رابط التتبع تتيح لعملائك مشاركة حماسهم مع أصدقائهم، مما يضمن لك انتشاراً واسعاً وزواراً جدد دون تكاليف إعلانية.",
+        " The tracking link sharing feature lets your customers spread their excitement with friends, guaranteeing wide reach and new visitors with zero ad spend."
       ),
     },
     {
@@ -93,10 +93,10 @@ export default function LandingPage() {
           <path d="M34 27c3.5 1 6 4.2 6 8.5" stroke="#ff4500" strokeWidth="1.2" strokeLinecap="round" />
         </svg>
       ),
-      title: t("قائمة انتظار ذكية", "Smart Waitlist"),
-      description: t(
-        "أدر قائمة الانتظار بكفاءة مع تحديثات لحظية وأوقات انتظار تقديرية.",
-        "Manage your waitlist efficiently with real-time updates and estimated wait times."
+      boldText: t("رابط خاص لطلبات الأونلاين:", "Your Own Online Order Link:"),
+      bodyText: t(
+        " ودّع الطرق التقليدية واستقبل طلبات المحلي والسفري مباشرة عبر رابطك الخاص وبدون أي عمولات، مع تجربة شراء عصرية ومباشرة.",
+        " Say goodbye to traditional methods and receive dine-in and takeaway orders directly through your own link with zero commission, offering a modern and seamless buying experience."
       ),
     },
     {
@@ -116,10 +116,10 @@ export default function LandingPage() {
           <circle cx="37" cy="9" r="1.2" fill="#ffb347" />
         </svg>
       ),
-      title: t("إشعارات فورية", "Instant Notifications"),
-      description: t(
-        "أبلغ عملاءك عبر الرسائل النصية أو الإشعارات الفورية عندما يحين دورهم.",
-        "Notify your customers via SMS or push notifications when it's their turn."
+      boldText: t("قاعدة بيانات عملائك:", "Your Customer Database:"),
+      bodyText: t(
+        " ابنِ ثروتك الحقيقية بامتلاك بيانات عملائك بالكامل، مما يتيح لك فهم تفضيلاتهم وإعادة استهدافهم بعروض مخصصة تضمن عودتهم إليك.",
+        " Build your real wealth by owning your complete customer data, enabling you to understand their preferences and retarget them with personalised offers that bring them back."
       ),
     },
   ];
@@ -270,13 +270,13 @@ export default function LandingPage() {
               {t("المميزات", "FEATURES")}
             </p>
             <h2 style={{ fontSize: "clamp(1.5rem, 3vw, 2.1rem)", fontWeight: 800, color: "#f0f0f0", lineHeight: 1.3 }}>
-              {t("كل ما تحتاجه في مكان واحد", "Everything You Need In One Place")}
+              {t("ما الذي ستحققه عند انضمامك إلينا؟", "What Will You Achieve When You Join Us?")}
             </h2>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {features.map((f, i) => (
-              <FeatureCard key={f.id} icon={f.svg} title={f.title} description={f.description} index={i} />
+              <FeatureCard key={f.id} icon={f.svg} boldText={f.boldText} bodyText={f.bodyText} index={i} />
             ))}
           </div>
         </div>
@@ -622,12 +622,12 @@ function NeonIconBtn({ children, onClick, testId }: { children: React.ReactNode;
 }
 
 /* ── Feature Card ── */
-function FeatureCard({ icon, title, description, index }: {
-  icon: React.ReactNode; title: string; description: string; index: number;
+function FeatureCard({ icon, boldText, bodyText, index }: {
+  icon: React.ReactNode; boldText: string; bodyText: string; index: number;
 }) {
   return (
     <div className="feature-card" data-testid={`card-feature-${index}`}>
-      {/* Icon — uniform 52 × 52, fixed bottom margin */}
+      {/* Icon */}
       <div style={{
         width: 52, height: 52, marginBottom: 20,
         filter: "drop-shadow(0 0 10px rgba(255,69,0,0.4))",
@@ -636,30 +636,19 @@ function FeatureCard({ icon, title, description, index }: {
         {icon}
       </div>
 
-      {/* Title — 700 weight so it pops above the body text without fighting the hero h1 */}
-      <h3
+      {/* Single paragraph: bold lead + regular body — no separate heading tag */}
+      <p
         data-testid={`text-feature-title-${index}`}
         style={{
-          fontSize: 15,
-          fontWeight: 700,
-          color: "#f0ebe8",
-          marginBottom: 10,
-          lineHeight: 1.45,
-          letterSpacing: "0.01em",
+          fontSize: 13.5,
+          fontWeight: 400,
+          color: "rgba(210,198,192,0.85)",
+          lineHeight: 1.75,
+          margin: 0,
         }}
       >
-        {title}
-      </h3>
-
-      {/* Description — Regular weight, reduced opacity for clear contrast with title */}
-      <p style={{
-        fontSize: 13,
-        fontWeight: 400,
-        color: "rgba(200,188,182,0.65)",
-        lineHeight: 1.8,
-        opacity: 0.9,
-      }}>
-        {description}
+        <strong style={{ fontWeight: 700, color: "#f0ebe8" }}>{boldText}</strong>
+        {bodyText}
       </p>
     </div>
   );
