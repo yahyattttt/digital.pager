@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "wouter";
 import { collection, query, where, onSnapshot, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Share2, Copy, Loader2, X } from "lucide-react";
+import { Share2, Copy, Loader2, X, MapPin } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -371,6 +371,12 @@ export default function StorePagerPage() {
     cleanupSession();
   }
 
+  function handleGoogleMapsClick() {
+    if (!merchant?.googleMapsReviewUrl) return;
+    window.open(merchant.googleMapsReviewUrl, "_blank");
+    fetch(`/api/track/gmaps/${storeId}`, { method: "POST" }).catch(() => {});
+  }
+
   const bg = "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)";
 
   if (loadingMerchant) {
@@ -694,6 +700,33 @@ export default function StorePagerPage() {
               >
                 <X className="w-4 h-4 inline me-1.5" />
                 إغلاق
+              </button>
+            </div>
+          )}
+
+          {merchant?.googleMapsReviewUrl && (
+            <div className="space-y-2 pt-1 animate-in fade-in duration-500">
+              <p
+                className="text-xs font-medium"
+                dir="rtl"
+                style={{ color: "rgba(212,160,23,0.7)", fontFamily: "'Tajawal','Cairo',sans-serif" }}
+              >
+                رأيك يهمنا.. شاركنا تجربتك على جوجل ماب
+              </p>
+              <button
+                onClick={handleGoogleMapsClick}
+                data-testid="btn-google-maps-review"
+                className="w-full py-4 rounded-2xl font-bold text-base transition-all active:scale-95 flex items-center justify-center gap-2.5"
+                style={{
+                  background: "linear-gradient(135deg, rgba(20,14,0,0.98) 0%, rgba(28,20,0,0.98) 100%)",
+                  border: "1.5px solid #d4a017",
+                  color: "#f5c518",
+                  boxShadow: "0 0 18px rgba(212,160,23,0.25), 0 0 6px rgba(212,160,23,0.12), inset 0 0 20px rgba(212,160,23,0.04)",
+                  fontFamily: "'Tajawal','Cairo',sans-serif",
+                }}
+              >
+                <MapPin className="w-5 h-5 flex-shrink-0" style={{ color: "#f5c518" }} />
+                <span>قيمنا الآن على Google Maps 🌟</span>
               </button>
             </div>
           )}
