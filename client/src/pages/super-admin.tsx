@@ -2357,24 +2357,27 @@ export default function SuperAdminPage() {
                       qrScans: acc.qrScans + (m.qrScans || 0),
                       cartSessions: acc.cartSessions + (m.cartSessions || 0),
                       completedOrders: acc.completedOrders + (m.completedOrders || 0),
+                      googleMapsClicks: acc.googleMapsClicks + (m.googleMapsClicks || 0),
                     }),
-                    { linkVisits: 0, qrScans: 0, cartSessions: 0, completedOrders: 0 }
+                    { linkVisits: 0, qrScans: 0, cartSessions: 0, completedOrders: 0, googleMapsClicks: 0 }
                   );
                   const abandoned = Math.max(0, totals.cartSessions - totals.completedOrders);
                   const totalVisits = totals.linkVisits + totals.qrScans;
                   const conversion = totalVisits > 0 ? Math.round((totals.completedOrders / totalVisits) * 100) : 0;
                   return (
                     <div className="space-y-6">
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                         {[
-                          { label: t("زيارات الرابط", "Link Visits"), value: totals.linkVisits, color: "text-blue-400" },
-                          { label: t("مسح QR", "QR Scans"), value: totals.qrScans, color: "text-purple-400" },
-                          { label: t("طلبات مكتملة", "Completed Orders"), value: totals.completedOrders, color: "text-emerald-400" },
-                          { label: t("سلات متروكة", "Abandoned Carts"), value: abandoned, color: "text-amber-400" },
-                        ].map(({ label, value, color }) => (
-                          <div key={label} className="rounded-xl p-4 bg-white/5 text-center">
-                            <p className="text-xs text-muted-foreground mb-1">{label}</p>
-                            <p className={`text-3xl font-black ${color}`}>{value.toLocaleString()}</p>
+                          { label: t("زيارات الرابط", "Link Visits"),        value: totals.linkVisits,        color: "text-blue-400",    bg: "rgba(59,130,246,0.08)",   border: "rgba(59,130,246,0.20)",  icon: <TrendingUp className="w-5 h-5" /> },
+                          { label: t("مسح QR", "QR Scans"),                  value: totals.qrScans,           color: "text-purple-400",  bg: "rgba(168,85,247,0.08)",   border: "rgba(168,85,247,0.20)",  icon: <QrCode className="w-5 h-5" /> },
+                          { label: t("نقرات رابط التقييم", "Maps Clicks"),   value: totals.googleMapsClicks,  color: "text-emerald-400", bg: "rgba(52,211,153,0.08)",   border: "rgba(52,211,153,0.20)",  icon: <MapPin className="w-5 h-5" /> },
+                          { label: t("طلبات مكتملة", "Completed Orders"),    value: totals.completedOrders,   color: "text-sky-400",     bg: "rgba(56,189,248,0.08)",   border: "rgba(56,189,248,0.20)",  icon: <CheckCircle className="w-5 h-5" /> },
+                          { label: t("سلات متروكة", "Abandoned Carts"),      value: abandoned,                color: "text-amber-400",   bg: "rgba(251,191,36,0.08)",   border: "rgba(251,191,36,0.20)",  icon: <AlertTriangle className="w-5 h-5" /> },
+                        ].map(({ label, value, color, bg, border, icon }) => (
+                          <div key={label} className="rounded-xl p-4 text-center space-y-2" style={{ background: bg, border: `1px solid ${border}` }}>
+                            <div className={`flex justify-center ${color} opacity-60`}>{icon}</div>
+                            <p className={`text-3xl font-black ${color}`} data-testid={`stat-${label}`}>{value.toLocaleString()}</p>
+                            <p className="text-xs text-muted-foreground leading-tight">{label}</p>
                           </div>
                         ))}
                       </div>
@@ -2392,6 +2395,12 @@ export default function SuperAdminPage() {
                               <th className="text-start py-2 px-3 text-muted-foreground font-medium">{t("المتجر", "Store")}</th>
                               <th className="text-center py-2 px-3 text-muted-foreground font-medium">{t("زيارات", "Visits")}</th>
                               <th className="text-center py-2 px-3 text-muted-foreground font-medium">QR</th>
+                              <th className="text-center py-2 px-3 text-muted-foreground font-medium">
+                                <span className="flex items-center justify-center gap-1">
+                                  <MapPin className="w-3 h-3" />
+                                  {t("خرائط", "Maps")}
+                                </span>
+                              </th>
                               <th className="text-center py-2 px-3 text-muted-foreground font-medium">{t("سلات", "Sessions")}</th>
                               <th className="text-center py-2 px-3 text-muted-foreground font-medium">{t("طلبات", "Orders")}</th>
                               <th className="text-center py-2 px-3 text-muted-foreground font-medium">{t("تحويل", "Conv.")}</th>
@@ -2406,6 +2415,7 @@ export default function SuperAdminPage() {
                                   <td className="py-2 px-3 font-medium">{m.storeName || m.email}</td>
                                   <td className="py-2 px-3 text-center text-blue-300">{m.linkVisits || 0}</td>
                                   <td className="py-2 px-3 text-center text-purple-300">{m.qrScans || 0}</td>
+                                  <td className="py-2 px-3 text-center text-emerald-400 font-semibold">{m.googleMapsClicks || 0}</td>
                                   <td className="py-2 px-3 text-center text-amber-300">{m.cartSessions || 0}</td>
                                   <td className="py-2 px-3 text-center text-emerald-300">{m.completedOrders || 0}</td>
                                   <td className="py-2 px-3 text-center font-bold">{conv}%</td>
