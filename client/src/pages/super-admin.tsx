@@ -1165,132 +1165,96 @@ export default function SuperAdminPage() {
 
   return (
     <div className="min-h-screen" style={{ background: "#0a0f1a" }}>
-      <header className="border-b border-slate-800/80 px-6 py-3.5 sticky top-0 z-20 backdrop-blur-sm" style={{ background: "rgba(10,15,26,0.95)" }}>
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+      {/* ── Top Header ── */}
+      <header className="border-b border-slate-800/80 sticky top-0 z-20 backdrop-blur-sm" style={{ background: "rgba(10,15,26,0.97)" }}>
+        {/* Row 1: Logo + actions */}
+        <div className="px-6 py-3 flex items-center justify-between gap-4 border-b border-slate-800/40">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
-              <Shield className="w-4.5 h-4.5 text-indigo-400" />
+            <div className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
+              <Shield className="w-4 h-4 text-indigo-400" />
             </div>
             <div>
               <h1 className="font-bold text-sm leading-tight text-slate-100" data-testid="text-admin-title">
                 {t("لوحة تحكم المشرف", "Super Admin")}
               </h1>
-              <p className="text-[11px] text-slate-500">{user.email}</p>
+              <p className="text-[10px] text-slate-500">{user.email}</p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => { setHealthDialogOpen(true); fetchSystemErrors(); }}
-              className="relative"
-              data-testid="button-health-monitor"
-            >
-              <Bell className="w-4 h-4" />
-              {systemErrors.filter((e) => !e.resolved).length > 0 ? (
-                <span className="absolute -top-1.5 -end-1.5 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-1" data-testid="badge-error-count">
-                  {systemErrors.filter((e) => !e.resolved).length}
-                </span>
-              ) : null}
-            </Button>
+            {/* Live orders pill */}
+            {globalMonitorData && (
+              <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold" style={{ background: "rgba(59,130,246,0.10)", border: "1px solid rgba(59,130,246,0.20)", color: "#93c5fd" }}>
+                <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+                {(globalMonitorData.summary.totalPreparing ?? 0) + (globalMonitorData.summary.totalReady ?? 0)} {t("طلبات حية", "Live Orders")}
+              </div>
+            )}
             <div className="flex items-center gap-1.5" data-testid="status-system-health">
               {systemErrors.filter((e) => !e.resolved).length === 0 ? (
-                <>
-                  <div className="w-2.5 h-2.5 rounded-full bg-green-500" />
-                  <span className="text-xs text-green-500 hidden sm:inline">{t("النظام يعمل", "All Systems Nominal")}</span>
-                </>
+                <><div className="w-2 h-2 rounded-full bg-green-500" /><span className="text-xs text-green-500 hidden md:inline">{t("النظام يعمل", "All Nominal")}</span></>
               ) : (
-                <>
-                  <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
-                  <span className="text-xs text-red-500 hidden sm:inline">{t("مشاكل نشطة", "Active Issues")}</span>
-                </>
+                <><div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" /><span className="text-xs text-red-500 hidden md:inline">{t("مشاكل", "Issues")}</span></>
               )}
             </div>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={toggleFullscreen}
-              title={t("ملء الشاشة", "Toggle Fullscreen")}
-              data-testid="button-toggle-fullscreen"
-            >
-              {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+            <Button variant="outline" size="icon" className="h-8 w-8 relative" onClick={() => { setHealthDialogOpen(true); fetchSystemErrors(); }} data-testid="button-health-monitor">
+              <Bell className="w-3.5 h-3.5" />
+              {systemErrors.filter((e) => !e.resolved).length > 0 && (
+                <span className="absolute -top-1 -end-1 min-w-[16px] h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center px-0.5" data-testid="badge-error-count">
+                  {systemErrors.filter((e) => !e.resolved).length}
+                </span>
+              )}
             </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={toggleLanguage}
-              data-testid="button-toggle-language"
-            >
-              <Globe className="w-4 h-4" />
+            <Button variant="outline" size="icon" className="h-8 w-8" onClick={toggleFullscreen} title={t("ملء الشاشة", "Fullscreen")} data-testid="button-toggle-fullscreen">
+              {isFullscreen ? <Minimize className="w-3.5 h-3.5" /> : <Maximize className="w-3.5 h-3.5" />}
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSignOut}
-              data-testid="button-sign-out"
-            >
-              <LogOut className="w-4 h-4 me-1.5" />
+            <Button variant="outline" size="icon" className="h-8 w-8" onClick={toggleLanguage} data-testid="button-toggle-language">
+              <Globe className="w-3.5 h-3.5" />
+            </Button>
+            <Button variant="outline" size="sm" className="h-8" onClick={handleSignOut} data-testid="button-sign-out">
+              <LogOut className="w-3.5 h-3.5 me-1.5" />
               <span className="hidden sm:inline">{t("خروج", "Sign Out")}</span>
             </Button>
           </div>
         </div>
+
+        {/* Row 2: Navigation tabs */}
+        <div className="px-4 flex items-center gap-1 overflow-x-auto" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }} dir="rtl">
+          {([
+            { key: "home",          icon: Activity,    labelAr: "الرئيسية",       action: () => { setActiveSection("home"); if (!globalMonitorData) fetchGlobalMonitor(); } },
+            { key: "stores",        icon: Store,       labelAr: "إدارة المتاجر",  action: () => setActiveSection("stores") },
+            { key: "subscriptions", icon: CreditCard,  labelAr: "الاشتراكات",     action: () => setActiveSection("subscriptions") },
+            { key: "finance",       icon: DollarSign,  labelAr: "المالية",        action: () => { setActiveSection("finance"); if (!platformFinanceData) fetchPlatformFinance(); } },
+            { key: "tracking",      icon: TrendingUp,  labelAr: "تتبع العملاء",   action: () => setActiveSection("tracking") },
+            ...(user?.email?.toLowerCase() === PRIMARY_ADMIN_EMAIL.toLowerCase() ? [{ key: "sysmonitor" as const, icon: Gauge, labelAr: "مراقب الأداء", action: () => setActiveSection("sysmonitor" as any) }] : []),
+            { key: "settings",      icon: Settings,    labelAr: "الإعدادات",      action: () => setActiveSection("settings") },
+          ] as const).map(({ key, icon: Icon, labelAr, action }) => (
+            <button
+              key={key}
+              onClick={action}
+              data-testid={`nav-${key}`}
+              className="flex items-center gap-2 px-3.5 py-2.5 text-sm whitespace-nowrap transition-all relative"
+              style={{
+                fontWeight: activeSection === key ? 700 : 400,
+                color: activeSection === key ? "rgba(251,191,36,0.95)" : "rgba(255,255,255,0.38)",
+                borderBottom: activeSection === key ? "2px solid rgba(251,191,36,0.7)" : "2px solid transparent",
+              }}
+            >
+              <Icon className="w-3.5 h-3.5 shrink-0" />
+              <span>{labelAr}</span>
+              {key === "home" && globalMonitorData && (globalMonitorData.summary.totalPreparing ?? 0) > 0 && (
+                <span className="text-[9px] font-bold bg-amber-400/20 text-amber-400 rounded-full px-1.5 py-0.5">
+                  {globalMonitorData.summary.totalPreparing}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
       </header>
 
-      <main className="flex" style={{ minHeight: "calc(100vh - 57px)" }}>
+      <main style={{ minHeight: "calc(100vh - 97px)" }}>
 
-        {/* ── Right Sidebar — Arabic Navigation ── */}
-        <aside
-          className="w-[220px] shrink-0 flex flex-col sticky top-[57px] self-start h-[calc(100vh-57px)]"
-          style={{ background: "rgba(14,10,4,0.97)", borderRight: "1px solid rgba(251,191,36,0.10)" }}
-          data-testid="sidebar-right"
-        >
-          <div className="p-5 border-b border-amber-500/10">
-            <p className="text-[10px] text-amber-400/40 font-bold tracking-[0.3em] uppercase mb-1">OWNER PANEL</p>
-            <p className="text-amber-300/60 text-xs font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}>
-              لوحة المالك
-            </p>
-          </div>
-          <nav className="flex-1 p-3 space-y-1 overflow-y-auto" dir="rtl">
-            {([
-              { key: "home",          icon: Activity,    labelAr: "الرئيسية",       action: () => { setActiveSection("home"); if (!globalMonitorData) fetchGlobalMonitor(); }, ownerOnly: false },
-              { key: "stores",        icon: Store,       labelAr: "إدارة المتاجر",  action: () => setActiveSection("stores"), ownerOnly: false },
-              { key: "subscriptions", icon: CreditCard,  labelAr: "الاشتراكات",     action: () => setActiveSection("subscriptions"), ownerOnly: false },
-              { key: "finance",       icon: DollarSign,  labelAr: "المالية",        action: () => { setActiveSection("finance"); if (!platformFinanceData) fetchPlatformFinance(); }, ownerOnly: false },
-              { key: "tracking",      icon: TrendingUp,  labelAr: "تتبع العملاء",   action: () => setActiveSection("tracking"), ownerOnly: false },
-              { key: "sysmonitor",    icon: Gauge,       labelAr: "مراقب الأداء",   action: () => setActiveSection("sysmonitor" as any), ownerOnly: true },
-              { key: "settings",      icon: Settings,    labelAr: "الإعدادات",      action: () => setActiveSection("settings"), ownerOnly: false },
-            ] as const).filter(item => !item.ownerOnly || user?.email?.toLowerCase() === PRIMARY_ADMIN_EMAIL.toLowerCase()).map(({ key, icon: Icon, labelAr, action }) => (
-              <button
-                key={key}
-                onClick={action}
-                data-testid={`nav-${key}`}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all"
-                style={{
-                  fontFamily: "'Tajawal','Cairo',sans-serif",
-                  fontWeight: activeSection === key ? 700 : 500,
-                  background: activeSection === key ? "rgba(251,191,36,0.10)" : "transparent",
-                  color: activeSection === key ? "rgba(251,191,36,0.9)" : "rgba(255,255,255,0.40)",
-                  border: activeSection === key ? "1px solid rgba(251,191,36,0.22)" : "1px solid transparent",
-                }}
-              >
-                <Icon className="w-4 h-4 shrink-0" />
-                <span>{labelAr}</span>
-                {key === "home" && globalMonitorData && (
-                  <span className="mr-auto text-[10px] font-bold text-amber-400/60 bg-amber-400/8 px-1.5 py-0.5 rounded-full">
-                    {globalMonitorData.summary.totalPreparing ?? 0}
-                  </span>
-                )}
-              </button>
-            ))}
-          </nav>
-          <div className="p-4 border-t border-amber-500/10 text-center">
-            <div className="text-[10px] text-white/15 font-mono">DIGITAL PAGER v2</div>
-          </div>
-        </aside>
-
-        {/* ── Center Content Area ── */}
-        <div className="flex-1 min-w-0 overflow-auto px-6 py-6">
+        {/* ── Full-Width Content Area ── */}
+        <div className="w-full overflow-auto px-6 py-6">
           <Tabs value={tabValue} onValueChange={() => {}} className="space-y-6">
 
           <TabsContent value="merchants" className="space-y-6">
@@ -2927,88 +2891,6 @@ export default function SuperAdminPage() {
           </Tabs>
         </div>
 
-        {/* ── Left Sidebar — English Quick Stats ── */}
-        <aside
-          className="w-[190px] shrink-0 flex flex-col sticky top-[57px] self-start h-[calc(100vh-57px)]"
-          style={{ background: "rgba(8,12,22,0.97)", borderLeft: "1px solid rgba(59,130,246,0.12)" }}
-          data-testid="sidebar-left"
-        >
-          <div className="p-4 border-b border-blue-500/10">
-            <p className="text-[10px] text-blue-400/45 font-bold tracking-[0.3em] uppercase">SYSTEM</p>
-            <p className="text-blue-300/55 text-xs mt-0.5 font-medium">Quick Stats</p>
-          </div>
-          <div className="p-4 space-y-5 flex-1 overflow-y-auto">
-
-            {/* Live order counter — hero stat */}
-            {globalMonitorData && (
-              <div className="rounded-2xl p-4 text-center" style={{ background: "rgba(59,130,246,0.07)", border: "1px solid rgba(59,130,246,0.18)" }}>
-                <p className="text-[10px] text-blue-400/55 uppercase tracking-widest mb-1">LIVE ORDERS</p>
-                <p className="text-4xl font-black text-blue-300" data-testid="text-sidebar-live-counter" style={{ textShadow: "0 0 20px rgba(59,130,246,0.4)" }}>
-                  {(globalMonitorData.summary.totalPreparing ?? 0) + (globalMonitorData.summary.totalReady ?? 0)}
-                </p>
-                <p className="text-[10px] text-blue-400/40 mt-1">Active across all stores</p>
-              </div>
-            )}
-
-            {/* Quick stats list */}
-            <div>
-              <p className="text-[10px] text-white/25 uppercase tracking-widest mb-2.5">Platform</p>
-              <div className="space-y-2">
-                {[
-                  { label: "Total Stores",   value: stats.total,     color: "#94a3b8" },
-                  { label: "Active Stores",  value: stats.active,    color: "#34d399" },
-                  { label: "Active Subs",    value: stats.subActive, color: "#60a5fa" },
-                  { label: "Alerts Today",   value: stats.alertsToday, color: "#f59e0b" },
-                ].map(({ label, value, color }) => (
-                  <div key={label} className="flex items-center justify-between">
-                    <span className="text-[11px] text-white/30">{label}</span>
-                    <span className="text-sm font-bold tabular-nums" style={{ color }}>{value}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* System status */}
-            <div className="border-t border-white/[0.05] pt-4">
-              <p className="text-[10px] text-white/25 uppercase tracking-widest mb-2.5">System Status</p>
-              <div className="flex items-center gap-1.5">
-                {systemErrors.filter(e => !e.resolved).length === 0 ? (
-                  <><div className="w-2 h-2 rounded-full bg-emerald-500" /><span className="text-[11px] text-emerald-400">All Nominal</span></>
-                ) : (
-                  <><div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" /><span className="text-[11px] text-red-400">{systemErrors.filter(e => !e.resolved).length} Issues</span></>
-                )}
-              </div>
-            </div>
-
-            {/* Shortcuts */}
-            <div className="border-t border-white/[0.05] pt-4">
-              <p className="text-[10px] text-white/25 uppercase tracking-widest mb-2.5">Shortcuts</p>
-              <div className="space-y-2">
-                <button
-                  onClick={() => { setActiveSection("home"); if (!globalMonitorData) fetchGlobalMonitor(); }}
-                  className="w-full text-left text-[11px] text-blue-400/65 hover:text-blue-300 transition-colors py-1 flex items-center gap-1.5"
-                  data-testid="shortcut-live-view"
-                >
-                  <Activity className="w-3 h-3 shrink-0" /> Live View
-                </button>
-                <button
-                  onClick={() => { setHealthDialogOpen(true); fetchSystemErrors(); }}
-                  className="w-full text-left text-[11px] text-blue-400/65 hover:text-blue-300 transition-colors py-1 flex items-center gap-1.5"
-                  data-testid="shortcut-logs"
-                >
-                  <Bell className="w-3 h-3 shrink-0" /> System Logs
-                </button>
-                <button
-                  onClick={() => { setActiveSection("stores"); }}
-                  className="w-full text-left text-[11px] text-blue-400/65 hover:text-blue-300 transition-colors py-1 flex items-center gap-1.5"
-                  data-testid="shortcut-stores"
-                >
-                  <Store className="w-3 h-3 shrink-0" /> All Stores
-                </button>
-              </div>
-            </div>
-          </div>
-        </aside>
 
       </main>
 
