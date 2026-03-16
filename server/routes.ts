@@ -2908,6 +2908,8 @@ export async function registerRoutes(
         deliveryRange: mf.deliveryRange?.doubleValue ?? parseFloat(mf.deliveryRange?.integerValue || "0"),
         storeLat: mf.storeLat?.doubleValue ?? null,
         storeLng: mf.storeLng?.doubleValue ?? null,
+        commercialRegisterNumber: mf.commercialRegisterNumber?.stringValue || "",
+        taxNumber: mf.taxNumber?.stringValue || "",
       };
 
       // Fetch products via LIST using the resolved Firestore docId path

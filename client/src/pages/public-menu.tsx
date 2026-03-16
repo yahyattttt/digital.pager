@@ -40,6 +40,8 @@ interface MerchantInfo {
   deliveryRange: number;
   storeLat: number | null;
   storeLng: number | null;
+  commercialRegisterNumber?: string;
+  taxNumber?: string;
 }
 
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -1306,6 +1308,26 @@ export default function PublicMenuPage() {
                   data-testid="menu-product-grid"
                 >
                   {displayedProducts.map(product => <ProductCard key={product.id} product={product} />)}
+                </div>
+              )}
+
+              {(merchant?.commercialRegisterNumber || merchant?.taxNumber) && (
+                <div className="mt-8 pt-4 border-t border-white/[0.05] text-center" data-testid="menu-legal-footer">
+                  <p
+                    className="leading-relaxed"
+                    style={{ fontSize: "11px", color: "rgba(255,255,255,0.35)", letterSpacing: "0.02em" }}
+                    dir="rtl"
+                  >
+                    {merchant?.commercialRegisterNumber && (
+                      <span>{t("سجل تجاري", "CR")}: <span dir="ltr" className="font-mono">{merchant.commercialRegisterNumber}</span></span>
+                    )}
+                    {merchant?.commercialRegisterNumber && merchant?.taxNumber && (
+                      <span className="mx-2 opacity-40">|</span>
+                    )}
+                    {merchant?.taxNumber && (
+                      <span>{t("الرقم الضريبي", "Tax No.")}: <span dir="ltr" className="font-mono">{merchant.taxNumber}</span></span>
+                    )}
+                  </p>
                 </div>
               )}
             </div>
