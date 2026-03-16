@@ -375,15 +375,16 @@ export default function DigitalPagerPage() {
 
   async function handleShare() {
     const url = window.location.href;
-    const text = `تابع طلبي الآن: ${url}`;
+    const storeName = merchantName || "المتجر";
+    const text = `شوف طلبي في ${storeName} وهو يجهز الآن على الطاولة.. عقبالك! 🍔`;
     if (navigator.share) {
       try {
-        await navigator.share({ title: "Digital Pager", text, url });
+        await navigator.share({ title: text, text, url });
       } catch {}
     } else {
       try {
-        await navigator.clipboard.writeText(url);
-        toast({ description: "تم نسخ الرابط", duration: 2500 });
+        await navigator.clipboard.writeText(`${text}\n${url}`);
+        toast({ description: "تم نسخ رابط اللحظة! شاركه مع من تحب 💛", duration: 2500 });
       } catch {}
     }
   }
@@ -600,21 +601,30 @@ export default function DigitalPagerPage() {
         </p>
       </div>
 
-      {/* Share button — takeaway & local only, not delivery */}
-      {status === "preparing" && diningType !== "delivery" && (
-        <div className="w-full max-w-xs px-4 mt-4">
+      {/* Share button — visible during any active (non-ready) preparation state */}
+      {!isReady && status !== "done" && status !== "cancelled" && (() => {
+        console.log("Share button rendered — status:", status, "isManual:", isManual);
+        return true;
+      })() && (
+        <div
+          id="share-moment-btn"
+          className="w-full max-w-xs px-4 mt-4 mb-1"
+          style={{ position: "relative", zIndex: 10 }}
+        >
           <button
             onClick={handleShare}
             data-testid="btn-share-tracking"
-            className="flex items-center justify-center gap-2.5 w-full py-3 rounded-2xl transition-all active:scale-95"
+            className="flex items-center justify-center gap-2.5 w-full py-4 rounded-2xl transition-all active:scale-95"
             style={{
-              background: "rgba(60,20,80,0.35)",
-              border: "1.5px solid rgba(140,60,200,0.35)",
-              color: "rgba(190,140,255,0.9)",
+              background: "linear-gradient(135deg, rgba(234,179,8,0.10) 0%, rgba(251,191,36,0.06) 50%, rgba(234,179,8,0.10) 100%)",
+              border: "1.5px solid rgba(251,191,36,0.55)",
+              boxShadow: "0 0 24px rgba(251,191,36,0.22), 0 0 8px rgba(251,191,36,0.12), inset 0 1px 0 rgba(255,255,255,0.05)",
             }}
           >
-            <Share2 className="w-4 h-4 shrink-0" />
-            <span className="text-sm font-semibold">شاركهم اللحظة 🔗</span>
+            <Share2 className="w-5 h-5 shrink-0" style={{ color: "#fbbf24" }} />
+            <span className="text-base font-black" dir="rtl" style={{ fontFamily: "'Tajawal','Cairo',sans-serif", color: "#fde68a" }}>
+              شاركهم اللحظة ✨
+            </span>
           </button>
         </div>
       )}
