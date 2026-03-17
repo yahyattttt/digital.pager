@@ -450,23 +450,15 @@ export default function StorePagerPage() {
         </div>
 
         {/* Notice: Receipt reminder */}
-        <div className="px-5 pb-5" data-testid="notice-receipt-reminder">
-          <div
-            className="flex items-start gap-3 rounded-xl px-4 py-3"
-            style={{
-              background: "rgba(251,191,36,0.08)",
-              border: "1px solid rgba(251,191,36,0.25)",
-            }}
+        <div className="px-5 pb-5 flex justify-center" data-testid="notice-receipt-reminder">
+          <p
+            className="flex items-center gap-1.5 text-[14px] font-medium"
+            style={{ color: "rgba(255,255,255,0.35)", fontFamily: "'Tajawal','Cairo',sans-serif" }}
             dir="rtl"
           >
-            <span className="text-lg leading-none mt-0.5 shrink-0">🧾</span>
-            <p
-              className="text-[13px] font-medium leading-relaxed"
-              style={{ color: "rgba(253,224,100,0.85)", fontFamily: "'Tajawal','Cairo',sans-serif" }}
-            >
-              تنويه: يجب إحضار الفاتورة الخاصة بالمتجر أثناء استلام طلبك.
-            </p>
-          </div>
+            <span className="text-base leading-none">🧾</span>
+            يُرجى إحضار الفاتورة عند الاستلام
+          </p>
         </div>
 
         {confirmOpen && selectedPager && (
