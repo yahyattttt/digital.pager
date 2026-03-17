@@ -28,7 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Upload, Store, User, Mail, MapPin, Loader2, CheckCircle, ArrowRight, ArrowLeft, Briefcase, Globe, ShieldCheck, KeyRound, X, FileText, Phone, Hash, Receipt } from "lucide-react";
+import { Upload, Store, User, Mail, Loader2, CheckCircle, ArrowRight, ArrowLeft, Briefcase, Globe, ShieldCheck, KeyRound, X, Phone, Hash, Receipt } from "lucide-react";
 import { getDoc, doc as firestoreDoc } from "firebase/firestore";
 import type { SystemSettings } from "@shared/schema";
 
@@ -50,10 +50,8 @@ export default function RegisterPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
-  const [crFile, setCrFile] = useState<File | null>(null);
   const [registrationComplete, setRegistrationComplete] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const crInputRef = useRef<HTMLInputElement>(null);
 
   const [otpCode, setOtpCode] = useState("");
   const [platformTermsEnabled, setPlatformTermsEnabled] = useState(false);
@@ -149,38 +147,6 @@ export default function RegisterPage() {
     formData.append("logo", file);
     const res = await fetch("/api/upload-logo", { method: "POST", body: formData });
     if (!res.ok) throw new Error("Upload failed");
-    const data = await res.json();
-    return data.url;
-  }
-
-  function handleCrChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 10 * 1024 * 1024) {
-        toast({
-          title: t("الملف كبير جداً", "File too large"),
-          description: t("يجب أن يكون حجم السجل التجاري أقل من 10 ميجابايت", "Commercial register must be under 10MB"),
-          variant: "destructive",
-        });
-        return;
-      }
-      if (file.type !== "application/pdf") {
-        toast({
-          title: t("نوع ملف غير صالح", "Invalid file type"),
-          description: t("يرجى رفع ملف PDF فقط", "Please upload a PDF file only"),
-          variant: "destructive",
-        });
-        return;
-      }
-      setCrFile(file);
-    }
-  }
-
-  async function uploadCr(file: File): Promise<string> {
-    const formData = new FormData();
-    formData.append("cr", file);
-    const res = await fetch("/api/upload-cr", { method: "POST", body: formData });
-    if (!res.ok) throw new Error("CR upload failed");
     const data = await res.json();
     return data.url;
   }
@@ -304,14 +270,6 @@ export default function RegisterPage() {
       });
       return;
     }
-    if (!crFile) {
-      toast({
-        title: t("السجل التجاري مطلوب", "Commercial Register required"),
-        description: t("يرجى رفع نسخة PDF من السجل التجاري.", "Please upload a PDF copy of the commercial register."),
-        variant: "destructive",
-      });
-      return;
-    }
     if (!otpVerified || !customToken || !firebaseUid) {
       toast({
         title: t("التحقق من البريد مطلوب", "Email verification required"),
@@ -331,20 +289,6 @@ export default function RegisterPage() {
         console.error("Logo upload error:", uploadError);
       }
 
-      let commercialRegisterURL = "";
-      try {
-        if (crFile) commercialRegisterURL = await uploadCr(crFile);
-      } catch (crUploadError) {
-        console.error("CR upload error:", crUploadError);
-        toast({
-          title: t("خطأ في رفع السجل التجاري", "CR Upload Error"),
-          description: t("فشل رفع السجل التجاري. يرجى المحاولة مرة أخرى.", "Failed to upload commercial register. Please try again."),
-          variant: "destructive",
-        });
-        setIsSubmitting(false);
-        return;
-      }
-
       const merchantData: Record<string, any> = {
         id: firebaseUid,
         uid: firebaseUid,
@@ -355,8 +299,8 @@ export default function RegisterPage() {
         commercialRegisterNumber: data.commercialRegisterNumber || "",
         taxNumber: data.taxNumber || "",
         logoUrl,
-        commercialRegisterURL,
-        googleMapsReviewUrl: data.googleMapsReviewUrl,
+        commercialRegisterURL: "",
+        googleMapsReviewUrl: "",
         status: "pending",
         subscriptionStatus: "pending",
         plan: "trial",
@@ -736,64 +680,6 @@ export default function RegisterPage() {
                     {t("تم التحقق من البريد الإلكتروني بنجاح", "Email verified successfully")}
                   </div>
                 )}
-
-                <FormField
-                  control={form.control}
-                  name="googleMapsReviewUrl"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-foreground">{t("رابط جوجل ماب للتقييم", "Google Maps Review Link")}</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <MapPin className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                          <Input
-                            type="url"
-                            placeholder="https://maps.google.com/..."
-                            className="pr-10 h-12 bg-background border-border text-foreground"
-                            dir="ltr"
-                            data-testid="input-google-maps-url"
-                            {...field}
-                          />
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">{t("السجل التجاري (PDF)", "Commercial Register (PDF)")}</label>
-                  <div
-                    onClick={() => crInputRef.current?.click()}
-                    className="flex items-center gap-3 p-4 rounded-xl border-2 border-dashed border-primary/30 hover:border-primary/60 cursor-pointer transition-colors bg-background"
-                    data-testid="button-upload-cr"
-                  >
-                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      <FileText className="w-5 h-5 text-primary" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      {crFile ? (
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm text-foreground truncate" data-testid="text-cr-filename">{crFile.name}</span>
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); setCrFile(null); if (crInputRef.current) crInputRef.current.value = ""; }}
-                            className="text-muted-foreground hover:text-destructive flex-shrink-0"
-                            data-testid="button-remove-cr"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ) : (
-                        <>
-                          <p className="text-sm text-muted-foreground">{t("اضغط لرفع السجل التجاري", "Click to upload commercial register")}</p>
-                          <p className="text-xs text-muted-foreground/60">{t("PDF حتى 10 ميجابايت", "PDF up to 10MB")}</p>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  <input ref={crInputRef} type="file" accept="application/pdf" onChange={handleCrChange} className="hidden" data-testid="input-cr-file" />
-                </div>
 
                 {platformTermsEnabled && (
                   <label className="flex items-start gap-3 p-4 rounded-xl bg-white/[0.02] border border-border/30 cursor-pointer" dir="rtl" data-testid="label-platform-terms">

@@ -216,7 +216,7 @@ export const registerFormSchema = z.object({
   ownerPhone: z.string().min(9, "يرجى إدخال رقم جوال صحيح").optional().or(z.literal("")),
   commercialRegisterNumber: z.string().min(1, "رقم السجل التجاري مطلوب"),
   taxNumber: z.string().optional().or(z.literal("")),
-  googleMapsReviewUrl: z.string().url("يرجى إدخال رابط جوجل ماب صالح"),
+  googleMapsReviewUrl: z.string().url("يرجى إدخال رابط جوجل ماب صالح").optional().or(z.literal("")),
 });
 
 export type RegisterFormData = z.infer<typeof registerFormSchema>;
