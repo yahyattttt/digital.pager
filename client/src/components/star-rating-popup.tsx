@@ -14,39 +14,51 @@ export function StarRatingPopup({ merchantId, orderId, orderType, googleMapsUrl,
   const [hovered, setHovered] = useState(0);
   const [comment, setComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [phase, setPhase] = useState<"stars" | "comment" | "done_low" | "done_high">("stars");
+  const [phase, setPhase] = useState<"stars" | "comment" | "done_low" | "done_no_maps">("stars");
+
+  function saveFeedbackBackground(stars: number, commentText: string) {
+    const payload = JSON.stringify({ merchantId, stars, comment: commentText, orderId, orderType });
+    const blob = new Blob([payload], { type: "application/json" });
+    const sent = navigator.sendBeacon("/api/feedback", blob);
+    if (!sent) {
+      fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: payload,
+      }).catch(() => {});
+    }
+  }
 
   function handleStarClick(star: number) {
     setSelected(star);
+
     if (star >= 4) {
-      handleSubmit(star, "");
+      saveFeedbackBackground(star, "");
+
+      if (googleMapsUrl) {
+        window.location.href = googleMapsUrl;
+      } else {
+        setPhase("done_no_maps");
+        setTimeout(onClose, 3000);
+      }
     } else {
       setPhase("comment");
     }
   }
 
-  async function handleSubmit(stars: number, commentText: string) {
-    if (stars <= 3 && !commentText.trim()) return;
+  async function handleSubmitLow() {
+    if (!comment.trim()) return;
     setSubmitting(true);
     try {
       await fetch("/api/feedback", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ merchantId, stars, comment: commentText, orderId, orderType }),
+        body: JSON.stringify({ merchantId, stars: selected, comment, orderId, orderType }),
       });
     } catch {}
     setSubmitting(false);
-
-    if (stars >= 4) {
-      setPhase("done_high");
-      if (googleMapsUrl) {
-        setTimeout(() => window.open(googleMapsUrl, "_blank"), 1200);
-      }
-      setTimeout(onClose, 3500);
-    } else {
-      setPhase("done_low");
-      setTimeout(onClose, 3000);
-    }
+    setPhase("done_low");
+    setTimeout(onClose, 3000);
   }
 
   const display = hovered || selected;
@@ -66,7 +78,7 @@ export function StarRatingPopup({ merchantId, orderId, orderType, googleMapsUrl,
           paddingBottom: "env(safe-area-inset-bottom, 20px)",
         }}
       >
-        {/* Header */}
+        {/* Drag handle + close */}
         <div className="flex items-center justify-between px-5 pt-5 pb-2">
           <div />
           <div className="w-10 h-1 rounded-full bg-white/10 mx-auto absolute left-1/2 -translate-x-1/2 top-3" />
@@ -80,6 +92,8 @@ export function StarRatingPopup({ merchantId, orderId, orderType, googleMapsUrl,
         </div>
 
         <div className="px-6 pb-8 flex flex-col items-center gap-5">
+
+          {/* PHASE: stars */}
           {phase === "stars" && (
             <>
               <div className="text-center">
@@ -120,6 +134,7 @@ export function StarRatingPopup({ merchantId, orderId, orderType, googleMapsUrl,
             </>
           )}
 
+          {/* PHASE: comment (low ratings 1-3 only) */}
           {phase === "comment" && (
             <>
               <div className="text-center">
@@ -146,7 +161,7 @@ export function StarRatingPopup({ merchantId, orderId, orderType, googleMapsUrl,
                 data-testid="textarea-feedback-comment"
               />
               <button
-                onClick={() => handleSubmit(selected, comment)}
+                onClick={handleSubmitLow}
                 disabled={submitting || !comment.trim()}
                 className="w-full py-3.5 rounded-2xl font-bold text-sm transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-40"
                 style={{
@@ -164,6 +179,7 @@ export function StarRatingPopup({ merchantId, orderId, orderType, googleMapsUrl,
             </>
           )}
 
+          {/* PHASE: done_low (1-3 stars submitted) */}
           {phase === "done_low" && (
             <div className="flex flex-col items-center gap-3 py-4 text-center" data-testid="done-low-state">
               <span className="text-4xl">🙏</span>
@@ -174,21 +190,17 @@ export function StarRatingPopup({ merchantId, orderId, orderType, googleMapsUrl,
             </div>
           )}
 
-          {phase === "done_high" && (
-            <div className="flex flex-col items-center gap-3 py-4 text-center" data-testid="done-high-state">
+          {/* PHASE: done_no_maps (4-5 stars but no Maps URL configured) */}
+          {phase === "done_no_maps" && (
+            <div className="flex flex-col items-center gap-3 py-4 text-center" data-testid="done-no-maps-state">
               <span className="text-4xl">🌟</span>
               <p className="text-white font-bold text-lg" dir="rtl">شكراً لثقتك!</p>
               <p className="text-white/50 text-sm leading-relaxed" dir="rtl">
-                ننتظرك على خرائط جوجل
+                نسعد دائماً بخدمتك
               </p>
-              {googleMapsUrl && (
-                <div className="flex items-center gap-1.5 text-amber-400/70 text-xs" dir="rtl">
-                  <MapPin className="w-3.5 h-3.5" />
-                  <span>جارٍ التحويل...</span>
-                </div>
-              )}
             </div>
           )}
+
         </div>
       </div>
     </div>

@@ -1916,14 +1916,36 @@ export async function registerRoutes(
       if (!starsNum || starsNum < 1 || starsNum > 5) {
         return res.status(400).json({ message: "stars must be 1-5" });
       }
-      if (starsNum <= 3 && (!comment || !String(comment).trim())) {
-        return res.status(400).json({ message: "comment is required for 1-3 star ratings" });
-      }
 
       const baseUrl = getApiKeyBaseUrl();
       const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
       if (!baseUrl || !getApiKey() || !projectId) {
         return res.status(500).json({ message: "Firestore not configured" });
+      }
+
+      const commitUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:commit`;
+      const merchantDocPath = `projects/${projectId}/databases/(default)/documents/merchants/${merchantId}`;
+
+      if (starsNum >= 4) {
+        // High ratings: only increment counters; redirect to Maps handled on frontend
+        const fieldTransforms = [
+          { fieldPath: "totalRatingsCount", increment: { integerValue: "1" } },
+          { fieldPath: "googleMapsClicks", increment: { integerValue: "1" } },
+        ];
+        incrementDailyTracking(merchantId, "googleMapsClicks").catch(() => {});
+        await fetch(commitUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            writes: [{ transform: { document: merchantDocPath, fieldTransforms } }],
+          }),
+        }).catch(() => {});
+        return res.json({ success: true, id: null });
+      }
+
+      // Low ratings (1-3): require comment and save internally for merchant review
+      if (!comment || !String(comment).trim()) {
+        return res.status(400).json({ message: "comment is required for 1-3 star ratings" });
       }
 
       const docId = randomUUID();
@@ -1936,7 +1958,7 @@ export async function registerRoutes(
           fields: {
             merchantId: { stringValue: merchantId },
             stars: { integerValue: String(starsNum) },
-            comment: { stringValue: (comment || "").trim() },
+            comment: { stringValue: String(comment).trim() },
             orderId: { stringValue: orderId || "" },
             orderType: { stringValue: orderType || "" },
             timestamp: { stringValue: nowIso },
@@ -1948,20 +1970,13 @@ export async function registerRoutes(
         return res.status(500).json({ message: "Failed to save feedback" });
       }
 
-      const commitUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:commit`;
-      const merchantDocPath = `projects/${projectId}/databases/(default)/documents/merchants/${merchantId}`;
-
-      const fieldTransforms: any[] = [{ fieldPath: "totalRatingsCount", increment: { integerValue: "1" } }];
-      if (starsNum >= 4) {
-        fieldTransforms.push({ fieldPath: "googleMapsClicks", increment: { integerValue: "1" } });
-        incrementDailyTracking(merchantId, "googleMapsClicks").catch(() => {});
-      }
-
       await fetch(commitUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          writes: [{ transform: { document: merchantDocPath, fieldTransforms } }],
+          writes: [{ transform: { document: merchantDocPath, fieldTransforms: [
+            { fieldPath: "totalRatingsCount", increment: { integerValue: "1" } },
+          ] } }],
         }),
       }).catch(() => {});
 
