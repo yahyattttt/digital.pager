@@ -378,6 +378,7 @@ export default function SuperAdminPage() {
   const [counterLoading, setCounterLoading] = useState(false);
   const [merchantCounters, setMerchantCounters] = useState<{ uid: string; storeName: string; last_number: number }[]>([]);
   const [merchantCountersLoading, setMerchantCountersLoading] = useState(false);
+  const [merchantCountersLoaded, setMerchantCountersLoaded] = useState(false);
   const [resettingCounter, setResettingCounter] = useState(false);
   const [resettingMerchantId, setResettingMerchantId] = useState<string | null>(null);
   const [pendingSubRequests, setPendingSubRequests] = useState<any[]>([]);
@@ -814,14 +815,15 @@ export default function SuperAdminPage() {
     setMerchantCountersLoading(true);
     try {
       const results: { uid: string; storeName: string; last_number: number }[] = [];
+      const validMerchants = (merchants || []).filter((m) => !!m.uid);
       await Promise.all(
-        merchants.map(async (m) => {
+        validMerchants.map(async (m) => {
           try {
             const s = await getDoc(doc(db, "merchants", m.uid, "settings", "manualShift"));
             results.push({
               uid: m.uid,
               storeName: m.storeName || m.uid,
-              last_number: s.exists() ? (s.data().last_shift_number || 0) : 0,
+              last_number: s.exists() ? ((s.data().last_shift_number as number) || 0) : 0,
             });
           } catch {
             results.push({ uid: m.uid, storeName: m.storeName || m.uid, last_number: 0 });
@@ -830,6 +832,7 @@ export default function SuperAdminPage() {
       );
       results.sort((a, b) => b.last_number - a.last_number);
       setMerchantCounters(results);
+      setMerchantCountersLoaded(true);
     } catch {
       toast({ title: t("خطأ", "Error"), description: t("فشل في تحميل عدادات المتاجر", "Failed to load merchant counters"), variant: "destructive" });
     } finally {
@@ -872,7 +875,7 @@ export default function SuperAdminPage() {
     setResettingCounter(true);
     try {
       await Promise.all(
-        merchants.map((m) =>
+        (merchants || []).filter((m) => !!m.uid).map((m) =>
           setDoc(doc(db, "merchants", m.uid, "settings", "manualShift"), { last_shift_number: 0 }, { merge: true })
         )
       );
@@ -3389,7 +3392,7 @@ export default function SuperAdminPage() {
                   <p className="text-xs text-slate-400" dir="rtl">{t("يُعيد عداد الوردية لكل متجر إلى الصفر. إجراء لا رجعة فيه.", "Resets every store's shift counter to zero. Irreversible action.")}</p>
                   <Button
                     onClick={resetAllMerchantCounters}
-                    disabled={resettingCounter || merchants.length === 0}
+                    disabled={resettingCounter || (merchants || []).length === 0}
                     size="sm"
                     className="w-full bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/25 font-bold gap-1.5"
                     data-testid="button-reset-all-counters"
@@ -3436,7 +3439,16 @@ export default function SuperAdminPage() {
                 {merchantCountersLoading && <Loader2 className="w-4 h-4 animate-spin text-slate-500" />}
               </div>
               <div className="divide-y divide-slate-800/40" data-testid="table-merchant-counters">
-                {merchantCounters.length === 0 && !merchantCountersLoading ? (
+                {merchantCountersLoading ? (
+                  <div className="px-5 py-8 flex items-center justify-center gap-2 text-slate-500 text-sm">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    {t("جاري تحميل البيانات...", "Loading data...")}
+                  </div>
+                ) : merchantCounters.length === 0 && merchantCountersLoaded ? (
+                  <div className="px-5 py-8 text-center text-slate-500 text-sm" dir="rtl">
+                    {t("لا توجد بيانات حالياً", "No data available")}
+                  </div>
+                ) : merchantCounters.length === 0 ? (
                   <div className="px-5 py-8 text-center text-slate-500 text-sm" dir="rtl">
                     {t("اضغط على تحديث لتحميل البيانات", "Click Refresh to load data")}
                   </div>
@@ -3449,7 +3461,7 @@ export default function SuperAdminPage() {
                         </div>
                         <div className="min-w-0">
                           <p className="text-sm font-semibold text-slate-100 truncate">{mc.storeName}</p>
-                          <p className="text-[10px] text-slate-500 font-mono">{mc.uid.slice(0, 12)}…</p>
+                          <p className="text-[10px] text-slate-500 font-mono">{(mc.uid || "").slice(0, 12)}…</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-3 shrink-0">
