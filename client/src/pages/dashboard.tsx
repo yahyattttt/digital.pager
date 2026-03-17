@@ -5943,6 +5943,9 @@ function SettingsView({
   const [crPdfUploading, setCrPdfUploading] = useState(false);
   const crPdfInputRef = useRef<HTMLInputElement>(null);
   const [supportWhatsappEdit, setSupportWhatsappEdit] = useState<string>((merchant as any)?.support_whatsapp || "");
+  const [settingsTab, setSettingsTab] = useState<"general" | "delivery" | "support" | "finance">("general");
+  const [supportSaving, setSupportSaving] = useState(false);
+  const [legalDocsSaving, setLegalDocsSaving] = useState(false);
 
   useEffect(() => {
     setStoreNameEdit(merchant?.storeName || "");
