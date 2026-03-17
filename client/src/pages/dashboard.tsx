@@ -106,6 +106,12 @@ import {
   FileText,
   CloudUpload,
   RefreshCw,
+  Cpu,
+  HardDrive,
+  ServerCrash,
+  Zap,
+  Database,
+  HeartPulse,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import ArchiveView from "@/pages/order-archive";
@@ -123,8 +129,9 @@ const businessTypeLabelsEn: Record<string, string> = {
 };
 
 const ADMIN_WHATSAPP = "https://wa.me/966500000000";
+const PRIMARY_ADMIN_EMAIL = (import.meta.env.VITE_SUPER_ADMIN_EMAIL || "yahiatohary@hotmail.com").toLowerCase();
 
-type DashboardView = "overview" | "menu" | "analytics" | "tracking" | "customers" | "coupons" | "financial" | "settings" | "archive" | "subscription" | "reviews";
+type DashboardView = "overview" | "menu" | "analytics" | "tracking" | "customers" | "coupons" | "financial" | "settings" | "archive" | "subscription" | "reviews" | "syshealth";
 
 function SubscriptionRequiredScreen({
   storeName,
@@ -371,6 +378,299 @@ function SubscriptionProgress({
   );
 }
 
+// ─── System Health View (Super Admin) ──────────────────────────────────────
+function SysHealthView({
+  t,
+  counterData,
+  counterLoading,
+  healthLoading,
+  resetting,
+  errorLog,
+  merchantCount,
+  ordersToday,
+  onRefresh,
+  onResetCounter,
+}: {
+  t: (ar: string, en: string) => string;
+  lang: string;
+  counterData: { last_global_number: number; last_reset_date: string; total_today: number } | null;
+  counterLoading: boolean;
+  healthLoading: boolean;
+  resetting: boolean;
+  errorLog: { ts: string; code: string; msg: string }[];
+  merchantCount: number | null;
+  ordersToday: number;
+  onRefresh: () => void;
+  onResetCounter: () => void;
+}) {
+  const FREE_READS = 50000;
+  const FREE_WRITES = 20000;
+  const FREE_STORAGE_MB = 1024;
+
+  const estimatedReads = ordersToday * 8;
+  const estimatedWrites = ordersToday * 4;
+  const readsPercent = Math.min(100, (estimatedReads / FREE_READS) * 100);
+  const writesPercent = Math.min(100, (estimatedWrites / FREE_WRITES) * 100);
+  const estimatedStorageMB = (merchantCount || 0) * 0.7;
+  const storagePercent = Math.min(100, (estimatedStorageMB / FREE_STORAGE_MB) * 100);
+
+  const getStatus = (pct: number) => pct >= 80 ? "critical" : pct >= 50 ? "warning" : "healthy";
+  const statusColor = (s: string) => s === "critical" ? "#ef4444" : s === "warning" ? "#f59e0b" : "#22c55e";
+  const statusBg = (s: string) => s === "critical" ? "rgba(239,68,68,0.08)" : s === "warning" ? "rgba(245,158,11,0.08)" : "rgba(34,197,94,0.08)";
+  const statusBorder = (s: string) => s === "critical" ? "rgba(239,68,68,0.25)" : s === "warning" ? "rgba(245,158,11,0.25)" : "rgba(34,197,94,0.2)";
+  const statusLabel = (s: string) => s === "critical" ? t("⚠ خطر", "⚠ Critical") : s === "warning" ? t("تحذير", "Warning") : t("✓ سليم", "✓ Healthy");
+
+  const readsStatus = getStatus(readsPercent);
+  const writesStatus = getStatus(writesPercent);
+  const storageStatus = getStatus(storagePercent);
+  const counterStatus = (counterData?.total_today || 0) > 800 ? "warning" : "healthy";
+
+  const dotStyle = (s: string) => ({
+    width: 8, height: 8, borderRadius: "50%" as const,
+    background: statusColor(s),
+    boxShadow: `0 0 6px ${statusColor(s)}`,
+    flexShrink: 0,
+    display: "inline-block" as const,
+  });
+
+  return (
+    <div className="p-4 md:p-6 space-y-6" data-testid="section-syshealth">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h2 className="text-lg font-bold text-white flex items-center gap-2" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}>
+            <HeartPulse className="w-5 h-5 text-rose-400" />
+            {t("صحة النظام والموارد", "System Health & Resources")}
+          </h2>
+          <p className="text-xs text-slate-500 mt-0.5">{t("لوحة مراقبة مخصصة للمشرف العام فقط", "Super Admin only monitoring dashboard")}</p>
+        </div>
+        <button
+          onClick={onRefresh}
+          disabled={healthLoading}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-white border border-slate-700 hover:border-slate-500 transition-colors"
+          data-testid="button-refresh-syshealth"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${healthLoading ? "animate-spin" : ""}`} />
+          {t("تحديث", "Refresh")}
+        </button>
+      </div>
+
+      {/* 4-Widget Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+        {/* ── Widget 1: Firebase Quota ── */}
+        <div className="rounded-2xl p-5 space-y-4" style={{ background: "#0d0d12", border: "1px solid rgba(99,102,241,0.2)" }}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(99,102,241,0.12)" }}>
+                <Zap className="w-4 h-4 text-indigo-400" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-slate-100">{t("الاستهلاك اليومي", "Daily Firebase Quota")}</p>
+                <p className="text-[10px] text-slate-500">{t("تقدير بناءً على طلبات اليوم", "Estimate based on today's orders")}</p>
+              </div>
+            </div>
+            <div className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: statusBg(readsStatus), color: statusColor(readsStatus), border: `1px solid ${statusBorder(readsStatus)}` }}>
+              {statusLabel(readsStatus)}
+            </div>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <div className="flex justify-between text-[11px] mb-1">
+                <span className="text-slate-400 font-medium">{t("قراءات Reads", "Reads")}</span>
+                <span className="font-mono text-slate-300">{estimatedReads.toLocaleString()} / {FREE_READS.toLocaleString()}</span>
+              </div>
+              <div className="h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+                <div className="h-full rounded-full transition-all duration-500" style={{ width: `${readsPercent}%`, background: statusColor(readsStatus) }} />
+              </div>
+              <p className="text-[9px] text-slate-600 mt-0.5">{readsPercent.toFixed(1)}% {t("من الحصة اليومية المجانية", "of free daily quota")}</p>
+            </div>
+            <div>
+              <div className="flex justify-between text-[11px] mb-1">
+                <span className="text-slate-400 font-medium">{t("كتابات Writes", "Writes")}</span>
+                <span className="font-mono text-slate-300">{estimatedWrites.toLocaleString()} / {FREE_WRITES.toLocaleString()}</span>
+              </div>
+              <div className="h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+                <div className="h-full rounded-full transition-all duration-500" style={{ width: `${writesPercent}%`, background: statusColor(writesStatus) }} />
+              </div>
+              <p className="text-[9px] text-slate-600 mt-0.5">{writesPercent.toFixed(1)}% {t("من الحصة اليومية المجانية", "of free daily quota")}</p>
+            </div>
+          </div>
+          <p className="text-[9px] text-slate-600 border-t border-slate-800/60 pt-2">{t("الأرقام تقريبية (8 قراءات + 4 كتابات × عدد الطلبات اليوم)", "Estimated: 8 reads + 4 writes × today's orders")}</p>
+        </div>
+
+        {/* ── Widget 2: Storage Monitor ── */}
+        <div className="rounded-2xl p-5 space-y-4" style={{ background: "#0d0d12", border: "1px solid rgba(16,185,129,0.2)" }}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(16,185,129,0.12)" }}>
+                <HardDrive className="w-4 h-4 text-emerald-400" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-slate-100">{t("مراقبة التخزين", "Storage Monitor")}</p>
+                <p className="text-[10px] text-slate-500">{t("تقدير بناءً على عدد المتاجر", "Estimate based on merchant count")}</p>
+              </div>
+            </div>
+            <div className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: statusBg(storageStatus), color: statusColor(storageStatus), border: `1px solid ${statusBorder(storageStatus)}` }}>
+              {statusLabel(storageStatus)}
+            </div>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <div className="flex justify-between text-[11px] mb-1">
+                <span className="text-slate-400 font-medium">{t("الاستخدام الكلي", "Total Usage")}</span>
+                <span className="font-mono text-slate-300">{estimatedStorageMB.toFixed(1)} MB / {FREE_STORAGE_MB} MB</span>
+              </div>
+              <div className="h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+                <div className="h-full rounded-full transition-all duration-500" style={{ width: `${storagePercent}%`, background: statusColor(storageStatus) }} />
+              </div>
+              <p className="text-[9px] text-slate-600 mt-0.5">{storagePercent.toFixed(2)}% {t("من حد التخزين المجاني (1 GB)", "of free storage limit (1 GB)")}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              {[
+                { label: t("شعارات المتاجر", "Store Logos"), size: `${((merchantCount || 0) * 0.2).toFixed(1)} MB`, icon: "🖼️" },
+                { label: t("الوثائق والـ PDF", "PDFs & Docs"), size: `${((merchantCount || 0) * 0.5).toFixed(1)} MB`, icon: "📄" },
+              ].map((row) => (
+                <div key={row.label} className="rounded-xl p-3" style={{ background: "rgba(16,185,129,0.05)", border: "1px solid rgba(16,185,129,0.12)" }}>
+                  <p className="text-base">{row.icon}</p>
+                  <p className="text-[10px] font-bold text-emerald-300 mt-1">{row.size}</p>
+                  <p className="text-[9px] text-slate-500">{row.label}</p>
+                </div>
+              ))}
+            </div>
+            <p className="text-[9px] text-slate-600 border-t border-slate-800/60 pt-2">{t(`${merchantCount ?? "—"} متجر مسجل — 700KB تقديراً لكل متجر`, `${merchantCount ?? "—"} registered stores — ~700KB estimated per store`)}</p>
+          </div>
+        </div>
+
+        {/* ── Widget 3: Order Counter ── */}
+        <div className="rounded-2xl p-5 space-y-4" style={{ background: "#0d0d12", border: "1px solid rgba(251,191,36,0.2)" }}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(251,191,36,0.12)" }}>
+                <Hash className="w-4 h-4 text-amber-400" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-slate-100">{t("عداد الطلبات", "Order Counter")}</p>
+                <p className="text-[10px] text-slate-500">{t("متزامن مباشرة مع Firebase", "Live sync with Firebase")}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span style={dotStyle(counterStatus)} />
+              <span className="text-[10px] font-bold" style={{ color: statusColor(counterStatus) }}>
+                {statusLabel(counterStatus)}
+              </span>
+            </div>
+          </div>
+          {counterLoading ? (
+            <div className="flex items-center gap-2 text-slate-500 text-sm"><Loader2 className="w-4 h-4 animate-spin" />{t("جاري التحميل...", "Loading...")}</div>
+          ) : counterData ? (
+            <div className="space-y-3">
+              <div className="flex items-end gap-4">
+                <div>
+                  <p className="text-4xl font-black text-white tabular-nums" data-testid="syshealth-global-counter">{counterData.last_global_number.toLocaleString()}</p>
+                  <p className="text-[10px] text-slate-500 mt-0.5">{t("إجمالي الأرقام الصادرة", "Total numbers issued")}</p>
+                </div>
+                <div className="pb-1">
+                  <p className="text-xl font-bold text-amber-400">{counterData.total_today}</p>
+                  <p className="text-[9px] text-slate-500">{t("اليوم", "Today")}</p>
+                </div>
+              </div>
+              <div className="flex items-center justify-between border-t border-amber-500/10 pt-3">
+                <div>
+                  <p className="text-[10px] text-slate-500">{t("آخر إعادة ضبط", "Last reset")} <span className="text-slate-300 font-mono">{counterData.last_reset_date || "—"}</span></p>
+                </div>
+                <button
+                  onClick={onResetCounter}
+                  disabled={resetting}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-amber-400 border border-amber-500/30 hover:bg-amber-500/10 transition-colors"
+                  data-testid="syshealth-reset-counter"
+                >
+                  {resetting ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                  {t("إعادة الضبط", "Reset")}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-4 text-slate-500 text-sm">
+              <Hash className="w-8 h-8 mx-auto mb-2 opacity-30" />
+              <p>{t("اضغط تحديث لتحميل البيانات", "Click Refresh to load data")}</p>
+            </div>
+          )}
+        </div>
+
+        {/* ── Widget 4: Error Log ── */}
+        <div className="rounded-2xl p-5 space-y-3" style={{ background: "#0d0d12", border: "1px solid rgba(239,68,68,0.2)" }}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(239,68,68,0.12)" }}>
+                <ServerCrash className="w-4 h-4 text-red-400" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-slate-100">{t("سجل الأخطاء", "Error Log")}</p>
+                <p className="text-[10px] text-slate-500">{t("آخر 5 أخطاء مسجلة في النظام", "Last 5 recorded system errors")}</p>
+              </div>
+            </div>
+            {errorLog.length === 0 ? (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(34,197,94,0.08)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.2)" }}>✓ {t("لا أخطاء", "No Errors")}</span>
+            ) : (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(239,68,68,0.08)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>⚠ {errorLog.length}</span>
+            )}
+          </div>
+          <div className="space-y-2 max-h-48 overflow-y-auto pr-1" data-testid="syshealth-error-log">
+            {errorLog.length === 0 ? (
+              <div className="text-center py-6">
+                <ShieldCheck className="w-8 h-8 mx-auto mb-2 text-emerald-600 opacity-60" />
+                <p className="text-xs text-slate-500">{t("لم يتم تسجيل أي أخطاء", "No errors recorded")}</p>
+              </div>
+            ) : (
+              errorLog.slice(0, 5).map((e, i) => {
+                const isHigh = e.code === "429" || e.code === "resource-exhausted" || e.code === "500";
+                return (
+                  <div key={i} className="flex items-start gap-2 p-2.5 rounded-lg" style={{ background: isHigh ? "rgba(239,68,68,0.07)" : "rgba(255,255,255,0.03)", border: `1px solid ${isHigh ? "rgba(239,68,68,0.15)" : "rgba(255,255,255,0.06)"}` }}>
+                    <span className="text-[10px] font-black mt-0.5 px-1.5 py-0.5 rounded font-mono shrink-0" style={{ background: isHigh ? "rgba(239,68,68,0.15)" : "rgba(148,163,184,0.1)", color: isHigh ? "#f87171" : "#94a3b8" }}>
+                      {e.code}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] text-slate-300 truncate">{e.msg}</p>
+                      <p className="text-[9px] text-slate-600 mt-0.5 font-mono">{new Date(e.ts).toLocaleString()}</p>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+          {errorLog.length > 5 && (
+            <p className="text-[9px] text-slate-600 text-center">{t(`+${errorLog.length - 5} أخطاء أقدم`, `+${errorLog.length - 5} older errors`)}</p>
+          )}
+        </div>
+      </div>
+
+      {/* Summary Row */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {[
+          { label: t("متاجر مسجلة", "Registered Stores"), value: merchantCount ?? "—", icon: Database, color: "#818cf8" },
+          { label: t("طلبات اليوم", "Today's Orders"), value: ordersToday, icon: Activity, color: "#34d399" },
+          { label: t("أخطاء مسجلة", "Logged Errors"), value: errorLog.length, icon: AlertTriangle, color: errorLog.length > 0 ? "#f87171" : "#94a3b8" },
+          { label: t("حالة النظام", "System Status"), value: t("يعمل", "Running"), icon: Cpu, color: "#22c55e" },
+        ].map((stat) => {
+          const Icon = stat.icon;
+          return (
+            <div key={stat.label} className="rounded-xl p-3 flex items-center gap-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${stat.color}18` }}>
+                <Icon className="w-4 h-4" style={{ color: stat.color }} />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-white">{String(stat.value)}</p>
+                <p className="text-[9px] text-slate-500">{stat.label}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const [, setLocation] = useLocation();
   const { merchant, logout } = useAuth();
@@ -404,6 +704,15 @@ export default function DashboardPage() {
   const [showShiftConfig, setShowShiftConfig] = useState(false);
   const [shiftConfigInput, setShiftConfigInput] = useState("");
   const manualInputRef = useRef<HTMLInputElement>(null);
+
+  // ── System Health (super admin only) ────────────────────────────────────
+  const [sysCounterData, setSysCounterData] = useState<{ last_global_number: number; last_reset_date: string; total_today: number } | null>(null);
+  const [sysCounterLoading, setSysCounterLoading] = useState(false);
+  const [sysResetting, setSysResetting] = useState(false);
+  const [sysErrorLog, setSysErrorLog] = useState<{ ts: string; code: string; msg: string }[]>([]);
+  const [sysMerchantCount, setSysMerchantCount] = useState<number | null>(null);
+  const [sysHealthLoading, setSysHealthLoading] = useState(false);
+  const sysCounterUnsubRef = useRef<(() => void) | null>(null);
 
   // ── Alert Sound System ──────────────────────────────────────────────────
   const alertAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -778,6 +1087,20 @@ export default function DashboardPage() {
     }
   }, [merchant?.uid, shiftConfigInput, t, toast]);
 
+  // Auto-load system health when super admin navigates to that view
+  useEffect(() => {
+    if (currentView === "syshealth" && isSuperAdmin) {
+      fetchSysHealthData();
+    }
+    return () => {
+      if (currentView !== "syshealth" && sysCounterUnsubRef.current) {
+        sysCounterUnsubRef.current();
+        sysCounterUnsubRef.current = null;
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentView]);
+
   const shiftAddLockRef = useRef(false);
   const handleShiftAdd = useCallback(async () => {
     if (!merchant?.uid || !isApproved || manualAddLoading || shiftAddLockRef.current) return;
@@ -845,6 +1168,66 @@ export default function DashboardPage() {
       shiftAddLockRef.current = false;
     }
   }, [merchant?.uid, isApproved, manualAddLoading, lastShiftNumber, t, toast]);
+
+  // ── System Health Monitoring ─────────────────────────────────────────────
+  const logSystemError = useCallback(async (code: string, msg: string) => {
+    const entry = { ts: new Date().toISOString(), code, msg };
+    setSysErrorLog((prev) => [entry, ...prev].slice(0, 20));
+    try {
+      const logRef = doc(db, "systemSettings", "errorLog");
+      const snap = await getDoc(logRef);
+      const existing: { ts: string; code: string; msg: string }[] = snap.exists() ? (snap.data().entries || []) : [];
+      const updated = [entry, ...existing].slice(0, 50);
+      await setDoc(logRef, { entries: updated }, { merge: false });
+    } catch { /* never block on logging */ }
+  }, []);
+
+  const fetchSysHealthData = useCallback(async () => {
+    setSysHealthLoading(true);
+    try {
+      // Counter data — real-time listener
+      if (sysCounterUnsubRef.current) { sysCounterUnsubRef.current(); sysCounterUnsubRef.current = null; }
+      const counterRef = doc(db, "systemSettings", "orderCounters");
+      setSysCounterLoading(true);
+      const unsub = onSnapshot(counterRef, (snap) => {
+        setSysCounterLoading(false);
+        if (snap.exists()) {
+          const d = snap.data();
+          setSysCounterData({ last_global_number: d.last_global_number || 0, last_reset_date: d.last_reset_date || "", total_today: d.total_today || 0 });
+        } else {
+          setSysCounterData({ last_global_number: 0, last_reset_date: "", total_today: 0 });
+        }
+      }, () => setSysCounterLoading(false));
+      sysCounterUnsubRef.current = unsub;
+
+      // Merchant count
+      const merchantsSnap = await getDocs(collection(db, "merchants"));
+      setSysMerchantCount(merchantsSnap.size);
+
+      // Error log
+      const logSnap = await getDoc(doc(db, "systemSettings", "errorLog"));
+      if (logSnap.exists()) {
+        setSysErrorLog((logSnap.data().entries || []).slice(0, 20));
+      }
+    } catch (e: any) {
+      logSystemError("500", e?.message || "Failed to load system health data");
+    } finally {
+      setSysHealthLoading(false);
+    }
+  }, [logSystemError]);
+
+  const resetSysGlobalCounter = useCallback(async () => {
+    setSysResetting(true);
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      await setDoc(doc(db, "systemSettings", "orderCounters"), { last_global_number: 0, last_reset_date: today, total_today: 0 }, { merge: false });
+      toast({ title: t("تم الإعادة", "Reset Done"), description: t("تم إعادة ضبط العداد إلى الصفر", "Global counter reset to zero") });
+    } catch {
+      toast({ title: t("خطأ", "Error"), description: t("فشل في إعادة الضبط", "Reset failed"), variant: "destructive" });
+    } finally {
+      setSysResetting(false);
+    }
+  }, [t, toast]);
 
   const [acceptingOrderId, setAcceptingOrderId] = useState<string | null>(null);
 
@@ -1302,6 +1685,8 @@ export default function DashboardPage() {
   const isPending = merchant.status === "pending" || merchant.status === "rejected";
   const waitingPagers = pagers.filter((p) => p.status === "waiting");
   const notifiedPagers = pagers.filter((p) => p.status === "notified");
+  const isSuperAdmin = merchant.email?.toLowerCase() === PRIMARY_ADMIN_EMAIL;
+
   const allNavItems: { id: DashboardView; icon: typeof LayoutDashboard; label: string; badge?: number }[] = [
     { id: "overview", icon: LayoutDashboard, label: t("لوحة التحكم", "Dashboard"), badge: whatsappOrders.length || undefined },
     { id: "menu", icon: UtensilsCrossed, label: t("قسم الأونلاين", "Online Section") },
@@ -1314,6 +1699,7 @@ export default function DashboardPage() {
     { id: "archive", icon: FolderArchive, label: t("أرشيف الطلبات", "Order Archive") },
     { id: "subscription", icon: CreditCard, label: t("اشتراكي", "My Subscription") },
     { id: "settings", icon: Settings, label: t("الإعدادات", "Settings") },
+    ...(isSuperAdmin ? [{ id: "syshealth" as const, icon: HeartPulse, label: t("صحة النظام", "System Health") }] : []),
   ];
 
   const navItems = allNavItems.filter(item => {
@@ -1772,6 +2158,23 @@ export default function DashboardPage() {
                 lang={lang}
               />
             )}
+
+            {/* ─── System Health (Super Admin Only) ─── */}
+            {isSuperAdmin && currentView === "syshealth" && (
+              <SysHealthView
+                t={t}
+                lang={lang}
+                counterData={sysCounterData}
+                counterLoading={sysCounterLoading}
+                healthLoading={sysHealthLoading}
+                resetting={sysResetting}
+                errorLog={sysErrorLog}
+                merchantCount={sysMerchantCount}
+                ordersToday={sysCounterData?.total_today ?? 0}
+                onRefresh={fetchSysHealthData}
+                onResetCounter={resetSysGlobalCounter}
+              />
+            )}
           </div>
         </main>
       </div>
@@ -1972,6 +2375,7 @@ function OverviewView({
   manualInputRef: React.RefObject<HTMLInputElement>;
   isApproved: boolean;
 }) {
+  const { toast } = useToast();
   const [printOrder, setPrintOrder] = useState<WhatsAppOrder | null>(null);
   const [printQrDataUrl, setPrintQrDataUrl] = useState<string>("");
   const [uncollectedConfirmOrder, setUncollectedConfirmOrder] = useState<WhatsAppOrder | null>(null);

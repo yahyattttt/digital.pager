@@ -45,7 +45,8 @@ The platform is a multi-tenant SaaS application. The frontend uses React, Vite, 
 - **PWA**: Progressive Web App capabilities.
 - **Real-time Updates**: Achieved through extensive use of Firestore `onSnapshot` listeners.
 - **Tracking & Marketing**: Utilizes Web Share API, QR scan tracking, and a Smart Feedback Filter.
-- **Super Admin Panel**: Manages merchants, global settings, impersonation, system health, and ROI reports, including per-merchant feature toggles.
+- **Super Admin Panel**: Manages merchants, global settings, impersonation, system health, and ROI reports, including per-merchant feature toggles. Has a "Counter Management" tab (`system_settings/orderCounters`) for global order counter monitoring and reset, with per-merchant shift counter reset grid.
+- **System Health Sidebar (Super Admin)**: A dedicated "صحة النظام والموارد" view in the merchant dashboard sidebar, visible only to the super admin email. Features 4 monitoring widgets: (1) Firebase Quota with progress bars estimating reads/writes vs free-tier limits, (2) Storage Monitor with per-category breakdown, (3) Real-time Order Counter with manual reset, (4) Error Log showing last 5 system errors from `systemSettings/errorLog`. Color-coded status indicators (green/yellow/red). Auto-loads on navigation and has a Refresh button.
 - **Subscription System**: Two-layer gating for subscription status, admin-managed payment tracking, and auto-activation.
 - **Platform Finance System**: Isolated `platform_admin_finance` collection for tracking platform revenue, expenses, and net profit.
 - **Structured Cloud Numbering System**: Online orders use `[CityCode][YY][PaddedCounter]` format, assigned via a Firestore REST PATCH (non-transactional) to the `settings/orderCounter` subcollection, with city codes configurable.
