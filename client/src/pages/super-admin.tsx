@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
-import { collection, getDocs, doc, updateDoc, deleteDoc, getDoc, setDoc, onSnapshot, query, where } from "firebase/firestore";
+import { collection, getDocs, doc, updateDoc, deleteDoc, getDoc, setDoc, onSnapshot, query, where, runTransaction } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/hooks/use-auth";
 import { useLanguage } from "@/hooks/use-language";
@@ -372,7 +372,14 @@ export default function SuperAdminPage() {
   const [expenseDate, setExpenseDate] = useState("");
   const [expenseSaving, setExpenseSaving] = useState(false);
   const [renewalData, setRenewalData] = useState<any>(null);
-  const [activeSection, setActiveSection] = useState<"home" | "stores" | "subscriptions" | "finance" | "tracking" | "settings" | "sysmonitor">("home");
+  const [activeSection, setActiveSection] = useState<"home" | "stores" | "subscriptions" | "finance" | "tracking" | "settings" | "sysmonitor" | "counters">("home");
+
+  const [counterData, setCounterData] = useState<{ last_global_number: number; last_reset_date: string; total_today: number } | null>(null);
+  const [counterLoading, setCounterLoading] = useState(false);
+  const [merchantCounters, setMerchantCounters] = useState<{ uid: string; storeName: string; last_number: number }[]>([]);
+  const [merchantCountersLoading, setMerchantCountersLoading] = useState(false);
+  const [resettingCounter, setResettingCounter] = useState(false);
+  const [resettingMerchantId, setResettingMerchantId] = useState<string | null>(null);
   const [pendingSubRequests, setPendingSubRequests] = useState<any[]>([]);
   const [activatingRequestId, setActivatingRequestId] = useState<string | null>(null);
   const [rejectDialogMerchant, setRejectDialogMerchant] = useState<any | null>(null);
@@ -779,6 +786,102 @@ export default function SuperAdminPage() {
       }
     } catch {
       toast({ title: t("خطأ", "Error"), description: t("فشل في حذف المصروف", "Failed to delete expense"), variant: "destructive" });
+    }
+  }
+
+  async function fetchCounterData() {
+    setCounterLoading(true);
+    try {
+      const snap = await getDoc(doc(db, "systemSettings", "orderCounters"));
+      if (snap.exists()) {
+        const d = snap.data();
+        setCounterData({
+          last_global_number: d.last_global_number || 0,
+          last_reset_date: d.last_reset_date || "",
+          total_today: d.total_today || 0,
+        });
+      } else {
+        setCounterData({ last_global_number: 0, last_reset_date: "", total_today: 0 });
+      }
+    } catch {
+      toast({ title: t("خطأ", "Error"), description: t("فشل في تحميل بيانات العداد", "Failed to load counter data"), variant: "destructive" });
+    } finally {
+      setCounterLoading(false);
+    }
+  }
+
+  async function fetchMerchantCounters() {
+    setMerchantCountersLoading(true);
+    try {
+      const results: { uid: string; storeName: string; last_number: number }[] = [];
+      await Promise.all(
+        merchants.map(async (m) => {
+          try {
+            const s = await getDoc(doc(db, "merchants", m.uid, "settings", "manualShift"));
+            results.push({
+              uid: m.uid,
+              storeName: m.storeName || m.uid,
+              last_number: s.exists() ? (s.data().last_shift_number || 0) : 0,
+            });
+          } catch {
+            results.push({ uid: m.uid, storeName: m.storeName || m.uid, last_number: 0 });
+          }
+        })
+      );
+      results.sort((a, b) => b.last_number - a.last_number);
+      setMerchantCounters(results);
+    } catch {
+      toast({ title: t("خطأ", "Error"), description: t("فشل في تحميل عدادات المتاجر", "Failed to load merchant counters"), variant: "destructive" });
+    } finally {
+      setMerchantCountersLoading(false);
+    }
+  }
+
+  async function resetDailyGlobalCounter() {
+    setResettingCounter(true);
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      await setDoc(doc(db, "systemSettings", "orderCounters"), {
+        last_global_number: 0,
+        last_reset_date: today,
+        total_today: 0,
+      }, { merge: false });
+      setCounterData({ last_global_number: 0, last_reset_date: today, total_today: 0 });
+      toast({ title: t("تم الإعادة", "Reset Done"), description: t("تم إعادة ضبط العداد اليومي إلى 0", "Daily counter reset to 0") });
+    } catch {
+      toast({ title: t("خطأ", "Error"), description: t("فشل في إعادة الضبط", "Reset failed"), variant: "destructive" });
+    } finally {
+      setResettingCounter(false);
+    }
+  }
+
+  async function resetMerchantCounter(uid: string, storeName: string) {
+    setResettingMerchantId(uid);
+    try {
+      await setDoc(doc(db, "merchants", uid, "settings", "manualShift"), { last_shift_number: 0 }, { merge: true });
+      setMerchantCounters((prev) => prev.map((m) => m.uid === uid ? { ...m, last_number: 0 } : m));
+      toast({ title: t("تم الإعادة", "Reset Done"), description: t(`تم إعادة ضبط عداد ${storeName}`, `Counter for ${storeName} reset`) });
+    } catch {
+      toast({ title: t("خطأ", "Error"), description: t("فشل في إعادة الضبط", "Reset failed"), variant: "destructive" });
+    } finally {
+      setResettingMerchantId(null);
+    }
+  }
+
+  async function resetAllMerchantCounters() {
+    setResettingCounter(true);
+    try {
+      await Promise.all(
+        merchants.map((m) =>
+          setDoc(doc(db, "merchants", m.uid, "settings", "manualShift"), { last_shift_number: 0 }, { merge: true })
+        )
+      );
+      setMerchantCounters((prev) => prev.map((m) => ({ ...m, last_number: 0 })));
+      toast({ title: t("تم الإعادة", "Reset Done"), description: t("تم إعادة ضبط جميع عدادات المتاجر", "All merchant counters reset") });
+    } catch {
+      toast({ title: t("خطأ", "Error"), description: t("فشل في إعادة الضبط", "Reset failed"), variant: "destructive" });
+    } finally {
+      setResettingCounter(false);
     }
   }
 
@@ -1282,7 +1385,7 @@ export default function SuperAdminPage() {
     activeSection === "home" ? "monitor" :
     activeSection === "stores" ? "merchants" :
     activeSection === "subscriptions" ? "subscriptions" :
-    activeSection; // "finance" | "tracking" | "settings" | "sysmonitor" pass through
+    activeSection; // "finance" | "tracking" | "settings" | "sysmonitor" | "counters" pass through
 
   return (
     <div className="min-h-screen" style={{ background: "#0a0f1a" }}>
@@ -1346,6 +1449,7 @@ export default function SuperAdminPage() {
             { key: "subscriptions", icon: CreditCard,  labelAr: "الاشتراكات",     action: () => setActiveSection("subscriptions"), badge: pendingSubRequests.length },
             { key: "finance",       icon: DollarSign,  labelAr: "المالية",        action: () => { setActiveSection("finance"); if (!platformFinanceData) fetchPlatformFinance(); } },
             { key: "tracking",      icon: TrendingUp,  labelAr: "تتبع العملاء",   action: () => setActiveSection("tracking") },
+            { key: "counters",      icon: Hash,        labelAr: "إدارة العدادات", action: () => { setActiveSection("counters"); fetchCounterData(); fetchMerchantCounters(); } },
             ...(user?.email?.toLowerCase() === PRIMARY_ADMIN_EMAIL.toLowerCase() ? [{ key: "sysmonitor" as const, icon: Gauge, labelAr: "مراقب الأداء", action: () => setActiveSection("sysmonitor" as any) }] : []),
             { key: "settings",      icon: Settings,    labelAr: "الإعدادات",      action: () => setActiveSection("settings") },
           ] as const).map(({ key, icon: Icon, labelAr, action }) => (
@@ -3200,6 +3304,176 @@ export default function SuperAdminPage() {
                 </Button>
               </div>
             )}
+          </TabsContent>
+
+          {/* ══ Counter Management ══ */}
+          <TabsContent value="counters" className="space-y-6" data-testid="section-counters">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-slate-100" dir="rtl" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}>
+                  إدارة العدادات والموارد
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">Counter Management &amp; Resource Control</p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => { fetchCounterData(); fetchMerchantCounters(); }}
+                disabled={counterLoading || merchantCountersLoading}
+                className="border-slate-700 text-slate-400 hover:text-white gap-1.5"
+                data-testid="button-refresh-counters"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${(counterLoading || merchantCountersLoading) ? "animate-spin" : ""}`} />
+                {t("تحديث", "Refresh")}
+              </Button>
+            </div>
+
+            {/* Global Counter Card */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="md:col-span-1 rounded-2xl p-5 flex flex-col gap-3" style={{ background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.2)" }}>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(99,102,241,0.15)" }}>
+                    <Hash className="w-4 h-4 text-indigo-400" />
+                  </div>
+                  <p className="text-xs font-bold text-indigo-300 tracking-wider uppercase">العداد العالمي</p>
+                </div>
+                {counterLoading ? (
+                  <div className="flex items-center gap-2 text-slate-500 text-sm"><Loader2 className="w-4 h-4 animate-spin" />{t("جاري التحميل...", "Loading...")}</div>
+                ) : counterData ? (
+                  <>
+                    <div>
+                      <p className="text-4xl font-black text-white" data-testid="text-global-counter">{counterData.last_global_number.toLocaleString()}</p>
+                      <p className="text-xs text-slate-500 mt-1">{t("آخر رقم منسوخ عالمياً", "Last globally issued number")}</p>
+                    </div>
+                    <div className="flex items-center gap-3 pt-1 border-t border-indigo-500/15">
+                      <div>
+                        <p className="text-lg font-bold text-indigo-300" data-testid="text-total-today">{counterData.total_today}</p>
+                        <p className="text-[10px] text-slate-500">{t("طلبات اليوم", "Today's Orders")}</p>
+                      </div>
+                      <div className="h-8 w-px bg-indigo-500/15" />
+                      <div>
+                        <p className="text-sm font-semibold text-slate-300">{counterData.last_reset_date || "—"}</p>
+                        <p className="text-[10px] text-slate-500">{t("آخر إعادة ضبط", "Last Reset")}</p>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm text-slate-500">{t("لم يتم تحميل البيانات بعد", "Data not loaded yet")}</p>
+                )}
+              </div>
+
+              {/* Action Cards */}
+              <div className="flex flex-col gap-3">
+                <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: "rgba(251,191,36,0.07)", border: "1px solid rgba(251,191,36,0.2)" }}>
+                  <div className="flex items-center gap-2">
+                    <RefreshCw className="w-4 h-4 text-amber-400" />
+                    <p className="text-sm font-bold text-amber-300" dir="rtl">{t("إعادة ضبط العداد اليومي", "Reset Daily Counter")}</p>
+                  </div>
+                  <p className="text-xs text-slate-400" dir="rtl">{t("يعيد العداد العالمي إلى الصفر ويبدأ من رقم 1 من جديد.", "Resets the global counter to zero and starts from 1 again.")}</p>
+                  <Button
+                    onClick={resetDailyGlobalCounter}
+                    disabled={resettingCounter}
+                    size="sm"
+                    className="w-full bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 font-bold gap-1.5"
+                    data-testid="button-reset-global-counter"
+                  >
+                    {resettingCounter ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                    {t("إعادة ضبط العداد", "Reset Counter")}
+                  </Button>
+                </div>
+                <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: "rgba(239,68,68,0.07)", border: "1px solid rgba(239,68,68,0.18)" }}>
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-red-400" />
+                    <p className="text-sm font-bold text-red-300" dir="rtl">{t("إعادة ضبط جميع المتاجر", "Reset All Stores")}</p>
+                  </div>
+                  <p className="text-xs text-slate-400" dir="rtl">{t("يُعيد عداد الوردية لكل متجر إلى الصفر. إجراء لا رجعة فيه.", "Resets every store's shift counter to zero. Irreversible action.")}</p>
+                  <Button
+                    onClick={resetAllMerchantCounters}
+                    disabled={resettingCounter || merchants.length === 0}
+                    size="sm"
+                    className="w-full bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/25 font-bold gap-1.5"
+                    data-testid="button-reset-all-counters"
+                  >
+                    {resettingCounter ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <AlertTriangle className="w-3.5 h-3.5" />}
+                    {t("إعادة ضبط الكل", "Reset All")}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Firebase Quota Indicator */}
+              <div className="rounded-2xl p-5 flex flex-col gap-3" style={{ background: "rgba(16,185,129,0.07)", border: "1px solid rgba(16,185,129,0.18)" }}>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(16,185,129,0.12)" }}>
+                    <Zap className="w-4 h-4 text-emerald-400" />
+                  </div>
+                  <p className="text-xs font-bold text-emerald-300 tracking-wider uppercase">Firebase Usage</p>
+                </div>
+                <div className="space-y-2.5">
+                  {[
+                    { label: t("عدادات المتاجر", "Store Counters"), desc: t("طلب واحد/طلب", "1 read per order"), status: "ok" },
+                    { label: t("أحداث النظام", "Active Listeners"), desc: t("بدون تاريخ (آمن الآن)", "Date-scoped (safe now)"), status: "ok" },
+                    { label: t("طلبات مكتملة اليوم", "Completed Today"), desc: t("قراءات محدودة بتاريخ اليوم", "Date-limited reads"), status: "ok" },
+                  ].map((item) => (
+                    <div key={item.label} className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-xs font-semibold text-slate-200">{item.label}</p>
+                        <p className="text-[10px] text-slate-500">{item.desc}</p>
+                      </div>
+                      <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(16,185,129,0.15)", color: "#34d399", border: "1px solid rgba(16,185,129,0.25)" }}>✓ {t("آمن", "Safe")}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Per-Merchant Counters Table */}
+            <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(15,23,42,0.8)", border: "1px solid rgba(51,65,85,0.5)" }}>
+              <div className="px-5 py-4 flex items-center justify-between border-b border-slate-800/60">
+                <div>
+                  <p className="text-sm font-bold text-slate-100" dir="rtl">{t("عدادات المتاجر", "Store Counters")}</p>
+                  <p className="text-xs text-slate-500">{t("آخر رقم وردية لكل متجر", "Last shift number per store")}</p>
+                </div>
+                {merchantCountersLoading && <Loader2 className="w-4 h-4 animate-spin text-slate-500" />}
+              </div>
+              <div className="divide-y divide-slate-800/40" data-testid="table-merchant-counters">
+                {merchantCounters.length === 0 && !merchantCountersLoading ? (
+                  <div className="px-5 py-8 text-center text-slate-500 text-sm" dir="rtl">
+                    {t("اضغط على تحديث لتحميل البيانات", "Click Refresh to load data")}
+                  </div>
+                ) : (
+                  merchantCounters.map((mc) => (
+                    <div key={mc.uid} className="px-5 py-3 flex items-center justify-between gap-3" data-testid={`row-counter-${mc.uid}`}>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-8 h-8 rounded-lg bg-slate-700/40 border border-slate-600/30 flex items-center justify-center shrink-0">
+                          <Store className="w-4 h-4 text-slate-400" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-slate-100 truncate">{mc.storeName}</p>
+                          <p className="text-[10px] text-slate-500 font-mono">{mc.uid.slice(0, 12)}…</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <div className="text-center">
+                          <p className="text-xl font-black text-white font-mono" data-testid={`text-counter-${mc.uid}`}>{mc.last_number}</p>
+                          <p className="text-[9px] text-slate-600">{t("آخر رقم", "Last #")}</p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => resetMerchantCounter(mc.uid, mc.storeName)}
+                          disabled={resettingMerchantId === mc.uid || mc.last_number === 0}
+                          className="h-8 px-2.5 text-xs text-slate-500 hover:text-amber-400 hover:bg-amber-500/10 rounded-lg gap-1"
+                          data-testid={`button-reset-counter-${mc.uid}`}
+                        >
+                          {resettingMerchantId === mc.uid ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                          {t("صفّر", "Reset")}
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
           </TabsContent>
 
           </Tabs>

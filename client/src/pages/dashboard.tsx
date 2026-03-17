@@ -809,6 +809,21 @@ export default function DashboardPage() {
         createdAt: new Date().toISOString(),
         notifiedAt: null,
       });
+
+      // Update global platform counter (fire-and-forget, non-blocking)
+      const today = new Date().toISOString().split("T")[0];
+      const globalRef = doc(db, "systemSettings", "orderCounters");
+      runTransaction(db, async (txn) => {
+        const gSnap = await txn.get(globalRef);
+        const gData = gSnap.exists() ? gSnap.data() : {};
+        const isNewDay = (gData.last_reset_date || "") !== today;
+        txn.set(globalRef, {
+          last_global_number: (gData.last_global_number || 0) + 1,
+          last_reset_date: isNewDay ? today : (gData.last_reset_date || today),
+          total_today: isNewDay ? 1 : (gData.total_today || 0) + 1,
+        }, { merge: false });
+      }).catch(() => {}); // silent fail — never block order creation
+
       toast({ title: t(`تم إضافة طلب رقم ${displayId} بنجاح`, `Order #${displayId} added successfully`) });
     } catch (err: any) {
       const isQuota = err?.code === "resource-exhausted"
