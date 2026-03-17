@@ -449,15 +449,25 @@ export default function StorePagerPage() {
           )}
         </div>
 
-        {/* Notice: Receipt reminder */}
-        <div className="px-5 pb-5 flex justify-center" data-testid="notice-receipt-reminder">
+        {/* Sticky footer: Receipt reminder */}
+        <div
+          className="shrink-0 w-full text-center"
+          style={{
+            padding: "15px 20px",
+            background: "rgba(10,0,0,0.75)",
+            backdropFilter: "blur(12px)",
+            WebkitBackdropFilter: "blur(12px)",
+            borderTop: "1px solid rgba(255,200,0,0.18)",
+            paddingBottom: "calc(15px + env(safe-area-inset-bottom))",
+          }}
+          data-testid="notice-receipt-reminder"
+        >
           <p
-            className="flex items-center gap-1.5 text-[14px] font-medium"
-            style={{ color: "rgba(255,255,255,0.35)", fontFamily: "'Tajawal','Cairo',sans-serif" }}
+            className="text-[14px] font-bold"
+            style={{ color: "rgba(253,224,70,0.92)", fontFamily: "'Tajawal','Cairo',sans-serif" }}
             dir="rtl"
           >
-            <span className="text-base leading-none">🧾</span>
-            يُرجى إحضار الفاتورة عند الاستلام
+            ⚠️ تنبيه: يجب إحضار الفاتورة عند استلام طلبك
           </p>
         </div>
 
