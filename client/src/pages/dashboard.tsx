@@ -6204,6 +6204,73 @@ function SettingsView({
     }
   }
 
+  async function handleSaveSupport() {
+    const uid = merchant?.uid;
+    if (!uid) return;
+    setSupportSaving(true);
+    try {
+      const merchantRef = doc(db, "merchants", uid);
+      await setDoc(merchantRef, {
+        whatsappNumber: whatsappEdit.trim(),
+        support_whatsapp: supportWhatsappEdit.trim(),
+        driverPhone: driverPhone.trim(),
+        googleMapsReviewUrl: googleMapsUrlEdit.trim(),
+      }, { merge: true });
+      toast({
+        title: t("تم الحفظ", "Saved"),
+        description: t("تم حفظ إعدادات الدعم بنجاح", "Support settings saved successfully"),
+      });
+    } catch (err) {
+      console.error("[Save Support] Firestore error:", err);
+      toast({
+        title: t("خطأ", "Error"),
+        description: t("فشل في حفظ إعدادات الدعم", "Failed to save support settings"),
+        variant: "destructive",
+      });
+    } finally {
+      setSupportSaving(false);
+    }
+  }
+
+  async function handleSaveLegalDocs() {
+    const uid = merchant?.uid;
+    if (!uid) return;
+    setLegalDocsSaving(true);
+    try {
+      const merchantRef = doc(db, "merchants", uid);
+      await setDoc(merchantRef, {
+        moyasarPublishableKey,
+        moyasarSecretKey,
+        onlinePaymentEnabled,
+        codEnabled,
+        taxNumber: taxNumberEdit.trim(),
+        commercialRegisterNumber: crNumberEdit.trim(),
+        ownerPhone: ownerPhoneEdit.trim(),
+        commercialRegisterURL: crPdfUrlEdit.trim(),
+      }, { merge: true });
+      toast({
+        title: t("تم الحفظ", "Saved"),
+        description: t("تم حفظ إعدادات المالية والقانونية بنجاح", "Finance & legal settings saved successfully"),
+      });
+    } catch (err) {
+      console.error("[Save Legal Docs] Firestore error:", err);
+      toast({
+        title: t("خطأ", "Error"),
+        description: t("فشل في الحفظ", "Failed to save"),
+        variant: "destructive",
+      });
+    } finally {
+      setLegalDocsSaving(false);
+    }
+  }
+
+  const tabDef = [
+    { key: "general" as const, arLabel: "عام", enLabel: "General", icon: <Store className="w-3.5 h-3.5" /> },
+    { key: "delivery" as const, arLabel: "توصيل", enLabel: "Delivery", icon: <MapPin className="w-3.5 h-3.5" /> },
+    { key: "support" as const, arLabel: "دعم", enLabel: "Support", icon: <Phone className="w-3.5 h-3.5" /> },
+    { key: "finance" as const, arLabel: "مالية/قانوني", enLabel: "Finance/Legal", icon: <CreditCard className="w-3.5 h-3.5" /> },
+  ];
+
   return (
     <div className="space-y-5">
       <div>
@@ -6212,6 +6279,91 @@ function SettingsView({
           {t("إعدادات المتجر وأدوات إضافية", "Store settings and tools")}
         </p>
       </div>
+
+      {/* ── QR Share Card (always visible at top) ── */}
+      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
+        <CardContent className="p-5">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-8 h-8 rounded-xl bg-red-500/10 flex items-center justify-center shrink-0">
+              <Share2 className="w-4 h-4 text-red-400" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-sm">{t("مشاركة المتجر", "Share Store")}</h3>
+              <p className="text-xs text-muted-foreground">{t("رمز QR ورابط المتجر", "QR code & store link")}</p>
+            </div>
+          </div>
+          <div className="flex flex-col items-center gap-4">
+            <div
+              data-testid="qr-preview-container"
+              style={{
+                background: "linear-gradient(160deg, #160505 0%, #060000 100%)",
+                border: "2px solid rgba(200,30,30,0.65)",
+                boxShadow: "0 0 36px rgba(180,0,0,0.35), inset 0 0 24px rgba(0,0,0,0.6)",
+              }}
+              className="relative flex flex-col items-center rounded-[28px] px-5 pt-5 pb-5 w-60"
+            >
+              <span className="text-[10px] font-bold tracking-[0.28em] text-red-600/80 uppercase mb-3 select-none">DIGITAL PAGER</span>
+              <div className="flex items-center gap-[10px] mb-3" aria-hidden="true">
+                {[0.15, 0.35, 0.8, 1, 0.8, 0.35, 0.15].map((op, i) => (
+                  <span key={i} className="block rounded-full" style={{ width: 7, height: 7, background: `rgba(255,30,0,${op})`, boxShadow: op > 0.5 ? `0 0 6px 2px rgba(255,20,0,${op * 0.7})` : "none" }} />
+                ))}
+              </div>
+              <div className="rounded-xl overflow-hidden" style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.8), inset 0 0 0 1px rgba(200,30,30,0.18)" }}>
+                <img src={`/api/qr/${merchant.uid}?t=${Date.now()}`} alt="Store QR Code" className="w-44 h-44 block" data-testid="img-qr-preview" style={{ background: "#fff" }} />
+              </div>
+              <div className="flex items-center gap-[10px] mt-3" aria-hidden="true">
+                {[0.15, 0.35, 0.8, 1, 0.8, 0.35, 0.15].map((op, i) => (
+                  <span key={i} className="block rounded-full" style={{ width: 7, height: 7, background: `rgba(255,30,0,${op})`, boxShadow: op > 0.5 ? `0 0 6px 2px rgba(255,20,0,${op * 0.7})` : "none" }} />
+                ))}
+              </div>
+              <p className="mt-3 text-sm font-bold text-white text-center leading-snug select-none">امسح وتابع طلبك 📱</p>
+              {merchant.storeName && <p className="mt-0.5 text-[10px] text-red-500/60 text-center font-medium select-none">{merchant.storeName}</p>}
+              <span className="absolute top-3 left-3 w-1.5 h-1.5 rounded-full bg-red-700/40" aria-hidden="true" />
+              <span className="absolute top-3 right-3 w-1.5 h-1.5 rounded-full bg-red-700/40" aria-hidden="true" />
+              <span className="absolute bottom-3 left-3 w-1.5 h-1.5 rounded-full bg-red-700/40" aria-hidden="true" />
+              <span className="absolute bottom-3 right-3 w-1.5 h-1.5 rounded-full bg-red-700/40" aria-hidden="true" />
+            </div>
+            <div className="grid grid-cols-2 gap-3 w-full max-w-sm">
+              <Button variant="outline" onClick={onDownloadQR} disabled={qrLoading} className="h-11 border-white/10 justify-start rounded-2xl" data-testid="button-download-qr-settings">
+                {qrLoading ? <Loader2 className="w-4 h-4 animate-spin me-2" /> : <Download className="w-4 h-4 me-2" />}
+                {t("تحميل QR", "Download QR")}
+              </Button>
+              <Button variant="outline" onClick={() => { const url = `${window.location.origin}/check-order/${merchant.uid}`; if (navigator.share) { navigator.share({ title: merchant.storeName, url }); } else { navigator.clipboard.writeText(url); } }} className="h-11 border-white/10 justify-start rounded-2xl" data-testid="button-share-store-link">
+                <Share2 className="w-4 h-4 me-2" />
+                {t("مشاركة الرابط", "Share Link")}
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Tab Bar ── */}
+      <div className="flex gap-1.5 p-1 rounded-2xl bg-white/[0.03] border border-white/[0.06]" role="tablist">
+        {tabDef.map((tab) => (
+          <button
+            key={tab.key}
+            role="tab"
+            aria-selected={settingsTab === tab.key}
+            onClick={() => setSettingsTab(tab.key)}
+            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold transition-all"
+            style={{
+              background: settingsTab === tab.key ? "rgba(220,38,38,0.18)" : "transparent",
+              color: settingsTab === tab.key ? "#f87171" : "rgba(255,255,255,0.4)",
+              border: settingsTab === tab.key ? "1px solid rgba(220,38,38,0.3)" : "1px solid transparent",
+            }}
+            data-testid={`tab-settings-${tab.key}`}
+          >
+            {tab.icon}
+            <span className="hidden sm:inline">{lang === "ar" ? tab.arLabel : tab.enLabel}</span>
+            <span className="sm:hidden">{lang === "ar" ? tab.arLabel : tab.enLabel}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* ── TAB PANELS ── */}
+
+      {/* ── TAB: General ── */}
+      {settingsTab === "general" && (<>
 
       {/* ── SECTION 1: Account Info ── */}
       <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
@@ -6286,34 +6438,9 @@ function SettingsView({
               </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-xs text-muted-foreground">{t("اسم المتجر", "Store Name")}</label>
-                <Input value={storeNameEdit} onChange={(e) => setStoreNameEdit(e.target.value)} className="h-11 bg-white/[0.03] border-white/10" data-testid="input-store-name-edit" />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs text-muted-foreground">{t("رقم واتساب التواصل", "WhatsApp Contact")}</label>
-                <Input value={whatsappEdit} onChange={(e) => setWhatsappEdit(e.target.value)} placeholder="966501234567" dir="ltr" className="h-11 bg-white/[0.03] border-white/10 font-mono" data-testid="input-whatsapp-edit" />
-              </div>
-            </div>
             <div className="space-y-1.5">
-              <label className="text-xs text-muted-foreground flex items-center gap-1.5">
-                <span className="inline-flex w-3.5 h-3.5 items-center justify-center">
-                  <svg viewBox="0 0 24 24" fill="#25d366" className="w-3.5 h-3.5"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12.001 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.987-1.306A9.953 9.953 0 0012.001 22C17.523 22 22 17.523 22 12S17.523 2 12.001 2zm0 18c-1.738 0-3.368-.474-4.769-1.299l-.342-.203-3.037.794.812-2.962-.222-.358A7.964 7.964 0 014 12c0-4.418 3.582-8 8.001-8 4.418 0 7.999 3.582 7.999 8s-3.581 8-7.999 8z"/></svg>
-                </span>
-                {t("رقم واتساب دعم العملاء", "Customer Support WhatsApp")}
-                <span className="text-muted-foreground/50 text-[10px]">{t("(يظهر للعملاء في صفحة التتبع)", "(shown to customers on tracking page)")}</span>
-              </label>
-              <div className="relative">
-                <Input
-                  value={supportWhatsappEdit}
-                  onChange={(e) => setSupportWhatsappEdit(e.target.value)}
-                  placeholder="966501234567"
-                  dir="ltr"
-                  className="h-11 bg-white/[0.03] border-white/10 font-mono"
-                  data-testid="input-support-whatsapp-edit"
-                />
-              </div>
+              <label className="text-xs text-muted-foreground">{t("اسم المتجر", "Store Name")}</label>
+              <Input value={storeNameEdit} onChange={(e) => setStoreNameEdit(e.target.value)} className="h-11 bg-white/[0.03] border-white/10" data-testid="input-store-name-edit" />
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/[0.04]">
               <div>
@@ -6329,195 +6456,77 @@ function SettingsView({
                 <p className="text-sm font-medium truncate" data-testid="text-business-type">{lang === "ar" ? businessTypeLabels[merchant.businessType] || merchant.businessType : businessTypeLabelsEn[merchant.businessType] || merchant.businessType}</p>
               </div>
             </div>
-
-            {/* ── Legal & Official Data Section ── */}
-            <div className="space-y-3 pt-2">
-              <div className="flex items-center gap-2 pb-1 border-b border-white/[0.06]">
-                <Receipt className="w-4 h-4 text-amber-400" />
-                <h4 className="text-sm font-semibold text-white/80">{t("البيانات الرسمية والقانونية", "Legal & Official Data")}</h4>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs text-muted-foreground">{t("جوال المسؤول", "Manager Phone")}</label>
-                  <div className="relative">
-                    <Phone className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                    <Input
-                      value={ownerPhoneEdit}
-                      onChange={(e) => setOwnerPhoneEdit(e.target.value)}
-                      placeholder="966501234567"
-                      dir="ltr"
-                      className="pr-9 h-11 bg-white/[0.03] border-white/10 font-mono text-sm"
-                      data-testid="input-owner-phone-edit"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs text-muted-foreground">
-                    {t("رقم السجل التجاري", "Commercial Register No.")}
-                    <span className="text-destructive ms-1 text-[10px]">*</span>
-                  </label>
-                  <div className="relative">
-                    <Hash className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                    <Input
-                      value={crNumberEdit}
-                      onChange={(e) => setCrNumberEdit(e.target.value)}
-                      placeholder="1010XXXXXX"
-                      dir="ltr"
-                      className="pr-9 h-11 bg-white/[0.03] border-white/10 font-mono text-sm"
-                      data-testid="input-cr-number-edit"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs text-muted-foreground">
-                    {t("الرقم الضريبي للمنشأة", "Tax Registration No.")}
-                    <span className="text-muted-foreground/50 ms-1.5 text-[10px]">{t("(إن وجد)", "(optional)")}</span>
-                  </label>
-                  <div className="relative">
-                    <Receipt className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                    <Input
-                      value={taxNumberEdit}
-                      onChange={(e) => setTaxNumberEdit(e.target.value)}
-                      placeholder="3XXXXXXXXXXXXXXXXXXX"
-                      dir="ltr"
-                      className="pr-9 h-11 bg-white/[0.03] border-white/10 font-mono text-sm"
-                      data-testid="input-tax-number-edit"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* ── Commercial Register PDF Upload ── */}
-              <div className="space-y-2 pt-1">
-                <label className="text-xs text-muted-foreground flex items-center gap-1.5">
-                  <FileText className="w-3.5 h-3.5 text-amber-400" />
-                  {t("إرفاق السجل التجاري (PDF)", "Attach Commercial Register (PDF)")}
-                  <span className="text-muted-foreground/50 text-[10px]">{t("(إن وجد)", "(optional)")}</span>
-                </label>
-
-                {crPdfUrlEdit ? (
-                  /* File already uploaded — show preview row */
-                  <div className="flex items-center gap-2 p-3 rounded-xl border border-white/10 bg-white/[0.03]">
-                    <div className="flex items-center gap-2.5 flex-1 min-w-0">
-                      <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.2)" }}>
-                        <FileText className="w-4 h-4 text-red-400" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-xs font-semibold text-white truncate" data-testid="text-cr-pdf-name">
-                          {crPdfUrlEdit.split("/").pop() || "commercial_register.pdf"}
-                        </p>
-                        <p className="text-[10px] text-green-400 flex items-center gap-1 mt-0.5">
-                          <CheckCircle className="w-3 h-3" />
-                          {t("تم الرفع بنجاح", "Uploaded successfully")}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex gap-1.5 shrink-0">
-                      <a
-                        href={crPdfUrlEdit}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-colors"
-                        style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.6)", border: "1px solid rgba(255,255,255,0.1)" }}
-                        data-testid="btn-preview-cr-pdf"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        {t("معاينة", "Preview")}
-                      </a>
-                      <button
-                        onClick={() => crPdfInputRef.current?.click()}
-                        disabled={crPdfUploading}
-                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-colors"
-                        style={{ background: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.2)" }}
-                        data-testid="btn-replace-cr-pdf"
-                      >
-                        <RefreshCw className="w-3.5 h-3.5" />
-                        {t("استبدال", "Replace")}
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  /* No file yet — show upload dropzone */
-                  <button
-                    type="button"
-                    onClick={() => crPdfInputRef.current?.click()}
-                    disabled={crPdfUploading}
-                    className="w-full flex flex-col items-center justify-center gap-2 py-5 rounded-xl border-2 border-dashed transition-all"
-                    style={{ borderColor: "rgba(251,191,36,0.25)", background: "rgba(251,191,36,0.03)" }}
-                    data-testid="btn-upload-cr-pdf"
-                  >
-                    {crPdfUploading ? (
-                      <Loader2 className="w-6 h-6 animate-spin text-amber-400" />
-                    ) : (
-                      <CloudUpload className="w-6 h-6 text-amber-400/70" />
-                    )}
-                    <div className="text-center">
-                      <p className="text-sm font-semibold text-amber-400/80">
-                        {crPdfUploading ? t("جارٍ الرفع...", "Uploading...") : t("اضغط لرفع ملف PDF", "Click to upload PDF")}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground mt-0.5">{t("يُقبل ملفات PDF فقط، بحد أقصى 10MB", "PDF files only, max 10MB")}</p>
-                    </div>
-                  </button>
-                )}
-
-                <input
-                  ref={crPdfInputRef}
-                  type="file"
-                  accept="application/pdf"
-                  className="hidden"
-                  onChange={handleCrPdfUpload}
-                  data-testid="input-cr-pdf-file"
-                />
-              </div>
-            </div>
-
-            {/* ── Google Maps Review Link ── */}
-            <div className="space-y-3 pt-2">
-              <div className="flex items-center gap-2 pb-1 border-b border-white/[0.06]">
-                <Star className="w-4 h-4 text-amber-400" />
-                <h4 className="text-sm font-semibold text-white/80">{t("رابط تقييم جوجل ماب", "Google Maps Review Link")}</h4>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs text-muted-foreground">{t("رابط صفحة تقييمك على جوجل ماب", "Your Google Maps review page URL")}</label>
-                <div className="relative">
-                  <MapPin className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-amber-400/60" />
-                  <Input
-                    value={googleMapsUrlEdit}
-                    onChange={(e) => setGoogleMapsUrlEdit(e.target.value)}
-                    placeholder="https://maps.google.com/..."
-                    dir="ltr"
-                    className="pr-9 h-11 bg-white/[0.03] border-white/10 font-mono text-sm placeholder:text-white/20"
-                    data-testid="input-google-maps-url"
-                  />
-                </div>
-                <p className="text-[11px] leading-relaxed" dir="rtl" style={{ color: "rgba(251,191,36,0.5)" }}>
-                  {t(
-                    "⭐ عند تقييم العملاء بـ 4 أو 5 نجوم، سيتم تحويلهم تلقائياً لهذا الرابط لمشاركة تجربتهم على جوجل ماب. التقييمات 1-3 نجوم تُحفظ داخلياً فقط.",
-                    "⭐ When customers rate 4 or 5 stars, they are automatically redirected here to share their experience on Google Maps. Ratings of 1-3 stars are saved internally only."
-                  )}
-                </p>
-                {googleMapsUrlEdit && (
-                  <a
-                    href={googleMapsUrlEdit}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 text-[11px] text-amber-400/70 hover:text-amber-400 transition-colors"
-                    data-testid="link-test-maps-url"
-                  >
-                    <ExternalLink className="w-3 h-3" />
-                    {t("اختبار الرابط", "Test link")}
-                  </a>
-                )}
-              </div>
-            </div>
+            <p className="text-[11px] text-muted-foreground" dir="rtl">{t("⚡ أرقام الواتساب وروابط الدعم متوفرة في تبويب 'دعم' · البيانات المالية والقانونية في تبويب 'مالية/قانوني'", "⚡ WhatsApp numbers are in the 'Support' tab · Financial & legal data in the 'Finance/Legal' tab")}</p>
 
             <Button onClick={handleSaveAccountInfo} disabled={branchInfoSaving} className="w-full h-11 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-2xl disabled:opacity-30" data-testid="button-save-account-info">
               {branchInfoSaving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Save className="w-4 h-4 me-2" />}
-              {t("حفظ معلومات الحساب", "Save Account Info")}
+              {t("حفظ اسم المتجر", "Save Store Name")}
             </Button>
           </div>
         </CardContent>
       </Card>
+
+      {/* ── Alert Sound Settings ── */}
+      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
+        <CardContent className="p-6">
+          <h3 className="font-semibold mb-5 flex items-center gap-2">
+            <span>🔔</span>
+            {t("إعدادات صوت التنبيهات", "Alert Sound Settings")}
+          </h3>
+          <div className="space-y-5">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm text-white/60" dir="rtl">{t("مستوى الصوت", "Alert Volume")}</label>
+                <span className="text-sm font-bold text-white/80" data-testid="text-alert-volume-pct">
+                  {Math.round((Number(localStorage.getItem("alert_volume") ?? "0.8")) * 100)}%
+                </span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="5"
+                defaultValue={Math.round((Number(localStorage.getItem("alert_volume") ?? "0.8")) * 100)}
+                onChange={(e) => {
+                  const vol = Number(e.target.value) / 100;
+                  localStorage.setItem("alert_volume", String(vol));
+                  e.target.parentElement!.querySelector("[data-testid='text-alert-volume-pct']")!.textContent = `${e.target.value}%`;
+                }}
+                className="w-full h-2 rounded-full outline-none cursor-pointer accent-red-600"
+                data-testid="slider-alert-volume"
+                style={{ accentColor: "#dc2626" }}
+              />
+              <div className="flex justify-between mt-1">
+                <span className="text-[10px] text-white/20">{t("صامت", "Muted")}</span>
+                <span className="text-[10px] text-white/20">{t("أعلى", "Max")}</span>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                const vol = Number(localStorage.getItem("alert_volume") ?? "0.8");
+                const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3");
+                audio.volume = Math.max(0, Math.min(1, vol));
+                audio.play().then(() => {
+                  setTimeout(() => audio.pause(), 3000);
+                }).catch(() => {});
+                localStorage.setItem("sound_unlocked", "1");
+              }}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all active:scale-95 hover:bg-white/[0.08]"
+              style={{ border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.7)", fontFamily: "'Tajawal','Cairo',sans-serif" }}
+              data-testid="button-test-sound"
+              dir="rtl"
+            >
+              <span>▶</span>
+              {t("اختبار الصوت", "Test Sound")}
+            </button>
+          </div>
+        </CardContent>
+      </Card>
+
+      </>)}
+
+      {/* ── TAB: Delivery ── */}
+      {settingsTab === "delivery" && (<>
 
       {/* ── SECTION 2: Branch Location & Delivery Range ── */}
       <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
@@ -6621,6 +6630,90 @@ function SettingsView({
         </CardContent>
       </Card>
 
+      </>)}
+
+      {/* ── TAB: Support ── */}
+      {settingsTab === "support" && (<>
+
+      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
+        <CardContent className="p-6">
+          <h3 className="font-semibold mb-1 flex items-center gap-2">
+            <Phone className="w-4 h-4 text-green-400" />
+            {t("أرقام التواصل والدعم", "Contact & Support Numbers")}
+          </h3>
+          <p className="text-xs text-muted-foreground mb-5">{t("أرقام الواتساب التي تظهر للعملاء في صفحات التتبع", "WhatsApp numbers shown to customers on tracking pages")}</p>
+          <div className="space-y-5">
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <span className="inline-flex w-3.5 h-3.5 items-center justify-center">
+                  <svg viewBox="0 0 24 24" fill="#25d366" className="w-3.5 h-3.5"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12.001 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.987-1.306A9.953 9.953 0 0012.001 22C17.523 22 22 17.523 22 12S17.523 2 12.001 2zm0 18c-1.738 0-3.368-.474-4.769-1.299l-.342-.203-3.037.794.812-2.962-.222-.358A7.964 7.964 0 014 12c0-4.418 3.582-8 8.001-8 4.418 0 7.999 3.582 7.999 8s-3.581 8-7.999 8z"/></svg>
+                </span>
+                {t("واتساب التواصل العام", "General WhatsApp")}
+                <span className="text-muted-foreground/50 text-[10px]">{t("(يستخدمه العملاء للطلبات العامة)", "(general customer contact)")}</span>
+              </label>
+              <Input value={whatsappEdit} onChange={(e) => setWhatsappEdit(e.target.value)} placeholder="966501234567" dir="ltr" className="h-11 bg-white/[0.03] border-white/10 font-mono" data-testid="input-whatsapp-edit" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <span className="inline-flex w-3.5 h-3.5 items-center justify-center">
+                  <svg viewBox="0 0 24 24" fill="#25d366" className="w-3.5 h-3.5"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12.001 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.987-1.306A9.953 9.953 0 0012.001 22C17.523 22 22 17.523 22 12S17.523 2 12.001 2zm0 18c-1.738 0-3.368-.474-4.769-1.299l-.342-.203-3.037.794.812-2.962-.222-.358A7.964 7.964 0 014 12c0-4.418 3.582-8 8.001-8 4.418 0 7.999 3.582 7.999 8s-3.581 8-7.999 8z"/></svg>
+                </span>
+                {t("واتساب دعم العملاء", "Customer Support WhatsApp")}
+                <span className="text-muted-foreground/50 text-[10px]">{t("(يظهر في صفحة التتبع)", "(shown on tracking page)")}</span>
+              </label>
+              <Input value={supportWhatsappEdit} onChange={(e) => setSupportWhatsappEdit(e.target.value)} placeholder="966501234567" dir="ltr" className="h-11 bg-white/[0.03] border-white/10 font-mono" data-testid="input-support-whatsapp-edit" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <span className="inline-flex w-3.5 h-3.5 items-center justify-center">
+                  <svg viewBox="0 0 24 24" fill="#25d366" className="w-3.5 h-3.5"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12.001 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.987-1.306A9.953 9.953 0 0012.001 22C17.523 22 22 17.523 22 12S17.523 2 12.001 2zm0 18c-1.738 0-3.368-.474-4.769-1.299l-.342-.203-3.037.794.812-2.962-.222-.358A7.964 7.964 0 014 12c0-4.418 3.582-8 8.001-8 4.418 0 7.999 3.582 7.999 8s-3.581 8-7.999 8z"/></svg>
+                </span>
+                {t("واتساب المندوب (السائق)", "Driver WhatsApp")}
+                <span className="text-muted-foreground/50 text-[10px]">{t("(للطلبات التوصيل)", "(for delivery orders)")}</span>
+              </label>
+              <Input type="tel" value={driverPhone} onChange={(e) => setDriverPhone(e.target.value)} placeholder="966501234567" maxLength={15} className="h-11 bg-white/[0.03] border-white/10 font-mono" dir="ltr" data-testid="input-driver-phone" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
+        <CardContent className="p-6">
+          <h3 className="font-semibold mb-1 flex items-center gap-2">
+            <Star className="w-4 h-4 text-amber-400" />
+            {t("رابط تقييم جوجل ماب", "Google Maps Review Link")}
+          </h3>
+          <p className="text-xs text-muted-foreground mb-4">{t("يُحوَّل العملاء 4-5 نجوم تلقائياً لهذا الرابط", "4-5 star customers are auto-redirected to this link")}</p>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">{t("رابط صفحة تقييمك على جوجل ماب", "Your Google Maps review page URL")}</label>
+              <div className="relative">
+                <MapPin className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-amber-400/60" />
+                <Input value={googleMapsUrlEdit} onChange={(e) => setGoogleMapsUrlEdit(e.target.value)} placeholder="https://maps.google.com/..." dir="ltr" className="pr-9 h-11 bg-white/[0.03] border-white/10 font-mono text-sm placeholder:text-white/20" data-testid="input-google-maps-url" />
+              </div>
+              <p className="text-[11px] leading-relaxed" dir="rtl" style={{ color: "rgba(251,191,36,0.5)" }}>
+                {t("⭐ التقييمات 4-5 نجوم تُحوَّل لجوجل ماب، والتقييمات 1-3 نجوم تُحفظ داخلياً فقط.", "⭐ Ratings of 4-5 stars redirect to Google Maps. Ratings of 1-3 stars are saved internally only.")}
+              </p>
+              {googleMapsUrlEdit && (
+                <a href={googleMapsUrlEdit} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-[11px] text-amber-400/70 hover:text-amber-400 transition-colors" data-testid="link-test-maps-url">
+                  <ExternalLink className="w-3 h-3" />
+                  {t("اختبار الرابط", "Test link")}
+                </a>
+              )}
+            </div>
+            <Button onClick={handleSaveSupport} disabled={supportSaving} className="w-full h-11 bg-green-600 hover:bg-green-700 text-white font-bold rounded-2xl disabled:opacity-30" data-testid="button-save-support">
+              {supportSaving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Save className="w-4 h-4 me-2" />}
+              {t("حفظ إعدادات الدعم", "Save Support Settings")}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      </>)}
+
+      {/* ── TAB: Finance / Legal ── */}
+      {settingsTab === "finance" && (<>
+
       {/* ── SECTION 3: Payment Integration ── */}
       <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
         <CardContent className="p-6">
@@ -6699,65 +6792,145 @@ function SettingsView({
         </CardContent>
       </Card>
 
-      {/* ── SECTION 4: Legal ── */}
+      {/* ── Legal (Finance Tab): Official IDs ── */}
+      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
+        <CardContent className="p-6">
+          <h3 className="font-semibold mb-1 flex items-center gap-2">
+            <Receipt className="w-4 h-4 text-amber-400" />
+            {t("البيانات الرسمية والقانونية", "Legal & Official Data")}
+          </h3>
+          <p className="text-xs text-muted-foreground mb-5">{t("السجل التجاري والرقم الضريبي ووثائق المنشأة", "Commercial register, VAT ID and business documents")}</p>
+          <div className="space-y-5">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">{t("جوال المسؤول", "Manager Phone")}</label>
+                <div className="relative">
+                  <Phone className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                  <Input value={ownerPhoneEdit} onChange={(e) => setOwnerPhoneEdit(e.target.value)} placeholder="966501234567" dir="ltr" className="pr-9 h-11 bg-white/[0.03] border-white/10 font-mono text-sm" data-testid="input-owner-phone-edit" />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">{t("رقم السجل التجاري", "Commercial Register No.")}<span className="text-destructive ms-1 text-[10px]">*</span></label>
+                <div className="relative">
+                  <Hash className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                  <Input value={crNumberEdit} onChange={(e) => setCrNumberEdit(e.target.value)} placeholder="1010XXXXXX" dir="ltr" className="pr-9 h-11 bg-white/[0.03] border-white/10 font-mono text-sm" data-testid="input-cr-number-edit" />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">{t("الرقم الضريبي للمنشأة", "Tax Registration No.")}<span className="text-muted-foreground/50 ms-1.5 text-[10px]">{t("(إن وجد)", "(optional)")}</span></label>
+                <div className="relative">
+                  <Receipt className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                  <Input value={taxNumberEdit} onChange={(e) => setTaxNumberEdit(e.target.value)} placeholder="3XXXXXXXXXXXXXXXXXXX" dir="ltr" className="pr-9 h-11 bg-white/[0.03] border-white/10 font-mono text-sm" data-testid="input-tax-number-edit" />
+                </div>
+              </div>
+            </div>
+
+            {/* CR PDF Upload */}
+            <div className="space-y-2 pt-1">
+              <label className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <FileText className="w-3.5 h-3.5 text-amber-400" />
+                {t("إرفاق السجل التجاري (PDF)", "Attach Commercial Register (PDF)")}
+                <span className="text-muted-foreground/50 text-[10px]">{t("(إن وجد)", "(optional)")}</span>
+              </label>
+              {crPdfUrlEdit ? (
+                <div className="flex items-center gap-2 p-3 rounded-xl border border-white/10 bg-white/[0.03]">
+                  <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                    <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.2)" }}>
+                      <FileText className="w-4 h-4 text-red-400" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-white truncate" data-testid="text-cr-pdf-name">{crPdfUrlEdit.split("/").pop() || "commercial_register.pdf"}</p>
+                      <p className="text-[10px] text-green-400 flex items-center gap-1 mt-0.5"><CheckCircle className="w-3 h-3" />{t("تم الرفع بنجاح", "Uploaded successfully")}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-1.5 shrink-0">
+                    <a href={crPdfUrlEdit} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold" style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.6)", border: "1px solid rgba(255,255,255,0.1)" }} data-testid="btn-preview-cr-pdf">
+                      <Eye className="w-3.5 h-3.5" />{t("معاينة", "Preview")}
+                    </a>
+                    <button onClick={() => crPdfInputRef.current?.click()} disabled={crPdfUploading} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold" style={{ background: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.2)" }} data-testid="btn-replace-cr-pdf">
+                      <RefreshCw className="w-3.5 h-3.5" />{t("استبدال", "Replace")}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button type="button" onClick={() => crPdfInputRef.current?.click()} disabled={crPdfUploading} className="w-full flex flex-col items-center justify-center gap-2 py-5 rounded-xl border-2 border-dashed" style={{ borderColor: "rgba(251,191,36,0.25)", background: "rgba(251,191,36,0.03)" }} data-testid="btn-upload-cr-pdf">
+                  {crPdfUploading ? <Loader2 className="w-6 h-6 animate-spin text-amber-400" /> : <CloudUpload className="w-6 h-6 text-amber-400/70" />}
+                  <div className="text-center">
+                    <p className="text-sm font-semibold text-amber-400/80">{crPdfUploading ? t("جارٍ الرفع...", "Uploading...") : t("اضغط لرفع ملف PDF", "Click to upload PDF")}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{t("يُقبل ملفات PDF فقط، بحد أقصى 10MB", "PDF files only, max 10MB")}</p>
+                  </div>
+                </button>
+              )}
+              <input ref={crPdfInputRef} type="file" accept="application/pdf" className="hidden" onChange={handleCrPdfUpload} data-testid="input-cr-pdf-file" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Payment Integration ── */}
+      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
+        <CardContent className="p-6">
+          <h3 className="font-semibold mb-1 flex items-center gap-2">
+            <CreditCard className="w-4 h-4 text-blue-400" />
+            {t("ربط بوابة الدفع", "Payment Integration")}
+          </h3>
+          <p className="text-xs text-muted-foreground mb-5">{t("مفاتيح Moyasar وإعدادات الدفع", "Moyasar keys and payment settings")}</p>
+          <div className="space-y-5">
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground block">Moyasar Publishable Key</label>
+              <Input type="text" value={moyasarPublishableKey} onChange={(e) => setMoyasarPublishableKey(e.target.value)} placeholder="pk_live_..." className="h-11 bg-white/[0.03] border-white/10 font-mono" dir="ltr" data-testid="input-moyasar-pub-key" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground block">Moyasar Secret Key</label>
+              <Input type="password" value={moyasarSecretKey} onChange={(e) => setMoyasarSecretKey(e.target.value)} placeholder="sk_live_..." className="h-11 bg-white/[0.03] border-white/10 font-mono" dir="ltr" data-testid="input-moyasar-secret-key" />
+            </div>
+            <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]">
+              <div className="flex-1">
+                <p className="text-sm font-semibold" dir="rtl">{t("تفعيل الدفع الإلكتروني", "Enable Online Payment")}</p>
+                <p className="text-xs text-muted-foreground mt-0.5" dir="rtl">{t("السماح للعملاء بالدفع إلكترونياً عبر بوابة Moyasar", "Allow customers to pay online via Moyasar gateway")}</p>
+              </div>
+              <Switch checked={onlinePaymentEnabled} onCheckedChange={setOnlinePaymentEnabled} className="data-[state=checked]:bg-blue-600" data-testid="switch-online-payment" />
+            </div>
+            <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]">
+              <div className="flex-1">
+                <p className="text-sm font-semibold" dir="rtl">{t("تفعيل الدفع عند الاستلام", "Enable Cash on Delivery")}</p>
+                <p className="text-xs text-muted-foreground mt-0.5" dir="rtl">{t("السماح للعملاء بالدفع نقداً عند استلام الطلب", "Allow customers to pay cash on delivery")}</p>
+              </div>
+              <Switch checked={codEnabled} onCheckedChange={setCodEnabled} className="data-[state=checked]:bg-emerald-600" data-testid="switch-cod-payment" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Terms & Conditions ── */}
       <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
         <CardContent className="p-6">
           <h3 className="font-semibold mb-1 flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-amber-400" />
-            {t("الشروط والأحكام", "Legal")}
+            {t("الشروط والأحكام", "Terms & Conditions")}
           </h3>
-          <p className="text-xs text-muted-foreground mb-4">{t("شروط المتجر وسياسة الخصوصية للعملاء", "Store terms and privacy policy for customers")}</p>
+          <p className="text-xs text-muted-foreground mb-5">{t("شروط المتجر وسياسة الخصوصية للعملاء", "Store terms and privacy policy for customers")}</p>
           <div className="space-y-5">
             <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]" data-testid="store-terms-toggle-row">
               <div className="flex-1">
                 <p className="text-sm font-semibold" dir="rtl">{t("شروط وأحكام المتجر", "Store Terms & Conditions")}</p>
-                <p className="text-xs text-muted-foreground mt-0.5" dir="rtl">
-                  {t("عرض شروط المتجر للعملاء عند الطلب أونلاين", "Show store terms to customers during online ordering")}
-                </p>
+                <p className="text-xs text-muted-foreground mt-0.5" dir="rtl">{t("عرض شروط المتجر للعملاء عند الطلب أونلاين", "Show store terms to customers during online ordering")}</p>
               </div>
-              <Switch
-                checked={storeTermsEnabled}
-                onCheckedChange={setStoreTermsEnabled}
-                className="data-[state=checked]:bg-emerald-600"
-                data-testid="switch-store-terms"
-              />
+              <Switch checked={storeTermsEnabled} onCheckedChange={setStoreTermsEnabled} className="data-[state=checked]:bg-emerald-600" data-testid="switch-store-terms" />
             </div>
-
             {storeTermsEnabled && (
               <div className="space-y-4">
                 <div className="space-y-2">
                   <label className="text-xs text-muted-foreground block" dir="rtl">{t("شروط وأحكام المتجر", "Store Terms & Conditions")}</label>
-                  <Textarea
-                    value={storeTermsText}
-                    onChange={(e) => setStoreTermsText(e.target.value)}
-                    placeholder={t("اكتب شروط وأحكام المتجر هنا...", "Write store terms here...")}
-                    rows={5}
-                    dir="rtl"
-                    className="resize-y bg-white/[0.03] border-white/10"
-                    data-testid="textarea-store-terms"
-                  />
+                  <Textarea value={storeTermsText} onChange={(e) => setStoreTermsText(e.target.value)} placeholder={t("اكتب شروط وأحكام المتجر هنا...", "Write store terms here...")} rows={5} dir="rtl" className="resize-y bg-white/[0.03] border-white/10" data-testid="textarea-store-terms" />
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs text-muted-foreground block" dir="rtl">{t("سياسة الخصوصية للمتجر", "Store Privacy Policy")}</label>
-                  <Textarea
-                    value={storePrivacyText}
-                    onChange={(e) => setStorePrivacyText(e.target.value)}
-                    placeholder={t("اكتب سياسة الخصوصية هنا...", "Write privacy policy here...")}
-                    rows={5}
-                    dir="rtl"
-                    className="resize-y bg-white/[0.03] border-white/10"
-                    data-testid="textarea-store-privacy"
-                  />
+                  <Textarea value={storePrivacyText} onChange={(e) => setStorePrivacyText(e.target.value)} placeholder={t("اكتب سياسة الخصوصية هنا...", "Write privacy policy here...")} rows={5} dir="rtl" className="resize-y bg-white/[0.03] border-white/10" data-testid="textarea-store-privacy" />
                 </div>
               </div>
             )}
-
-            <Button
-              onClick={handleSaveStoreLegal}
-              disabled={storeLegalSaving}
-              className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl disabled:opacity-30"
-              data-testid="button-save-store-terms"
-            >
+            <Button onClick={handleSaveStoreLegal} disabled={storeLegalSaving} className="w-full h-11 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-2xl disabled:opacity-30" data-testid="button-save-store-terms">
               {storeLegalSaving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Save className="w-4 h-4 me-2" />}
               {t("حفظ الشروط والأحكام", "Save Terms & Conditions")}
             </Button>
@@ -6765,180 +6938,12 @@ function SettingsView({
         </CardContent>
       </Card>
 
-      {/* ── Alert Sound Settings ── */}
-      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
-        <CardContent className="p-6">
-          <h3 className="font-semibold mb-5 flex items-center gap-2">
-            <span>🔔</span>
-            {t("إعدادات صوت التنبيهات", "Alert Sound Settings")}
-          </h3>
-          <div className="space-y-5">
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-sm text-white/60" dir="rtl">{t("مستوى الصوت", "Alert Volume")}</label>
-                <span className="text-sm font-bold text-white/80" data-testid="text-alert-volume-pct">
-                  {Math.round((Number(localStorage.getItem("alert_volume") ?? "0.8")) * 100)}%
-                </span>
-              </div>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                step="5"
-                defaultValue={Math.round((Number(localStorage.getItem("alert_volume") ?? "0.8")) * 100)}
-                onChange={(e) => {
-                  const vol = Number(e.target.value) / 100;
-                  localStorage.setItem("alert_volume", String(vol));
-                  e.target.parentElement!.querySelector("[data-testid='text-alert-volume-pct']")!.textContent = `${e.target.value}%`;
-                }}
-                className="w-full h-2 rounded-full outline-none cursor-pointer accent-red-600"
-                data-testid="slider-alert-volume"
-                style={{ accentColor: "#dc2626" }}
-              />
-              <div className="flex justify-between mt-1">
-                <span className="text-[10px] text-white/20">{t("صامت", "Muted")}</span>
-                <span className="text-[10px] text-white/20">{t("أعلى", "Max")}</span>
-              </div>
-            </div>
-            <button
-              onClick={() => {
-                const vol = Number(localStorage.getItem("alert_volume") ?? "0.8");
-                const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3");
-                audio.volume = Math.max(0, Math.min(1, vol));
-                audio.play().then(() => {
-                  setTimeout(() => audio.pause(), 3000);
-                }).catch(() => {});
-                localStorage.setItem("sound_unlocked", "1");
-              }}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all active:scale-95 hover:bg-white/[0.08]"
-              style={{ border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.7)", fontFamily: "'Tajawal','Cairo',sans-serif" }}
-              data-testid="button-test-sound"
-              dir="rtl"
-            >
-              <span>▶</span>
-              {t("اختبار الصوت", "Test Sound")}
-            </button>
-          </div>
-        </CardContent>
-      </Card>
+      <Button onClick={handleSaveLegalDocs} disabled={legalDocsSaving} className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl disabled:opacity-30" data-testid="button-save-legal-docs">
+        {legalDocsSaving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Save className="w-4 h-4 me-2" />}
+        {t("حفظ إعدادات المالية والقانونية", "Save Finance & Legal Settings")}
+      </Button>
 
-      {/* ── QR Code & Utilities ── */}
-      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
-        <CardContent className="p-6">
-          <h3 className="font-semibold mb-5">{t("رمز QR", "QR Code")}</h3>
-          {/* ── Pager-style QR frame ── */}
-          <div className="flex flex-col items-center gap-5 mb-5">
-            <div
-              data-testid="qr-preview-container"
-              style={{
-                background: "linear-gradient(160deg, #160505 0%, #060000 100%)",
-                border: "2px solid rgba(200,30,30,0.65)",
-                boxShadow: "0 0 36px rgba(180,0,0,0.35), inset 0 0 24px rgba(0,0,0,0.6)",
-              }}
-              className="relative flex flex-col items-center rounded-[28px] px-5 pt-5 pb-5 w-64"
-            >
-              {/* Top brand label */}
-              <span className="text-[10px] font-bold tracking-[0.28em] text-red-600/80 uppercase mb-3 select-none">
-                DIGITAL PAGER
-              </span>
-
-              {/* Top LED strip */}
-              <div className="flex items-center gap-[10px] mb-3" aria-hidden="true">
-                {[0.15, 0.35, 0.8, 1, 0.8, 0.35, 0.15].map((op, i) => (
-                  <span
-                    key={i}
-                    className="block rounded-full"
-                    style={{
-                      width: 7, height: 7,
-                      background: `rgba(255,30,0,${op})`,
-                      boxShadow: op > 0.5 ? `0 0 6px 2px rgba(255,20,0,${op * 0.7})` : "none",
-                    }}
-                  />
-                ))}
-              </div>
-
-              {/* QR Screen – white panel */}
-              <div
-                className="rounded-xl overflow-hidden"
-                style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.8), inset 0 0 0 1px rgba(200,30,30,0.18)" }}
-              >
-                <img
-                  src={`/api/qr/${merchant.uid}?t=${Date.now()}`}
-                  alt="Store QR Code"
-                  className="w-48 h-48 block"
-                  data-testid="img-qr-preview"
-                  style={{ background: "#fff" }}
-                />
-              </div>
-
-              {/* Bottom LED strip */}
-              <div className="flex items-center gap-[10px] mt-3" aria-hidden="true">
-                {[0.15, 0.35, 0.8, 1, 0.8, 0.35, 0.15].map((op, i) => (
-                  <span
-                    key={i}
-                    className="block rounded-full"
-                    style={{
-                      width: 7, height: 7,
-                      background: `rgba(255,30,0,${op})`,
-                      boxShadow: op > 0.5 ? `0 0 6px 2px rgba(255,20,0,${op * 0.7})` : "none",
-                    }}
-                  />
-                ))}
-              </div>
-
-              {/* Arabic scan label */}
-              <p className="mt-3 text-sm font-bold text-white text-center leading-snug select-none">
-                امسح وتابع طلبك 📱
-              </p>
-
-              {/* Store name */}
-              {merchant.storeName && (
-                <p className="mt-0.5 text-[10px] text-red-500/60 text-center font-medium select-none">
-                  {merchant.storeName}
-                </p>
-              )}
-
-              {/* Corner accent dots */}
-              <span className="absolute top-3 left-3 w-1.5 h-1.5 rounded-full bg-red-700/40" aria-hidden="true" />
-              <span className="absolute top-3 right-3 w-1.5 h-1.5 rounded-full bg-red-700/40" aria-hidden="true" />
-              <span className="absolute bottom-3 left-3 w-1.5 h-1.5 rounded-full bg-red-700/40" aria-hidden="true" />
-              <span className="absolute bottom-3 right-3 w-1.5 h-1.5 rounded-full bg-red-700/40" aria-hidden="true" />
-            </div>
-
-            <p className="text-[11px] text-muted-foreground text-center">
-              {t("اضغط تحميل للحصول على صورة كاملة بتصميم الباجر", "Tap download for the full branded pager image")}
-            </p>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Button
-              variant="outline"
-              onClick={onDownloadQR}
-              disabled={qrLoading}
-              className="h-12 border-white/10 justify-start rounded-2xl"
-              data-testid="button-download-qr-settings"
-            >
-              {qrLoading ? <Loader2 className="w-4 h-4 animate-spin me-3" /> : <Download className="w-4 h-4 me-3" />}
-              {t("تحميل رمز QR", "Download QR Code")}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => {
-                const url = `${window.location.origin}/check-order/${merchant.uid}`;
-                if (navigator.share) {
-                  navigator.share({ title: merchant.storeName, url });
-                } else {
-                  navigator.clipboard.writeText(url);
-                }
-              }}
-              className="h-12 border-white/10 justify-start rounded-2xl"
-              data-testid="button-share-store-link"
-            >
-              <Share2 className="w-4 h-4 me-3" />
-              {t("مشاركة رابط المتجر", "Share Store Link")}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      </>)}
 
     </div>
   );
