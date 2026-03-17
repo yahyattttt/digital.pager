@@ -3570,6 +3570,7 @@ export async function registerRoutes(
         storeName: mf.storeName?.stringValue || "",
         logoUrl: mf.logoUrl?.stringValue || "",
         googleMapsReviewUrl: mf.googleMapsReviewUrl?.stringValue || "",
+        support_whatsapp: mf.support_whatsapp?.stringValue || "",
         curbsideEnabled: mf.curbsideEnabled?.booleanValue === true,
         driverPhone: mf.driverPhone?.stringValue || "",
         subscriptionStatus: subStatus,
