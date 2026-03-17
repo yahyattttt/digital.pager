@@ -430,22 +430,32 @@ export default function StorePagerPage() {
               <p className="text-white/20 text-xs">No active orders</p>
             </div>
           ) : (
-            <div className="grid grid-cols-3 gap-3 max-w-sm mx-auto">
-              {pagers.map((p) => (
-                <button
-                  key={p.docId}
-                  onClick={() => handleSelectOrder(p)}
-                  className="aspect-square flex flex-col items-center justify-center rounded-2xl border-2 border-red-500/20 bg-gradient-to-b from-red-950/20 to-transparent active:scale-[0.93] transition-all duration-200 hover:border-red-500/40"
-                  style={{ boxShadow: "0 0 20px rgba(255,0,0,0.04)" }}
-                  data-testid={`button-order-${p.orderNumber}`}
-                >
-                  <span className="text-red-400 text-2xl font-bold font-dseg7 tracking-wider" style={{ textShadow: "0 0 15px rgba(255,0,0,0.4)" }}>
-                    {p.orderNumber}
-                  </span>
-                  <span className="text-white/30 text-[10px] mt-1">{p.displayOrderId}</span>
-                </button>
-              ))}
-            </div>
+            <>
+              <div className="grid grid-cols-3 gap-3 max-w-sm mx-auto">
+                {pagers.map((p) => (
+                  <button
+                    key={p.docId}
+                    onClick={() => handleSelectOrder(p)}
+                    className="aspect-square flex flex-col items-center justify-center rounded-2xl border-2 border-red-500/20 bg-gradient-to-b from-red-950/20 to-transparent active:scale-[0.93] transition-all duration-200 hover:border-red-500/40"
+                    style={{ boxShadow: "0 0 20px rgba(255,0,0,0.04)" }}
+                    data-testid={`button-order-${p.orderNumber}`}
+                  >
+                    <span className="text-red-400 text-2xl font-bold font-dseg7 tracking-wider" style={{ textShadow: "0 0 15px rgba(255,0,0,0.4)" }}>
+                      {p.orderNumber}
+                    </span>
+                    <span className="text-white/30 text-[10px] mt-1">{p.displayOrderId}</span>
+                  </button>
+                ))}
+              </div>
+              <p
+                className="text-center font-medium"
+                style={{ marginTop: "20px", color: "#9CA3AF", fontSize: "16px", fontFamily: "'Tajawal','Cairo',sans-serif" }}
+                dir="rtl"
+                data-testid="text-receipt-inline-reminder"
+              >
+                ⚠️ تنبيه: يُرجى إحضار الفاتورة عند استلام طلبك
+              </p>
+            </>
           )}
         </div>
 
