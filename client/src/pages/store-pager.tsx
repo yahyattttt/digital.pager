@@ -2,9 +2,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "wouter";
 import { collection, query, where, onSnapshot, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Share2, Copy, Loader2, X, MapPin } from "lucide-react";
+import { Share2, Copy, Loader2, MapPin } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 
 type PagerDoc = {
@@ -22,7 +21,7 @@ type MerchantInfo = {
   googleMapsReviewUrl?: string;
 };
 
-type Phase = "selection" | "preparing" | "ready" | "rating" | "done";
+type Phase = "selection" | "preparing" | "ready" | "done";
 
 const LED_COUNT = 10;
 
@@ -148,10 +147,6 @@ export default function StorePagerPage() {
   const [phase, setPhase] = useState<Phase>("selection");
   const [bellPrimed, setBellPrimed] = useState(false);
   const [bellPlaying, setBellPlaying] = useState(false);
-  const [rating, setRating] = useState(0);
-  const [feedbackText, setFeedbackText] = useState("");
-  const [feedbackSaving, setFeedbackSaving] = useState(false);
-  const [feedbackSaved, setFeedbackSaved] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -237,10 +232,8 @@ export default function StorePagerPage() {
           }
         }
       } else if (status === "completed" || status === "archived") {
-        if (phase !== "rating" && phase !== "done") {
-          stopAlert();
-          setPhase("rating");
-        }
+        stopAlert();
+        cleanupSession();
       }
     });
     return () => unsub();
@@ -311,9 +304,6 @@ export default function StorePagerPage() {
     setPhase("selection");
     setBellPrimed(false);
     bellPrimedRef.current = false;
-    setRating(0);
-    setFeedbackText("");
-    setFeedbackSaved(false);
   }
 
   function handleSelectOrder(pager: PagerDoc) {
@@ -348,32 +338,6 @@ export default function StorePagerPage() {
       }
     }
   }, [merchant, toast]);
-
-  async function handleSubmitFeedback() {
-    if (!selectedPager || !storeId || rating === 0) return;
-    setFeedbackSaving(true);
-    try {
-      const res = await fetch("/api/pager-feedback", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          merchantId: storeId,
-          pagerId: selectedPager.docId,
-          rating,
-          feedback: rating <= 3 ? feedbackText : "",
-        }),
-      });
-      if (res.ok) {
-        setFeedbackSaved(true);
-      }
-    } catch {} finally {
-      setFeedbackSaving(false);
-    }
-  }
-
-  function handleCloseFeedback() {
-    cleanupSession();
-  }
 
   function handleGoogleMapsClick() {
     if (!merchant?.googleMapsReviewUrl) return;
@@ -642,150 +606,6 @@ export default function StorePagerPage() {
     );
   }
 
-  if (phase === "rating") {
-    const isLowRating = rating >= 1 && rating <= 3;
-    const isHighRating = rating >= 4;
-    const showFeedbackForm = isLowRating && !feedbackSaved;
-    const showCelebration = isHighRating || feedbackSaved;
-
-    return (
-      <div className="h-[100dvh] flex flex-col items-center justify-center px-5 text-center" style={{ background: bg }} data-testid="pager-rating-screen">
-        <div className="w-full max-w-sm space-y-6 animate-in fade-in duration-700">
-          <div>
-            <p className="text-white/40 text-xs tracking-[0.2em] uppercase mb-3">THANK YOU</p>
-            <p className="text-white text-2xl font-bold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }} data-testid="text-rating-title">
-              شكراً لزيارتك! 🙏
-            </p>
-            <p className="text-white/40 text-sm mt-2" dir="rtl">كيف كانت تجربتك؟</p>
-          </div>
-
-          <div className="flex justify-center gap-2" data-testid="rating-stars">
-            {[1, 2, 3, 4, 5].map((star) => (
-              <button
-                key={star}
-                onClick={() => { if (!feedbackSaved) setRating(star); }}
-                className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl transition-all duration-200 active:scale-[0.85] ${
-                  star <= rating
-                    ? "bg-amber-500/20 border-2 border-amber-400/50 scale-110"
-                    : "bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.06]"
-                }`}
-                data-testid={`button-star-${star}`}
-              >
-                {star <= rating ? "⭐" : "☆"}
-              </button>
-            ))}
-          </div>
-
-          {showFeedbackForm && (
-            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500" data-testid="feedback-form">
-              <p className="text-red-400/80 text-sm font-bold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
-                نأسف لذلك، كيف يمكننا التحسن؟
-              </p>
-              <Textarea
-                value={feedbackText}
-                onChange={(e) => setFeedbackText(e.target.value)}
-                placeholder="اكتب ملاحظاتك هنا..."
-                className="bg-white/[0.03] border-white/[0.08] text-white placeholder:text-white/20 rounded-xl min-h-[100px] resize-none"
-                dir="rtl"
-                data-testid="input-feedback"
-              />
-              <button
-                onClick={handleSubmitFeedback}
-                disabled={feedbackSaving}
-                className="w-full py-3.5 rounded-2xl bg-red-600 hover:bg-red-700 text-white text-sm font-bold active:scale-[0.97] transition-all disabled:opacity-50"
-                style={{ boxShadow: "0 0 20px rgba(255,0,0,0.15)" }}
-                data-testid="button-submit-feedback"
-              >
-                {feedbackSaving ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : "إرسال الملاحظات"}
-              </button>
-            </div>
-          )}
-
-          {showCelebration && (
-            <div className="space-y-4 animate-in fade-in zoom-in-95 duration-500" data-testid="celebration-message">
-              {isHighRating && !feedbackSaved && (
-                <>
-                  <div className="w-20 h-20 mx-auto rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-                    <span className="text-4xl">❤️</span>
-                  </div>
-                  <p className="text-emerald-400 text-lg font-bold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }} data-testid="text-celebration">
-                    شكراً لثقتك، نسعد بخدمتك دائماً! ❤️
-                  </p>
-                </>
-              )}
-              {feedbackSaved && (
-                <>
-                  <div className="w-20 h-20 mx-auto rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-                    <span className="text-4xl">✅</span>
-                  </div>
-                  <p className="text-emerald-400 text-lg font-bold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
-                    شكراً لملاحظاتك! سنعمل على التحسين
-                  </p>
-                </>
-              )}
-
-              {isHighRating && !feedbackSaved && (
-                <button
-                  onClick={() => { handleSubmitFeedback().then(() => {}); }}
-                  disabled={feedbackSaving}
-                  className="w-full py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold active:scale-[0.97] transition-all disabled:opacity-50"
-                  data-testid="button-save-high-rating"
-                >
-                  {feedbackSaving ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : "حفظ التقييم"}
-                </button>
-              )}
-
-              <button
-                onClick={handleCloseFeedback}
-                className="w-full py-3.5 rounded-2xl border border-white/10 text-white/50 text-sm font-bold active:scale-[0.97] transition-all hover:text-white/70"
-                data-testid="button-close-rating"
-              >
-                <X className="w-4 h-4 inline me-1.5" />
-                إغلاق
-              </button>
-            </div>
-          )}
-
-          {merchant?.googleMapsReviewUrl && (
-            <div className="space-y-2 pt-1 animate-in fade-in duration-500">
-              <p
-                className="text-xs font-medium"
-                dir="rtl"
-                style={{ color: "rgba(212,160,23,0.7)", fontFamily: "'Tajawal','Cairo',sans-serif" }}
-              >
-                رأيك يهمنا.. شاركنا تجربتك على جوجل ماب
-              </p>
-              <button
-                onClick={handleGoogleMapsClick}
-                data-testid="btn-google-maps-review"
-                className="w-full py-4 rounded-2xl font-bold text-base transition-all active:scale-95 flex items-center justify-center gap-2.5"
-                style={{
-                  background: "linear-gradient(135deg, rgba(20,14,0,0.98) 0%, rgba(28,20,0,0.98) 100%)",
-                  border: "1.5px solid #d4a017",
-                  color: "#f5c518",
-                  boxShadow: "0 0 18px rgba(212,160,23,0.25), 0 0 6px rgba(212,160,23,0.12), inset 0 0 20px rgba(212,160,23,0.04)",
-                  fontFamily: "'Tajawal','Cairo',sans-serif",
-                }}
-              >
-                <MapPin className="w-5 h-5 flex-shrink-0" style={{ color: "#f5c518" }} />
-                <span>قيمنا الآن على Google Maps 🌟</span>
-              </button>
-            </div>
-          )}
-
-          {rating === 0 && (
-            <button
-              onClick={handleCloseFeedback}
-              className="text-white/20 text-xs hover:text-white/40 transition-colors"
-              data-testid="button-skip-rating"
-            >
-              تخطي
-            </button>
-          )}
-        </div>
-      </div>
-    );
-  }
 
   return null;
 }

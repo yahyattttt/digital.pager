@@ -2,13 +2,12 @@ import { useState, useEffect, useRef } from "react";
 import { useParams } from "wouter";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { ChefHat, Truck, MapPin, CheckCircle2, Star, BadgeCheck, Send, MapPinned, Link2 } from "lucide-react";
+import { ChefHat, Truck, MapPin, CheckCircle2, BadgeCheck, MapPinned, Link2 } from "lucide-react";
 import { SiWhatsapp } from "react-icons/si";
 import { motion, AnimatePresence } from "framer-motion";
 import confetti from "canvas-confetti";
 
 type DeliveryStatus = "accepted" | "preparing" | "out_for_delivery" | "delivered" | "cancelled";
-type ReviewState = "idle" | "rating" | "low_feedback" | "low_submitted" | "high_redirect";
 
 function getDeliveryStatus(status: string): DeliveryStatus {
   if (status === "pending_verification" || status === "awaiting_confirmation") return "accepted";
@@ -186,30 +185,6 @@ function StageNode({ stage, isActive, isDone }: {
   );
 }
 
-function StarRating({ value, onChange }: { value: number; onChange: (v: number) => void }) {
-  const [hovered, setHovered] = useState(0);
-  return (
-    <div className="flex gap-2 justify-center" dir="ltr">
-      {[1, 2, 3, 4, 5].map((s) => (
-        <button
-          key={s}
-          onClick={() => onChange(s)}
-          onMouseEnter={() => setHovered(s)}
-          onMouseLeave={() => setHovered(0)}
-          className="transition-transform active:scale-90"
-          data-testid={`star-${s}`}
-        >
-          <Star
-            className="w-9 h-9 transition-colors duration-150"
-            fill={(hovered || value) >= s ? "#eab308" : "none"}
-            stroke={(hovered || value) >= s ? "#eab308" : "rgba(255,255,255,0.2)"}
-          />
-        </button>
-      ))}
-    </div>
-  );
-}
-
 export default function DeliveryTrackerPage() {
   const { orderId } = useParams<{ orderId: string }>();
   const params = new URLSearchParams(window.location.search);
@@ -220,20 +195,14 @@ export default function DeliveryTrackerPage() {
   const [customerName, setCustomerName] = useState("");
   const [merchantName, setMerchantName] = useState("");
   const [merchantLogo, setMerchantLogo] = useState("");
-  const [googleMapsUrl, setGoogleMapsUrl] = useState("");
   const [driverPhone, setDriverPhone] = useState("");
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
-  const [reviewState, setReviewState] = useState<ReviewState>("idle");
-  const [selectedStars, setSelectedStars] = useState(0);
-  const [feedbackText, setFeedbackText] = useState("");
-  const [submittingFeedback, setSubmittingFeedback] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
 
   const prevStatus = useRef<DeliveryStatus | null>(null);
   const confettiFired = useRef(false);
-  const reviewShown = useRef(false);
 
   useEffect(() => {
     if (!merchantId) return;
@@ -242,7 +211,6 @@ export default function DeliveryTrackerPage() {
       .then((data) => {
         if (data?.storeName) setMerchantName(data.storeName);
         if (data?.logoUrl) setMerchantLogo(data.logoUrl);
-        if (data?.googleMapsReviewUrl) setGoogleMapsUrl(data.googleMapsReviewUrl);
         if (data?.driverPhone) setDriverPhone(data.driverPhone);
       })
       .catch(() => {});
@@ -278,41 +246,8 @@ export default function DeliveryTrackerPage() {
         confettiFired.current = true;
         setTimeout(() => fireConfetti(), 400);
       }
-      if (!reviewShown.current) {
-        reviewShown.current = true;
-        setTimeout(() => setReviewState("rating"), 1800);
-      }
     }
   }, [status]);
-
-  async function submitLowFeedback() {
-    if (!selectedStars) return;
-    setSubmittingFeedback(true);
-    try {
-      await fetch(`/api/feedback`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          merchantId,
-          stars: selectedStars,
-          rating: selectedStars,
-          comment: feedbackText,
-          orderId,
-          createdAt: new Date().toISOString(),
-        }),
-      });
-    } catch (_) {}
-    setSubmittingFeedback(false);
-    setReviewState("low_submitted");
-  }
-
-  function handleStarSelect(stars: number) {
-    setSelectedStars(stars);
-    setTimeout(() => {
-      if (stars <= 3) setReviewState("low_feedback");
-      else setReviewState("high_redirect");
-    }, 300);
-  }
 
   async function handleShareTracking() {
     const url = window.location.href;
@@ -617,130 +552,6 @@ export default function DeliveryTrackerPage() {
                 )}
               </span>
             </motion.button>
-          )}
-        </AnimatePresence>
-
-        <AnimatePresence>
-          {isDelivered && reviewState !== "idle" && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              transition={{ duration: 0.4, ease: "easeOut" }}
-              className="w-full max-w-sm rounded-3xl p-5 flex flex-col items-center gap-4"
-              style={{
-                background: "rgba(255,255,255,0.03)",
-                border: "1px solid rgba(255,255,255,0.07)",
-                backdropFilter: "blur(10px)",
-              }}
-            >
-              <AnimatePresence mode="wait">
-                {reviewState === "rating" && (
-                  <motion.div
-                    key="rating"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="flex flex-col items-center gap-3 w-full"
-                  >
-                    <p className="text-white/80 font-bold text-base text-center">كيف كانت تجربتك؟</p>
-                    <p className="text-white/35 text-xs text-center">اختر تقييمك لهذا الطلب</p>
-                    <StarRating value={selectedStars} onChange={handleStarSelect} />
-                  </motion.div>
-                )}
-
-                {reviewState === "low_feedback" && (
-                  <motion.div
-                    key="low_feedback"
-                    initial={{ opacity: 0, x: 10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -10 }}
-                    className="flex flex-col items-center gap-3 w-full"
-                  >
-                    <div className="flex gap-1 mb-1" dir="ltr">
-                      {[1, 2, 3, 4, 5].map((s) => (
-                        <Star key={s} className="w-5 h-5" fill={selectedStars >= s ? "#eab308" : "none"} stroke={selectedStars >= s ? "#eab308" : "rgba(255,255,255,0.15)"} />
-                      ))}
-                    </div>
-                    <p className="text-white/70 font-bold text-sm text-center">ملاحظاتك تهمنا للتطوير</p>
-                    <textarea
-                      value={feedbackText}
-                      onChange={(e) => setFeedbackText(e.target.value)}
-                      placeholder="شاركنا ملاحظاتك..."
-                      rows={3}
-                      className="w-full rounded-xl px-3 py-2.5 text-sm resize-none outline-none text-white/80 placeholder:text-white/20"
-                      style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
-                      data-testid="input-feedback"
-                    />
-                    <button
-                      onClick={submitLowFeedback}
-                      disabled={submittingFeedback}
-                      className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-sm transition-all active:scale-95"
-                      style={{ background: "rgba(168,85,247,0.15)", border: "1px solid rgba(168,85,247,0.3)", color: "#a855f7" }}
-                      data-testid="btn-submit-feedback"
-                    >
-                      {submittingFeedback ? (
-                        <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
-                      ) : (
-                        <><Send className="w-3.5 h-3.5" /><span>إرسال الملاحظة</span></>
-                      )}
-                    </button>
-                  </motion.div>
-                )}
-
-                {reviewState === "low_submitted" && (
-                  <motion.div
-                    key="low_submitted"
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="flex flex-col items-center gap-2 py-2"
-                  >
-                    <CheckCircle2 className="w-10 h-10 text-purple-400" />
-                    <p className="text-white/80 font-bold text-sm text-center">شكراً لك</p>
-                    <p className="text-white/40 text-xs text-center leading-relaxed">
-                      سنعمل على تحسين تجربتك القادمة
-                    </p>
-                  </motion.div>
-                )}
-
-                {reviewState === "high_redirect" && (
-                  <motion.div
-                    key="high_redirect"
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="flex flex-col items-center gap-3 w-full"
-                  >
-                    <div className="flex gap-1 mb-1" dir="ltr">
-                      {[1, 2, 3, 4, 5].map((s) => (
-                        <Star key={s} className="w-5 h-5" fill={selectedStars >= s ? "#eab308" : "none"} stroke={selectedStars >= s ? "#eab308" : "rgba(255,255,255,0.15)"} />
-                      ))}
-                    </div>
-                    <p className="text-white/85 font-bold text-base text-center">سعدنا بإعجابك! 🎉</p>
-                    <p className="text-white/40 text-xs text-center leading-relaxed">
-                      هل يمكنك مشاركة تجربتك على قوقل ماب؟ سيساعدنا كثيراً
-                    </p>
-                    {googleMapsUrl ? (
-                      <a
-                        href={googleMapsUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm transition-all active:scale-95"
-                        style={{
-                          background: "rgba(234,179,8,0.1)",
-                          border: "1px solid rgba(234,179,8,0.3)",
-                          color: "#eab308",
-                        }}
-                        data-testid="btn-google-maps"
-                      >
-                        <MapPinned className="w-4 h-4" />
-                        <span>التقييم على قوقل ماب</span>
-                      </a>
-                    ) : (
-                      <p className="text-white/20 text-xs text-center">رابط المتجر غير متاح</p>
-                    )}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.div>
           )}
         </AnimatePresence>
 

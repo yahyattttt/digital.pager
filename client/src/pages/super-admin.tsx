@@ -86,7 +86,6 @@ import {
   ChevronRight,
   ArrowUpDown,
   Filter,
-  MessageSquare,
   Star,
   DollarSign,
   Wallet,
@@ -331,16 +330,10 @@ export default function SuperAdminPage() {
   const [reportData, setReportData] = useState<any>(null);
   const [reportLoading, setReportLoading] = useState(false);
 
-  const [complaintsMap, setComplaintsMap] = useState<Record<string, number>>({});
-  const [totalComplaints, setTotalComplaints] = useState(0);
-  const [feedbackDialogOpen, setFeedbackDialogOpen] = useState(false);
-  const [feedbackDialogMerchant, setFeedbackDialogMerchant] = useState<Merchant | null>(null);
-  const [feedbackDialogData, setFeedbackDialogData] = useState<any[]>([]);
-  const [feedbackDialogLoading, setFeedbackDialogLoading] = useState(false);
 
   const [featureDialogOpen, setFeatureDialogOpen] = useState(false);
   const [featureDialogMerchant, setFeatureDialogMerchant] = useState<Merchant | null>(null);
-  const [featureFlags, setFeatureFlags] = useState({ analyticsEnabled: true, crmEnabled: true, smartRatingEnabled: true, printReceiptsEnabled: true });
+  const [featureFlags, setFeatureFlags] = useState({ analyticsEnabled: true, crmEnabled: true, printReceiptsEnabled: true });
   const [featureLoading, setFeatureLoading] = useState(false);
   const [featureSaving, setFeatureSaving] = useState(false);
 
@@ -813,50 +806,6 @@ export default function SuperAdminPage() {
     }
   }
 
-  async function fetchAllComplaints() {
-    try {
-      const res = await fetch("/api/admin/feedbacks", {
-        headers: { "x-admin-email": user?.email || "" },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const feedbacks: any[] = data.feedbacks || [];
-        const map: Record<string, number> = {};
-        feedbacks.forEach((f: any) => {
-          const mid = f.merchantId || "";
-          map[mid] = (map[mid] || 0) + 1;
-        });
-        setComplaintsMap(map);
-        setTotalComplaints(feedbacks.length);
-      }
-    } catch {
-    }
-  }
-
-  async function handleOpenFeedbackDialog(merchant: Merchant) {
-    setFeedbackDialogMerchant(merchant);
-    setFeedbackDialogOpen(true);
-    setFeedbackDialogLoading(true);
-    setFeedbackDialogData([]);
-    try {
-      const res = await fetch(`/api/admin/feedbacks/${merchant.uid}`, {
-        headers: { "x-admin-email": user?.email || "" },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setFeedbackDialogData(data.feedbacks || []);
-      }
-    } catch {
-      toast({
-        title: t("خطأ", "Error"),
-        description: t("فشل في تحميل الشكاوى", "Failed to load complaints"),
-        variant: "destructive",
-      });
-    } finally {
-      setFeedbackDialogLoading(false);
-    }
-  }
-
   async function fetchSettings() {
     setSettingsLoading(true);
     try {
@@ -900,7 +849,6 @@ export default function SuperAdminPage() {
       fetchTotalAlertsToday();
       fetchSettings();
       fetchSystemErrors();
-      fetchAllComplaints();
     }
   }, [authLoading, user]);
 
@@ -1483,16 +1431,6 @@ export default function SuperAdminPage() {
                   trendGreen: true,
                   testId: "text-stat-subscribed",
                 },
-                {
-                  label: t("الشكاوى", "Complaints"),
-                  value: totalComplaints,
-                  icon: MessageSquare,
-                  iconColor: "text-rose-400",
-                  valueClass: totalComplaints > 0 ? "text-rose-300" : "text-slate-100",
-                  trend: totalComplaints > 0 ? t("تحتاج مراجعة", "Needs review") : null,
-                  trendGreen: false,
-                  testId: "text-stat-complaints",
-                },
               ].map((card) => (
                 <Card key={card.testId} className="border-slate-800 bg-[#0d1117] hover:border-slate-700 transition-colors">
                   <CardContent className="p-4">
@@ -1740,15 +1678,6 @@ export default function SuperAdminPage() {
                                         <span className="inline-flex items-center gap-0.5 text-[10px] text-slate-500">
                                           <MapPin className="w-2.5 h-2.5" />{merchant.googleMapsClicks}
                                         </span>
-                                      )}
-                                      {(complaintsMap[merchant.uid] || 0) > 0 && (
-                                        <button
-                                          onClick={() => handleOpenFeedbackDialog(merchant)}
-                                          className="inline-flex items-center gap-0.5 text-[10px] text-red-400 hover:text-red-300 font-semibold"
-                                          data-testid={`button-complaints-${merchant.uid}`}
-                                        >
-                                          <MessageSquare className="w-2.5 h-2.5" />{complaintsMap[merchant.uid]}
-                                        </button>
                                       )}
                                     </div>
                                   </div>
@@ -3366,12 +3295,11 @@ export default function SuperAdminPage() {
                   <Activity className="w-3.5 h-3.5" />
                   {t("الإحصائيات", "Statistics")}
                 </h4>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   {[
                     { label: t("مشاركات", "Shares"), value: detailsMerchant.sharesCount || 0, icon: <Share2 className="w-3.5 h-3.5" /> },
                     { label: t("QR", "QR"), value: detailsMerchant.qrScans || 0, icon: <QrCode className="w-3.5 h-3.5" /> },
                     { label: t("خرائط", "Maps"), value: (detailsMerchant as any).googleMapsClicks || 0, icon: <MapPin className="w-3.5 h-3.5" /> },
-                    { label: t("شكاوى", "Issues"), value: complaintsMap[detailsMerchant.uid] || 0, icon: <MessageSquare className="w-3.5 h-3.5" /> },
                   ].map(({ label, value, icon }) => (
                     <div key={label} className="bg-slate-900/60 rounded-lg p-2.5 text-center">
                       <div className="flex items-center justify-center text-muted-foreground mb-1">{icon}</div>
@@ -3608,13 +3536,6 @@ export default function SuperAdminPage() {
                 </div>
                 <Switch checked={featureFlags.crmEnabled} onCheckedChange={(v) => setFeatureFlags(f => ({ ...f, crmEnabled: v }))} data-testid="switch-crm" />
               </div>
-              <div className="flex items-center justify-between" data-testid="toggle-smart-rating">
-                <div>
-                  <p className="font-medium text-sm">{t("التقييم الذكي", "Smart Rating Redirect")}</p>
-                  <p className="text-xs text-muted-foreground">{t("إعادة توجيه التقييمات العالية إلى خرائط جوجل", "Redirect high ratings to Google Maps")}</p>
-                </div>
-                <Switch checked={featureFlags.smartRatingEnabled} onCheckedChange={(v) => setFeatureFlags(f => ({ ...f, smartRatingEnabled: v }))} data-testid="switch-smart-rating" />
-              </div>
               <div className="flex items-center justify-between" data-testid="toggle-print">
                 <div>
                   <p className="font-medium text-sm">{t("طباعة الإيصالات", "Print Receipts")}</p>
@@ -3773,77 +3694,6 @@ export default function SuperAdminPage() {
               </div>
             )}
           </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={feedbackDialogOpen} onOpenChange={(open) => { setFeedbackDialogOpen(open); if (!open) { setFeedbackDialogMerchant(null); setFeedbackDialogData([]); } }}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto" data-testid="dialog-merchant-complaints">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-3">
-              {feedbackDialogMerchant?.logoUrl ? (
-                <img src={feedbackDialogMerchant.logoUrl} alt="" className="w-10 h-10 rounded-full object-cover border border-border" />
-              ) : (
-                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Store className="w-5 h-5 text-primary" />
-                </div>
-              )}
-              <div>
-                <span className="block" data-testid="text-complaints-merchant-name">{feedbackDialogMerchant?.storeName}</span>
-                <span className="text-xs text-muted-foreground font-normal">{t("شكاوى العملاء", "Customer Complaints")}</span>
-              </div>
-            </DialogTitle>
-          </DialogHeader>
-
-          {feedbackDialogLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-6 h-6 text-primary animate-spin" />
-            </div>
-          ) : feedbackDialogData.length === 0 ? (
-            <div className="text-center py-12">
-              <MessageSquare className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-              <p className="text-muted-foreground" data-testid="text-no-complaints">
-                {t("لا توجد شكاوى", "No complaints")}
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {feedbackDialogData.map((feedback: any) => (
-                <Card key={feedback.id} data-testid={`card-complaint-${feedback.id}`}>
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <div className="flex items-center gap-0.5">
-                            {[1, 2, 3, 4, 5].map((s) => (
-                              <Star
-                                key={s}
-                                className={`w-4 h-4 ${s <= (feedback.stars || 0) ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground/30"}`}
-                              />
-                            ))}
-                          </div>
-                          <span className="text-xs text-muted-foreground" data-testid={`text-complaint-time-${feedback.id}`}>
-                            {feedback.timestamp ? new Date(feedback.timestamp).toLocaleString() : "N/A"}
-                          </span>
-                          {feedback.read ? (
-                            <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
-                              {t("مقروء", "Read")}
-                            </Badge>
-                          ) : (
-                            <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
-                              {t("غير مقروء", "Unread")}
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-sm mt-2" data-testid={`text-complaint-comment-${feedback.id}`}>
-                          {feedback.comment || t("بدون تعليق", "No comment")}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
         </DialogContent>
       </Dialog>
 

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams } from "wouter";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Star, Download, MapPin } from "lucide-react";
+import { Download, MapPin } from "lucide-react";
 
 interface OrderItem {
   name: string;
@@ -33,11 +33,6 @@ export default function OrderCompletedPage() {
   const [merchantName, setMerchantName] = useState<string>("");
   const [googleMapsReviewUrl, setGoogleMapsReviewUrl] = useState<string>("");
   const [loading, setLoading] = useState(true);
-  const [rating, setRating] = useState(0);
-  const [hoverRating, setHoverRating] = useState(0);
-  const [feedback, setFeedback] = useState("");
-  const [submitted, setSubmitted] = useState(false);
-  const [submittingRating, setSubmittingRating] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -61,26 +56,6 @@ export default function OrderCompletedPage() {
     }
     fetchData();
   }, [merchantId, orderId, orderType]);
-
-  async function handleSubmitRating() {
-    if (rating === 0 || submittingRating) return;
-    setSubmittingRating(true);
-    try {
-      await fetch("/api/feedback", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          merchantId,
-          stars: rating,
-          rating,
-          comment: feedback.trim(),
-          orderId: orderId || "",
-        }),
-      });
-    } catch {}
-    setSubmittingRating(false);
-    setSubmitted(true);
-  }
 
   function handleGoogleMapsClick() {
     window.open(googleMapsReviewUrl, "_blank");
@@ -267,105 +242,6 @@ export default function OrderCompletedPage() {
         <p className="text-sm" style={{ color: "rgba(255,255,255,0.4)" }}>
           نتطلع إلى خدمتك مجدداً
         </p>
-      </div>
-
-      {/* Star Rating Card */}
-      <div
-        className="w-full max-w-sm rounded-2xl p-6 mb-5"
-        style={{
-          background: "rgba(15,2,2,0.95)",
-          border: "1.5px solid #2a0808",
-        }}
-      >
-        {!submitted ? (
-          <>
-            <h2
-              className="text-center font-bold text-base mb-1"
-              style={{ color: "rgba(255,255,255,0.85)" }}
-            >
-              كيف كانت تجربتك؟
-            </h2>
-            <p className="text-center text-xs mb-4" style={{ color: "#664444" }}>
-              قيّم تجربتك معنا
-            </p>
-
-            <div className="flex justify-center gap-2 mb-4" dir="ltr">
-              {[1, 2, 3, 4, 5].map((star) => (
-                <button
-                  key={star}
-                  onClick={() => setRating(star)}
-                  onMouseEnter={() => setHoverRating(star)}
-                  onMouseLeave={() => setHoverRating(0)}
-                  data-testid={`btn-star-${star}`}
-                  className="transition-transform active:scale-90 hover:scale-110"
-                  style={{ background: "none", border: "none", cursor: "pointer", padding: "4px" }}
-                >
-                  <Star
-                    className="w-9 h-9"
-                    fill={(hoverRating || rating) >= star ? "#ff4422" : "none"}
-                    stroke={(hoverRating || rating) >= star ? "#ff4422" : "#5a2020"}
-                    strokeWidth={1.5}
-                  />
-                </button>
-              ))}
-            </div>
-
-            <textarea
-              value={feedback}
-              onChange={(e) => setFeedback(e.target.value)}
-              placeholder="شاركنا رأيك (اختياري)..."
-              rows={3}
-              data-testid="input-feedback"
-              className="w-full rounded-xl text-sm resize-none outline-none px-3 py-2.5 mb-4"
-              style={{
-                background: "#0d0000",
-                border: "1px solid #2a0808",
-                color: "rgba(255,255,255,0.75)",
-                fontFamily: "'Tajawal','Cairo',sans-serif",
-              }}
-            />
-
-            <button
-              onClick={handleSubmitRating}
-              disabled={rating === 0 || submittingRating}
-              data-testid="btn-submit-rating"
-              className="w-full py-3 rounded-xl font-bold text-sm transition-all active:scale-95 flex items-center justify-center gap-2"
-              style={{
-                background: rating > 0 ? "#cc2200" : "#2a0808",
-                color: rating > 0 ? "#fff" : "#5a2020",
-                border: "none",
-                cursor: rating > 0 && !submittingRating ? "pointer" : "not-allowed",
-                opacity: submittingRating ? 0.7 : 1,
-              }}
-            >
-              {submittingRating && (
-                <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.3" />
-                  <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-                </svg>
-              )}
-              {submittingRating ? "جاري الإرسال..." : "إرسال التقييم"}
-            </button>
-          </>
-        ) : (
-          <div className="text-center py-4">
-            <div className="text-4xl mb-3">🌟</div>
-            <p className="font-bold" style={{ color: "#ff6644" }}>
-              شكراً على تقييمك!
-            </p>
-            <div className="flex justify-center gap-1 mt-2" dir="ltr">
-              {[1, 2, 3, 4, 5].map((s) => (
-                <Star
-                  key={s}
-                  className="w-5 h-5"
-                  fill={rating >= s ? "#ff4422" : "none"}
-                  stroke={rating >= s ? "#ff4422" : "#5a2020"}
-                  strokeWidth={1.5}
-                />
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Google Maps Review Button — dine-in, takeaway, and manual table orders */}

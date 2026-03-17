@@ -4,271 +4,10 @@ import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
-import { AlertTriangle, CheckCircle, Loader2, Star, Banknote, Phone, MessageCircle, Send, XCircle, Truck, MapPin, Package, Clock, Link2 } from "lucide-react";
+import { AlertTriangle, CheckCircle, Loader2, Banknote, Phone, MessageCircle, XCircle, Truck, MapPin, Package, Clock, Link2 } from "lucide-react";
 import { SiWhatsapp } from "react-icons/si";
 import { useToast } from "@/hooks/use-toast";
 import type { WhatsAppOrder } from "@shared/schema";
-
-function SmartRatingScreen({
-  merchantId,
-  storeName,
-  googleMapsReviewUrl,
-  orderNumber,
-  diningType,
-  customerName,
-  driverPhone,
-  orderId,
-}: {
-  merchantId: string;
-  storeName: string;
-  googleMapsReviewUrl?: string;
-  orderNumber: string;
-  diningType?: string;
-  customerName?: string;
-  driverPhone?: string;
-  orderId?: string;
-}) {
-  const isDelivery = diningType === "delivery";
-  const [selectedStars, setSelectedStars] = useState(0);
-  const [hoveredStar, setHoveredStar] = useState(0);
-  const [phase, setPhase] = useState<"driver" | "rating" | "done">(isDelivery ? "driver" : "rating");
-  const [comment, setComment] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [doneType, setDoneType] = useState<"maps" | "low" | "high_no_maps">("low");
-
-  function handleWhatsAppDriver() {
-    const phone = (driverPhone || "").replace(/[^\d+]/g, "");
-    const name = customerName || "";
-    const orderNum = orderNumber || "";
-    const msg = encodeURIComponent(`مرحباً، أنا العميل ${name}، أود تتبع طلبي رقم ${orderNum}.`);
-    const url = phone
-      ? `https://wa.me/${phone.startsWith("+") ? phone.slice(1) : phone}?text=${msg}`
-      : `https://wa.me/?text=${msg}`;
-    window.open(url, "_blank");
-  }
-
-  function handleStarClick(star: number) {
-    setSelectedStars(star);
-  }
-
-  function handleSubmitReview() {
-    if (!selectedStars) return;
-
-    if (selectedStars >= 4 && googleMapsReviewUrl) {
-      // Open Maps FIRST — synchronous, no await — guaranteed to pass browser popup check
-      window.open(googleMapsReviewUrl, "_blank");
-      fetch(`/api/track/gmaps/${merchantId}`, { method: "POST" }).catch(() => {});
-      setDoneType("maps");
-      setPhase("done");
-    } else {
-      setSubmitting(true);
-      fetch("/api/store-internal-review", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          merchantId,
-          stars: selectedStars,
-          comment: comment.trim(),
-          orderNumber,
-        }),
-      })
-        .catch(() => {})
-        .finally(() => {
-          setSubmitting(false);
-          setDoneType(selectedStars >= 4 ? "high_no_maps" : "low");
-          setPhase("done");
-        });
-    }
-  }
-
-  function handleCloseAndReturn() {
-    if (orderId) {
-      sessionStorage.removeItem(`order_${orderId}`);
-      localStorage.removeItem(`order_${orderId}`);
-    }
-    sessionStorage.removeItem("pager_bell_primed");
-    const menuPath = `/menu/${merchantId}`;
-    window.location.href = menuPath;
-  }
-
-  return (
-    <div
-      className="h-[100dvh] flex flex-col items-center justify-between py-8 px-5 text-center overflow-y-auto"
-      style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }}
-      data-testid="tracking-completed-screen"
-    >
-      <div className="flex flex-col items-center gap-5 w-full max-w-sm animate-in fade-in duration-700 flex-1">
-        <div className={`w-20 h-20 rounded-full border-2 flex items-center justify-center ${isDelivery ? "border-emerald-500/30 bg-emerald-500/5" : "border-green-500/30 bg-green-500/5"}`} style={{ boxShadow: isDelivery ? "0 0 40px rgba(16,185,129,0.15)" : "0 0 40px rgba(34,197,94,0.12)" }}>
-          {isDelivery ? (
-            <Truck className="w-10 h-10 text-emerald-400/80" />
-          ) : (
-            <CheckCircle className="w-10 h-10 text-green-500/80" />
-          )}
-        </div>
-
-        <div>
-          {isDelivery ? (
-            <>
-              <p className="text-emerald-400 text-xl font-bold" data-testid="text-completed-message" dir="rtl">شكراً لطلبك</p>
-              <p className="text-emerald-400/70 text-sm font-medium mt-2 leading-relaxed max-w-xs" dir="rtl" data-testid="text-delivery-message">
-                طلبك الآن في عهدة المندوب.
-              </p>
-            </>
-          ) : (
-            <>
-              <p className="text-green-400 text-2xl font-bold" data-testid="text-completed-message">Thank You!</p>
-              <p className="text-green-400/80 text-lg font-bold mt-1" dir="rtl" data-testid="text-completed-message-ar">
-                شكراً لزيارتك، قيم تجربتك معنا
-              </p>
-            </>
-          )}
-        </div>
-
-        {isDelivery && phase === "driver" && (
-          <div className="flex flex-col items-center gap-4 w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
-            {driverPhone && (
-            <Button
-              onClick={handleWhatsAppDriver}
-              className="w-full h-14 font-bold text-base rounded-xl gap-3"
-              style={{ background: "linear-gradient(135deg, #25d366 0%, #128c7e 100%)" }}
-              data-testid="button-whatsapp-driver"
-            >
-              <SiWhatsapp className="w-5 h-5" />
-              <span dir="rtl">مندوب التوصيل</span>
-            </Button>
-            )}
-
-            <button
-              onClick={() => setPhase("rating")}
-              className="text-white/40 text-xs underline underline-offset-4 hover:text-white/60 transition-colors mt-1"
-              data-testid="button-skip-to-rating"
-              dir="rtl"
-            >
-              تقييم الخدمة ⭐
-            </button>
-          </div>
-        )}
-
-        {phase === "rating" && (
-          <div className="flex flex-col items-center gap-4 w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
-            {isDelivery && driverPhone && (
-              <Button
-                onClick={handleWhatsAppDriver}
-                variant="outline"
-                className="w-full h-12 font-bold text-sm rounded-xl gap-2 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300 bg-transparent"
-                data-testid="button-whatsapp-driver-small"
-              >
-                <SiWhatsapp className="w-5 h-5" />
-                <span dir="rtl">مندوب التوصيل</span>
-              </Button>
-            )}
-            <Card className="w-full bg-[#111] border-white/[0.06] rounded-2xl">
-              <CardContent className="p-6 flex flex-col items-center gap-4">
-                <p className="text-white/80 text-sm font-medium" dir="rtl" data-testid="text-rate-prompt">تقييم الخدمة</p>
-                <p className="text-white/40 text-xs" data-testid="text-rate-prompt-en">Rate your experience</p>
-                <div className="flex items-center justify-center gap-3" data-testid="star-rating-widget">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button
-                      key={star}
-                      type="button"
-                      onClick={() => handleStarClick(star)}
-                      onMouseEnter={() => setHoveredStar(star)}
-                      onMouseLeave={() => setHoveredStar(0)}
-                      className="transition-all duration-200 active:scale-90 p-1"
-                      data-testid={`button-star-${star}`}
-                    >
-                      <Star
-                        className={`w-12 h-12 sm:w-14 sm:h-14 transition-all duration-200 ${
-                          star <= (hoveredStar || selectedStars)
-                            ? "fill-yellow-400 text-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.5)]"
-                            : "text-zinc-700 hover:text-zinc-500"
-                        }`}
-                      />
-                    </button>
-                  ))}
-                </div>
-
-                {selectedStars > 0 && selectedStars <= 3 && (
-                  <div className="w-full space-y-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    <p className="text-white/60 text-xs text-center" dir="rtl">ما الذي يمكننا تحسينه؟ (اختياري)</p>
-                    <Textarea
-                      value={comment}
-                      onChange={(e) => setComment(e.target.value)}
-                      placeholder="اكتب ملاحظاتك هنا..."
-                      className="w-full text-sm resize-none bg-black border-zinc-700 text-white placeholder:text-zinc-600"
-                      rows={3}
-                      dir="rtl"
-                      data-testid="textarea-feedback"
-                    />
-                  </div>
-                )}
-
-                {selectedStars > 0 && (
-                  <Button
-                    onClick={handleSubmitReview}
-                    disabled={submitting}
-                    className="w-full h-12 font-bold text-base rounded-xl text-white animate-in fade-in duration-300"
-                    style={{
-                      background: selectedStars >= 4
-                        ? "linear-gradient(135deg, #d97706 0%, #f59e0b 100%)"
-                        : "linear-gradient(135deg, #dc2626 0%, #ef4444 100%)"
-                    }}
-                    data-testid="button-submit-review"
-                  >
-                    {submitting ? <Loader2 className="w-5 h-5 me-2 animate-spin" /> : <Send className="w-5 h-5 me-2" />}
-                    <span dir="rtl">{submitting ? "جاري الإرسال..." : "إرسال التقييم"}</span>
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {phase === "done" && (
-          <div className="flex flex-col items-center gap-3 w-full animate-in fade-in duration-500">
-            <Card
-              className="w-full rounded-2xl"
-              style={{
-                background: doneType === "maps" ? "rgba(251,191,36,0.06)" : "rgba(17,17,17,1)",
-                border: doneType === "maps" ? "1px solid rgba(251,191,36,0.2)" : "1px solid rgba(255,255,255,0.06)",
-              }}
-            >
-              <CardContent className="p-6 flex flex-col items-center gap-3">
-                <CheckCircle className={`w-12 h-12 ${doneType === "maps" ? "text-amber-400" : "text-green-500"}`} />
-                <p className="text-white text-base font-bold leading-snug" dir="rtl" data-testid="text-feedback-thankyou">
-                  {doneType === "maps"
-                    ? "شكراً لتقييمك الرائع! جاري تحويلك لجوجل ماب.."
-                    : "شكراً لملاحظاتك، سنعمل على تحسين تجربتك."}
-                </p>
-                <p className="text-zinc-400 text-xs" data-testid="text-feedback-thankyou-en">
-                  {doneType === "maps"
-                    ? "Thank you! Redirecting to Google Maps.."
-                    : "Thank you for your feedback!"}
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {storeName && (
-          <p className="text-white/20 text-xs mt-2">{storeName}</p>
-        )}
-      </div>
-
-      <div className="w-full max-w-sm mt-6 flex-shrink-0">
-        <button
-          onClick={handleCloseAndReturn}
-          className="w-full py-3 text-white/30 text-sm font-medium hover:text-white/50 transition-colors underline underline-offset-4"
-          data-testid="button-close-return"
-          dir="rtl"
-        >
-          إغلاق والعودة للرئيسية
-        </button>
-      </div>
-    </div>
-  );
-}
 
 function DeliveryTrackingView({
   order,
@@ -284,30 +23,10 @@ function DeliveryTrackingView({
   const isReady = order.status === "ready";
   const isRejected = order.status === "rejected";
   const isPreparing = order.status === "preparing";
-  const [showRating, setShowRating] = useState(false);
-  const [selectedStars, setSelectedStars] = useState(0);
-  const [hoveredStar, setHoveredStar] = useState(0);
-  const [ratingPhase, setRatingPhase] = useState<"stars" | "done">("stars");
-  const [comment, setComment] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [doneType, setDoneType] = useState<"maps" | "low" | "high_no_maps">("low");
   const [shareCopied, setShareCopied] = useState(false);
   const prevStatusRef = useRef(order.status);
 
   useEffect(() => {
-    if ((isReady || isCompleted) && !showRating) {
-      const timer = setTimeout(() => setShowRating(true), 1500);
-      return () => clearTimeout(timer);
-    }
-  }, [isReady, isCompleted]);
-
-  useEffect(() => {
-    if (prevStatusRef.current !== order.status) {
-      if ((order.status === "ready" || order.status === "completed" || order.status === "archived") && !showRating) {
-        const timer = setTimeout(() => setShowRating(true), 1500);
-        return () => clearTimeout(timer);
-      }
-    }
     prevStatusRef.current = order.status;
   }, [order.status]);
 
@@ -320,40 +39,6 @@ function DeliveryTrackingView({
       ? `https://wa.me/${phone.startsWith("+") ? phone.slice(1) : phone}?text=${msg}`
       : `https://wa.me/?text=${msg}`;
     window.open(url, "_blank");
-  }
-
-  function handleStarClick(star: number) {
-    setSelectedStars(star);
-  }
-
-  function handleSubmitReview() {
-    if (!selectedStars) return;
-
-    if (selectedStars >= 4 && merchant?.googleMapsReviewUrl) {
-      // Open Maps FIRST — synchronous, no await — guaranteed to pass browser popup check
-      window.open(merchant.googleMapsReviewUrl, "_blank");
-      fetch(`/api/track/gmaps/${merchantId}`, { method: "POST" }).catch(() => {});
-      setDoneType("maps");
-      setRatingPhase("done");
-    } else {
-      setSubmitting(true);
-      fetch("/api/store-internal-review", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          merchantId,
-          stars: selectedStars,
-          comment: comment.trim(),
-          orderNumber: order.orderNumber,
-        }),
-      })
-        .catch(() => {})
-        .finally(() => {
-          setSubmitting(false);
-          setDoneType(selectedStars >= 4 ? "high_no_maps" : "low");
-          setRatingPhase("done");
-        });
-    }
   }
 
   async function handleShareTracking() {
@@ -500,91 +185,6 @@ function DeliveryTrackingView({
               )}
             </span>
           </button>
-        )}
-
-        {showRating && !isRejected && ratingPhase === "stars" && (
-          <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <Card className="w-full bg-[#111] border-white/[0.06] rounded-2xl">
-              <CardContent className="p-5 flex flex-col items-center gap-4">
-                <p className="text-white/80 text-sm font-medium" dir="rtl" data-testid="text-delivery-rate-prompt">تقييم الخدمة</p>
-                <p className="text-white/40 text-xs">Rate your experience</p>
-                <div className="flex items-center justify-center gap-3" data-testid="star-rating-widget">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button
-                      key={star}
-                      type="button"
-                      onClick={() => handleStarClick(star)}
-                      onMouseEnter={() => setHoveredStar(star)}
-                      onMouseLeave={() => setHoveredStar(0)}
-                      className="transition-all duration-200 active:scale-90 p-1"
-                      data-testid={`button-star-${star}`}
-                    >
-                      <Star
-                        className={`w-11 h-11 transition-all duration-200 ${
-                          star <= (hoveredStar || selectedStars)
-                            ? "fill-yellow-400 text-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.5)]"
-                            : "text-zinc-700 hover:text-zinc-500"
-                        }`}
-                      />
-                    </button>
-                  ))}
-                </div>
-
-                {selectedStars > 0 && selectedStars <= 3 && (
-                  <div className="w-full space-y-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    <p className="text-white/60 text-xs text-center" dir="rtl">ما الذي يمكننا تحسينه؟ (اختياري)</p>
-                    <Textarea
-                      value={comment}
-                      onChange={(e) => setComment(e.target.value)}
-                      placeholder="اكتب ملاحظاتك هنا..."
-                      className="w-full text-sm resize-none bg-black border-zinc-700 text-white placeholder:text-zinc-600"
-                      rows={3}
-                      dir="rtl"
-                      data-testid="textarea-delivery-feedback"
-                    />
-                  </div>
-                )}
-
-                {selectedStars > 0 && (
-                  <Button
-                    onClick={handleSubmitReview}
-                    disabled={submitting}
-                    className="w-full h-11 font-bold text-sm rounded-xl text-white animate-in fade-in duration-300"
-                    style={{
-                      background: selectedStars >= 4
-                        ? "linear-gradient(135deg, #d97706 0%, #f59e0b 100%)"
-                        : "linear-gradient(135deg, #dc2626 0%, #ef4444 100%)"
-                    }}
-                    data-testid="button-submit-review"
-                  >
-                    {submitting ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Send className="w-4 h-4 me-2" />}
-                    <span dir="rtl">{submitting ? "جاري الإرسال..." : "إرسال التقييم"}</span>
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {showRating && ratingPhase === "done" && (
-          <div className="w-full animate-in fade-in duration-500">
-            <Card
-              className="w-full rounded-2xl"
-              style={{
-                background: doneType === "maps" ? "rgba(251,191,36,0.06)" : "rgba(17,17,17,1)",
-                border: doneType === "maps" ? "1px solid rgba(251,191,36,0.2)" : "1px solid rgba(255,255,255,0.06)",
-              }}
-            >
-              <CardContent className="p-5 flex flex-col items-center gap-3">
-                <CheckCircle className={`w-10 h-10 ${doneType === "maps" ? "text-amber-400" : "text-green-500"}`} />
-                <p className="text-white text-sm font-bold leading-snug text-center" dir="rtl" data-testid="text-rating-thankyou">
-                  {doneType === "maps"
-                    ? "شكراً لتقييمك الرائع! جاري تحويلك لجوجل ماب.."
-                    : "شكراً لملاحظاتك، سنعمل على تحسين تجربتك."}
-                </p>
-              </CardContent>
-            </Card>
-          </div>
         )}
 
         {!isRejected && !isCompleted && (
@@ -1146,16 +746,32 @@ export default function OrderTrackingPage() {
 
   if (order.status === "completed" || order.status === "archived") {
     return (
-      <SmartRatingScreen
-        merchantId={merchantId}
-        storeName={merchant?.storeName || ""}
-        googleMapsReviewUrl={merchant?.googleMapsReviewUrl}
-        orderNumber={order.orderNumber}
-        diningType={order.diningType}
-        customerName={order.customerName}
-        driverPhone={merchant?.driverPhone}
-        orderId={order.id}
-      />
+      <div
+        className="h-[100dvh] flex flex-col items-center justify-center px-5 text-center gap-6"
+        style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }}
+        data-testid="tracking-completed-screen"
+      >
+        <div className="w-20 h-20 rounded-full border-2 border-green-500/30 bg-green-500/5 flex items-center justify-center" style={{ boxShadow: "0 0 40px rgba(34,197,94,0.12)" }}>
+          <CheckCircle className="w-10 h-10 text-green-500/80" />
+        </div>
+        <div>
+          <p className="text-green-400 text-2xl font-bold" data-testid="text-completed-message">Thank You!</p>
+          <p className="text-green-400/80 text-lg font-bold mt-1" dir="rtl" data-testid="text-completed-message-ar">
+            شكراً لطلبك، نتطلع إلى خدمتك مجدداً
+          </p>
+        </div>
+        {merchant?.storeName && (
+          <p className="text-white/20 text-xs">{merchant.storeName}</p>
+        )}
+        <button
+          onClick={() => { window.location.href = `/menu/${merchantId}`; }}
+          className="text-white/30 text-sm font-medium hover:text-white/50 transition-colors underline underline-offset-4"
+          data-testid="button-close-return"
+          dir="rtl"
+        >
+          العودة للقائمة
+        </button>
+      </div>
     );
   }
 
