@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
 import { collection, getDocs, doc, updateDoc, deleteDoc, getDoc, setDoc, onSnapshot, query, where, runTransaction } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -118,6 +118,44 @@ const PRIMARY_ADMIN_EMAIL = import.meta.env.VITE_SUPER_ADMIN_EMAIL || "yahiatoha
 const ADMIN_EMAILS = [PRIMARY_ADMIN_EMAIL.toLowerCase(), "admin@test.com"];
 function isAdminEmail(email?: string | null) {
   return !!email && ADMIN_EMAILS.includes(email.toLowerCase());
+}
+
+class AdminErrorBoundary extends React.Component<
+  { children: React.ReactNode; fallbackLabel?: string },
+  { hasError: boolean; errorMessage: string }
+> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, errorMessage: "" };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, errorMessage: error?.message || "Unknown error" };
+  }
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error("[AdminErrorBoundary]", error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center py-20 gap-4 text-center" dir="rtl">
+          <div className="w-14 h-14 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+            <span className="text-2xl">⚠️</span>
+          </div>
+          <div>
+            <p className="text-slate-200 font-bold text-base mb-1">{this.props.fallbackLabel || "حدث خطأ في تحميل هذا القسم"}</p>
+            <p className="text-slate-500 text-xs font-mono">{this.state.errorMessage}</p>
+          </div>
+          <button
+            className="mt-2 px-4 py-2 rounded-lg bg-slate-700/50 border border-slate-600/40 text-slate-300 text-sm hover:bg-slate-700"
+            onClick={() => this.setState({ hasError: false, errorMessage: "" })}
+          >
+            إعادة المحاولة
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 function AdminCharts({ merchants, t, lang }: { merchants: Merchant[]; t: (ar: string, en: string) => string; lang: string }) {

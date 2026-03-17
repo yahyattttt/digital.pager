@@ -1,7 +1,7 @@
 importScripts("https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js");
 importScripts("https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js");
 
-var CACHE_NAME = 'digital-pager-v4';
+var CACHE_NAME = 'digital-pager-v5';
 var PRECACHE_URLS = [
   '/alert.mp3',
   '/favicon.png',
@@ -69,7 +69,7 @@ self.addEventListener('fetch', function(event) {
       caches.match(event.request).then(function(cached) {
         if (cached) return cached;
         return fetch(event.request).then(function(response) {
-          if (response.ok) {
+          if (response.ok && response.status !== 206) {
             var responseClone = response.clone();
             caches.open(CACHE_NAME).then(function(cache) {
               cache.put(event.request, responseClone);
@@ -86,7 +86,7 @@ self.addEventListener('fetch', function(event) {
     event.respondWith(
       caches.match(event.request).then(function(cached) {
         var fetchPromise = fetch(event.request).then(function(response) {
-          if (response.ok) {
+          if (response.ok && response.status !== 206) {
             var responseClone = response.clone();
             caches.open(CACHE_NAME).then(function(cache) {
               cache.put(event.request, responseClone);

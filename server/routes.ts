@@ -1835,44 +1835,44 @@ export async function registerRoutes(
         },
       };
 
-      const queryRes = await fetch(
-        `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(query),
-        }
-      );
-
-      if (!queryRes.ok) {
-        return res.status(500).json({ message: "Failed to query errors" });
-      }
-
-      const results = await queryRes.json();
-      const errors: any[] = [];
-
-      if (Array.isArray(results)) {
-        for (const r of results) {
-          if (r.document) {
-            const fields = r.document.fields || {};
-            const docName = r.document.name || "";
-            const id = docName.split("/").pop() || "";
-            errors.push({
-              id,
-              merchantId: fields.merchantId?.stringValue || "",
-              errorType: fields.errorType?.stringValue || "",
-              errorMessage: fields.errorMessage?.stringValue || "",
-              timestamp: fields.timestamp?.stringValue || "",
-              resolved: fields.resolved?.booleanValue || false,
-            });
+      let errors: any[] = [];
+      try {
+        const queryRes = await apikeyFetch(
+          `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(query),
+          }
+        );
+        if (queryRes.ok) {
+          const results = await queryRes.json();
+          if (Array.isArray(results)) {
+            for (const r of results) {
+              if (r.document) {
+                const fields = r.document.fields || {};
+                const docName = r.document.name || "";
+                const id = docName.split("/").pop() || "";
+                errors.push({
+                  id,
+                  merchantId: fields.merchantId?.stringValue || "",
+                  errorType: fields.errorType?.stringValue || "",
+                  errorMessage: fields.errorMessage?.stringValue || "",
+                  timestamp: fields.timestamp?.stringValue || "",
+                  resolved: fields.resolved?.booleanValue || false,
+                });
+              }
+            }
           }
         }
+      } catch {
+        // Collection may not exist yet — return empty list
       }
 
       return res.json({ errors });
     } catch (error) {
       console.error("Get admin errors error:", error);
-      return res.status(500).json({ message: "Failed to get errors" });
+      return res.json({ errors: [] });
     }
   });
 
@@ -2710,10 +2710,13 @@ export async function registerRoutes(
       const baseUrl = getApiKeyBaseUrl();
       if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
 
-      const merchantsRes = await apikeyFetch(`${baseUrl}/merchants`, {
-        headers: {},
-      });
-      if (!merchantsRes.ok) return res.status(500).json({ message: "Failed to fetch merchants" });
+      const merchantsRes = await apikeyFetch(`${baseUrl}/merchants`);
+      if (!merchantsRes.ok) {
+        return res.json({
+          summary: { totalMerchants: 0, totalOrdersAllTime: 0, totalOrdersToday: 0, totalCollected: 0, totalUncollected: 0, totalPreparing: 0, totalReady: 0 },
+          merchants: [],
+        });
+      }
       const merchantsData = await merchantsRes.json();
       const merchantDocs = merchantsData.documents || [];
 
@@ -2734,9 +2737,8 @@ export async function registerRoutes(
         const merchantId = doc.name?.split("/").pop() || "";
         const storeName = fields.storeName?.stringValue || fields.email?.stringValue || merchantId;
 
-        const ordersRes = await fetch(
-          `${baseUrl}/merchants/${merchantId}/whatsappOrders`,
-          { headers: {} }
+        const ordersRes = await apikeyFetch(
+          `${baseUrl}/merchants/${merchantId}/whatsappOrders`
         );
 
         let ordersToday = 0;
@@ -2802,7 +2804,10 @@ export async function registerRoutes(
       });
     } catch (error) {
       console.error("Global monitor error:", error);
-      return res.status(500).json({ message: "Failed to get global monitor data" });
+      return res.json({
+        summary: { totalMerchants: 0, totalOrdersAllTime: 0, totalOrdersToday: 0, totalCollected: 0, totalUncollected: 0, totalPreparing: 0, totalReady: 0 },
+        merchants: [],
+      });
     }
   });
 
