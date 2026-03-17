@@ -414,9 +414,12 @@ export default function StorePagerPage() {
             اختر رقم طلبك
           </p>
           <p className="text-white/30 text-xs mt-1">Select your order number</p>
+          <p className="text-white/40 text-[13px] mt-2 font-medium" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
+            قم باختيار رقم طلبك من القائمة أعلاه
+          </p>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 pb-8">
+        <div className="flex-1 overflow-y-auto px-5 pb-4">
           {pagers.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full gap-3">
               <div className="w-16 h-16 rounded-full bg-white/[0.03] border border-white/[0.06] flex items-center justify-center">
@@ -443,6 +446,26 @@ export default function StorePagerPage() {
               ))}
             </div>
           )}
+        </div>
+
+        {/* Notice: Receipt reminder */}
+        <div className="px-5 pb-5" data-testid="notice-receipt-reminder">
+          <div
+            className="flex items-start gap-3 rounded-xl px-4 py-3"
+            style={{
+              background: "rgba(251,191,36,0.08)",
+              border: "1px solid rgba(251,191,36,0.25)",
+            }}
+            dir="rtl"
+          >
+            <span className="text-lg leading-none mt-0.5 shrink-0">🧾</span>
+            <p
+              className="text-[13px] font-medium leading-relaxed"
+              style={{ color: "rgba(253,224,100,0.85)", fontFamily: "'Tajawal','Cairo',sans-serif" }}
+            >
+              تنويه: يجب إحضار الفاتورة الخاصة بالمتجر أثناء استلام طلبك.
+            </p>
+          </div>
         </div>
 
         {confirmOpen && selectedPager && (
