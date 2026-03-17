@@ -216,48 +216,43 @@ async function incrementDailyTracking(storeId: string, fieldName: string, dateSt
   }
 }
 
-async function generateOnlineOrderId(merchantId: string, _accessToken?: string, _baseUrl?: string): Promise<{ orderNumber: string; currentYY: string }> {
-  const baseUrl = getApiKeyBaseUrl();
-  if (!baseUrl) throw new Error("Firestore not configured");
+async function generateMerchantOrderId(merchantId: string): Promise<string> {
+  const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
+  const apiKey = getApiKey();
+  if (!projectId || !apiKey) throw new Error("Firestore not configured");
 
-  const currentYY = new Date().getFullYear().toString().slice(-2);
-  const counterUrl = `${baseUrl}/merchants/${merchantId}/settings/orderCounter`;
+  const now = new Date();
+  const yy = now.getFullYear().toString().slice(-2);
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const monthKey = `${yy}${mm}`;
+  const fieldPath = `counter_${monthKey}`;
 
-  let currentCounter = 1;
-  let existingFields: Record<string, any> = {};
+  const commitUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:commit?key=${apiKey}`;
+  const docPath = `projects/${projectId}/databases/(default)/documents/counters/${merchantId}`;
 
-  const counterRes = await apikeyFetch(counterUrl);
-  if (counterRes.ok) {
-    const counterDoc = await counterRes.json();
-    if (counterDoc.fields) {
-      existingFields = counterDoc.fields;
-      const storedYear = existingFields.onlineCounterYear?.stringValue || "";
-      if (storedYear === currentYY) {
-        const raw = existingFields.onlineCounter?.integerValue || existingFields.nextOrderNumber?.integerValue || "1";
-        currentCounter = parseInt(String(raw), 10);
-        if (isNaN(currentCounter) || currentCounter < 1) currentCounter = 1;
-      }
-    }
+  const res = await fetch(commitUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      writes: [{
+        transform: {
+          document: docPath,
+          fieldTransforms: [{ fieldPath: fieldPath, increment: { integerValue: "1" } }],
+        },
+      }],
+    }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Failed to generate order ID: ${errText}`);
   }
 
-  const orderNum = currentCounter;
-  const newFields = { ...existingFields };
-  newFields.onlineCounter = { integerValue: String(orderNum + 1) };
-  newFields.onlineCounterYear = { stringValue: currentYY };
+  const data = await res.json();
+  const newValue = data.writeResults?.[0]?.transformResults?.[0]?.integerValue;
+  const seq = parseInt(String(newValue || "1"), 10);
 
-  const patchRes = await apikeyFetch(counterUrl, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ fields: newFields }),
-  });
-  if (!patchRes.ok) throw new Error("Failed to update order counter");
-
-  return { orderNumber: String(orderNum), currentYY };
-}
-
-function buildCloudOrderId(cityCode: string, yearYY: string, orderNumber: string): string {
-  const paddedNum = parseInt(orderNumber, 10).toString().padStart(3, "0");
-  return `${cityCode || "00"}${yearYY}${paddedNum}`;
+  return `${monthKey}-${String(seq).padStart(3, "0")}`;
 }
 
 function sanitizeEmailKey(email: string): string {
@@ -3297,15 +3292,13 @@ export async function registerRoutes(
         }
       }
 
-      let onlineId: { orderNumber: string; currentYY: string };
+      let displayOrderId: string;
       try {
-        onlineId = await generateOnlineOrderId(merchantId);
+        displayOrderId = await generateMerchantOrderId(merchantId);
       } catch (err) {
-        console.error("[OrderCreate] Failed to generate online order ID:", err);
+        console.error("[OrderCreate] Failed to generate order ID:", err);
         return res.status(500).json({ message: "Failed to generate order ID. Please try again." });
       }
-      const cityCode = mf.cityCode?.stringValue || "00";
-      const displayOrderId = buildCloudOrderId(cityCode, onlineId.currentYY, onlineId.orderNumber);
 
       const fields: Record<string, any> = {
         merchantId: { stringValue: merchantId },
@@ -3315,7 +3308,7 @@ export async function registerRoutes(
         total: { doubleValue: finalTotal },
         status: { stringValue: "pending_verification" },
         paymentMethod: { stringValue: (paymentMethod && typeof paymentMethod === "string" && ["cod", "credit_card", "mada", "apple_pay", "google_pay", "stc_pay"].includes(paymentMethod)) ? paymentMethod : "cod" },
-        orderNumber: { stringValue: onlineId.orderNumber },
+        orderNumber: { stringValue: displayOrderId },
         displayOrderId: { stringValue: displayOrderId },
         orderType: { stringValue: "online" },
         createdAt: { stringValue: new Date().toISOString() },

@@ -6523,7 +6523,7 @@ function SettingsView({
             <MapPin className="w-4 h-4 text-emerald-400" />
             {t("موقع الفرع ونطاق التوصيل", "Branch Location & Delivery Range")}
           </h3>
-          <p className="text-xs text-muted-foreground mb-4">{t("إعدادات التوصيل والموقع وساعات العمل ورمز المدينة", "Delivery, location, business hours, and city code settings")}</p>
+          <p className="text-xs text-muted-foreground mb-4">{t("إعدادات التوصيل والموقع وساعات العمل", "Delivery, location, and business hours settings")}</p>
           <div className="space-y-4">
             <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]">
               <div className="flex-1">
@@ -6583,39 +6583,6 @@ function SettingsView({
                 </div>
               </div>
             )}
-
-            <div className="space-y-3">
-              <p className="text-sm font-semibold flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-red-400" />
-                {t("رمز المدينة (ترقيم الطلبات)", "City Code (Order Numbering)")}
-              </p>
-              <p className="text-[10px] text-muted-foreground" dir="rtl">
-                {t(
-                  "يُستخدم رمز المدينة في ترقيم الطلبات أونلاين. مثال: الرياض (01) + السنة (26) + الرقم التسلسلي = 0126001",
-                  "City code is used in online order numbering. Example: Riyadh (01) + Year (26) + Sequential = 0126001"
-                )}
-              </p>
-              <Select value={cityCode} onValueChange={setCityCode}>
-                <SelectTrigger className="h-12 bg-white/[0.03] border-white/10" data-testid="select-city-code">
-                  <SelectValue placeholder={t("اختر المدينة", "Select City")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {cityCodeOptions.map((city) => (
-                    <SelectItem key={city.code} value={city.code} data-testid={`option-city-${city.code}`}>
-                      {city.code} — {lang === "ar" ? city.labelAr : city.labelEn}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {cityCode && (
-                <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.06]">
-                  <p className="text-xs text-muted-foreground mb-1" dir="rtl">{t("معاينة رقم الطلب", "Order ID Preview")}</p>
-                  <p className="text-lg font-mono font-bold text-center text-red-400" data-testid="text-city-code-preview">
-                    {cityCode}{new Date().getFullYear().toString().slice(-2)}001
-                  </p>
-                </div>
-              )}
-            </div>
 
             <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]" data-testid="online-orders-toggle-row">
               <div className="flex-1">
