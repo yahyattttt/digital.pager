@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from "react";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import type { Merchant } from "@shared/schema";
 import {
@@ -16,12 +15,22 @@ import {
   Zap,
   Rocket,
   Star,
-  ChevronRight,
   Share2,
   RefreshCw,
   XCircle,
   Send,
+  Loader2,
+  Check,
 } from "lucide-react";
+
+const UNIFIED_FEATURES = [
+  "بيجر رقمي ذكي لتنبيه العملاء",
+  "استقبال الطلبات عبر خرائط جوجل",
+  "بناء وإعادة استهداف قاعدة عملائك",
+  "الفلترة الذكية لتقييمات جوجل ماب",
+  "نظام متكامل لإدارة التوصيل الذاتي",
+  "إمكانية مشاركة العملاء للبيجر الرقمي لزيادة شهرتك",
+];
 
 const PLANS = [
   {
@@ -29,57 +38,84 @@ const PLANS = [
     price: 99,
     days: 30,
     icon: Star,
-    color: "from-slate-700 to-slate-600",
-    borderColor: "border-slate-500",
-    accentColor: "text-slate-300",
-    badgeColor: "bg-slate-600/40 text-slate-300 border-slate-500/50",
+    bg: "linear-gradient(160deg,#1e2a3a 0%,#0f172a 100%)",
+    border: "#334155",
+    accent: "#94a3b8",
+    glow: "rgba(148,163,184,0.12)",
+    btnBg: "rgba(148,163,184,0.12)",
+    btnBorder: "#334155",
+    btnText: "#cbd5e1",
+    btnHover: "rgba(148,163,184,0.2)",
     nameAr: "باقة البداية",
     nameEn: "Starter",
     durationAr: "شهر واحد",
-    features: ["بيجر رقمي لاسلكي", "QR كود مخصص", "إشعارات فورية", "تقارير أساسية"],
+    discount: null as { ar: string; color: string; bg: string } | null,
+    popular: false,
+    bestValue: false,
+    premium: false,
   },
   {
     id: "basic",
     price: 269,
     days: 90,
     icon: Zap,
-    color: "from-blue-900 to-blue-800",
-    borderColor: "border-blue-500",
-    accentColor: "text-blue-300",
-    badgeColor: "bg-blue-600/30 text-blue-300 border-blue-500/50",
+    bg: "linear-gradient(160deg,#1e3a5f 0%,#0c1a2e 100%)",
+    border: "#2563eb",
+    accent: "#93c5fd",
+    glow: "rgba(37,99,235,0.18)",
+    btnBg: "rgba(37,99,235,0.18)",
+    btnBorder: "#2563eb",
+    btnText: "#93c5fd",
+    btnHover: "rgba(37,99,235,0.28)",
     nameAr: "باقة النمو",
     nameEn: "Growth",
     durationAr: "٣ أشهر",
-    features: ["كل مزايا البداية", "نظام الطلبات الذكي", "CRM العملاء", "كوبونات الخصم"],
+    discount: { ar: "وفر 10%", color: "#93c5fd", bg: "rgba(37,99,235,0.2)" },
+    popular: false,
+    bestValue: false,
+    premium: false,
   },
   {
     id: "premium",
     price: 499,
     days: 180,
     icon: Rocket,
-    color: "from-red-900 to-rose-900",
-    borderColor: "border-red-500",
-    accentColor: "text-red-300",
-    badgeColor: "bg-red-600/30 text-red-300 border-red-500/50",
+    bg: "linear-gradient(160deg,#3b0764 0%,#1a0533 100%)",
+    border: "#a855f7",
+    accent: "#d8b4fe",
+    glow: "rgba(168,85,247,0.28)",
+    btnBg: "linear-gradient(135deg,#7c3aed,#a855f7)",
+    btnBorder: "#a855f7",
+    btnText: "#ffffff",
+    btnHover: "linear-gradient(135deg,#6d28d9,#9333ea)",
     nameAr: "باقة التميز",
-    nameEn: "Premium",
+    nameEn: "Pro",
     durationAr: "٦ أشهر",
+    discount: { ar: "وفر 20% — خصم خاص لك", color: "#e9d5ff", bg: "rgba(168,85,247,0.25)" },
     popular: true,
-    features: ["كل مزايا النمو", "تحليلات متقدمة", "تتبع العملاء", "دعم ذو أولوية"],
+    bestValue: false,
+    premium: true,
   },
   {
     id: "enterprise",
     price: 999,
     days: 365,
     icon: Crown,
-    color: "from-amber-900 to-yellow-900",
-    borderColor: "border-amber-400",
-    accentColor: "text-amber-300",
-    badgeColor: "bg-amber-500/20 text-amber-300 border-amber-400/50",
+    bg: "linear-gradient(160deg,#78350f 0%,#1c0800 100%)",
+    border: "#f59e0b",
+    accent: "#fcd34d",
+    glow: "rgba(245,158,11,0.28)",
+    btnBg: "linear-gradient(135deg,#d97706,#f59e0b)",
+    btnBorder: "#f59e0b",
+    btnText: "#000000",
+    btnHover: "linear-gradient(135deg,#b45309,#d97706)",
     nameAr: "باقة المؤسسات",
     nameEn: "Enterprise",
     durationAr: "سنة كاملة",
-    features: ["كل المزايا", "مدير حساب مخصص", "تكاملات متقدمة", "SLA مضمون"],
+    discount: { ar: "أفضل قيمة — وفر 30%", color: "#fef3c7", bg: "rgba(245,158,11,0.25)" },
+    popular: false,
+    bestValue: true,
+    premium: true,
   },
 ];
 
@@ -92,16 +128,14 @@ interface Props {
 export default function SubscriptionView({ merchant, t, lang }: Props) {
   const { toast } = useToast();
   const [selectedPlan, setSelectedPlan] = useState<string>(merchant.subscriptionRequestedPlan || merchant.plan || "trial");
-  const [submitting, setSubmitting] = useState(false);
+  const [submittingPlanId, setSubmittingPlanId] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [referralStats, setReferralStats] = useState({ joined: 0, monthsEarned: 0 });
   const [referralLoading, setReferralLoading] = useState(true);
   const [copied, setCopied] = useState(false);
-
   const [resubmitMode, setResubmitMode] = useState(false);
   const prevSubscriptionStatusRef = useRef<string>(merchant.subscriptionStatus || "pending");
 
-  // Show success toast when admin activates the plan (real-time onSnapshot update)
   useEffect(() => {
     const prev = prevSubscriptionStatusRef.current;
     const current = merchant.subscriptionStatus || "pending";
@@ -141,19 +175,17 @@ export default function SubscriptionView({ merchant, t, lang }: Props) {
     fetchReferrals();
   }, [merchant.uid]);
 
-  async function handleSubmit() {
-    if (!selectedPlan) {
-      toast({ title: t("اختر الباقة أولاً", "Please select a plan"), variant: "destructive" });
-      return;
-    }
-    setSubmitting(true);
+  async function handleActivate(planId: string) {
+    if (!planId) return;
+    setSelectedPlan(planId);
+    setSubmittingPlanId(planId);
     try {
       const res = await fetch("/api/merchant/subscription-request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           merchantId: merchant.uid,
-          plan: selectedPlan,
+          plan: planId,
           documents: [],
           notes: "",
         }),
@@ -172,7 +204,7 @@ export default function SubscriptionView({ merchant, t, lang }: Props) {
     } catch (err: any) {
       toast({ title: t("فشل الإرسال", "Submission failed"), description: err.message, variant: "destructive" });
     } finally {
-      setSubmitting(false);
+      setSubmittingPlanId(null);
     }
   }
 
@@ -182,8 +214,6 @@ export default function SubscriptionView({ merchant, t, lang }: Props) {
       setTimeout(() => setCopied(false), 2000);
     });
   }
-
-  const planDetails = PLANS.find((p) => p.id === selectedPlan);
 
   return (
     <div className="p-4 md:p-6 space-y-8 max-w-4xl mx-auto" dir={lang === "ar" ? "rtl" : "ltr"}>
@@ -228,11 +258,14 @@ export default function SubscriptionView({ merchant, t, lang }: Props) {
         })();
         const PlanIcon = activePlan.icon;
         return (
-          <div className={`rounded-2xl border p-5 space-y-4 ${isExpiredCard ? "border-red-500/40 bg-red-500/5" : "border-green-500/30 bg-green-500/5"}`} data-testid="card-active-subscription">
+          <div
+            className={`rounded-2xl border p-5 space-y-4 ${isExpiredCard ? "border-red-500/40 bg-red-500/5" : "border-green-500/30 bg-green-500/5"}`}
+            data-testid="card-active-subscription"
+          >
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br ${activePlan.color}`}>
-                  <PlanIcon className={`w-5 h-5 ${activePlan.accentColor}`} />
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: activePlan.bg }}>
+                  <PlanIcon className="w-5 h-5" style={{ color: activePlan.accent }} />
                 </div>
                 <div>
                   <p className="text-xs text-white/40 uppercase tracking-wider">{t("الباقة الحالية", "Current Plan")}</p>
@@ -307,10 +340,7 @@ export default function SubscriptionView({ merchant, t, lang }: Props) {
             </div>
           </div>
           <Button
-            onClick={() => {
-              setResubmitMode(true);
-              setSubmitted(false);
-            }}
+            onClick={() => { setResubmitMode(true); setSubmitted(false); }}
             className="w-full h-10 rounded-xl bg-white/10 hover:bg-white/15 text-white border border-white/20 font-bold text-sm gap-2"
             data-testid="btn-resubmit"
           >
@@ -335,7 +365,7 @@ export default function SubscriptionView({ merchant, t, lang }: Props) {
         </div>
       )}
 
-      {/* Re-submit Mode Banner */}
+      {/* Resubmit Mode Banner */}
       {resubmitMode && (
         <div className="flex items-center gap-3 p-3 rounded-xl border border-blue-500/40 bg-blue-500/10">
           <RefreshCw className="w-4 h-4 text-blue-400 shrink-0" />
@@ -348,75 +378,144 @@ export default function SubscriptionView({ merchant, t, lang }: Props) {
         </div>
       )}
 
-      {/* Plan Cards */}
+      {/* ── Plan Cards ── */}
       <div>
         <h2 className="text-base font-semibold mb-4" data-testid="text-plans-heading">
           {t("اختر الباقة", "Choose Your Plan")}
         </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {PLANS.map((plan) => {
             const Icon = plan.icon;
             const isSelected = selectedPlan === plan.id;
+            const isSubmitting = submittingPlanId === plan.id;
+            const canActivate = !isLocked && !isRejected;
+
             return (
-              <button
+              <div
                 key={plan.id}
                 data-testid={`card-plan-${plan.id}`}
-                onClick={() => !isLocked && !isRejected && setSelectedPlan(plan.id)}
-                className={`relative text-start rounded-2xl border-2 p-4 transition-all duration-200 bg-gradient-to-br ${plan.color} ${
-                  isSelected
-                    ? `${plan.borderColor} shadow-lg shadow-black/30 scale-[1.02]`
-                    : "border-transparent opacity-70 hover:opacity-90 hover:scale-[1.01]"
-                } ${isLocked || isRejected ? "cursor-default" : "cursor-pointer"}`}
+                className="relative flex flex-col rounded-2xl overflow-hidden transition-all duration-200"
+                style={{
+                  background: plan.bg,
+                  border: `1.5px solid ${isSelected ? plan.border : "rgba(255,255,255,0.08)"}`,
+                  boxShadow: isSelected
+                    ? `0 0 0 1px ${plan.border}40, 0 8px 32px ${plan.glow}`
+                    : plan.premium
+                    ? `0 4px 24px ${plan.glow}`
+                    : "none",
+                }}
               >
+                {/* "Most Popular" ribbon */}
                 {plan.popular && (
-                  <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 text-[10px] font-bold px-3 py-0.5 rounded-full bg-primary text-white border border-primary/50 whitespace-nowrap">
-                    {t("الأكثر طلباً", "Most Popular")}
-                  </span>
+                  <div className="absolute top-0 inset-x-0 h-0.5" style={{ background: `linear-gradient(90deg, transparent, ${plan.border}, transparent)` }} />
                 )}
-                <div className="flex items-start justify-between gap-2 mb-3">
-                  <div className="flex items-center gap-2">
-                    <div className={`w-8 h-8 rounded-lg bg-black/20 flex items-center justify-center`}>
-                      <Icon className={`w-4 h-4 ${plan.accentColor}`} />
-                    </div>
-                    <div>
-                      <p className="font-bold text-sm text-white">{plan.nameAr}</p>
-                      <p className="text-xs text-white/60">{plan.durationAr}</p>
-                    </div>
+                {plan.popular && (
+                  <div className="absolute -top-px left-1/2 -translate-x-1/2">
+                    <span className="inline-block text-[10px] font-black px-3 py-0.5 rounded-b-lg tracking-wide whitespace-nowrap" style={{ background: plan.border, color: "#fff" }}>
+                      ★ {t("الأكثر طلباً", "Most Popular")}
+                    </span>
                   </div>
-                  {isSelected && (
-                    <CheckCircle2 className="w-5 h-5 text-white shrink-0 mt-0.5" />
+                )}
+                {plan.bestValue && (
+                  <div className="absolute -top-px left-1/2 -translate-x-1/2">
+                    <span className="inline-block text-[10px] font-black px-3 py-0.5 rounded-b-lg tracking-wide whitespace-nowrap" style={{ background: plan.border, color: "#000" }}>
+                      👑 {t("أفضل قيمة", "Best Value")}
+                    </span>
+                  </div>
+                )}
+
+                <div className="flex flex-col flex-1 p-5 pt-6 gap-4">
+                  {/* Plan Identity */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(0,0,0,0.3)" }}>
+                        <Icon className="w-[18px] h-[18px]" style={{ color: plan.accent }} />
+                      </div>
+                      <div>
+                        <p className="font-black text-sm text-white leading-tight">{plan.nameAr}</p>
+                        <p className="text-[11px] font-medium" style={{ color: `${plan.accent}99` }}>{plan.durationAr}</p>
+                      </div>
+                    </div>
+                    {isSelected && (
+                      <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0" style={{ background: plan.border }}>
+                        <Check className="w-3.5 h-3.5 text-white" />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Price + Discount Badge */}
+                  <div className="flex items-end gap-3 flex-wrap">
+                    <div>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-3xl font-black text-white tabular-nums">{plan.price}</span>
+                        <span className="text-sm font-medium" style={{ color: `${plan.accent}80` }}>{t("ريال", "SAR")}</span>
+                      </div>
+                      <p className="text-[10px] mt-0.5" style={{ color: `${plan.accent}60` }}>{plan.durationAr}</p>
+                    </div>
+                    {plan.discount && (
+                      <span
+                        className="text-[10px] font-black px-2.5 py-1 rounded-full leading-none whitespace-nowrap mb-1"
+                        style={{ background: plan.discount.bg, color: plan.discount.color, border: `1px solid ${plan.discount.color}40` }}
+                        data-testid={`badge-discount-${plan.id}`}
+                      >
+                        {plan.discount.ar}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Divider */}
+                  <div style={{ height: 1, background: `linear-gradient(90deg, ${plan.border}30, transparent)` }} />
+
+                  {/* Unified Feature List */}
+                  <ul className="space-y-2 flex-1">
+                    {UNIFIED_FEATURES.map((feature) => (
+                      <li key={feature} className="flex items-start gap-2">
+                        <div className="w-4 h-4 rounded-full flex items-center justify-center shrink-0 mt-0.5" style={{ background: `${plan.border}25` }}>
+                          <Check className="w-2.5 h-2.5" style={{ color: plan.accent }} />
+                        </div>
+                        <span className="text-[12px] leading-snug" style={{ color: "rgba(255,255,255,0.75)" }}>{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  {/* Activate Button */}
+                  {canActivate ? (
+                    <button
+                      onClick={() => handleActivate(plan.id)}
+                      disabled={!!submittingPlanId}
+                      data-testid={`btn-activate-${plan.id}`}
+                      className="w-full h-11 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all duration-200 mt-1"
+                      style={{
+                        background: plan.premium ? plan.btnBg : plan.btnBg,
+                        border: `1px solid ${plan.btnBorder}`,
+                        color: plan.btnText,
+                        opacity: submittingPlanId && submittingPlanId !== plan.id ? 0.5 : 1,
+                      }}
+                    >
+                      {isSubmitting ? (
+                        <><Loader2 className="w-4 h-4 animate-spin" />{t("جاري الإرسال...", "Submitting...")}</>
+                      ) : (
+                        <><Send className="w-3.5 h-3.5" />{t("طلب تفعيل الباقة", "Activate Plan")}</>
+                      )}
+                    </button>
+                  ) : (
+                    <div
+                      className="w-full h-11 rounded-xl flex items-center justify-center gap-2 mt-1"
+                      style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                    >
+                      {isLocked ? (
+                        <><Clock className="w-4 h-4 text-yellow-400" /><span className="text-sm text-yellow-300 font-medium">{t("قيد المراجعة", "Under Review")}</span></>
+                      ) : (
+                        <><CheckCircle2 className="w-4 h-4 text-slate-500" /><span className="text-sm text-slate-500">{t("غير متاح حالياً", "Unavailable")}</span></>
+                      )}
+                    </div>
                   )}
                 </div>
-                <div className="mb-3">
-                  <span className="text-2xl font-extrabold text-white">{plan.price}</span>
-                  <span className="text-sm text-white/60 ms-1">{t("ريال", "SAR")}</span>
-                </div>
-                <ul className="space-y-1">
-                  {plan.features.map((f) => (
-                    <li key={f} className="flex items-center gap-1.5 text-xs text-white/80">
-                      <ChevronRight className={`w-3 h-3 ${plan.accentColor} shrink-0`} />
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-              </button>
+              </div>
             );
           })}
         </div>
       </div>
-
-      {/* Submit Button */}
-      {!isLocked && !isRejected && (
-        <Button
-          data-testid="btn-submit-subscription"
-          onClick={handleSubmit}
-          disabled={submitting || !selectedPlan}
-          className="w-full h-12 text-base font-bold rounded-xl bg-primary hover:bg-primary/90 gap-2"
-        >
-          <Send className="w-4 h-4" />
-          {submitting ? t("جاري الإرسال...", "Submitting...") : t("طلب تفعيل الباقة", "Request Plan Activation")}
-        </Button>
-      )}
 
       {/* Divider */}
       <div className="border-t border-white/10" />
@@ -428,7 +527,6 @@ export default function SubscriptionView({ merchant, t, lang }: Props) {
           <h2 className="text-base font-semibold">{t("برنامج الإحالة", "Referral Program")}</h2>
         </div>
 
-        {/* Stats row */}
         <div className="grid grid-cols-2 gap-3 mb-4">
           <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-center">
             <Users className="w-5 h-5 text-blue-400 mx-auto mb-1" />
@@ -446,7 +544,6 @@ export default function SubscriptionView({ merchant, t, lang }: Props) {
           </div>
         </div>
 
-        {/* How it works */}
         <div className="rounded-xl border border-white/10 bg-white/5 p-4 mb-4 space-y-2">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
             {t("كيف يعمل البرنامج؟", "How does it work?")}
@@ -465,7 +562,6 @@ export default function SubscriptionView({ merchant, t, lang }: Props) {
           </div>
         </div>
 
-        {/* Referral link */}
         <div className="flex items-center gap-2">
           <div className="flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-xs text-muted-foreground truncate" data-testid="text-referral-link">
             {referralLink}
