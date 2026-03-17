@@ -405,6 +405,57 @@ export default function DashboardPage() {
   const [shiftConfigInput, setShiftConfigInput] = useState("");
   const manualInputRef = useRef<HTMLInputElement>(null);
 
+  // ── Alert Sound System ──────────────────────────────────────────────────
+  const alertAudioRef = useRef<HTMLAudioElement | null>(null);
+  const alertIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [soundUnlocked, setSoundUnlocked] = useState<boolean>(() => localStorage.getItem("sound_unlocked") === "1");
+  const [alertVolume, setAlertVolume] = useState<number>(() => {
+    const saved = localStorage.getItem("alert_volume");
+    return saved !== null ? Number(saved) : 0.8;
+  });
+
+  const playAlertOnce = useCallback(() => {
+    const vol = Number(localStorage.getItem("alert_volume") ?? "0.8");
+    if (!alertAudioRef.current) {
+      alertAudioRef.current = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3");
+    }
+    alertAudioRef.current.volume = Math.max(0, Math.min(1, vol));
+    alertAudioRef.current.currentTime = 0;
+    alertAudioRef.current.play().catch(() => {});
+  }, []);
+
+  const stopAlertLoop = useCallback(() => {
+    if (alertIntervalRef.current) {
+      clearInterval(alertIntervalRef.current);
+      alertIntervalRef.current = null;
+    }
+    if (alertAudioRef.current) {
+      alertAudioRef.current.pause();
+      alertAudioRef.current.currentTime = 0;
+    }
+  }, []);
+
+  const startAlertLoop = useCallback(() => {
+    if (alertIntervalRef.current) return;
+    playAlertOnce();
+    alertIntervalRef.current = setInterval(playAlertOnce, 5000);
+  }, [playAlertOnce]);
+
+  const unlockSound = useCallback(() => {
+    if (!alertAudioRef.current) {
+      alertAudioRef.current = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3");
+    }
+    const vol = Number(localStorage.getItem("alert_volume") ?? "0.8");
+    alertAudioRef.current.volume = Math.max(0, Math.min(1, vol));
+    alertAudioRef.current.play().then(() => {
+      alertAudioRef.current!.pause();
+      alertAudioRef.current!.currentTime = 0;
+    }).catch(() => {});
+    localStorage.setItem("sound_unlocked", "1");
+    setSoundUnlocked(true);
+  }, []);
+  // ────────────────────────────────────────────────────────────────────────
+
   useEffect(() => {
     if (!merchant?.uid) return;
     const ordersRef = collection(db, "merchants", merchant.uid, "whatsappOrders");
@@ -438,16 +489,13 @@ export default function DashboardPage() {
       });
       orders.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
 
-      if (prevWhatsappCountRef.current >= 0 && orders.length > prevWhatsappCountRef.current) {
-        try {
-          if (!waOrderAudioRef.current) {
-            waOrderAudioRef.current = new Audio("/merchant_premium_alert.mp3");
-          }
-          waOrderAudioRef.current.currentTime = 0;
-          waOrderAudioRef.current.play().catch(() => {});
-          setTimeout(() => { waOrderAudioRef.current?.pause(); }, 4000);
-        } catch {}
-        toast({ title: t("طلب جديد!", "New Order!"), description: t("وصل طلب أونلاين جديد", "New online order received") });
+      if (orders.length > 0) {
+        startAlertLoop();
+        if (prevWhatsappCountRef.current >= 0 && orders.length > prevWhatsappCountRef.current) {
+          toast({ title: t("طلب جديد! 🔔", "New Order! 🔔"), description: t("وصل طلب أونلاين جديد", "New online order received") });
+        }
+      } else {
+        stopAlertLoop();
       }
       prevWhatsappCountRef.current = orders.length;
       setWhatsappOrders(orders);
@@ -761,6 +809,7 @@ export default function DashboardPage() {
 
   const handleAcceptWhatsAppOrder = useCallback(async (order: WhatsAppOrder) => {
     if (!merchant?.uid || acceptingOrderId) return;
+    stopAlertLoop();
     setAcceptingOrderId(order.id);
     try {
       const orderRef = doc(db, "merchants", merchant.uid, "whatsappOrders", order.id);
@@ -780,7 +829,7 @@ export default function DashboardPage() {
     } finally {
       setAcceptingOrderId(null);
     }
-  }, [merchant?.uid, acceptingOrderId, t, toast]);
+  }, [merchant?.uid, acceptingOrderId, stopAlertLoop, t, toast]);
 
   const [rejectingOrderId, setRejectingOrderId] = useState<string | null>(null);
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
@@ -1685,6 +1734,26 @@ export default function DashboardPage() {
           </div>
         </main>
       </div>
+
+      {/* Sound Unlock Banner */}
+      {!soundUnlocked && (
+        <button
+          onClick={unlockSound}
+          data-testid="button-unlock-sound"
+          className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 px-5 py-3 rounded-2xl text-sm font-bold shadow-2xl transition-all active:scale-95 hover:scale-[1.02]"
+          style={{
+            background: "linear-gradient(135deg, #dc2626 0%, #7f1d1d 100%)",
+            border: "1px solid rgba(255,80,80,0.3)",
+            color: "#fff",
+            fontFamily: "'Tajawal','Cairo',sans-serif",
+            boxShadow: "0 8px 32px rgba(220,38,38,0.4)",
+          }}
+          dir="rtl"
+        >
+          <span className="text-base">🔔</span>
+          <span>{t("انقر هنا لتفعيل صوت التنبيهات", "Click here to enable alert sounds")}</span>
+        </button>
+      )}
 
     </div>
   );
@@ -6183,6 +6252,63 @@ function SettingsView({
               {storeLegalSaving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Save className="w-4 h-4 me-2" />}
               {t("حفظ الشروط والأحكام", "Save Terms & Conditions")}
             </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Alert Sound Settings ── */}
+      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
+        <CardContent className="p-6">
+          <h3 className="font-semibold mb-5 flex items-center gap-2">
+            <span>🔔</span>
+            {t("إعدادات صوت التنبيهات", "Alert Sound Settings")}
+          </h3>
+          <div className="space-y-5">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm text-white/60" dir="rtl">{t("مستوى الصوت", "Alert Volume")}</label>
+                <span className="text-sm font-bold text-white/80" data-testid="text-alert-volume-pct">
+                  {Math.round((Number(localStorage.getItem("alert_volume") ?? "0.8")) * 100)}%
+                </span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="5"
+                defaultValue={Math.round((Number(localStorage.getItem("alert_volume") ?? "0.8")) * 100)}
+                onChange={(e) => {
+                  const vol = Number(e.target.value) / 100;
+                  localStorage.setItem("alert_volume", String(vol));
+                  e.target.parentElement!.querySelector("[data-testid='text-alert-volume-pct']")!.textContent = `${e.target.value}%`;
+                }}
+                className="w-full h-2 rounded-full outline-none cursor-pointer accent-red-600"
+                data-testid="slider-alert-volume"
+                style={{ accentColor: "#dc2626" }}
+              />
+              <div className="flex justify-between mt-1">
+                <span className="text-[10px] text-white/20">{t("صامت", "Muted")}</span>
+                <span className="text-[10px] text-white/20">{t("أعلى", "Max")}</span>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                const vol = Number(localStorage.getItem("alert_volume") ?? "0.8");
+                const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3");
+                audio.volume = Math.max(0, Math.min(1, vol));
+                audio.play().then(() => {
+                  setTimeout(() => audio.pause(), 3000);
+                }).catch(() => {});
+                localStorage.setItem("sound_unlocked", "1");
+              }}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all active:scale-95 hover:bg-white/[0.08]"
+              style={{ border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.7)", fontFamily: "'Tajawal','Cairo',sans-serif" }}
+              data-testid="button-test-sound"
+              dir="rtl"
+            >
+              <span>▶</span>
+              {t("اختبار الصوت", "Test Sound")}
+            </button>
           </div>
         </CardContent>
       </Card>
