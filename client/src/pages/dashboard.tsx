@@ -2172,10 +2172,42 @@ function OverviewView({
   const cardStyle = (cat: "dine_in" | "takeaway" | "delivery" | "manual") => {
     const cfg = typeBadgeConfig(cat);
     return {
-      borderInlineStart: `6px solid ${cfg.borderColor}`,
-      background: `linear-gradient(135deg, ${cfg.tintFrom} 0%, ${cat === "manual" ? "#0a0a0a" : "#111111"} 40%)`,
+      background: "linear-gradient(180deg, #0e0e0e 0%, #080808 100%)",
+      boxShadow: `0 0 0 1px ${cfg.borderColor}20, 0 0 20px rgba(255,100,0,0.18), 0 8px 32px rgba(0,0,0,0.6)`,
+      border: `1px solid ${cfg.borderColor}25`,
     };
   };
+
+  const PagerTopBar = ({ cat }: { cat: "dine_in" | "takeaway" | "delivery" | "manual" }) => {
+    const cfg = typeBadgeConfig(cat);
+    return (
+      <div
+        className="h-[3px] w-full"
+        style={{ background: `linear-gradient(90deg, ${cfg.borderColor}ee, ${cfg.borderColor}44, transparent)` }}
+      />
+    );
+  };
+
+  const LiveIndicator = ({ isNew, label }: { isNew: boolean; label: string }) => (
+    <div className="flex items-center gap-1.5 rounded-full px-2 py-0.5"
+      style={{
+        background: isNew ? "rgba(239,68,68,0.12)" : "rgba(16,185,129,0.12)",
+        border: isNew ? "1px solid rgba(239,68,68,0.3)" : "1px solid rgba(16,185,129,0.3)",
+      }}
+    >
+      <span
+        className="w-1.5 h-1.5 rounded-full shrink-0"
+        style={{
+          background: isNew ? "#ef4444" : "#10b981",
+          boxShadow: isNew ? "0 0 6px rgba(239,68,68,0.9)" : "0 0 6px rgba(16,185,129,0.9)",
+          animation: "pulse 1.5s ease-in-out infinite",
+        }}
+      />
+      <span className="text-[10px] font-bold tracking-widest uppercase" style={{ color: isNew ? "#f87171" : "#34d399" }}>
+        {label}
+      </span>
+    </div>
+  );
 
   const typeFilterChips: { key: "all" | "dine_in" | "takeaway" | "delivery" | "manual"; label: string; icon?: any }[] = [
     { key: "all", label: t("الكل", "All") },
@@ -2441,7 +2473,7 @@ function OverviewView({
             <p className="text-sm text-white/30">{t("لا توجد طلبات نشطة", "No active orders")}</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {allActiveOrders.map((item) => {
               const isFlying = (item.type === "pager" || item.type === "pager-notified")
                 ? flyingOrderId === item.id
@@ -2455,30 +2487,40 @@ function OverviewView({
 
               if (item.type === "wa-new") {
                 const order = (item as any).order as WhatsAppOrder;
+                const waNewCardStyle = order.is_waiting_outside
+                  ? { ...cardStyle(item.orderCategory), boxShadow: "0 0 0 1px rgba(255,140,0,0.25), 0 0 28px rgba(255,140,0,0.45), 0 8px 32px rgba(0,0,0,0.6)" }
+                  : isOverdueCard
+                  ? { ...cardStyle(item.orderCategory), boxShadow: "0 0 0 1px rgba(239,68,68,0.3), 0 0 22px rgba(239,68,68,0.35), 0 8px 32px rgba(0,0,0,0.6)" }
+                  : cardStyle(item.orderCategory);
                 return (
                   <Card
                     key={`wa-new-${item.id}`}
-                    className={`relative rounded-2xl overflow-hidden transition-all duration-500 border new-order-pulse ${isOverdueCard ? "ring-2 ring-red-500/60 shadow-[0_0_20px_rgba(239,68,68,0.25)]" : ""} ${order.is_waiting_outside ? "ring-2 ring-orange-500/70 shadow-[0_0_28px_rgba(255,140,0,0.4)]" : ""} ${isFlying ? "opacity-0 -translate-y-20 scale-75" : ""}`}
-                    style={order.is_waiting_outside ? { ...cardStyle(item.orderCategory), borderInlineStart: "6px solid rgba(255,140,0,0.85)" } : cardStyle(item.orderCategory)}
+                    className={`relative rounded-[24px] overflow-hidden transition-all duration-500 new-order-pulse ${isFlying ? "opacity-0 -translate-y-20 scale-75" : ""}`}
+                    style={waNewCardStyle}
                     data-testid={`card-wa-order-${item.id}`}
                   >
-                    {isOverdueCard && (
-                      <div className="absolute top-0 inset-x-0 h-0.5 bg-gradient-to-r from-red-600 via-red-400 to-red-600 animate-pulse" />
-                    )}
+                    <PagerTopBar cat={item.orderCategory} />
                     <WatermarkIcon category={item.orderCategory} />
-                    <div className="flex items-center justify-between px-4 pt-3 pb-1.5">
-                      <div className="flex items-center gap-2">
-                        <Globe className="w-4 h-4 text-red-400" />
-                        <span className="text-xl font-extrabold text-white tracking-tight" data-testid={`text-order-num-${item.id}`}>
-                          {order.displayOrderId || (order.orderNumber ? `#${order.orderNumber}` : t("جديد", "NEW"))}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 flex-wrap justify-end">
-                        <TypeBadge category={item.orderCategory} />
-                        <Badge className={`rounded-full text-[10px] px-2 py-0.5 ${sc.bg} ${sc.text} border ${sc.border}`}>
-                          {sc.label}
-                        </Badge>
-                        <LiveOrderTimer createdAt={item.createdAt} lang={lang} isNew={true} />
+
+                    {/* Pager-style Header */}
+                    <div className="px-4 pt-3 pb-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex flex-col gap-0.5">
+                          <div className="flex items-center gap-1.5">
+                            <Globe className="w-3.5 h-3.5 text-red-400/70 shrink-0" />
+                            <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-white/30">{t("طلب جديد", "NEW ORDER")}</span>
+                          </div>
+                          <span className="text-2xl font-black text-white tracking-tight leading-none" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }} data-testid={`text-order-num-${item.id}`}>
+                            {order.displayOrderId || (order.orderNumber ? `#${order.orderNumber}` : "—")}
+                          </span>
+                        </div>
+                        <div className="flex flex-col items-end gap-1.5 shrink-0">
+                          <LiveIndicator isNew={true} label={t("جديد", "NEW")} />
+                          <div className="flex items-center gap-1.5">
+                            <TypeBadge category={item.orderCategory} />
+                            <LiveOrderTimer createdAt={item.createdAt} lang={lang} isNew={true} />
+                          </div>
+                        </div>
                       </div>
                     </div>
 
@@ -2632,27 +2674,42 @@ function OverviewView({
               if (item.type === "pager" || item.type === "pager-notified") {
                 const pager = (item as any).pager as Pager & { docId: string };
                 const isNotified = item.type === "pager-notified";
+                const pagerCardStyle = isNotified
+                  ? { ...cardStyle("manual"), boxShadow: "0 0 0 1px rgba(16,185,129,0.2), 0 0 20px rgba(16,185,129,0.15), 0 8px 32px rgba(0,0,0,0.6)" }
+                  : cardStyle("manual");
                 return (
                   <Card
                     key={`${item.type}-${item.id}`}
-                    className={`relative rounded-2xl overflow-hidden transition-all duration-500 border ${!isNotified ? "new-order-pulse" : "border-white/[0.08]"} ${isFlying ? "opacity-0 -translate-y-20 scale-75" : ""}`}
-                    style={cardStyle("manual")}
+                    className={`relative rounded-[24px] overflow-hidden transition-all duration-500 ${!isNotified ? "new-order-pulse" : ""} ${isFlying ? "opacity-0 -translate-y-20 scale-75" : ""}`}
+                    style={pagerCardStyle}
                     data-testid={`card-${isNotified ? "notified" : "waiting"}-${item.id}`}
                   >
+                    <PagerTopBar cat="manual" />
                     <WatermarkIcon category="manual" />
-                    <div className="flex items-center justify-between px-4 pt-4 pb-2">
-                      <div className="flex items-center gap-2">
-                        <QrCode className="w-4 h-4 text-white/40" />
-                        <span className={`text-xl font-extrabold tracking-tight ${isNotified ? "text-emerald-400" : "text-white"}`} data-testid={`text-order-num-${item.id}`}>
-                          {pager.displayOrderId || `#${item.orderNumber}`}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 flex-wrap justify-end">
-                        <TypeBadge category="manual" />
-                        <Badge className={`rounded-full text-[10px] px-2 py-0.5 ${sc.bg} ${sc.text} border ${sc.border}`}>
-                          {isNotified ? t("تم التنبيه", "Notified") : t("في الانتظار", "Waiting")}
-                        </Badge>
-                        <LiveOrderTimer createdAt={item.createdAt} lang={lang} isNew={!isNotified} />
+
+                    {/* Pager-style Header */}
+                    <div className="px-4 pt-3 pb-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex flex-col gap-0.5">
+                          <div className="flex items-center gap-1.5">
+                            <QrCode className="w-3.5 h-3.5 text-violet-400/70 shrink-0" />
+                            <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-white/30">DIGITAL PAGER</span>
+                          </div>
+                          <span
+                            className="text-2xl font-black tracking-tight leading-none"
+                            style={{ color: isNotified ? "#34d399" : "#fff", fontFamily: "'Tajawal','Cairo',sans-serif" }}
+                            data-testid={`text-order-num-${item.id}`}
+                          >
+                            {pager.displayOrderId || `#${item.orderNumber}`}
+                          </span>
+                        </div>
+                        <div className="flex flex-col items-end gap-1.5 shrink-0">
+                          <LiveIndicator isNew={!isNotified} label={isNotified ? t("نُبِّه", "NOTIFIED") : t("انتظار", "WAITING")} />
+                          <div className="flex items-center gap-1.5">
+                            <TypeBadge category="manual" />
+                            <LiveOrderTimer createdAt={item.createdAt} lang={lang} isNew={!isNotified} />
+                          </div>
+                        </div>
                       </div>
                     </div>
 
@@ -2715,33 +2772,48 @@ function OverviewView({
               const waOrder = (item as any).order as WhatsAppOrder;
               const isReady = waOrder.status === "ready";
               const isPreparing = waOrder.status === "preparing";
+              const waActiveCardStyle = waOrder.is_waiting_outside
+                ? { ...cardStyle(item.orderCategory), boxShadow: "0 0 0 1px rgba(255,140,0,0.25), 0 0 28px rgba(255,140,0,0.4), 0 8px 32px rgba(0,0,0,0.6)" }
+                : isReady
+                ? { ...cardStyle(item.orderCategory), boxShadow: "0 0 0 1px rgba(16,185,129,0.2), 0 0 22px rgba(16,185,129,0.2), 0 8px 32px rgba(0,0,0,0.6)" }
+                : cardStyle(item.orderCategory);
               return (
                 <Card
                   key={`wa-${item.id}`}
-                  className={`relative rounded-2xl overflow-hidden transition-all duration-500 border ${waOrder.is_waiting_outside ? "border-orange-500/50 ring-2 ring-orange-500/60 shadow-[0_0_28px_rgba(255,140,0,0.38)]" : "border-red-500/30 shadow-[0_0_15px_rgba(239,0,0,0.08)]"} ${isFlying ? "opacity-0 -translate-y-20 scale-75" : ""}`}
-                  style={waOrder.is_waiting_outside ? { ...cardStyle(item.orderCategory), borderInlineStart: "6px solid rgba(255,140,0,0.85)" } : cardStyle(item.orderCategory)}
+                  className={`relative rounded-[24px] overflow-hidden transition-all duration-500 ${isFlying ? "opacity-0 -translate-y-20 scale-75" : ""}`}
+                  style={waActiveCardStyle}
                   data-testid={`card-active-order-${item.id}`}
                 >
+                  <PagerTopBar cat={item.orderCategory} />
                   <WatermarkIcon category={item.orderCategory} />
-                  <div className="flex items-center justify-between px-4 pt-3 pb-2">
-                    <div className="flex items-center gap-2">
-                      <Globe className="w-4 h-4 text-red-400" />
-                      <span className="text-xl font-extrabold text-white tracking-tight" data-testid={`text-order-num-${item.id}`}>
-                        {waOrder.displayOrderId || `#${item.orderNumber}`}
-                      </span>
-                      {customerNoShowMap[waOrder.customerPhone] && (
-                        <Badge className="rounded-full text-[9px] px-1.5 py-0.5 bg-red-500/20 text-red-400 border border-red-500/30 flex items-center gap-0.5" data-testid={`badge-noshow-${item.id}`}>
-                          <ShieldAlert className="w-3 h-3" />
-                          {t("عميل غير ملتزم", "Unreliable")}
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <TypeBadge category={item.orderCategory} />
-                      <Badge className={`rounded-full text-[10px] px-2 py-0.5 ${sc.bg} ${sc.text} border ${sc.border}`}>
-                        {sc.label}
-                      </Badge>
-                      <LiveOrderTimer createdAt={item.createdAt} lang={lang} isNew={isNewStatus} />
+
+                  {/* Pager-style Header */}
+                  <div className="px-4 pt-3 pb-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex flex-col gap-0.5">
+                        <div className="flex items-center gap-1.5">
+                          <Globe className="w-3.5 h-3.5 text-red-400/70 shrink-0" />
+                          <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-white/30">{t("طلب أونلاين", "ONLINE ORDER")}</span>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-2xl font-black text-white tracking-tight leading-none" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }} data-testid={`text-order-num-${item.id}`}>
+                            {waOrder.displayOrderId || `#${item.orderNumber}`}
+                          </span>
+                          {customerNoShowMap[waOrder.customerPhone] && (
+                            <Badge className="rounded-full text-[9px] px-1.5 py-0.5 bg-red-500/20 text-red-400 border border-red-500/30 flex items-center gap-0.5" data-testid={`badge-noshow-${item.id}`}>
+                              <ShieldAlert className="w-3 h-3" />
+                              {t("غير ملتزم", "Unreliable")}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end gap-1.5 shrink-0">
+                        <LiveIndicator isNew={false} label={isReady ? t("جاهز", "READY") : t("يُحضَّر", "PREP")} />
+                        <div className="flex items-center gap-1.5">
+                          <TypeBadge category={item.orderCategory} />
+                          <LiveOrderTimer createdAt={item.createdAt} lang={lang} isNew={isNewStatus} />
+                        </div>
+                      </div>
                     </div>
                   </div>
 
