@@ -1905,6 +1905,116 @@ export async function registerRoutes(
     }
   });
 
+  // ===== Smart Feedback / Review Gating =====
+  app.post("/api/feedback", async (req, res) => {
+    try {
+      const { merchantId, stars, comment, orderId, orderType } = req.body;
+      if (!merchantId || typeof merchantId !== "string") {
+        return res.status(400).json({ message: "merchantId is required" });
+      }
+      const starsNum = Number(stars);
+      if (!starsNum || starsNum < 1 || starsNum > 5) {
+        return res.status(400).json({ message: "stars must be 1-5" });
+      }
+      if (starsNum <= 3 && (!comment || !String(comment).trim())) {
+        return res.status(400).json({ message: "comment is required for 1-3 star ratings" });
+      }
+
+      const baseUrl = getApiKeyBaseUrl();
+      const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
+      if (!baseUrl || !getApiKey() || !projectId) {
+        return res.status(500).json({ message: "Firestore not configured" });
+      }
+
+      const docId = randomUUID();
+      const nowIso = new Date().toISOString();
+
+      const saveRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}/feedbacks/${docId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fields: {
+            merchantId: { stringValue: merchantId },
+            stars: { integerValue: String(starsNum) },
+            comment: { stringValue: (comment || "").trim() },
+            orderId: { stringValue: orderId || "" },
+            orderType: { stringValue: orderType || "" },
+            timestamp: { stringValue: nowIso },
+          },
+        }),
+      });
+
+      if (!saveRes.ok) {
+        return res.status(500).json({ message: "Failed to save feedback" });
+      }
+
+      const commitUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:commit`;
+      const merchantDocPath = `projects/${projectId}/databases/(default)/documents/merchants/${merchantId}`;
+
+      const fieldTransforms: any[] = [{ fieldPath: "totalRatingsCount", increment: { integerValue: "1" } }];
+      if (starsNum >= 4) {
+        fieldTransforms.push({ fieldPath: "googleMapsClicks", increment: { integerValue: "1" } });
+        incrementDailyTracking(merchantId, "googleMapsClicks").catch(() => {});
+      }
+
+      await fetch(commitUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          writes: [{ transform: { document: merchantDocPath, fieldTransforms } }],
+        }),
+      }).catch(() => {});
+
+      return res.json({ success: true, id: docId });
+    } catch (error) {
+      console.error("Save feedback error:", error);
+      return res.status(500).json({ message: "Failed to save feedback" });
+    }
+  });
+
+  app.get("/api/feedback/:merchantId", async (req, res) => {
+    try {
+      const { merchantId } = req.params;
+      const merchantEmail = req.headers["x-merchant-email"] as string;
+      if (!merchantEmail) return res.status(401).json({ message: "Authentication required" });
+
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
+
+      const mRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}`, { headers: {} });
+      if (!mRes.ok) return res.status(404).json({ message: "Merchant not found" });
+      const mDoc = await mRes.json();
+      if (mDoc.fields?.email?.stringValue !== merchantEmail) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+
+      const fRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}/feedbacks?pageSize=200`, { headers: {} });
+      if (!fRes.ok) return res.json({ feedbacks: [] });
+
+      const fData = await fRes.json();
+      const documents: any[] = fData.documents || [];
+
+      const feedbacks = documents.map((doc: any) => {
+        const fields = doc.fields || {};
+        const id = (doc.name || "").split("/").pop() || "";
+        return {
+          id,
+          stars: parseInt(fields.stars?.integerValue || "0"),
+          comment: fields.comment?.stringValue || "",
+          orderId: fields.orderId?.stringValue || "",
+          orderType: fields.orderType?.stringValue || "",
+          timestamp: fields.timestamp?.stringValue || "",
+        };
+      });
+
+      feedbacks.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      return res.json({ feedbacks });
+    } catch (error) {
+      console.error("Get feedbacks error:", error);
+      return res.status(500).json({ message: "Failed to get feedbacks" });
+    }
+  });
+
   app.get("/api/admin/merchant-report/:merchantId", async (req, res) => {
     try {
       if (!(await isAdminRequest(req))) {

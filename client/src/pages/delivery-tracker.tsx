@@ -3,6 +3,7 @@ import { useParams } from "wouter";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { ChefHat, Truck, MapPin, CheckCircle2, BadgeCheck, MapPinned, Link2 } from "lucide-react";
+import { StarRatingPopup } from "@/components/star-rating-popup";
 import { SiWhatsapp } from "react-icons/si";
 import { motion, AnimatePresence } from "framer-motion";
 import confetti from "canvas-confetti";
@@ -196,13 +197,17 @@ export default function DeliveryTrackerPage() {
   const [merchantName, setMerchantName] = useState("");
   const [merchantLogo, setMerchantLogo] = useState("");
   const [driverPhone, setDriverPhone] = useState("");
+  const [googleMapsReviewUrl, setGoogleMapsReviewUrl] = useState("");
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [showRatingPopup, setShowRatingPopup] = useState(false);
+  const [ratingDone, setRatingDone] = useState(false);
 
   const [shareCopied, setShareCopied] = useState(false);
 
   const prevStatus = useRef<DeliveryStatus | null>(null);
   const confettiFired = useRef(false);
+  const ratingPopupShownRef = useRef(false);
 
   useEffect(() => {
     if (!merchantId) return;
@@ -212,6 +217,7 @@ export default function DeliveryTrackerPage() {
         if (data?.storeName) setMerchantName(data.storeName);
         if (data?.logoUrl) setMerchantLogo(data.logoUrl);
         if (data?.driverPhone) setDriverPhone(data.driverPhone);
+        if (data?.googleMapsReviewUrl) setGoogleMapsReviewUrl(data.googleMapsReviewUrl);
       })
       .catch(() => {});
   }, [merchantId]);
@@ -246,8 +252,12 @@ export default function DeliveryTrackerPage() {
         confettiFired.current = true;
         setTimeout(() => fireConfetti(), 400);
       }
+      if (!ratingPopupShownRef.current && !ratingDone) {
+        ratingPopupShownRef.current = true;
+        setTimeout(() => setShowRatingPopup(true), 2500);
+      }
     }
-  }, [status]);
+  }, [status, ratingDone]);
 
   async function handleShareTracking() {
     const url = window.location.href;
@@ -386,6 +396,7 @@ export default function DeliveryTrackerPage() {
   const isDelivered = status === "delivered";
 
   return (
+    <>
     <div
       className="h-[100dvh] flex flex-col items-center overflow-y-auto"
       style={{ background: bg, fontFamily: "'Tajawal','Cairo',sans-serif" }}
@@ -588,5 +599,16 @@ export default function DeliveryTrackerPage() {
         }
       `}</style>
     </div>
+
+    {showRatingPopup && !ratingDone && merchantId && (
+      <StarRatingPopup
+        merchantId={merchantId}
+        orderId={orderId || ""}
+        orderType="delivery"
+        googleMapsUrl={googleMapsReviewUrl}
+        onClose={() => { setShowRatingPopup(false); setRatingDone(true); }}
+      />
+    )}
+    </>
   );
 }

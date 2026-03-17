@@ -5,6 +5,7 @@ import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertTriangle, CheckCircle, Loader2, Banknote, Phone, MessageCircle, XCircle, Truck, MapPin, Package, Clock, Link2 } from "lucide-react";
+import { StarRatingPopup } from "@/components/star-rating-popup";
 import { SiWhatsapp } from "react-icons/si";
 import { useToast } from "@/hooks/use-toast";
 import type { WhatsAppOrder } from "@shared/schema";
@@ -306,10 +307,13 @@ export default function OrderTrackingPage() {
   const [bellPrimed, setBellPrimed] = useState(false);
   const [bellPlaying, setBellPlaying] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
+  const [showRatingPopup, setShowRatingPopup] = useState(false);
+  const [ratingDone, setRatingDone] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const bellPrimedRef = useRef(false);
   const initialFetchDoneRef = useRef(false);
+  const ratingPopupShownRef = useRef(false);
 
   const { toast } = useToast();
 
@@ -487,6 +491,10 @@ export default function OrderTrackingPage() {
 
       if (currentStatus === "completed" || currentStatus === "archived") {
         stopAlert();
+        if (!ratingPopupShownRef.current && !ratingDone) {
+          ratingPopupShownRef.current = true;
+          setTimeout(() => setShowRatingPopup(true), 1500);
+        }
       }
 
       if (isFirstSnapshot) {
@@ -777,6 +785,7 @@ export default function OrderTrackingPage() {
 
   const shortNum = getShort3Digit(order);
   return (
+    <>
     <div className="h-[100dvh] flex flex-col items-center justify-between py-10 px-5 text-center"
       style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }}
       data-testid="tracking-preparing-screen"
@@ -871,5 +880,16 @@ export default function OrderTrackingPage() {
         )}
       </div>
     </div>
+
+    {showRatingPopup && !ratingDone && merchantId && (
+      <StarRatingPopup
+        merchantId={merchantId}
+        orderId={orderId}
+        orderType={order?.orderType || trackingType}
+        googleMapsUrl={merchant?.googleMapsReviewUrl}
+        onClose={() => { setShowRatingPopup(false); setRatingDone(true); }}
+      />
+    )}
+    </>
   );
 }

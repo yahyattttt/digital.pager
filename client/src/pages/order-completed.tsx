@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { useParams } from "wouter";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Download, MapPin } from "lucide-react";
+import { Download } from "lucide-react";
+import { StarRatingPopup } from "@/components/star-rating-popup";
 
 interface OrderItem {
   name: string;
@@ -33,6 +34,8 @@ export default function OrderCompletedPage() {
   const [merchantName, setMerchantName] = useState<string>("");
   const [googleMapsReviewUrl, setGoogleMapsReviewUrl] = useState<string>("");
   const [loading, setLoading] = useState(true);
+  const [showRating, setShowRating] = useState(false);
+  const [ratingDone, setRatingDone] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -57,10 +60,12 @@ export default function OrderCompletedPage() {
     fetchData();
   }, [merchantId, orderId, orderType]);
 
-  function handleGoogleMapsClick() {
-    window.open(googleMapsReviewUrl, "_blank");
-    fetch(`/api/track/gmaps/${merchantId}`, { method: "POST" }).catch(() => {});
-  }
+  useEffect(() => {
+    if (!loading && merchantId && !ratingDone) {
+      const t = setTimeout(() => setShowRating(true), 1500);
+      return () => clearTimeout(t);
+    }
+  }, [loading, merchantId, ratingDone]);
 
   async function downloadInvoice() {
     if (!order) return;
@@ -197,12 +202,6 @@ export default function OrderCompletedPage() {
 
   const bg = "linear-gradient(180deg, #050000 0%, #000000 50%, #050000 100%)";
 
-  const showMapsButton =
-    googleMapsReviewUrl &&
-    (order?.diningType === "dine_in" ||
-      order?.diningType === "takeaway" ||
-      orderType === "manual");
-
   if (loading) {
     return (
       <div className="h-[100dvh] flex items-center justify-center" style={{ background: bg }}>
@@ -212,6 +211,7 @@ export default function OrderCompletedPage() {
   }
 
   return (
+    <>
     <div
       className="min-h-[100dvh] flex flex-col items-center px-5 py-10"
       style={{ background: bg, fontFamily: "'Tajawal','Cairo',sans-serif" }}
@@ -244,34 +244,6 @@ export default function OrderCompletedPage() {
         </p>
       </div>
 
-      {/* Google Maps Review Button — dine-in, takeaway, and manual table orders */}
-      {showMapsButton && (
-        <div className="w-full max-w-sm mb-4 space-y-2">
-          <p
-            className="text-center text-xs font-medium"
-            dir="rtl"
-            style={{ color: "rgba(212,160,23,0.65)", fontFamily: "'Tajawal','Cairo',sans-serif" }}
-          >
-            رأيك يهمنا لتحسين خدمتنا
-          </p>
-          <button
-            onClick={handleGoogleMapsClick}
-            data-testid="btn-google-maps-review"
-            className="w-full py-4 rounded-2xl font-bold text-base transition-all active:scale-95 flex items-center justify-center gap-2.5"
-            style={{
-              background: "linear-gradient(135deg, rgba(20,14,0,0.98) 0%, rgba(28,20,0,0.98) 100%)",
-              border: "1.5px solid #d4a017",
-              color: "#f5c518",
-              boxShadow: "0 0 18px rgba(212,160,23,0.25), 0 0 6px rgba(212,160,23,0.12), inset 0 0 20px rgba(212,160,23,0.04)",
-              fontFamily: "'Tajawal','Cairo',sans-serif",
-            }}
-          >
-            <MapPin className="w-5 h-5 flex-shrink-0" style={{ color: "#f5c518" }} />
-            <span>قيمنا الآن على Google Maps 🌟</span>
-          </button>
-        </div>
-      )}
-
       {/* Invoice Download — only for online orders, not manual/QR pager orders */}
       {orderType !== "manual" && (
         <div className="w-full max-w-sm">
@@ -291,5 +263,16 @@ export default function OrderCompletedPage() {
         </div>
       )}
     </div>
+
+    {showRating && !ratingDone && merchantId && (
+      <StarRatingPopup
+        merchantId={merchantId}
+        orderId={orderId}
+        orderType={orderType}
+        googleMapsUrl={googleMapsReviewUrl}
+        onClose={() => { setShowRating(false); setRatingDone(true); }}
+      />
+    )}
+    </>
   );
 }

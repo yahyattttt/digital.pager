@@ -1267,11 +1267,13 @@ export default function SuperAdminPage() {
   }
 
   const totalShares = merchants.reduce((sum, m) => sum + (m.sharesCount || 0), 0);
+  const totalRatings = merchants.reduce((sum, m) => sum + ((m as any).totalRatingsCount || 0), 0);
 
   const stats = {
     total: merchants.length,
     alertsToday: totalAlertsToday,
     totalShares,
+    totalRatings,
     active: merchants.filter((m) => m.status === "approved").length,
     subActive: merchants.filter((m) => m.subscriptionStatus === "active").length,
   };
@@ -1430,6 +1432,15 @@ export default function SuperAdminPage() {
                   trend: stats.total > 0 ? `${Math.round((stats.subActive / stats.total) * 100)}%` : "—",
                   trendGreen: true,
                   testId: "text-stat-subscribed",
+                },
+                {
+                  label: t("تقييمات المنصة", "Platform Ratings"),
+                  value: stats.totalRatings,
+                  icon: Star,
+                  iconColor: "text-amber-400",
+                  valueClass: "text-amber-300",
+                  trend: null,
+                  testId: "text-stat-total-ratings",
                 },
               ].map((card) => (
                 <Card key={card.testId} className="border-slate-800 bg-[#0d1117] hover:border-slate-700 transition-colors">

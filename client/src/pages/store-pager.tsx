@@ -5,6 +5,7 @@ import { db } from "@/lib/firebase";
 import { Share2, Copy, Loader2, MapPin } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
+import { StarRatingPopup } from "@/components/star-rating-popup";
 
 type PagerDoc = {
   docId: string;
@@ -147,6 +148,8 @@ export default function StorePagerPage() {
   const [phase, setPhase] = useState<Phase>("selection");
   const [bellPrimed, setBellPrimed] = useState(false);
   const [bellPlaying, setBellPlaying] = useState(false);
+  const [showRatingPopup, setShowRatingPopup] = useState(false);
+  const ratingShownRef = useRef(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -233,7 +236,12 @@ export default function StorePagerPage() {
         }
       } else if (status === "completed" || status === "archived") {
         stopAlert();
-        cleanupSession();
+        if (!ratingShownRef.current) {
+          ratingShownRef.current = true;
+          setShowRatingPopup(true);
+        } else {
+          cleanupSession();
+        }
       }
     });
     return () => unsub();
@@ -470,6 +478,24 @@ export default function StorePagerPage() {
             </div>
           </div>
         )}
+      </div>
+    );
+  }
+
+  if (showRatingPopup && storeId) {
+    return (
+      <div className="h-[100dvh]" style={{ background: bg }}>
+        <StarRatingPopup
+          merchantId={storeId}
+          orderId={selectedPager?.docId}
+          orderType="pager"
+          googleMapsUrl={merchant?.googleMapsReviewUrl}
+          onClose={() => {
+            setShowRatingPopup(false);
+            ratingShownRef.current = false;
+            cleanupSession();
+          }}
+        />
       </div>
     );
   }

@@ -124,7 +124,7 @@ const businessTypeLabelsEn: Record<string, string> = {
 
 const ADMIN_WHATSAPP = "https://wa.me/966500000000";
 
-type DashboardView = "overview" | "menu" | "analytics" | "tracking" | "customers" | "coupons" | "financial" | "settings" | "archive" | "subscription";
+type DashboardView = "overview" | "menu" | "analytics" | "tracking" | "customers" | "coupons" | "financial" | "settings" | "archive" | "subscription" | "reviews";
 
 function SubscriptionRequiredScreen({
   storeName,
@@ -1220,6 +1220,7 @@ export default function DashboardPage() {
     { id: "customers", icon: Users2, label: t("عملائي", "My Customers") },
     { id: "coupons", icon: Ticket, label: t("الكوبونات", "Coupons") },
     { id: "financial", icon: DollarSign, label: t("الإدارة المالية", "Financial") },
+    { id: "reviews", icon: Star, label: t("تقييمات العملاء", "Customer Reviews") },
     { id: "archive", icon: FolderArchive, label: t("أرشيف الطلبات", "Order Archive") },
     { id: "subscription", icon: CreditCard, label: t("اشتراكي", "My Subscription") },
     { id: "settings", icon: Settings, label: t("الإعدادات", "Settings") },
@@ -1663,6 +1664,10 @@ export default function DashboardPage() {
                 t={t}
                 lang={lang}
               />
+            )}
+
+            {!isContentLocked && currentView === "reviews" && (
+              <ReviewsView merchant={merchant} t={t} lang={lang} />
             )}
 
             {currentView === "settings" && (
@@ -3821,12 +3826,21 @@ function TrackingView({
 }) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [feedbacks, setFeedbacks] = useState<any[]>([]);
 
   type Period = "thisMonth" | "lastMonth" | "custom";
   const [period, setPeriod] = useState<Period>("thisMonth");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
   const [showCustom, setShowCustom] = useState(false);
+
+  useEffect(() => {
+    if (!merchant?.uid) return;
+    fetch(`/api/feedback/${merchant.uid}`, { headers: { "x-merchant-email": merchant.email || "" } })
+      .then(r => r.ok ? r.json() : { feedbacks: [] })
+      .then(d => setFeedbacks(d.feedbacks || []))
+      .catch(() => {});
+  }, [merchant?.uid]);
 
   function getMonthRange(offsetMonths: number): { startDate: string; endDate: string } {
     const now = new Date();
@@ -4082,6 +4096,53 @@ function TrackingView({
           </div>
         </>
       )}
+
+      {/* Star Breakdown */}
+      {feedbacks.length > 0 && (
+        <div className="rounded-2xl bg-[#111] border border-white/[0.06] p-4" data-testid="section-tracking-star-breakdown">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-white/40">{t("توزيع تقييمات العملاء", "Rating Distribution")}</h3>
+            <span className="text-[10px] text-white/30">{feedbacks.length} {t("تقييم", "ratings")}</span>
+          </div>
+          <div className="space-y-2">
+            {[5, 4, 3, 2, 1].map(s => {
+              const cnt = feedbacks.filter(f => f.stars === s).length;
+              const pct = feedbacks.length > 0 ? Math.round((cnt / feedbacks.length) * 100) : 0;
+              return (
+                <div key={s} className="flex items-center gap-2.5" data-testid={`tracking-star-${s}`}>
+                  <div className="flex items-center gap-0.5 w-14 justify-end shrink-0" dir="ltr">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <span key={i} className="text-[10px]" style={{ color: i < s ? "#f59e0b" : "rgba(255,255,255,0.1)" }}>★</span>
+                    ))}
+                  </div>
+                  <div className="flex-1 h-2 rounded-full bg-white/[0.04] overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{
+                        width: `${pct}%`,
+                        background: s >= 4 ? "#10b981" : s === 3 ? "#f59e0b" : "#ef4444",
+                      }}
+                    />
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0 w-14 justify-end">
+                    <span className="text-xs text-white/40">{cnt}</span>
+                    <span className="text-[10px] text-white/20">({pct}%)</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/[0.04]">
+            <span className="text-[10px] text-white/30">{t("متوسط التقييم", "Avg Rating")}</span>
+            <div className="flex items-center gap-1">
+              <span className="text-sm font-bold text-amber-400">
+                {feedbacks.length > 0 ? (feedbacks.reduce((s, f) => s + (f.stars || 0), 0) / feedbacks.length).toFixed(1) : "—"}
+              </span>
+              <span className="text-amber-400 text-xs">★</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -4126,7 +4187,7 @@ function AnalyticsView({
 
   useEffect(() => {
     if (!merchant?.uid) return;
-    fetch(`/api/feedback/${merchant.uid}`)
+    fetch(`/api/feedback/${merchant.uid}`, { headers: { "x-merchant-email": merchant.email || "" } })
       .then(r => r.ok ? r.json() : { feedbacks: [] })
       .then(d => setFeedbacksForAnalytics((d.feedbacks || []).slice(0, 20)))
       .catch(() => {});
@@ -4479,6 +4540,132 @@ function AnalyticsView({
             </CardContent>
           </Card>
         </>
+      )}
+    </div>
+  );
+}
+
+function ReviewsView({
+  merchant,
+  t,
+  lang,
+}: {
+  merchant: any;
+  t: (ar: string, en: string) => string;
+  lang: string;
+}) {
+  const [feedbacks, setFeedbacks] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!merchant?.uid) return;
+    setLoading(true);
+    fetch(`/api/feedback/${merchant.uid}`, { headers: { "x-merchant-email": merchant.email || "" } })
+      .then(r => r.ok ? r.json() : { feedbacks: [] })
+      .then(d => { setFeedbacks(d.feedbacks || []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [merchant?.uid]);
+
+  const dir = lang === "ar" ? "rtl" : "ltr";
+  const lowRatings = feedbacks.filter(f => f.stars <= 3);
+  const starCounts = [1, 2, 3, 4, 5].map(s => ({ star: s, count: feedbacks.filter(f => f.stars === s).length }));
+  const maxCount = Math.max(...starCounts.map(s => s.count), 1);
+
+  return (
+    <div className="p-4 space-y-5 max-w-xl mx-auto w-full" dir={dir}>
+      <div className="flex items-center gap-3 mb-2">
+        <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
+          <Star className="w-4 h-4 text-amber-400" />
+        </div>
+        <div>
+          <h2 className="text-white font-bold text-base">{t("تقييمات العملاء", "Customer Reviews")}</h2>
+          <p className="text-white/30 text-xs">{feedbacks.length} {t("تقييم إجمالي", "total ratings")}</p>
+        </div>
+      </div>
+
+      {/* Star Breakdown */}
+      {feedbacks.length > 0 && (
+        <div className="rounded-2xl bg-[#111] border border-white/[0.06] p-4" data-testid="section-star-breakdown">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-white/40 mb-3">{t("توزيع التقييمات", "Rating Breakdown")}</h3>
+          <div className="space-y-2">
+            {[5, 4, 3, 2, 1].map(s => {
+              const cnt = starCounts.find(x => x.star === s)?.count || 0;
+              const pct = Math.round((cnt / maxCount) * 100);
+              return (
+                <div key={s} className="flex items-center gap-2" data-testid={`bar-star-${s}`}>
+                  <div className="flex items-center gap-0.5 w-14 justify-end shrink-0">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <span key={i} className="text-[10px]" style={{ color: i < s ? "#f59e0b" : "rgba(255,255,255,0.1)" }}>★</span>
+                    ))}
+                  </div>
+                  <div className="flex-1 h-2 rounded-full bg-white/[0.04] overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{
+                        width: `${pct}%`,
+                        background: s >= 4 ? "#10b981" : s === 3 ? "#f59e0b" : "#ef4444",
+                      }}
+                    />
+                  </div>
+                  <span className="text-xs text-white/40 w-5 text-right shrink-0">{cnt}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {loading && (
+        <div className="flex items-center justify-center py-10">
+          <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      )}
+
+      {!loading && feedbacks.length === 0 && (
+        <div className="text-center py-12" data-testid="state-no-reviews">
+          <span className="text-4xl">💬</span>
+          <p className="text-white/40 text-sm mt-3">{t("لا توجد تقييمات بعد", "No reviews yet")}</p>
+          <p className="text-white/20 text-xs mt-1">{t("ستظهر تقييمات العملاء هنا", "Customer ratings will appear here")}</p>
+        </div>
+      )}
+
+      {/* 1-3 Star Reviews (Private Feedback) */}
+      {!loading && lowRatings.length > 0 && (
+        <div data-testid="section-low-reviews">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-white/40 mb-3">
+            {t("ملاحظات العملاء (سرية)", "Customer Notes (Private)")}
+            <span className="ms-2 text-red-400">({lowRatings.length})</span>
+          </h3>
+          <div className="space-y-2">
+            {lowRatings.map((fb, i) => {
+              const stars = fb.stars || 0;
+              const ts = fb.timestamp || "";
+              const dateStr = ts ? new Date(ts).toLocaleDateString(lang === "ar" ? "ar-SA" : "en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
+              return (
+                <div
+                  key={fb.id || i}
+                  className="rounded-xl border border-red-500/20 bg-red-500/[0.04] p-3"
+                  data-testid={`review-item-${i}`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-1" dir="ltr">
+                      {Array.from({ length: 5 }).map((_, si) => (
+                        <span key={si} className="text-sm" style={{ color: si < stars ? "#ef4444" : "rgba(255,255,255,0.1)" }}>★</span>
+                      ))}
+                    </div>
+                    <span className="text-[10px] text-white/20">{dateStr}</span>
+                  </div>
+                  {fb.comment && (
+                    <p className="text-sm text-red-300/80 leading-relaxed">{fb.comment}</p>
+                  )}
+                  {fb.orderType && (
+                    <p className="text-[10px] text-white/20 mt-1.5">{fb.orderType}</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
       )}
     </div>
   );
