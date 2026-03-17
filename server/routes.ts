@@ -3670,6 +3670,7 @@ export async function registerRoutes(
           logoUrl: mf.logoUrl?.stringValue || "",
           googleMapsReviewUrl: mf.googleMapsReviewUrl?.stringValue || "",
           driverPhone: mf.driverPhone?.stringValue || "",
+          support_whatsapp: mf.support_whatsapp?.stringValue || "",
         };
       }
 

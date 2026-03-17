@@ -16,7 +16,7 @@ function DeliveryTrackingView({
   merchantId,
 }: {
   order: WhatsAppOrder;
-  merchant: { storeName: string; logoUrl: string; googleMapsReviewUrl?: string; driverPhone?: string } | null;
+  merchant: { storeName: string; logoUrl: string; googleMapsReviewUrl?: string; driverPhone?: string; support_whatsapp?: string } | null;
   merchantId: string;
 }) {
   const driverPhone = merchant?.driverPhone || "";
@@ -212,6 +212,24 @@ function DeliveryTrackingView({
           إغلاق والعودة للرئيسية
         </button>
       </div>
+
+      {(() => {
+        const waNum = merchant?.support_whatsapp?.replace(/\D/g, "") || "";
+        const waId = order.displayOrderId || order.orderNumber || order.id;
+        const waHref = waNum ? `https://wa.me/${waNum}?text=${encodeURIComponent(`أهلاً ${merchant?.storeName || ""}، لدي استفسار بخصوص طلبي رقم (# ${waId})`)}` : "";
+        if (!waHref) return null;
+        return (
+          <a href={waHref} target="_blank" rel="noopener noreferrer" className="wa-pulse"
+            style={{ position: "fixed", bottom: "24px", right: "20px", zIndex: 9999, width: 56, height: 56, borderRadius: "50%", background: "#25d366", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}
+            data-testid="button-whatsapp-support" aria-label="تواصل عبر واتساب"
+          >
+            <svg viewBox="0 0 24 24" fill="white" width="28" height="28">
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+              <path d="M12.001 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.987-1.306A9.953 9.953 0 0012.001 22C17.523 22 22 17.523 22 12S17.523 2 12.001 2zm0 18c-1.738 0-3.368-.474-4.769-1.299l-.342-.203-3.037.794.812-2.962-.222-.358A7.964 7.964 0 014 12c0-4.418 3.582-8 8.001-8 4.418 0 7.999 3.582 7.999 8s-3.581 8-7.999 8z"/>
+            </svg>
+          </a>
+        );
+      })()}
     </div>
   );
 }
@@ -301,7 +319,7 @@ export default function OrderTrackingPage() {
   const params = useParams<{ orderId: string }>();
   const orderId = params.orderId;
   const [order, setOrder] = useState<WhatsAppOrder | null>(null);
-  const [merchant, setMerchant] = useState<{ storeName: string; logoUrl: string; googleMapsReviewUrl?: string; driverPhone?: string } | null>(null);
+  const [merchant, setMerchant] = useState<{ storeName: string; logoUrl: string; googleMapsReviewUrl?: string; driverPhone?: string; support_whatsapp?: string } | null>(null);
   const [loading, setLoading] = useState(!!orderId);
   const [notFound, setNotFound] = useState(false);
   const [bellPrimed, setBellPrimed] = useState(false);
@@ -511,6 +529,22 @@ export default function OrderTrackingPage() {
 
   const isOnlineOrder = order?.orderType === "online" || (!order?.orderType && !!(order?.displayOrderId && !order.displayOrderId.startsWith("MA-")));
 
+  const _waNum = merchant?.support_whatsapp?.replace(/\D/g, "") || "";
+  const _waId = order?.displayOrderId || order?.orderNumber || orderId;
+  const waHref = _waNum ? `https://wa.me/${_waNum}?text=${encodeURIComponent(`أهلاً ${merchant?.storeName || ""}، لدي استفسار بخصوص طلبي رقم (# ${_waId})`)}` : "";
+
+  const WaFloatBtn = waHref ? (
+    <a href={waHref} target="_blank" rel="noopener noreferrer" className="wa-pulse"
+      style={{ position: "fixed", bottom: "24px", right: "20px", zIndex: 9999, width: 56, height: 56, borderRadius: "50%", background: "#25d366", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}
+      data-testid="button-whatsapp-support" aria-label="تواصل عبر واتساب"
+    >
+      <svg viewBox="0 0 24 24" fill="white" width="28" height="28">
+        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+        <path d="M12.001 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.987-1.306A9.953 9.953 0 0012.001 22C17.523 22 22 17.523 22 12S17.523 2 12.001 2zm0 18c-1.738 0-3.368-.474-4.769-1.299l-.342-.203-3.037.794.812-2.962-.222-.358A7.964 7.964 0 014 12c0-4.418 3.582-8 8.001-8 4.418 0 7.999 3.582 7.999 8s-3.581 8-7.999 8z"/>
+      </svg>
+    </a>
+  ) : null;
+
   async function handleShareTracking() {
     const storeName = merchant?.storeName || "المتجر";
     const text = `شوف طلبي من ${storeName} جالس يتجهز.. خلنا نتابعه سوا! 😍👇\n${window.location.href}`;
@@ -642,6 +676,7 @@ export default function OrderTrackingPage() {
             <span className="text-white/20 text-[10px]" data-testid="text-live-status">Live</span>
           </div>
         </div>
+        {WaFloatBtn}
       </div>
     );
   }
@@ -712,6 +747,7 @@ export default function OrderTrackingPage() {
             </button>
           )}
         </div>
+        {WaFloatBtn}
       </div>
     );
   }
@@ -879,6 +915,7 @@ export default function OrderTrackingPage() {
           </div>
         )}
       </div>
+      {WaFloatBtn}
     </div>
 
     {showRatingPopup && !ratingDone && merchantId && (
