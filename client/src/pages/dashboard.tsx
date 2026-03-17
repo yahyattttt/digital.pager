@@ -595,24 +595,21 @@ export default function DashboardPage() {
     todayStart.setHours(0, 0, 0, 0);
     const todayISO = todayStart.toISOString();
 
+    // Only fetch TODAY's archived docs — not all historical docs.
+    // Uses a single-field range query (auto-indexed) instead of status==archived
+    // which would read every completed order ever.
     const pagersRef = collection(db, "merchants", merchant.uid, "pagers");
-    const pQ = query(pagersRef, where("status", "==", "archived"));
+    const pQ = query(pagersRef, where("archivedAt", ">=", todayISO));
     const waRef = collection(db, "merchants", merchant.uid, "whatsappOrders");
-    const wQ = query(waRef, where("status", "==", "archived"));
+    const wQ = query(waRef, where("archivedAt", ">=", todayISO));
 
     let pCount = 0, wCount = 0;
     const unsub1 = onSnapshot(pQ, (snap) => {
-      pCount = snap.docs.filter(d => {
-        const a = d.data().archivedAt;
-        return a && a >= todayISO;
-      }).length;
+      pCount = snap.size;
       setCompletedToday(pCount + wCount);
     });
     const unsub2 = onSnapshot(wQ, (snap) => {
-      wCount = snap.docs.filter(d => {
-        const a = d.data().archivedAt;
-        return a && a >= todayISO;
-      }).length;
+      wCount = snap.size;
       setCompletedToday(pCount + wCount);
     });
     return () => { unsub1(); unsub2(); };
@@ -743,8 +740,21 @@ export default function DashboardPage() {
       setManualDigitInput("");
       toast({ title: t(`تم إضافة طلب رقم ${trimmed} بنجاح`, `Order #${trimmed} added successfully`) });
       setTimeout(() => manualInputRef.current?.focus(), 50);
-    } catch {
-      toast({ title: t("خطأ", "Error"), description: t("فشل في إضافة الطلب", "Failed to add order"), variant: "destructive" });
+    } catch (err: any) {
+      const isQuota = err?.code === "resource-exhausted"
+        || String(err?.message || "").includes("resource-exhausted")
+        || String(err?.message || "").includes("RESOURCE_EXHAUSTED")
+        || String(err?.message || "").includes("quota");
+      toast({
+        title: t("خطأ", "Error"),
+        description: isQuota
+          ? t(
+              "تم تجاوز حد الطلبات المجانية، يرجى المحاولة لاحقاً أو ترقية الخطة.",
+              "Free quota exceeded. Please try again later or upgrade your plan."
+            )
+          : t("فشل في إضافة الطلب", "Failed to add order"),
+        variant: "destructive",
+      });
     } finally {
       setManualAddLoading(false);
     }
@@ -768,12 +778,14 @@ export default function DashboardPage() {
     }
   }, [merchant?.uid, shiftConfigInput, t, toast]);
 
+  const shiftAddLockRef = useRef(false);
   const handleShiftAdd = useCallback(async () => {
-    if (!merchant?.uid || !isApproved || manualAddLoading) return;
+    if (!merchant?.uid || !isApproved || manualAddLoading || shiftAddLockRef.current) return;
     if (lastShiftNumber === 0) {
       setShowShiftConfig(true);
       return;
     }
+    shiftAddLockRef.current = true;
     setManualAddLoading(true);
     try {
       const metaRef = doc(db, "merchants", merchant.uid, "settings", "manualShift");
@@ -798,10 +810,24 @@ export default function DashboardPage() {
         notifiedAt: null,
       });
       toast({ title: t(`تم إضافة طلب رقم ${displayId} بنجاح`, `Order #${displayId} added successfully`) });
-    } catch {
-      toast({ title: t("خطأ", "Error"), description: t("فشل في إضافة الطلب", "Failed to add order"), variant: "destructive" });
+    } catch (err: any) {
+      const isQuota = err?.code === "resource-exhausted"
+        || String(err?.message || "").includes("resource-exhausted")
+        || String(err?.message || "").includes("RESOURCE_EXHAUSTED")
+        || String(err?.message || "").includes("quota");
+      toast({
+        title: t("خطأ", "Error"),
+        description: isQuota
+          ? t(
+              "تم تجاوز حد الطلبات المجانية، يرجى المحاولة لاحقاً أو ترقية الخطة.",
+              "Free quota exceeded. Please try again later or upgrade your plan."
+            )
+          : t("فشل في إضافة الطلب", "Failed to add order"),
+        variant: "destructive",
+      });
     } finally {
       setManualAddLoading(false);
+      shiftAddLockRef.current = false;
     }
   }, [merchant?.uid, isApproved, manualAddLoading, lastShiftNumber, t, toast]);
 
