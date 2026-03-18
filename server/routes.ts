@@ -485,6 +485,71 @@ export async function registerRoutes(
   app.use("/uploads", express.static(uploadDir, { maxAge: 0, etag: false }));
 
   // SSR meta injection for /digital-pager — reads the real index.html and injects store-specific
+  // ── /track/:orderId — inject merchant logo as OG image for WhatsApp share previews ──
+  app.get("/track/:orderId", async (req, res, next) => {
+    const merchantId = req.query.m as string;
+    if (!merchantId) return next();
+
+    try {
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return next();
+      const mRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}`, { headers: {} });
+      if (!mRes.ok) return next();
+      const mDoc = await mRes.json();
+      const fields = mDoc.fields || {};
+
+      const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      const storeName = esc(fields.storeName?.stringValue || "Digital Pager");
+      const rawLogo = fields.logoUrl?.stringValue || "";
+
+      const xProto = ((req.headers["x-forwarded-proto"] as string) || "").split(",")[0].trim();
+      const protocol = xProto || req.protocol;
+      const host = `${protocol}://${req.get("host")}`;
+      const fullLogoUrl = rawLogo.startsWith("http") ? rawLogo : rawLogo ? `${host}${rawLogo}` : `${host}/icon-192x192.png`;
+
+      const description = `تابع طلبك من ${fields.storeName?.stringValue || "Digital Pager"} الآن 🍔✨`;
+      const cleanUrl = `${host}/track/${req.params.orderId}?m=${merchantId}`;
+
+      const htmlPath = process.env.NODE_ENV === "production"
+        ? path.resolve(process.cwd(), "dist", "public", "index.html")
+        : path.resolve(process.cwd(), "client", "index.html");
+      let page = await fs.promises.readFile(htmlPath, "utf-8");
+
+      if (process.env.NODE_ENV !== "production") {
+        const preamble = `<script type="module">
+  import RefreshRuntime from "/@react-refresh"
+  RefreshRuntime.injectIntoGlobalHook(window)
+  window.$RefreshReg$ = () => {}
+  window.$RefreshSig$ = () => (type) => type
+  window.__vite_plugin_react_preamble_installed__ = true
+</script>`;
+        page = page.replace("<head>", `<head>\n  ${preamble}`);
+      }
+
+      page = page.replace(/<title>[^<]*<\/title>/, `<title>${storeName}</title>`);
+      page = page.replace(/<meta property="og:title"[^>]*\/>/, `<meta property="og:title" content="${storeName}" />`);
+      page = page.replace(/<meta property="og:description"[^>]*\/>/, `<meta property="og:description" content="${description}" />`);
+      page = page.replace(/<meta property="og:image"[^>]*\/?>/gi, "");
+      page = page.replace(/<meta name="twitter:image"[^>]*\/?>/gi, "");
+
+      const ogBlock = `
+  <meta property="og:image" content="${fullLogoUrl}" />
+  <meta property="og:image:width" content="400" />
+  <meta property="og:image:height" content="400" />
+  <meta property="og:url" content="${cleanUrl}" />
+  <meta property="og:locale" content="ar_AR" />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="${storeName}" />
+  <meta name="twitter:description" content="${description}" />
+  <meta name="twitter:image" content="${fullLogoUrl}" />`;
+      page = page.replace("</head>", `${ogBlock}\n</head>`);
+
+      return res.status(200).set({ "Content-Type": "text/html; charset=utf-8" }).end(page);
+    } catch {
+      return next();
+    }
+  });
+
   // OG tags before serving it. Works for ALL visitors: crawlers get tags without running JS,
   // browsers get the full React app with tags already in <head>.
   app.get("/digital-pager/:orderId", async (req, res, next) => {
