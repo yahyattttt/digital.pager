@@ -4433,6 +4433,8 @@ function TrackingView({
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [feedbacks, setFeedbacks] = useState<any[]>([]);
+  const [liveTotalShareClicks, setLiveTotalShareClicks] = useState<number>(0);
+  const [liveUniqueSharesCount, setLiveUniqueSharesCount] = useState<number>(0);
 
   type Period = "thisMonth" | "lastMonth" | "custom";
   const [period, setPeriod] = useState<Period>("thisMonth");
@@ -4446,6 +4448,18 @@ function TrackingView({
       .then(r => r.ok ? r.json() : { feedbacks: [] })
       .then(d => setFeedbacks(d.feedbacks || []))
       .catch(() => {});
+  }, [merchant?.uid]);
+
+  useEffect(() => {
+    if (!merchant?.uid) return;
+    const unsub = onSnapshot(doc(db, "merchants", merchant.uid), (snap) => {
+      if (snap.exists()) {
+        const d = snap.data();
+        setLiveTotalShareClicks(d.totalShareClicks ?? 0);
+        setLiveUniqueSharesCount(d.uniqueSharesCount ?? 0);
+      }
+    });
+    return () => unsub();
   }, [merchant?.uid]);
 
   function getMonthRange(offsetMonths: number): { startDate: string; endDate: string } {
@@ -4669,12 +4683,12 @@ function TrackingView({
             {bottomCards.map(renderCard)}
           </div>
 
-          {/* ── Row 3: 2 viral metric cards ── */}
+          {/* ── Row 3: 2 viral metric cards — live onSnapshot ── */}
           <div className="grid grid-cols-2 gap-3">
             {renderCard({
               label: t("مجموع نقرات المشاركة", "Total Share Clicks"),
               sublabel: t("إجمالي نقرات زر شارك اللحظة", "Total share button clicks"),
-              value: totalShareClicks,
+              value: liveTotalShareClicks,
               color: "#e879f9",
               border: "rgba(232,121,249,0.20)",
               bg: "rgba(168,85,247,0.07)",
@@ -4684,7 +4698,7 @@ function TrackingView({
             {renderCard({
               label: t("عدد الذين شاركوا", "Unique Sharers"),
               sublabel: t("أشخاص فريدون ضغطوا مشاركة", "Unique sessions that shared"),
-              value: uniqueSharesCount,
+              value: liveUniqueSharesCount,
               color: "#a78bfa",
               border: "rgba(167,139,250,0.20)",
               bg: "rgba(139,92,246,0.07)",

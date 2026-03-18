@@ -67,9 +67,9 @@ function DeliveryTrackingView({
     }
     if (merchantId) {
       fetch(`/api/track/sharebuttonclick/${merchantId}`, { method: "POST" }).catch(() => {});
-      const uniqueKey = `unique_share_${merchantId}`;
-      if (!sessionStorage.getItem(uniqueKey)) {
-        sessionStorage.setItem(uniqueKey, "1");
+      const uniqueKey = `shared_this_store_${merchantId}`;
+      if (!localStorage.getItem(uniqueKey)) {
+        localStorage.setItem(uniqueKey, "true");
         fetch(`/api/track/uniqueshare/${merchantId}`, { method: "POST" }).catch(() => {});
       }
     }
@@ -174,7 +174,7 @@ function DeliveryTrackingView({
 
         {isPreparing && !isDelivery && (
           <button
-            id="viral-share-btn-tracked"
+            id="viral-share-btn-global"
             onClick={handleShareTracking}
             data-testid="button-share-tracking-delivery"
             className="w-full relative overflow-hidden flex items-center justify-center gap-2.5 rounded-xl px-5 py-3.5 transition-all active:scale-[0.97]"
@@ -584,9 +584,9 @@ export default function OrderTrackingPage() {
     }
     if (merchantId) {
       fetch(`/api/track/sharebuttonclick/${merchantId}`, { method: "POST" }).catch(() => {});
-      const uniqueKey = `unique_share_${merchantId}`;
-      if (!sessionStorage.getItem(uniqueKey)) {
-        sessionStorage.setItem(uniqueKey, "1");
+      const uniqueKey = `shared_this_store_${merchantId}`;
+      if (!localStorage.getItem(uniqueKey)) {
+        localStorage.setItem(uniqueKey, "true");
         fetch(`/api/track/uniqueshare/${merchantId}`, { method: "POST" }).catch(() => {});
       }
     }
@@ -894,7 +894,7 @@ export default function OrderTrackingPage() {
 
         {!isDelivery && (
         <button
-          id="viral-share-btn-tracked"
+          id="viral-share-btn-global"
           onClick={handleShareTracking}
           data-testid="button-share-tracking"
           className="w-full relative overflow-hidden flex items-center justify-center gap-2.5 rounded-2xl px-5 py-4 transition-all active:scale-[0.97]"
