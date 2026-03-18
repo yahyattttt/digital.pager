@@ -169,7 +169,7 @@ function DeliveryTrackingView({
 
         {isPreparing && !isDelivery && (
           <button
-            id="share-moment-btn"
+            id="viral-share-btn"
             onClick={handleShareTracking}
             data-testid="button-share-tracking-delivery"
             className="w-full relative overflow-hidden flex items-center justify-center gap-2.5 rounded-xl px-5 py-3.5 transition-all active:scale-[0.97]"
@@ -884,7 +884,7 @@ export default function OrderTrackingPage() {
 
         {!isDelivery && (
         <button
-          id="share-moment-btn"
+          id="viral-share-btn"
           onClick={handleShareTracking}
           data-testid="button-share-tracking"
           className="w-full relative overflow-hidden flex items-center justify-center gap-2.5 rounded-2xl px-5 py-4 transition-all active:scale-[0.97]"
