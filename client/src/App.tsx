@@ -170,6 +170,21 @@ function GuestRoute({ component: Component }: { component: () => JSX.Element | n
 }
 
 function Router() {
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("source") === "share_moment") {
+      const merchantId = params.get("m") || "";
+      if (merchantId) {
+        const key = `share_view_tracked_${merchantId}`;
+        if (!sessionStorage.getItem(key)) {
+          sessionStorage.setItem(key, "1");
+          console.log("Viral Visit Detected!");
+          fetch(`/api/track/sharedlinkview/${merchantId}`, { method: "POST" }).catch(() => {});
+        }
+      }
+    }
+  }, []);
+
   return (
     <Switch>
       <Route path="/" component={LandingPage} />

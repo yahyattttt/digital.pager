@@ -31,17 +31,6 @@ function DeliveryTrackingView({
     prevStatusRef.current = order.status;
   }, [order.status]);
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("source") === "share_moment" && merchantId) {
-      const key = `share_view_tracked_${merchantId}`;
-      if (!sessionStorage.getItem(key)) {
-        sessionStorage.setItem(key, "1");
-        fetch(`/api/track/sharedlinkview/${merchantId}`, { method: "POST" }).catch(() => {});
-      }
-    }
-  }, [merchantId]);
-
   function handleWhatsAppDriver() {
     const phone = driverPhone.replace(/[^\d+]/g, "");
     const name = order.customerName || "";
@@ -180,6 +169,7 @@ function DeliveryTrackingView({
 
         {isPreparing && !isDelivery && (
           <button
+            id="share-moment-btn"
             onClick={handleShareTracking}
             data-testid="button-share-tracking-delivery"
             className="w-full relative overflow-hidden flex items-center justify-center gap-2.5 rounded-xl px-5 py-3.5 transition-all active:scale-[0.97]"
@@ -894,6 +884,7 @@ export default function OrderTrackingPage() {
 
         {!isDelivery && (
         <button
+          id="share-moment-btn"
           onClick={handleShareTracking}
           data-testid="button-share-tracking"
           className="w-full relative overflow-hidden flex items-center justify-center gap-2.5 rounded-2xl px-5 py-4 transition-all active:scale-[0.97]"
