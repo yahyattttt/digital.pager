@@ -31,6 +31,17 @@ function DeliveryTrackingView({
     prevStatusRef.current = order.status;
   }, [order.status]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("source") === "share_moment" && merchantId) {
+      const key = `share_view_tracked_${merchantId}`;
+      if (!sessionStorage.getItem(key)) {
+        sessionStorage.setItem(key, "1");
+        fetch(`/api/track/sharedlinkview/${merchantId}`, { method: "POST" }).catch(() => {});
+      }
+    }
+  }, [merchantId]);
+
   function handleWhatsAppDriver() {
     const phone = driverPhone.replace(/[^\d+]/g, "");
     const name = order.customerName || "";
@@ -44,22 +55,30 @@ function DeliveryTrackingView({
 
   async function handleShareTracking() {
     const storeName = merchant?.storeName || "المتجر";
-    const text = `شوف طلبي من ${storeName} جالس يتجهز.. خلنا نتابعه سوا! 😍👇\n${window.location.href}`;
+    const baseUrl = window.location.href.split("?")[0];
+    const params = new URLSearchParams(window.location.search);
+    params.set("source", "share_moment");
+    const shareUrl = `${baseUrl}?${params.toString()}`;
+    const text = `شوف طلبي من ${storeName} جالس يتجهز.. خلنا نتابعه سوا! 😍👇\n${shareUrl}`;
     if (navigator.share) {
-      try { await navigator.share({ text }); return; } catch (_) {}
+      try { await navigator.share({ text }); } catch (_) {}
+    } else {
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch (_) {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2500);
     }
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch (_) {
-      const ta = document.createElement("textarea");
-      ta.value = text;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand("copy");
-      document.body.removeChild(ta);
+    if (merchantId) {
+      fetch(`/api/track/sharebuttonclick/${merchantId}`, { method: "POST" }).catch(() => {});
     }
-    setShareCopied(true);
-    setTimeout(() => setShareCopied(false), 2500);
   }
 
   function handleCloseAndReturn() {
@@ -547,22 +566,30 @@ export default function OrderTrackingPage() {
 
   async function handleShareTracking() {
     const storeName = merchant?.storeName || "المتجر";
-    const text = `شوف طلبي من ${storeName} جالس يتجهز.. خلنا نتابعه سوا! 😍👇\n${window.location.href}`;
+    const baseUrl = window.location.href.split("?")[0];
+    const urlParams = new URLSearchParams(window.location.search);
+    urlParams.set("source", "share_moment");
+    const shareUrl = `${baseUrl}?${urlParams.toString()}`;
+    const text = `شوف طلبي من ${storeName} جالس يتجهز.. خلنا نتابعه سوا! 😍👇\n${shareUrl}`;
     if (navigator.share) {
-      try { await navigator.share({ text }); return; } catch (_) {}
+      try { await navigator.share({ text }); } catch (_) {}
+    } else {
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch (_) {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2500);
     }
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch (_) {
-      const ta = document.createElement("textarea");
-      ta.value = text;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand("copy");
-      document.body.removeChild(ta);
+    if (merchantId) {
+      fetch(`/api/track/sharebuttonclick/${merchantId}`, { method: "POST" }).catch(() => {});
     }
-    setShareCopied(true);
-    setTimeout(() => setShareCopied(false), 2500);
   }
 
   if (loading) {

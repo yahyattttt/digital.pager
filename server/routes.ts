@@ -1570,6 +1570,40 @@ export async function registerRoutes(
     } catch { return res.status(500).json({ message: "Failed to track order completed" }); }
   });
 
+  app.post("/api/track/sharebuttonclick/:storeId", async (req, res) => {
+    try {
+      const { storeId } = req.params;
+      const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
+      if (!projectId || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
+      const commitUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:commit`;
+      const docPath = `projects/${projectId}/databases/(default)/documents/merchants/${storeId}`;
+      await fetch(commitUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ writes: [{ transform: { document: docPath, fieldTransforms: [{ fieldPath: "shareButtonClicks", increment: { integerValue: "1" } }] } }] }),
+      });
+      incrementDailyTracking(storeId, "shareButtonClicks").catch(() => {});
+      return res.json({ success: true });
+    } catch { return res.status(500).json({ message: "Failed to track share button click" }); }
+  });
+
+  app.post("/api/track/sharedlinkview/:storeId", async (req, res) => {
+    try {
+      const { storeId } = req.params;
+      const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
+      if (!projectId || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
+      const commitUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:commit`;
+      const docPath = `projects/${projectId}/databases/(default)/documents/merchants/${storeId}`;
+      await fetch(commitUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ writes: [{ transform: { document: docPath, fieldTransforms: [{ fieldPath: "sharedLinkViews", increment: { integerValue: "1" } }] } }] }),
+      });
+      incrementDailyTracking(storeId, "sharedLinkViews").catch(() => {});
+      return res.json({ success: true });
+    } catch { return res.status(500).json({ message: "Failed to track shared link view" }); }
+  });
+
   app.get("/api/merchant-tracking/:merchantId", async (req, res) => {
     try {
       const { merchantId } = req.params;
@@ -1589,10 +1623,12 @@ export async function registerRoutes(
       const completedOrders = parseInt(fields.completedOrders?.integerValue || "0");
       const googleMapsClicks = parseInt(fields.googleMapsClicks?.integerValue || "0");
       const tableQrClicks = parseInt(fields.tableQrClicks?.integerValue || "0");
+      const shareButtonClicks = parseInt(fields.shareButtonClicks?.integerValue || "0");
+      const sharedLinkViews = parseInt(fields.sharedLinkViews?.integerValue || "0");
       const abandonedCarts = Math.max(0, cartSessions - completedOrders);
       const totalVisits = linkVisits + qrScans;
       const conversionRate = totalVisits > 0 ? Math.round((completedOrders / totalVisits) * 100) : 0;
-      return res.json({ linkVisits, qrScans, cartSessions, completedOrders, abandonedCarts, conversionRate, googleMapsClicks, tableQrClicks });
+      return res.json({ linkVisits, qrScans, cartSessions, completedOrders, abandonedCarts, conversionRate, googleMapsClicks, tableQrClicks, shareButtonClicks, sharedLinkViews });
     } catch (error) {
       console.error("Merchant tracking error:", error);
       return res.status(500).json({ message: "Failed to get tracking data" });
