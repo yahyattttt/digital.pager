@@ -112,6 +112,7 @@ import {
   Zap,
   Database,
   HeartPulse,
+  Link2,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import ArchiveView from "@/pages/order-archive";
@@ -3808,7 +3809,10 @@ function MenuView({
     }
   }
 
-  const menuUrl = `${window.location.origin}/menu/${uid}`;
+  const merchantStoreSlug = (merchant as any)?.storeSlug as string | undefined;
+  const menuUrl = merchantStoreSlug
+    ? `${window.location.origin}/online-order/${merchantStoreSlug}`
+    : `${window.location.origin}/menu/${uid}`;
 
   return (
     <div className="space-y-6">
@@ -3829,13 +3833,29 @@ function MenuView({
         <CardContent className="p-4 space-y-3">
           <div className="flex items-center gap-3">
             <div className="flex-1 min-w-0">
-              <p className="text-xs text-muted-foreground mb-1">{t("رابط الطلب أونلاين", "Online Order Link (for Google Maps)")}</p>
+              <div className="flex items-center gap-2 mb-1">
+                <p className="text-xs text-muted-foreground">{t("رابط الطلب أونلاين", "Online Order Link")}</p>
+                {merchantStoreSlug ? (
+                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(139,92,246,0.12)", color: "#a78bfa", border: "1px solid rgba(139,92,246,0.2)" }}>
+                    {t("رابط مخصص", "Custom URL")}
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-white/25">{t("(يمكنك تخصيصه في الإعدادات)", "(customize in Settings)")}</span>
+                )}
+              </div>
               <p className="text-sm text-white/70 truncate font-mono" data-testid="text-menu-url">{menuUrl}</p>
             </div>
-            <Button size="sm" variant="outline" className="border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 h-9 px-4 rounded-lg font-semibold" onClick={() => { navigator.clipboard.writeText(menuUrl); toast({ title: t("تم النسخ", "Copied") }); }} data-testid="button-copy-menu-url">
+            <Button size="sm" variant="outline" className="border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 h-9 px-4 rounded-lg font-semibold shrink-0" onClick={() => { navigator.clipboard.writeText(menuUrl); toast({ title: t("تم النسخ", "Copied") }); }} data-testid="button-copy-menu-url">
               {t("نسخ الرابط", "Copy Link")}
             </Button>
           </div>
+          {!merchantStoreSlug && (
+            <div className="p-3 rounded-xl" style={{ background: "rgba(139,92,246,0.05)", border: "1px solid rgba(139,92,246,0.12)" }} dir="rtl">
+              <p className="text-xs leading-relaxed" style={{ color: "rgba(167,139,250,0.7)" }}>
+                🔗 {t("نصيحة: أضف رابطاً مخصصاً لمتجرك من الإعدادات → عام → 'رابط المتجر المخصص' لتحصل على رابط احترافي وسهل التذكر", "Tip: Add a custom URL for your store from Settings → General → 'Custom Store URL' for a professional, easy-to-remember link")}
+              </p>
+            </div>
+          )}
           <div className="p-3 rounded-xl bg-amber-500/8 border border-amber-500/15" dir="rtl" data-testid="tip-google-maps">
             <p className="text-xs text-amber-300/90 leading-relaxed">
               💡 {t("يفضل نسخ هذا الرابط ووضعه في خانة (طلب أونلاين) في خرائط قوقل لزيادة مبيعاتك وتسهيل وصول العملاء.", "We recommend copying this link and placing it in the 'Order Online' field on Google Maps to boost your sales and make it easier for customers to reach you.")}
@@ -5946,6 +5966,10 @@ function SettingsView({
   const [settingsTab, setSettingsTab] = useState<"general" | "delivery" | "support" | "finance">("general");
   const [supportSaving, setSupportSaving] = useState(false);
   const [legalDocsSaving, setLegalDocsSaving] = useState(false);
+  const [storeSlugEdit, setStoreSlugEdit] = useState<string>((merchant as any)?.storeSlug || "");
+  const [slugChecking, setSlugChecking] = useState(false);
+  const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null);
+  const slugCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setStoreNameEdit(merchant?.storeName || "");
@@ -5957,7 +5981,41 @@ function SettingsView({
     setGoogleMapsUrlEdit((merchant as any)?.googleMapsReviewUrl || "");
     setCrPdfUrlEdit((merchant as any)?.commercialRegisterURL || "");
     setSupportWhatsappEdit((merchant as any)?.support_whatsapp || "");
-  }, [merchant?.storeName, merchant?.whatsappNumber, merchant?.logoUrl, (merchant as any)?.ownerPhone, (merchant as any)?.commercialRegisterNumber, (merchant as any)?.taxNumber, (merchant as any)?.googleMapsReviewUrl, (merchant as any)?.commercialRegisterURL, (merchant as any)?.support_whatsapp]);
+    setStoreSlugEdit((merchant as any)?.storeSlug || "");
+  }, [merchant?.storeName, merchant?.whatsappNumber, merchant?.logoUrl, (merchant as any)?.ownerPhone, (merchant as any)?.commercialRegisterNumber, (merchant as any)?.taxNumber, (merchant as any)?.googleMapsReviewUrl, (merchant as any)?.commercialRegisterURL, (merchant as any)?.support_whatsapp, (merchant as any)?.storeSlug]);
+
+  function slugify(name: string): string {
+    return name
+      .trim()
+      .toLowerCase()
+      .replace(/[\s_]+/g, "-")
+      .replace(/[^\u0621-\u064Aa-z0-9-]/g, "")
+      .replace(/-{2,}/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 50);
+  }
+
+  function handleSlugChange(raw: string) {
+    const cleaned = raw
+      .toLowerCase()
+      .replace(/[\s_]+/g, "-")
+      .replace(/[^\u0621-\u064Aa-z0-9-]/g, "")
+      .replace(/-{2,}/g, "-")
+      .replace(/^-/, "")
+      .slice(0, 50);
+    setStoreSlugEdit(cleaned);
+    setSlugAvailable(null);
+    if (slugCheckTimer.current) clearTimeout(slugCheckTimer.current);
+    if (!cleaned) return;
+    setSlugChecking(true);
+    slugCheckTimer.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/check-slug/${encodeURIComponent(cleaned)}?excludeId=${merchant?.uid || ""}`);
+        const data = await res.json();
+        setSlugAvailable(data.available);
+      } catch { setSlugAvailable(null); } finally { setSlugChecking(false); }
+    }, 500);
+  }
 
   async function compressImage(file: File, maxDimension = 1024, quality = 0.88): Promise<File> {
     return new Promise((resolve) => {
@@ -6065,6 +6123,13 @@ function SettingsView({
   async function handleSaveAccountInfo() {
     const uid = merchant?.uid;
     if (!uid) return;
+
+    const finalSlug = storeSlugEdit.trim();
+    if (finalSlug && slugAvailable === false) {
+      toast({ title: t("الرابط محجوز", "Slug Taken"), description: t("الرابط المختار محجوز من متجر آخر، اختر رابطاً مختلفاً", "This slug is taken by another store. Choose a different one."), variant: "destructive" });
+      return;
+    }
+
     setBranchInfoSaving(true);
     try {
       const merchantRef = doc(db, "merchants", uid);
@@ -6078,6 +6143,7 @@ function SettingsView({
         googleMapsReviewUrl: googleMapsUrlEdit.trim(),
         commercialRegisterURL: crPdfUrlEdit.trim(),
         support_whatsapp: supportWhatsappEdit.trim(),
+        ...(finalSlug ? { storeSlug: finalSlug } : {}),
       }, { merge: true });
       toast({
         title: t("تم الحفظ", "Saved"),
@@ -6440,8 +6506,79 @@ function SettingsView({
 
             <div className="space-y-1.5">
               <label className="text-xs text-muted-foreground">{t("اسم المتجر", "Store Name")}</label>
-              <Input value={storeNameEdit} onChange={(e) => setStoreNameEdit(e.target.value)} className="h-11 bg-white/[0.03] border-white/10" data-testid="input-store-name-edit" />
+              <Input
+                value={storeNameEdit}
+                onChange={(e) => setStoreNameEdit(e.target.value)}
+                className="h-11 bg-white/[0.03] border-white/10"
+                data-testid="input-store-name-edit"
+              />
             </div>
+
+            {/* ── Store Slug ── */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs text-muted-foreground flex items-center gap-1.5">
+                  <Link2 className="w-3.5 h-3.5 text-violet-400" />
+                  {t("رابط المتجر المخصص", "Custom Store URL")}
+                </label>
+                {storeSlugEdit && !slugChecking && slugAvailable === true && (
+                  <span className="text-[11px] text-emerald-400 flex items-center gap-1"><CheckCircle className="w-3 h-3" />{t("متاح", "Available")}</span>
+                )}
+                {storeSlugEdit && !slugChecking && slugAvailable === false && (
+                  <span className="text-[11px] text-red-400 flex items-center gap-1"><AlertTriangle className="w-3 h-3" />{t("محجوز", "Taken")}</span>
+                )}
+                {slugChecking && (
+                  <span className="text-[11px] text-white/40 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" />{t("جارٍ التحقق...", "Checking...")}</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-white/30 font-mono select-none pointer-events-none">online-order/</span>
+                  <Input
+                    value={storeSlugEdit}
+                    onChange={(e) => handleSlugChange(e.target.value)}
+                    placeholder="my-store"
+                    dir="ltr"
+                    className={`h-11 bg-white/[0.03] border-white/10 font-mono text-sm pl-3 pr-28 ${slugAvailable === false ? "border-red-500/40 focus-visible:ring-red-500/20" : slugAvailable === true ? "border-emerald-500/40 focus-visible:ring-emerald-500/20" : ""}`}
+                    data-testid="input-store-slug"
+                  />
+                </div>
+                {!storeSlugEdit && storeNameEdit.trim() && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-11 px-3 border-white/10 text-white/60 shrink-0"
+                    onClick={() => handleSlugChange(slugify(storeNameEdit))}
+                    data-testid="button-suggest-slug"
+                  >
+                    {t("اقتراح", "Suggest")}
+                  </Button>
+                )}
+              </div>
+              {/* Live link preview */}
+              <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ background: "rgba(139,92,246,0.06)", border: "1px solid rgba(139,92,246,0.12)" }}>
+                <Globe className="w-3.5 h-3.5 text-violet-400 shrink-0" />
+                <p className="text-[11px] font-mono truncate" dir="ltr">
+                  <span className="text-white/30">{window.location.origin}/online-order/</span>
+                  <span className="text-violet-300 font-semibold">{storeSlugEdit || t("اسم-متجرك", "your-store")}</span>
+                </p>
+                {storeSlugEdit && (
+                  <button
+                    type="button"
+                    className="ms-auto shrink-0 text-[11px] text-violet-400/70 hover:text-violet-400 transition-colors"
+                    onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/online-order/${storeSlugEdit}`); toast({ title: t("تم النسخ", "Copied") }); }}
+                    data-testid="button-copy-slug-preview"
+                  >
+                    {t("نسخ", "Copy")}
+                  </button>
+                )}
+              </div>
+              <p className="text-[10px] text-white/25" dir="rtl">
+                {t("يُسمح بالأحرف الإنجليزية والأرقام والشرطة (-) والأحرف العربية", "Allowed: English letters, numbers, hyphens and Arabic letters")}
+              </p>
+            </div>
+
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/[0.04]">
               <div>
                 <p className="text-[10px] text-muted-foreground mb-0.5">{t("المالك", "Owner")}</p>

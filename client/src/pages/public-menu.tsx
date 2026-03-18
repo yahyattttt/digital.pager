@@ -66,9 +66,9 @@ function normalizePhone(raw: string): string {
   return v.slice(0, 10);
 }
 
-export default function PublicMenuPage() {
+export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverride?: string } = {}) {
   const params = useParams<{ merchantId: string }>();
-  const merchantId = params.merchantId;
+  const merchantId = merchantIdOverride || params.merchantId;
   const { toast } = useToast();
   const { lang, isRTL, toggleLanguage, t } = useLanguage();
 

@@ -1,7 +1,7 @@
 import express, { type Express, type Request, type Response } from "express";
 import path from "path";
 import fs from "fs";
-import { getMerchantOG, getMerchantIdFromOrder, injectOGTags } from "./og-meta";
+import { getMerchantOG, getMerchantOGBySlug, getMerchantIdFromOrder, injectOGTags } from "./og-meta";
 
 const __dirname = path.resolve();
 const DIST_HTML = path.join(__dirname, "dist/public", "index.html");
@@ -38,6 +38,13 @@ export function serveStatic(app: Express) {
       await sendWithOG(req, res, og);
     });
   }
+
+  app.get("/online-order/:slug", async (req: Request, res: Response) => {
+    const origin = getOrigin(req);
+    const pageUrl = `${origin}${req.originalUrl}`;
+    const og = await getMerchantOGBySlug(req.params.slug, pageUrl);
+    await sendWithOG(req, res, og);
+  });
 
   app.get("/track/:orderId", async (req: Request, res: Response) => {
     const origin = getOrigin(req);

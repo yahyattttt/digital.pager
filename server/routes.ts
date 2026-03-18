@@ -3577,6 +3577,115 @@ export async function registerRoutes(
     }
   });
 
+  /* ─── Slug: check uniqueness ─── */
+  app.get("/api/check-slug/:slug", async (req, res) => {
+    try {
+      const { slug } = req.params;
+      const { excludeId } = req.query;
+      if (!slug) return res.json({ available: false, message: "Slug required" });
+
+      const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
+      const apiKey = getApiKey();
+      if (!projectId || !apiKey) return res.status(500).json({ available: false });
+
+      const queryUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery?key=${apiKey}`;
+      const body = {
+        structuredQuery: {
+          from: [{ collectionId: "merchants" }],
+          where: {
+            fieldFilter: {
+              field: { fieldPath: "storeSlug" },
+              op: "EQUAL",
+              value: { stringValue: slug },
+            },
+          },
+          limit: 2,
+        },
+      };
+      const qRes = await fetch(queryUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!qRes.ok) return res.status(500).json({ available: false });
+      const results = await qRes.json();
+      const docs = results.filter((r: any) => r.document);
+      const otherOwners = docs.filter((r: any) => {
+        if (!excludeId) return true;
+        const parts: string[] = r.document.name.split("/");
+        return parts[parts.length - 1] !== excludeId;
+      });
+      return res.json({ available: otherOwners.length === 0 });
+    } catch (err) {
+      console.error("[check-slug]", err);
+      return res.status(500).json({ available: false });
+    }
+  });
+
+  /* ─── Slug: find merchant by slug ─── */
+  app.get("/api/merchant-by-slug/:slug", async (req, res) => {
+    try {
+      const { slug } = req.params;
+      if (!slug) return res.status(400).json({ message: "Slug required" });
+
+      const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
+      const apiKey = getApiKey();
+      if (!projectId || !apiKey) return res.status(500).json({ message: "Firestore not configured" });
+
+      const queryUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery?key=${apiKey}`;
+      const body = {
+        structuredQuery: {
+          from: [{ collectionId: "merchants" }],
+          where: {
+            fieldFilter: {
+              field: { fieldPath: "storeSlug" },
+              op: "EQUAL",
+              value: { stringValue: slug },
+            },
+          },
+          limit: 1,
+        },
+      };
+      const qRes = await fetch(queryUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!qRes.ok) return res.status(500).json({ message: "Query failed" });
+      const results = await qRes.json();
+      const docEntry = results.find((r: any) => r.document);
+      if (!docEntry) return res.status(404).json({ message: "Store not found" });
+
+      const parts: string[] = docEntry.document.name.split("/");
+      const merchantId = parts[parts.length - 1];
+      const f = docEntry.document.fields || {};
+      const subStatus = f.subscriptionStatus?.stringValue || "pending";
+      const subExpiry = f.subscriptionExpiry?.stringValue || null;
+      const merchantStatus = f.status?.stringValue || "pending";
+      const now = new Date();
+      const expiryDate = subExpiry ? new Date(subExpiry) : null;
+      const isStoreActive =
+        merchantStatus === "approved" &&
+        subStatus === "active" &&
+        expiryDate !== null &&
+        expiryDate > now;
+
+      return res.json({
+        merchantId,
+        storeName: f.storeName?.stringValue || "",
+        logoUrl: f.logoUrl?.stringValue || "",
+        storeSlug: f.storeSlug?.stringValue || slug,
+        subscriptionStatus: subStatus,
+        subscriptionExpiry: subExpiry,
+        status: merchantStatus,
+        isStoreActive,
+      });
+    } catch (err) {
+      console.error("[merchant-by-slug]", err);
+      return res.status(500).json({ message: "Server error" });
+    }
+  });
+
   app.get("/api/track/:orderId", async (req, res) => {
     try {
       const { orderId } = req.params;

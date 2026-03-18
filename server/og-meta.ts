@@ -76,6 +76,50 @@ export async function getMerchantOG(merchantId: string, pageUrl: string): Promis
   };
 }
 
+export async function getMerchantOGBySlug(slug: string, pageUrl: string): Promise<OGData> {
+  const apiKey = getApiKey();
+  const projectId = getProjectId();
+  if (!apiKey || !projectId || !slug) return fallback(pageUrl);
+
+  try {
+    const queryUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery?key=${apiKey}`;
+    const body = {
+      structuredQuery: {
+        from: [{ collectionId: "merchants" }],
+        where: {
+          fieldFilter: {
+            field: { fieldPath: "storeSlug" },
+            op: "EQUAL",
+            value: { stringValue: slug },
+          },
+        },
+        limit: 1,
+      },
+    };
+    const res = await fetch(queryUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) return fallback(pageUrl);
+    const results = await res.json();
+    const docEntry = results.find((r: any) => r.document);
+    if (!docEntry) return fallback(pageUrl);
+    const f = docEntry.document.fields || {};
+    const storeName = str(f.storeName) || SITE_NAME;
+    const logoUrl = str(f.logoUrl);
+    return {
+      siteName: storeName,
+      title: `${storeName} - اطلب الآن أونلاين`,
+      description: `استعرض المنيو وتابع طلبك مع ${storeName}`,
+      image: logoUrl || DEFAULT_OG_IMAGE,
+      url: pageUrl,
+    };
+  } catch {
+    return fallback(pageUrl);
+  }
+}
+
 export async function getMerchantIdFromOrder(orderId: string): Promise<string | null> {
   const apiKey = getApiKey();
   const projectId = getProjectId();

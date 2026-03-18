@@ -5,7 +5,7 @@ import viteConfig from "../vite.config";
 import fs from "fs";
 import path from "path";
 import { nanoid } from "nanoid";
-import { getMerchantOG, getMerchantIdFromOrder, injectOGTags } from "./og-meta";
+import { getMerchantOG, getMerchantOGBySlug, getMerchantIdFromOrder, injectOGTags } from "./og-meta";
 
 const viteLogger = createLogger();
 
@@ -69,6 +69,17 @@ export async function setupVite(server: Server, app: Express) {
       });
     });
   }
+
+  /* ── Slug-based online order page: resolve slug → OG tags ── */
+  app.get("/online-order/:slug", async (req, res, next) => {
+    const { slug } = req.params;
+    const origin = getOrigin(req);
+    const pageUrl = `${origin}${req.originalUrl}`;
+    await sendPage(req, res, next, async (html) => {
+      const og = await getMerchantOGBySlug(slug, pageUrl);
+      return injectOGTags(html, og, origin);
+    });
+  });
 
   /* ── Order tracking page: look up order → merchant → OG tags ── */
   app.get("/track/:orderId", async (req, res, next) => {
