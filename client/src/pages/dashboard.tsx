@@ -5948,7 +5948,6 @@ function SettingsView({
   const [storeLat, setStoreLat] = useState<string>(merchant?.storeLat?.toString() || "");
   const [storeLng, setStoreLng] = useState<string>(merchant?.storeLng?.toString() || "");
   const [driverPhone, setDriverPhone] = useState<string>(merchant?.driverPhone || "");
-  const [paymentSaving, setPaymentSaving] = useState(false);
   const [deliverySaving, setDeliverySaving] = useState(false);
   const [storeNameEdit, setStoreNameEdit] = useState<string>(merchant?.storeName || "");
   const [whatsappEdit, setWhatsappEdit] = useState<string>(merchant?.whatsappNumber || "");
@@ -6095,34 +6094,6 @@ function SettingsView({
     { code: "14", labelAr: "الجوف", labelEn: "Al Jouf" },
     { code: "15", labelAr: "عرعر", labelEn: "Arar" },
   ];
-
-  async function handleSavePaymentConfig() {
-    const uid = merchant?.uid;
-    if (!uid) return;
-    setPaymentSaving(true);
-    try {
-      const merchantRef = doc(db, "merchants", uid);
-      await setDoc(merchantRef, {
-        moyasarPublishableKey,
-        moyasarSecretKey,
-        onlinePaymentEnabled,
-        codEnabled,
-      }, { merge: true });
-      toast({
-        title: t("تم الحفظ", "Saved"),
-        description: t("تم حفظ إعدادات بوابة الدفع بنجاح", "Payment gateway settings saved successfully"),
-      });
-    } catch (err) {
-      console.error("[Save Payment] Firestore error:", err);
-      toast({
-        title: t("خطأ", "Error"),
-        description: t("فشل في حفظ إعدادات الدفع", "Failed to save payment settings"),
-        variant: "destructive",
-      });
-    } finally {
-      setPaymentSaving(false);
-    }
-  }
 
   async function handleSaveAccountInfo() {
     const uid = merchant?.uid;
@@ -6918,84 +6889,6 @@ function SettingsView({
       {/* ── TAB: Finance / Legal ── */}
       {settingsTab === "finance" && (<>
 
-      {/* ── SECTION 3: Payment Integration ── */}
-      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
-        <CardContent className="p-6">
-          <h3 className="font-semibold mb-1 flex items-center gap-2">
-            <CreditCard className="w-4 h-4 text-blue-400" />
-            {t("ربط بوابة الدفع", "Payment Integration")}
-          </h3>
-          <p className="text-xs text-muted-foreground mb-4">{t("إعدادات الدفع الإلكتروني والدفع عند الاستلام", "Online payment and cash on delivery settings")}</p>
-          <div className="space-y-5">
-            <div className="space-y-2">
-              <label className="text-xs text-muted-foreground block">Moyasar Publishable Key</label>
-              <Input
-                type="text"
-                value={moyasarPublishableKey}
-                onChange={(e) => setMoyasarPublishableKey(e.target.value)}
-                placeholder="pk_live_..."
-                className="h-12 bg-white/[0.03] border-white/10 font-mono"
-                dir="ltr"
-                data-testid="input-moyasar-pub-key"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-xs text-muted-foreground block">Moyasar Secret Key</label>
-              <Input
-                type="password"
-                value={moyasarSecretKey}
-                onChange={(e) => setMoyasarSecretKey(e.target.value)}
-                placeholder="sk_live_..."
-                className="h-12 bg-white/[0.03] border-white/10 font-mono"
-                dir="ltr"
-                data-testid="input-moyasar-secret-key"
-              />
-            </div>
-
-            <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]">
-              <div className="flex-1">
-                <p className="text-sm font-semibold" dir="rtl">{t("تفعيل الدفع الإلكتروني", "Enable Online Payment")}</p>
-                <p className="text-xs text-muted-foreground mt-0.5" dir="rtl">
-                  {t("السماح للعملاء بالدفع إلكترونياً عبر بوابة Moyasar", "Allow customers to pay online via Moyasar gateway")}
-                </p>
-              </div>
-              <Switch
-                checked={onlinePaymentEnabled}
-                onCheckedChange={setOnlinePaymentEnabled}
-                className="data-[state=checked]:bg-blue-600"
-                data-testid="switch-online-payment"
-              />
-            </div>
-
-            <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]">
-              <div className="flex-1">
-                <p className="text-sm font-semibold" dir="rtl">{t("تفعيل الدفع عند الاستلام", "Enable Cash on Delivery")}</p>
-                <p className="text-xs text-muted-foreground mt-0.5" dir="rtl">
-                  {t("السماح للعملاء بالدفع نقداً عند استلام الطلب", "Allow customers to pay cash on delivery")}
-                </p>
-              </div>
-              <Switch
-                checked={codEnabled}
-                onCheckedChange={setCodEnabled}
-                className="data-[state=checked]:bg-emerald-600"
-                data-testid="switch-cod-payment"
-              />
-            </div>
-
-            <Button
-              onClick={handleSavePaymentConfig}
-              disabled={paymentSaving}
-              className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl disabled:opacity-30"
-              data-testid="button-save-payment-config"
-            >
-              {paymentSaving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Save className="w-4 h-4 me-2" />}
-              {t("حفظ إعدادات الدفع", "Save Payment Settings")}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* ── Legal (Finance Tab): Official IDs ── */}
       <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
         <CardContent className="p-6">
@@ -7071,13 +6964,25 @@ function SettingsView({
         </CardContent>
       </Card>
 
-      {/* ── Payment Integration ── */}
+      {/* ── Payment Integration (single source of truth) ── */}
       <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
         <CardContent className="p-6">
-          <h3 className="font-semibold mb-1 flex items-center gap-2">
-            <CreditCard className="w-4 h-4 text-blue-400" />
-            {t("ربط بوابة الدفع", "Payment Integration")}
-          </h3>
+          <div className="flex items-center justify-between mb-1">
+            <h3 className="font-semibold flex items-center gap-2">
+              <CreditCard className="w-4 h-4 text-blue-400" />
+              {t("ربط بوابة الدفع", "Payment Integration")}
+            </h3>
+            {moyasarPublishableKey.trim() && moyasarSecretKey.trim() && (
+              <span
+                className="flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full"
+                style={{ background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.25)", color: "#34d399" }}
+                data-testid="badge-payment-gateway-active"
+              >
+                <CheckCircle className="w-3 h-3" />
+                {t("بوابة الدفع نشطة ✅", "Payment Gateway Active ✅")}
+              </span>
+            )}
+          </div>
           <p className="text-xs text-muted-foreground mb-5">{t("مفاتيح Moyasar وإعدادات الدفع", "Moyasar keys and payment settings")}</p>
           <div className="space-y-5">
             <div className="space-y-1.5">
