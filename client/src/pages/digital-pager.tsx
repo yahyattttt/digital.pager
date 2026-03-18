@@ -833,7 +833,7 @@ export default function DigitalPagerPage() {
         )}
       </div>
 
-      {supportWhatsapp.replace(/\D/g, "") && (
+      {supportWhatsapp.replace(/\D/g, "") && !isManual && (
         <a
           href={`https://wa.me/${supportWhatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(`أهلاً ${merchantName}، لدي استفسار بخصوص طلبي رقم (# ${orderId})`)}`}
           target="_blank" rel="noopener noreferrer" className="wa-pulse"

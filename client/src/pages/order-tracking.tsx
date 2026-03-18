@@ -217,7 +217,7 @@ function DeliveryTrackingView({
         const waNum = merchant?.support_whatsapp?.replace(/\D/g, "") || "";
         const waId = order.displayOrderId || order.orderNumber || order.id;
         const waHref = waNum ? `https://wa.me/${waNum}?text=${encodeURIComponent(`أهلاً ${merchant?.storeName || ""}، لدي استفسار بخصوص طلبي رقم (# ${waId})`)}` : "";
-        if (!waHref) return null;
+        if (!waHref || (order as any).orderType === "manual") return null;
         return (
           <a href={waHref} target="_blank" rel="noopener noreferrer" className="wa-pulse"
             style={{ position: "fixed", bottom: "24px", right: "20px", zIndex: 9999, width: 56, height: 56, borderRadius: "50%", background: "#25d366", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}
