@@ -3622,6 +3622,137 @@ export async function registerRoutes(
     }
   });
 
+  /* ─── Google Maps URL Parser → Smart Slug + Coordinates ─── */
+  app.post("/api/parse-google-maps", async (req, res) => {
+    try {
+      const { googleMapsUrl, branchName, merchantId } = req.body as {
+        googleMapsUrl?: string;
+        branchName?: string;
+        merchantId?: string;
+      };
+
+      // Arabic → Latin transliteration table
+      const AR_MAP: Record<string, string> = {
+        "ا":"a","أ":"a","إ":"a","آ":"a","ب":"b","ت":"t","ث":"th","ج":"j","ح":"h","خ":"kh",
+        "د":"d","ذ":"dh","ر":"r","ز":"z","س":"s","ش":"sh","ص":"s","ض":"d","ط":"t","ظ":"z",
+        "ع":"a","غ":"gh","ف":"f","ق":"q","ك":"k","ل":"l","م":"m","ن":"n","ه":"h","و":"w","ي":"y","ى":"a",
+        "ة":"a","ء":"","ئ":"y","ؤ":"w","لا":"la","ال":"al-",
+      };
+
+      function arToSlug(text: string): string {
+        let out = "";
+        let i = 0;
+        while (i < text.length) {
+          // Two-char sequences first
+          const two = text.slice(i, i + 2);
+          if (AR_MAP[two]) { out += AR_MAP[two]; i += 2; continue; }
+          const one = text[i];
+          if (AR_MAP[one] !== undefined) { out += AR_MAP[one]; }
+          else if (/[a-zA-Z0-9]/.test(one)) { out += one.toLowerCase(); }
+          else if (/[\s\-_،,]/.test(one)) { out += "-"; }
+          // skip other chars
+          i++;
+        }
+        return out
+          .replace(/-{2,}/g, "-")
+          .replace(/^-|-$/g, "")
+          .slice(0, 60);
+      }
+
+      async function makeSlugUnique(base: string, excludeId?: string): Promise<string> {
+        const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
+        const apiKey = getApiKey();
+        if (!projectId || !apiKey) return base;
+        const queryUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery?key=${apiKey}`;
+        let candidate = base;
+        let suffix = 0;
+        while (true) {
+          const body = { structuredQuery: { from: [{ collectionId: "merchants" }], where: { fieldFilter: { field: { fieldPath: "storeSlug" }, op: "EQUAL", value: { stringValue: candidate } } }, limit: 2 } };
+          const r = await fetch(queryUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+          if (!r.ok) return candidate;
+          const docs = (await r.json()).filter((x: any) => x.document);
+          const others = docs.filter((x: any) => {
+            if (!excludeId) return true;
+            return x.document.name.split("/").pop() !== excludeId;
+          });
+          if (others.length === 0) return candidate;
+          suffix++;
+          candidate = `${base}-${suffix}`;
+        }
+      }
+
+      // ── Step 1: resolve short URLs ──────────────────────────────
+      let rawUrl = (googleMapsUrl || "").trim();
+      if (!rawUrl && !branchName) return res.status(400).json({ ok: false, error: "URL or branch name required" });
+
+      let resolvedUrl = rawUrl;
+      if (rawUrl && (rawUrl.includes("goo.gl") || rawUrl.includes("maps.app.goo.gl"))) {
+        try {
+          const ctrl = new AbortController();
+          const tid = setTimeout(() => ctrl.abort(), 5000);
+          const r = await fetch(rawUrl, { method: "HEAD", redirect: "follow", signal: ctrl.signal as any });
+          clearTimeout(tid);
+          resolvedUrl = r.url || rawUrl;
+        } catch { /* keep original */ }
+      }
+
+      // ── Step 2: extract place name + coordinates from URL ──────
+      let extractedName = "";
+      let lat: number | null = null;
+      let lng: number | null = null;
+
+      try {
+        const u = new URL(resolvedUrl);
+
+        // Format A: /maps/place/PLACE_NAME/@lat,lng
+        const placeMatch = u.pathname.match(/\/maps\/place\/([^/@]+)/);
+        if (placeMatch) {
+          extractedName = decodeURIComponent(placeMatch[1].replace(/\+/g, " ")).trim();
+        }
+
+        // Format B: ?q=query (fallback)
+        if (!extractedName) {
+          const q = u.searchParams.get("q") || u.searchParams.get("query");
+          if (q) extractedName = q.trim();
+        }
+
+        // Coordinates: @lat,lng or !3d lat !4d lng
+        const coordMatch = u.pathname.match(/@(-?[\d.]+),(-?[\d.]+)/) ||
+          resolvedUrl.match(/!3d(-?[\d.]+).*?!4d(-?[\d.]+)/);
+        if (coordMatch) {
+          lat = parseFloat(coordMatch[1]);
+          lng = parseFloat(coordMatch[2]);
+        }
+      } catch { /* invalid URL — will rely on branchName */ }
+
+      // ── Step 3: determine slug source name ────────────────────
+      const sourceName = branchName?.trim() || extractedName;
+      if (!sourceName) {
+        return res.json({ ok: false, error: "لم نتمكن من استخراج اسم الموقع. أدخل اسم الفرع يدوياً.", lat, lng });
+      }
+
+      // ── Step 4: generate slug ─────────────────────────────────
+      const rawSlug = arToSlug(sourceName);
+      if (!rawSlug) {
+        return res.json({ ok: false, error: "تعذّر توليد رابط من هذا الاسم، حاول اسماً مختلفاً.", lat, lng });
+      }
+
+      const finalSlug = await makeSlugUnique(rawSlug, merchantId);
+
+      return res.json({
+        ok: true,
+        slug: finalSlug,
+        extractedName,
+        sourceName,
+        lat,
+        lng,
+      });
+    } catch (err) {
+      console.error("[parse-google-maps]", err);
+      return res.status(500).json({ ok: false, error: "Server error" });
+    }
+  });
+
   /* ─── Slug: find merchant by slug ─── */
   app.get("/api/merchant-by-slug/:slug", async (req, res) => {
     try {

@@ -5967,9 +5967,13 @@ function SettingsView({
   const [supportSaving, setSupportSaving] = useState(false);
   const [legalDocsSaving, setLegalDocsSaving] = useState(false);
   const [storeSlugEdit, setStoreSlugEdit] = useState<string>((merchant as any)?.storeSlug || "");
-  const [slugChecking, setSlugChecking] = useState(false);
-  const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null);
-  const slugCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [mapsInputUrl, setMapsInputUrl] = useState<string>("");
+  const [mapsParseLoading, setMapsParseLoading] = useState(false);
+  const [mapsParseResult, setMapsParseResult] = useState<{
+    ok: boolean; slug?: string; extractedName?: string; lat?: number | null; lng?: number | null; error?: string;
+  } | null>(null);
+  const [manualBranchName, setManualBranchName] = useState<string>("");
+  const [showManualBranch, setShowManualBranch] = useState(false);
 
   useEffect(() => {
     setStoreNameEdit(merchant?.storeName || "");
@@ -5984,37 +5988,37 @@ function SettingsView({
     setStoreSlugEdit((merchant as any)?.storeSlug || "");
   }, [merchant?.storeName, merchant?.whatsappNumber, merchant?.logoUrl, (merchant as any)?.ownerPhone, (merchant as any)?.commercialRegisterNumber, (merchant as any)?.taxNumber, (merchant as any)?.googleMapsReviewUrl, (merchant as any)?.commercialRegisterURL, (merchant as any)?.support_whatsapp, (merchant as any)?.storeSlug]);
 
-  function slugify(name: string): string {
-    return name
-      .trim()
-      .toLowerCase()
-      .replace(/[\s_]+/g, "-")
-      .replace(/[^\u0621-\u064Aa-z0-9-]/g, "")
-      .replace(/-{2,}/g, "-")
-      .replace(/^-|-$/g, "")
-      .slice(0, 50);
-  }
-
-  function handleSlugChange(raw: string) {
-    const cleaned = raw
-      .toLowerCase()
-      .replace(/[\s_]+/g, "-")
-      .replace(/[^\u0621-\u064Aa-z0-9-]/g, "")
-      .replace(/-{2,}/g, "-")
-      .replace(/^-/, "")
-      .slice(0, 50);
-    setStoreSlugEdit(cleaned);
-    setSlugAvailable(null);
-    if (slugCheckTimer.current) clearTimeout(slugCheckTimer.current);
-    if (!cleaned) return;
-    setSlugChecking(true);
-    slugCheckTimer.current = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/check-slug/${encodeURIComponent(cleaned)}?excludeId=${merchant?.uid || ""}`);
-        const data = await res.json();
-        setSlugAvailable(data.available);
-      } catch { setSlugAvailable(null); } finally { setSlugChecking(false); }
-    }, 500);
+  async function handleParseGoogleMaps(overrideBranchName?: string) {
+    const uid = merchant?.uid;
+    if (!mapsInputUrl.trim() && !overrideBranchName?.trim() && !manualBranchName.trim()) return;
+    setMapsParseLoading(true);
+    setMapsParseResult(null);
+    try {
+      const res = await fetch("/api/parse-google-maps", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          googleMapsUrl: mapsInputUrl.trim(),
+          branchName: overrideBranchName || manualBranchName.trim() || undefined,
+          merchantId: uid,
+        }),
+      });
+      const data = await res.json();
+      setMapsParseResult(data);
+      if (data.ok && data.slug) {
+        setStoreSlugEdit(data.slug);
+        if (data.lat != null) setStoreLat(String(data.lat));
+        if (data.lng != null) setStoreLng(String(data.lng));
+        if (!data.extractedName) setShowManualBranch(true);
+      } else {
+        setShowManualBranch(true);
+      }
+    } catch {
+      setMapsParseResult({ ok: false, error: "حدث خطأ أثناء معالجة الرابط" });
+      setShowManualBranch(true);
+    } finally {
+      setMapsParseLoading(false);
+    }
   }
 
   async function compressImage(file: File, maxDimension = 1024, quality = 0.88): Promise<File> {
@@ -6125,11 +6129,6 @@ function SettingsView({
     if (!uid) return;
 
     const finalSlug = storeSlugEdit.trim();
-    if (finalSlug && slugAvailable === false) {
-      toast({ title: t("الرابط محجوز", "Slug Taken"), description: t("الرابط المختار محجوز من متجر آخر، اختر رابطاً مختلفاً", "This slug is taken by another store. Choose a different one."), variant: "destructive" });
-      return;
-    }
-
     setBranchInfoSaving(true);
     try {
       const merchantRef = doc(db, "merchants", uid);
@@ -6514,69 +6513,137 @@ function SettingsView({
               />
             </div>
 
-            {/* ── Store Slug ── */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-xs text-muted-foreground flex items-center gap-1.5">
-                  <Link2 className="w-3.5 h-3.5 text-violet-400" />
-                  {t("رابط المتجر المخصص", "Custom Store URL")}
-                </label>
-                {storeSlugEdit && !slugChecking && slugAvailable === true && (
-                  <span className="text-[11px] text-emerald-400 flex items-center gap-1"><CheckCircle className="w-3 h-3" />{t("متاح", "Available")}</span>
-                )}
-                {storeSlugEdit && !slugChecking && slugAvailable === false && (
-                  <span className="text-[11px] text-red-400 flex items-center gap-1"><AlertTriangle className="w-3 h-3" />{t("محجوز", "Taken")}</span>
-                )}
-                {slugChecking && (
-                  <span className="text-[11px] text-white/40 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" />{t("جارٍ التحقق...", "Checking...")}</span>
-                )}
-              </div>
+            {/* ── Smart Google Maps Link → Auto Slug ── */}
+            <div className="space-y-3 p-4 rounded-2xl" style={{ background: "rgba(139,92,246,0.04)", border: "1px solid rgba(139,92,246,0.14)" }}>
               <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: "rgba(139,92,246,0.15)" }}>
+                  <MapPin className="w-3.5 h-3.5 text-violet-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-white">{t("موقع المتجر على خرائط جوجل", "Google Maps Store Location")}</p>
+                  <p className="text-[11px] text-white/40">{t("الصق رابط موقعك لتوليد رابط متجر احترافي تلقائياً", "Paste your location link to auto-generate a professional store URL")}</p>
+                </div>
+              </div>
+
+              {/* URL Input + Generate button */}
+              <div className="flex gap-2">
                 <div className="relative flex-1">
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-white/30 font-mono select-none pointer-events-none">online-order/</span>
+                  <MapPin className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-violet-400/50 pointer-events-none" />
                   <Input
-                    value={storeSlugEdit}
-                    onChange={(e) => handleSlugChange(e.target.value)}
-                    placeholder="my-store"
+                    value={mapsInputUrl}
+                    onChange={(e) => { setMapsInputUrl(e.target.value); setMapsParseResult(null); setShowManualBranch(false); }}
+                    placeholder="https://maps.google.com/maps/place/..."
                     dir="ltr"
-                    className={`h-11 bg-white/[0.03] border-white/10 font-mono text-sm pl-3 pr-28 ${slugAvailable === false ? "border-red-500/40 focus-visible:ring-red-500/20" : slugAvailable === true ? "border-emerald-500/40 focus-visible:ring-emerald-500/20" : ""}`}
-                    data-testid="input-store-slug"
+                    className="h-11 bg-white/[0.03] border-white/10 font-mono text-xs pr-9"
+                    data-testid="input-google-maps-location-url"
                   />
                 </div>
-                {!storeSlugEdit && storeNameEdit.trim() && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-11 px-3 border-white/10 text-white/60 shrink-0"
-                    onClick={() => handleSlugChange(slugify(storeNameEdit))}
-                    data-testid="button-suggest-slug"
-                  >
-                    {t("اقتراح", "Suggest")}
-                  </Button>
-                )}
+                <Button
+                  type="button"
+                  onClick={() => handleParseGoogleMaps()}
+                  disabled={mapsParseLoading || !mapsInputUrl.trim()}
+                  className="h-11 px-4 shrink-0 font-semibold rounded-xl"
+                  style={{ background: "rgba(139,92,246,0.8)" }}
+                  data-testid="button-generate-smart-link"
+                >
+                  {mapsParseLoading
+                    ? <Loader2 className="w-4 h-4 animate-spin" />
+                    : <Zap className="w-4 h-4 me-1.5" />}
+                  {t("توليد الرابط", "Generate")}
+                </Button>
               </div>
-              {/* Live link preview */}
-              <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ background: "rgba(139,92,246,0.06)", border: "1px solid rgba(139,92,246,0.12)" }}>
-                <Globe className="w-3.5 h-3.5 text-violet-400 shrink-0" />
-                <p className="text-[11px] font-mono truncate" dir="ltr">
-                  <span className="text-white/30">{window.location.origin}/online-order/</span>
-                  <span className="text-violet-300 font-semibold">{storeSlugEdit || t("اسم-متجرك", "your-store")}</span>
-                </p>
-                {storeSlugEdit && (
+
+              {/* Success result */}
+              {mapsParseResult?.ok && storeSlugEdit && (
+                <div className="p-3 rounded-xl space-y-2" style={{ background: "rgba(16,185,129,0.07)", border: "1px solid rgba(16,185,129,0.2)" }}>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <p className="text-xs font-semibold text-emerald-300">{t("✅ تم توليد رابط متجرك بنجاح!", "✅ Your store URL was generated successfully!")}</p>
+                  </div>
+                  {mapsParseResult.extractedName && (
+                    <p className="text-[11px] text-white/50 px-1" dir="rtl">
+                      {t("اسم الموقع المستخرج:", "Extracted location:")} <span className="text-white/70 font-medium">{mapsParseResult.extractedName}</span>
+                    </p>
+                  )}
+                  {mapsParseResult.lat != null && (
+                    <p className="text-[10px] text-white/30 px-1 font-mono" dir="ltr">
+                      📍 {mapsParseResult.lat?.toFixed(5)}, {mapsParseResult.lng?.toFixed(5)}
+                      <span className="text-white/20 ms-2">{t("(تم حفظ الإحداثيات تلقائياً)", "(coordinates saved automatically)")}</span>
+                    </p>
+                  )}
+                  <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg" style={{ background: "rgba(0,0,0,0.3)" }}>
+                    <Link2 className="w-3 h-3 text-violet-400 shrink-0" />
+                    <p className="text-[11px] font-mono truncate flex-1" dir="ltr">
+                      <span className="text-white/30">{window.location.origin}/online-order/</span>
+                      <span className="text-violet-300 font-bold">{storeSlugEdit}</span>
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/online-order/${storeSlugEdit}`); toast({ title: t("تم النسخ", "Copied") }); }}
+                      className="shrink-0 text-[11px] text-violet-400/70 hover:text-violet-400 font-semibold"
+                      data-testid="button-copy-generated-link"
+                    >{t("نسخ", "Copy")}</button>
+                  </div>
+                </div>
+              )}
+
+              {/* Error / manual fallback */}
+              {(mapsParseResult?.ok === false || showManualBranch) && (
+                <div className="space-y-2">
+                  {mapsParseResult?.error && (
+                    <p className="text-[11px] text-red-400/80 flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                      {mapsParseResult.error}
+                    </p>
+                  )}
+                  <p className="text-[11px] text-white/50" dir="rtl">{t("أدخل اسم الفرع/الحي يدوياً وسيتم توليد الرابط فوراً:", "Enter the branch/area name manually to generate the link:")}</p>
+                  <div className="flex gap-2">
+                    <Input
+                      value={manualBranchName}
+                      onChange={(e) => setManualBranchName(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleParseGoogleMaps(manualBranchName)}
+                      placeholder={t("مثال: مطعم السعادة - العليا", "e.g. Al-Saada Restaurant - Olaya")}
+                      dir="rtl"
+                      className="h-10 bg-white/[0.03] border-white/10 text-sm flex-1"
+                      data-testid="input-manual-branch-name"
+                    />
+                    <Button
+                      type="button"
+                      onClick={() => handleParseGoogleMaps(manualBranchName)}
+                      disabled={mapsParseLoading || !manualBranchName.trim()}
+                      size="sm"
+                      className="h-10 px-3 shrink-0"
+                      style={{ background: "rgba(139,92,246,0.7)" }}
+                      data-testid="button-generate-from-name"
+                    >
+                      {mapsParseLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Already-has-a-slug display (if slug saved previously) */}
+              {storeSlugEdit && !mapsParseResult && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                  <Link2 className="w-3 h-3 text-violet-400 shrink-0" />
+                  <p className="text-[11px] font-mono truncate flex-1" dir="ltr">
+                    <span className="text-white/25">{window.location.origin}/online-order/</span>
+                    <span className="text-violet-300 font-semibold">{storeSlugEdit}</span>
+                  </p>
                   <button
                     type="button"
-                    className="ms-auto shrink-0 text-[11px] text-violet-400/70 hover:text-violet-400 transition-colors"
                     onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/online-order/${storeSlugEdit}`); toast({ title: t("تم النسخ", "Copied") }); }}
-                    data-testid="button-copy-slug-preview"
-                  >
-                    {t("نسخ", "Copy")}
-                  </button>
-                )}
-              </div>
-              <p className="text-[10px] text-white/25" dir="rtl">
-                {t("يُسمح بالأحرف الإنجليزية والأرقام والشرطة (-) والأحرف العربية", "Allowed: English letters, numbers, hyphens and Arabic letters")}
-              </p>
+                    className="shrink-0 text-[11px] text-violet-400/60 hover:text-violet-300"
+                    data-testid="button-copy-existing-slug"
+                  >{t("نسخ", "Copy")}</button>
+                  <button
+                    type="button"
+                    onClick={() => { setMapsParseResult(null); setShowManualBranch(true); setManualBranchName(""); }}
+                    className="shrink-0 text-[11px] text-white/20 hover:text-white/50"
+                    data-testid="button-change-slug"
+                  >{t("تغيير", "Change")}</button>
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/[0.04]">
