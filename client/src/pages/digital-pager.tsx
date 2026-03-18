@@ -427,12 +427,9 @@ export default function DigitalPagerPage() {
   }
 
   async function handleShare() {
-    // Preserve type=manual so friends who open the link land on the correct pager collection
     const typeParam = isManual ? "&type=manual" : "";
-    const cleanUrl = `${window.location.origin}${window.location.pathname}?m=${merchantId}${typeParam}`;
+    const cleanUrl = `${window.location.origin}${window.location.pathname}?m=${merchantId}${typeParam}&source=share_moment`;
     const storeName = merchantName || "المتجر";
-    // text does NOT include the URL — navigator.share appends url automatically,
-    // preventing the duplicate-link issue seen in WhatsApp and similar apps
     const shareText = `تابع طلبي معك ولا تنسى تذكرني 🍔✨\n${storeName}`;
     if (navigator.share) {
       try {
@@ -443,6 +440,14 @@ export default function DigitalPagerPage() {
         await navigator.clipboard.writeText(`${shareText}\n${cleanUrl}`);
         toast({ description: "تم نسخ رابط اللحظة! شاركه مع من تحب 💛", duration: 2500 });
       } catch {}
+    }
+    if (merchantId) {
+      fetch(`/api/track/sharebuttonclick/${merchantId}`, { method: "POST" }).catch(() => {});
+      const uniqueKey = `shared_this_store_${merchantId}`;
+      if (!localStorage.getItem(uniqueKey)) {
+        localStorage.setItem(uniqueKey, "true");
+        fetch(`/api/track/uniqueshare/${merchantId}`, { method: "POST" }).catch(() => {});
+      }
     }
   }
 

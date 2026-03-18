@@ -1752,23 +1752,25 @@ export async function registerRoutes(
         )
       );
 
-      let linkVisits = 0, qrScans = 0, googleMapsClicks = 0, cartSessions = 0, completedOrders = 0, tableQrClicks = 0;
+      let linkVisits = 0, qrScans = 0, googleMapsClicks = 0, cartSessions = 0, completedOrders = 0, tableQrClicks = 0, totalShareClicks = 0, uniqueSharesCount = 0;
       for (const doc of docs) {
         if (!doc?.fields) continue;
         const f = doc.fields;
-        linkVisits      += parseInt(f.linkVisits?.integerValue      || "0");
-        qrScans         += parseInt(f.qrScans?.integerValue         || "0");
-        googleMapsClicks+= parseInt(f.googleMapsClicks?.integerValue|| "0");
-        cartSessions    += parseInt(f.cartSessions?.integerValue     || "0");
-        completedOrders += parseInt(f.completedOrders?.integerValue  || "0");
-        tableQrClicks   += parseInt(f.tableQrClicks?.integerValue    || "0");
+        linkVisits        += parseInt(f.linkVisits?.integerValue        || "0");
+        qrScans           += parseInt(f.qrScans?.integerValue           || "0");
+        googleMapsClicks  += parseInt(f.googleMapsClicks?.integerValue  || "0");
+        cartSessions      += parseInt(f.cartSessions?.integerValue      || "0");
+        completedOrders   += parseInt(f.completedOrders?.integerValue   || "0");
+        tableQrClicks     += parseInt(f.tableQrClicks?.integerValue     || "0");
+        totalShareClicks  += parseInt(f.totalShareClicks?.integerValue  || "0");
+        uniqueSharesCount += parseInt(f.uniqueSharesCount?.integerValue || "0");
       }
 
       const abandonedCarts = Math.max(0, cartSessions - completedOrders);
       const totalVisits = linkVisits + qrScans;
       const conversionRate = totalVisits > 0 ? Math.round((completedOrders / totalVisits) * 100) : 0;
 
-      return res.json({ linkVisits, qrScans, googleMapsClicks, cartSessions, completedOrders, abandonedCarts, conversionRate, tableQrClicks, isRangeData: true });
+      return res.json({ linkVisits, qrScans, googleMapsClicks, cartSessions, completedOrders, abandonedCarts, conversionRate, tableQrClicks, totalShareClicks, uniqueSharesCount, isRangeData: true });
     } catch (error) {
       console.error("Merchant tracking range error:", error);
       return res.status(500).json({ message: "Failed to get range tracking data" });
