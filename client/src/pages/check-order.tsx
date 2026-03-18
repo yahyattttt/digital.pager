@@ -175,9 +175,17 @@ export default function CheckOrderPage() {
               >
                 {pendingPager.displayOrderId || `#${pendingPager.orderNumber}`}
               </p>
+              <p
+                className="text-center text-[13px] font-semibold mt-3"
+                style={{ color: "#FBBF24", fontFamily: "'Tajawal', 'Cairo', sans-serif" }}
+                dir="rtl"
+                data-testid="text-invoice-disclaimer"
+              >
+                ⚠️ تنبيه: يجب إحضار الفاتورة الخاصة بك أثناء استلام الطلب
+              </p>
             </div>
 
-            <div className="flex gap-3" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
+            <div className="flex gap-3 mt-2.5" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
               <button
                 onClick={handleCancel}
                 className="flex-1 py-3.5 rounded-2xl text-sm font-bold transition-all active:scale-[0.97]"

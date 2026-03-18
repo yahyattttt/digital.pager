@@ -492,9 +492,17 @@ export default function StorePagerPage() {
                 <p className="text-red-400 text-4xl font-bold font-dseg7 tracking-wider mt-3" style={{ textShadow: "0 0 20px rgba(255,0,0,0.5)" }} data-testid="text-confirm-order-id">
                   {selectedPager.displayOrderId || `#${selectedPager.orderNumber}`}
                 </p>
+                <p
+                  className="text-center text-[13px] font-semibold mt-4"
+                  style={{ color: "#FBBF24", fontFamily: "'Tajawal', 'Cairo', sans-serif" }}
+                  dir="rtl"
+                  data-testid="text-invoice-disclaimer"
+                >
+                  ⚠️ تنبيه: يجب إحضار الفاتورة الخاصة بك أثناء استلام الطلب
+                </p>
               </div>
 
-              <div className="flex gap-3">
+              <div className="flex gap-3 mt-2.5">
                 <button
                   onClick={handleCancelConfirm}
                   className="flex-1 py-3.5 rounded-2xl border border-white/10 text-white/50 text-sm font-bold active:scale-[0.97] transition-all"
