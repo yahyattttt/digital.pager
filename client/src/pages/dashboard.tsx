@@ -4496,8 +4496,8 @@ function TrackingView({
   const conversionRate = data?.conversionRate ?? 0;
   const googleMapsClicks = data?.googleMapsClicks ?? 0;
   const tableQrClicks = data?.tableQrClicks ?? 0;
-  const shareButtonClicks = data?.shareButtonClicks ?? 0;
-  const sharedLinkViews = data?.sharedLinkViews ?? 0;
+  const totalShareClicks = data?.totalShareClicks ?? 0;
+  const uniqueSharesCount = data?.uniqueSharesCount ?? 0;
   const isRangeData = data?.isRangeData ?? false;
 
   const topCards = [
@@ -4672,24 +4672,24 @@ function TrackingView({
           {/* ── Row 3: 2 viral metric cards ── */}
           <div className="grid grid-cols-2 gap-3">
             {renderCard({
-              label: t("مرات المشاركة", "Share Button Clicks"),
-              sublabel: t("زر شارك اللحظة", "Share the moment button"),
-              value: shareButtonClicks,
+              label: t("مجموع نقرات المشاركة", "Total Share Clicks"),
+              sublabel: t("إجمالي نقرات زر شارك اللحظة", "Total share button clicks"),
+              value: totalShareClicks,
               color: "#e879f9",
               border: "rgba(232,121,249,0.20)",
               bg: "rgba(168,85,247,0.07)",
               Icon: Share2,
-              testId: "track-share-button-clicks",
+              testId: "track-total-share-clicks",
             })}
             {renderCard({
-              label: t("زيارات من مشاركات", "Visits from Shares"),
-              sublabel: t("زوار عبر رابط المشاركة", "Visitors via shared link"),
-              value: sharedLinkViews,
+              label: t("عدد الذين شاركوا", "Unique Sharers"),
+              sublabel: t("أشخاص فريدون ضغطوا مشاركة", "Unique sessions that shared"),
+              value: uniqueSharesCount,
               color: "#a78bfa",
               border: "rgba(167,139,250,0.20)",
               bg: "rgba(139,92,246,0.07)",
               Icon: Eye,
-              testId: "track-shared-link-views",
+              testId: "track-unique-shares-count",
             })}
           </div>
 
