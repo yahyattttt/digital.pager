@@ -4491,7 +4491,6 @@ function TrackingView({
 
   const dir = lang === "ar" ? "rtl" : "ltr";
   const linkVisits = data?.linkVisits ?? 0;
-  const qrScans = data?.qrScans ?? 0;
   const completedOrders = data?.completedOrders ?? 0;
   const abandonedCarts = data?.abandonedCarts ?? 0;
   const conversionRate = data?.conversionRate ?? 0;
@@ -4509,16 +4508,6 @@ function TrackingView({
       bg: "rgba(59,130,246,0.07)",
       Icon: Globe,
       testId: "track-link-visits",
-    },
-    {
-      label: t("مسح الكيو آر", "QR Scans"),
-      sublabel: t("رمز الطاولة", "Table code"),
-      value: qrScans,
-      color: "#a78bfa",
-      border: "rgba(167,139,250,0.20)",
-      bg: "rgba(139,92,246,0.07)",
-      Icon: QrCode,
-      testId: "track-qr-scans",
     },
     {
       label: t("نقرات رابط التقييم", "Review Link Clicks"),
@@ -4668,8 +4657,8 @@ function TrackingView({
         </div>
       ) : (
         <>
-          {/* ── Row 1: 3 traffic cards ── */}
-          <div className="grid grid-cols-3 gap-3">
+          {/* ── Row 1: 2 traffic cards ── */}
+          <div className="grid grid-cols-2 gap-3">
             {topCards.map(renderCard)}
           </div>
 
