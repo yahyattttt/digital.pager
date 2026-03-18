@@ -607,6 +607,10 @@ export async function registerRoutes(
       page = page.replace(/<meta property="og:title"[^>]*\/>/, `<meta property="og:title" content="${storeName}" />`);
       page = page.replace(/<meta property="og:description"[^>]*\/>/, `<meta property="og:description" content="${description}" />`);
 
+      // Strip any existing og:image / twitter:image from index.html so the merchant logo wins
+      page = page.replace(/<meta property="og:image"[^>]*\/?>/gi, "");
+      page = page.replace(/<meta name="twitter:image"[^>]*\/?>/gi, "");
+
       // Inject og:image, og:url and Twitter card tags right before </head>
       const ogBlock = `
   <meta property="og:image" content="${fullLogoUrl}" />
