@@ -1783,6 +1783,65 @@ export async function registerRoutes(
 
   // ── Wallet / Loyalty Endpoints ─────────────────────────────────────────────
 
+  /* ── Wallet: Redemption Archive — must be registered BEFORE /:phone wildcard ── */
+  app.get("/api/wallet/:merchantId/redemption-archive", async (req, res) => {
+    try {
+      const { merchantId } = req.params;
+      const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
+      const apiKey = getApiKey();
+      if (!apiKey || !projectId) return res.status(500).json({ message: "Config error" });
+      const queryUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery?key=${apiKey}`;
+      const queryRes = await fetch(queryUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          structuredQuery: {
+            from: [{ collectionId: "wallets" }],
+            where: {
+              fieldFilter: {
+                field: { fieldPath: "merchantId" },
+                op: "EQUAL",
+                value: { stringValue: merchantId },
+              },
+            },
+          },
+        }),
+      });
+      if (!queryRes.ok) return res.status(500).json({ message: "Query failed" });
+      const rows = await queryRes.json();
+      const entries: any[] = [];
+      (Array.isArray(rows) ? rows : [])
+        .filter((r: any) => r.document)
+        .forEach((r: any) => {
+          const f = r.document.fields || {};
+          const phone = f.phone?.stringValue || "";
+          const history: any[] = f.history?.arrayValue?.values || [];
+          history.forEach((h: any) => {
+            const hf = h.mapValue?.fields || {};
+            const type = hf.type?.stringValue || "";
+            if (type === "redeem_reset" || type === "redeem") {
+              const amount = Math.abs(parseFloat(String(hf.amount?.doubleValue ?? hf.amount?.integerValue ?? "0"))) || 0;
+              entries.push({
+                phone,
+                amount,
+                invoiceNumber: hf.invoiceNumber?.stringValue || "",
+                note: hf.note?.stringValue || "",
+                timestamp: hf.timestamp?.stringValue || "",
+                date: hf.date?.stringValue || "",
+                time: hf.time?.stringValue || "",
+                type,
+              });
+            }
+          });
+        });
+      entries.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      return res.json({ entries });
+    } catch (err) {
+      console.error("[Wallet] archive error:", err);
+      return res.status(500).json({ message: "Internal error" });
+    }
+  });
+
   app.get("/api/wallet/:merchantId/:phone", async (req, res) => {
     try {
       const { merchantId, phone } = req.params;

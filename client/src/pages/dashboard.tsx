@@ -7398,6 +7398,11 @@ function LoyaltyView({
   const [activeCustomers, setActiveCustomers] = useState(0);
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
 
+  const [archiveEntries, setArchiveEntries] = useState<any[]>([]);
+  const [archiveLoading, setArchiveLoading] = useState(false);
+  const [archiveInvoiceSearch, setArchiveInvoiceSearch] = useState("");
+  const [archivePhoneSearch, setArchivePhoneSearch] = useState("");
+
   useEffect(() => {
     if (!merchant?.uid) return;
     async function loadAnalytics() {
@@ -7425,6 +7430,24 @@ function LoyaltyView({
       setAnalyticsLoading(false);
     }
     loadAnalytics();
+  }, [merchant?.uid]);
+
+  useEffect(() => {
+    if (!merchant?.uid) return;
+    async function loadArchive() {
+      setArchiveLoading(true);
+      try {
+        const res = await fetch(`/api/wallet/${merchant.uid}/redemption-archive`, {
+          headers: { "x-admin-email": "" },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setArchiveEntries(data.entries || []);
+        }
+      } catch { /**/ }
+      setArchiveLoading(false);
+    }
+    loadArchive();
   }, [merchant?.uid]);
 
   async function handleSave() {
@@ -7480,6 +7503,8 @@ function LoyaltyView({
         setWalletData({ ...walletData, balance: 0, online_balance: 0, manual_balance: 0 });
         setInvoiceNumber("");
         toast({ title: t("تم التصفير", "Balance Reset"), description: t("تم تصفير رصيد العميل بنجاح", "Customer balance has been reset") });
+        fetch(`/api/wallet/${merchant.uid}/redemption-archive`)
+          .then(r => r.json()).then(d => setArchiveEntries(d.entries || [])).catch(() => {});
       } else {
         toast({ title: t("خطأ", "Error"), description: t("فشل في التصفير", "Failed to reset"), variant: "destructive" });
       }
@@ -7879,6 +7904,150 @@ function LoyaltyView({
               {t("إضافة المكافأة للمحفظة", "Add Reward to Wallet")}
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Redemption Archive ── */}
+      <Card className="border-white/[0.06] bg-[#111] rounded-2xl" data-testid="section-redemption-archive">
+        <CardContent className="p-6 space-y-4">
+          {/* Header */}
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-8 h-8 rounded-xl bg-red-500/10 flex items-center justify-center shrink-0">
+              <FolderArchive className="w-4 h-4 text-red-400" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-sm">{t("أرشيف المكافآت المستردة", "Redemption Archive")}</h3>
+              <p className="text-xs text-muted-foreground">{t("سجل شامل لكل عملية سحب من نظام الولاء", "Complete log of every loyalty withdrawal")}</p>
+            </div>
+            <div className="ms-auto flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span className="text-white/60 font-bold">{archiveEntries.length}</span>
+              <span>{t("عملية", "transactions")}</span>
+            </div>
+          </div>
+
+          {/* Search Filters */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" dir="rtl">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1.5 block">{t("بحث برقم الفاتورة", "Search by Invoice #")}</label>
+              <div className="relative">
+                <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/25 pointer-events-none" />
+                <input
+                  type="text"
+                  value={archiveInvoiceSearch}
+                  onChange={e => setArchiveInvoiceSearch(e.target.value)}
+                  placeholder={t("رقم الفاتورة...", "Invoice number...")}
+                  className="w-full h-10 pr-9 pl-3 rounded-xl bg-white/[0.04] border border-white/10 text-white text-sm focus:outline-none focus:border-red-500/40"
+                  data-testid="input-archive-invoice-search"
+                  dir="ltr"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1.5 block">{t("بحث برقم الجوال", "Search by Phone")}</label>
+              <div className="relative">
+                <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/25 pointer-events-none" />
+                <input
+                  type="tel"
+                  value={archivePhoneSearch}
+                  onChange={e => setArchivePhoneSearch(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                  placeholder="05XXXXXXXX"
+                  className="w-full h-10 pr-9 pl-3 rounded-xl bg-white/[0.04] border border-white/10 text-white text-sm focus:outline-none focus:border-red-500/40"
+                  data-testid="input-archive-phone-search"
+                  dir="ltr"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Table */}
+          {archiveLoading ? (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 className="w-6 h-6 text-red-400 animate-spin" />
+            </div>
+          ) : (() => {
+            const filtered = archiveEntries.filter(e => {
+              const invoiceMatch = !archiveInvoiceSearch.trim() || e.invoiceNumber.toLowerCase().includes(archiveInvoiceSearch.trim().toLowerCase());
+              const phoneMatch = !archivePhoneSearch.trim() || e.phone.includes(archivePhoneSearch.trim());
+              return invoiceMatch && phoneMatch;
+            });
+            if (filtered.length === 0) {
+              return (
+                <div className="text-center py-10 text-white/25 text-sm" data-testid="text-archive-empty">
+                  {archiveEntries.length === 0
+                    ? t("لا توجد عمليات استرداد بعد", "No redemptions yet")
+                    : t("لا توجد نتائج مطابقة", "No matching results")}
+                </div>
+              );
+            }
+            return (
+              <div className="overflow-x-auto rounded-xl border border-white/[0.06]" data-testid="table-redemption-archive">
+                <table className="w-full text-sm" dir="rtl">
+                  <thead>
+                    <tr className="border-b border-white/[0.06] bg-white/[0.02]">
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-white/40 whitespace-nowrap">{t("التاريخ والوقت", "Date & Time")}</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-white/40 whitespace-nowrap">{t("رقم العميل", "Customer Phone")}</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-white/40 whitespace-nowrap">{t("المبلغ المسحوب", "Redeemed Amount")}</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-white/40 whitespace-nowrap">{t("رقم الفاتورة", "Invoice #")}</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-white/40 whitespace-nowrap">{t("الحالة", "Status")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((entry, idx) => {
+                      const ts = entry.timestamp ? new Date(entry.timestamp) : null;
+                      const dateStr = ts
+                        ? ts.toLocaleDateString("ar-SA", { day: "2-digit", month: "2-digit", year: "numeric" })
+                        : entry.date || "—";
+                      const timeStr = ts
+                        ? ts.toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })
+                        : entry.time || "";
+                      return (
+                        <tr
+                          key={idx}
+                          className="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors"
+                          data-testid={`row-archive-${idx}`}
+                        >
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <div className="text-white/80 text-xs font-medium">{dateStr}</div>
+                            <div className="text-white/35 text-[10px] font-mono">{timeStr}</div>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <span className="text-white/70 text-xs font-mono" data-testid={`text-archive-phone-${idx}`}>{entry.phone || "—"}</span>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <span className="text-red-400 font-bold text-sm" data-testid={`text-archive-amount-${idx}`}>
+                              {entry.amount.toFixed(2)}
+                              <span className="text-white/30 text-xs font-normal ms-1">ر.س</span>
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            {entry.invoiceNumber ? (
+                              <span
+                                className="text-amber-300 font-black text-base tracking-wide font-mono"
+                                data-testid={`text-archive-invoice-${idx}`}
+                              >
+                                {entry.invoiceNumber}
+                              </span>
+                            ) : (
+                              <span className="text-white/20 text-xs">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <span
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                              data-testid={`text-archive-status-${idx}`}
+                            >
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                              {t("مكتمل", "Completed")}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
         </CardContent>
       </Card>
     </div>
