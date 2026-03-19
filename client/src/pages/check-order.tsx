@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams } from "wouter";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -8,6 +8,7 @@ type PagerDoc = {
   docId: string;
   orderNumber: string;
   displayOrderId: string;
+  access_pin: string;
 };
 
 export default function CheckOrderPage() {
@@ -16,8 +17,13 @@ export default function CheckOrderPage() {
   const [merchantName, setMerchantName] = useState<string>("");
   const [merchantLogo, setMerchantLogo] = useState<string>("");
   const [loadingMerchant, setLoadingMerchant] = useState(true);
-  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const [pinOpen, setPinOpen] = useState(false);
   const [pendingPager, setPendingPager] = useState<PagerDoc | null>(null);
+  const [pinInput, setPinInput] = useState("");
+  const [pinError, setPinError] = useState("");
+  const [pinChecking, setPinChecking] = useState(false);
+  const pinInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!merchantId) return;
@@ -48,6 +54,7 @@ export default function CheckOrderPage() {
           docId: d.id,
           orderNumber: data.orderNumber || "",
           displayOrderId: data.displayOrderId || data.orderNumber || "",
+          access_pin: data.access_pin || "",
         });
       });
       docs.sort((a, b) => Number(a.orderNumber) - Number(b.orderNumber));
@@ -58,17 +65,39 @@ export default function CheckOrderPage() {
 
   function handleSelect(pager: PagerDoc) {
     setPendingPager(pager);
-    setConfirmOpen(true);
+    setPinInput("");
+    setPinError("");
+    setPinOpen(true);
+    setTimeout(() => pinInputRef.current?.focus(), 120);
   }
 
-  function handleConfirm() {
+  function handlePinConfirm() {
     if (!pendingPager) return;
-    window.location.href = `/digital-pager/${pendingPager.docId}?m=${merchantId}&type=manual`;
+    const entered = pinInput.trim();
+    if (!entered) {
+      setPinError("الرمز غير صحيح، يرجى التأكد من الكاشير");
+      return;
+    }
+    setPinChecking(true);
+    if (entered === pendingPager.access_pin) {
+      window.location.href = `/digital-pager/${pendingPager.docId}?m=${merchantId}&type=manual`;
+    } else {
+      setPinError("الرمز غير صحيح، يرجى التأكد من الكاشير");
+      setPinChecking(false);
+      setPinInput("");
+      setTimeout(() => pinInputRef.current?.focus(), 80);
+    }
   }
 
-  function handleCancel() {
-    setConfirmOpen(false);
+  function handlePinCancel() {
+    setPinOpen(false);
     setPendingPager(null);
+    setPinInput("");
+    setPinError("");
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter") handlePinConfirm();
   }
 
   const bg = "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)";
@@ -146,11 +175,11 @@ export default function CheckOrderPage() {
         )}
       </div>
 
-      {/* Confirmation Modal */}
-      {confirmOpen && pendingPager && (
+      {/* PIN Verification Modal */}
+      {pinOpen && pendingPager && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm px-5"
-          data-testid="confirm-dialog"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/88 backdrop-blur-sm px-5"
+          data-testid="pin-modal"
         >
           <div
             className="w-full max-w-sm rounded-3xl p-6 space-y-5"
@@ -161,55 +190,97 @@ export default function CheckOrderPage() {
             }}
           >
             <div className="text-center" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
-              <p className="text-white/35 text-[11px] tracking-[0.25em] uppercase mb-3">CONFIRM ORDER</p>
+              <p className="text-white/35 text-[11px] tracking-[0.25em] uppercase mb-3">PIN VERIFICATION</p>
+
               <p
-                className="text-white text-lg font-bold mb-3"
-                data-testid="text-confirm-question"
+                className="text-white text-lg font-bold mb-1"
+                data-testid="text-pin-modal-title"
               >
-                هل أنت متأكد من رقم طلبك؟
+                تأكيد ملكية الطلب
               </p>
+
               <p
-                className="text-red-400 font-bold mt-2 mb-1"
-                style={{ fontSize: 42, textShadow: "0 0 24px rgba(255,60,0,0.45)", letterSpacing: "0.05em" }}
-                data-testid="text-confirm-order-id"
+                className="text-red-400 font-black mb-3"
+                style={{ fontSize: 38, textShadow: "0 0 24px rgba(255,60,0,0.45)", letterSpacing: "0.05em" }}
+                data-testid="text-pin-order-id"
               >
                 {pendingPager.displayOrderId || `#${pendingPager.orderNumber}`}
               </p>
+
               <p
-                className="text-center text-[13px] font-semibold mt-3"
-                style={{ color: "#FBBF24", fontFamily: "'Tajawal', 'Cairo', sans-serif" }}
-                dir="rtl"
-                data-testid="text-invoice-disclaimer"
+                className="text-white/50 text-sm mb-5 leading-relaxed"
+                data-testid="text-pin-subtitle"
               >
-                ⚠️ تنبيه: يجب إحضار الفاتورة الخاصة بك أثناء استلام الطلب
+                فضلاً أدخل الرمز الموجود في كرت الطلب
               </p>
+
+              <input
+                ref={pinInputRef}
+                type="number"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={3}
+                value={pinInput}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, "").slice(0, 3);
+                  setPinInput(val);
+                  if (pinError) setPinError("");
+                }}
+                onKeyDown={handleKeyDown}
+                placeholder="• • •"
+                className="w-full text-center text-3xl font-black tracking-[0.5em] rounded-2xl py-4 outline-none transition-all"
+                style={{
+                  background: "rgba(255,255,255,0.05)",
+                  border: pinError ? "1.5px solid rgba(220,38,38,0.7)" : "1.5px solid rgba(255,255,255,0.12)",
+                  color: "#fff",
+                  fontFamily: "monospace",
+                  appearance: "textfield",
+                  MozAppearance: "textfield",
+                }}
+                data-testid="input-pin"
+              />
+
+              {pinError && (
+                <p
+                  className="text-red-400 text-sm font-semibold mt-3"
+                  data-testid="text-pin-error"
+                  dir="rtl"
+                >
+                  {pinError}
+                </p>
+              )}
             </div>
 
             <div className="flex gap-3 mt-2.5" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
               <button
-                onClick={handleCancel}
+                onClick={handlePinCancel}
                 className="flex-1 py-3.5 rounded-2xl text-sm font-bold transition-all active:scale-[0.97]"
                 style={{
                   background: "rgba(255,255,255,0.04)",
                   border: "1.5px solid rgba(255,255,255,0.10)",
                   color: "rgba(255,255,255,0.45)",
                 }}
-                data-testid="button-confirm-cancel"
+                data-testid="button-pin-cancel"
               >
                 إلغاء
               </button>
               <button
-                onClick={handleConfirm}
-                className="flex-1 py-3.5 rounded-2xl text-sm font-bold transition-all active:scale-[0.97]"
+                onClick={handlePinConfirm}
+                disabled={pinChecking || pinInput.length !== 3}
+                className="flex-1 py-3.5 rounded-2xl text-sm font-bold transition-all active:scale-[0.97] disabled:opacity-50"
                 style={{
                   background: "rgba(160,0,0,0.85)",
                   border: "1.5px solid rgba(200,40,40,0.4)",
                   color: "#fff",
                   boxShadow: "0 0 28px rgba(255,0,0,0.18)",
                 }}
-                data-testid="button-confirm-yes"
+                data-testid="button-pin-confirm"
               >
-                تأكيد
+                {pinChecking ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  </span>
+                ) : "تأكيد"}
               </button>
             </div>
           </div>

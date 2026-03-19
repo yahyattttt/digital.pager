@@ -1046,6 +1046,7 @@ export default function DashboardPage() {
         status: "waiting",
         createdAt: new Date().toISOString(),
         notifiedAt: null,
+        access_pin: String(Math.floor(100 + Math.random() * 900)),
       });
       setManualDigitInput("");
       toast({ title: t(`تم إضافة طلب رقم ${trimmed} بنجاح`, `Order #${trimmed} added successfully`) });
@@ -1132,6 +1133,7 @@ export default function DashboardPage() {
         status: "waiting",
         createdAt: new Date().toISOString(),
         notifiedAt: null,
+        access_pin: String(Math.floor(100 + Math.random() * 900)),
       });
 
       // Update global platform counter (fire-and-forget, non-blocking)
@@ -3148,6 +3150,16 @@ function OverviewView({
                           >
                             {pager.displayOrderId || `#${item.orderNumber}`}
                           </span>
+                          {pager.access_pin && (
+                            <span
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-black tracking-widest"
+                              style={{ background: "rgba(220,38,38,0.13)", border: "1px solid rgba(220,38,38,0.3)", color: "#f87171", letterSpacing: "0.2em" }}
+                              data-testid={`text-access-pin-${item.id}`}
+                              title="رمز التحقق للعميل"
+                            >
+                              🔑 {pager.access_pin}
+                            </span>
+                          )}
                         </div>
                         <div className="flex flex-col items-end gap-1.5 shrink-0">
                           <LiveIndicator isNew={!isNotified} label={isNotified ? t("نُبِّه", "NOTIFIED") : t("انتظار", "WAITING")} />

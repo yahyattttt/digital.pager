@@ -131,6 +131,7 @@ export const pagerSchema = z.object({
   createdAt: z.string(),
   notifiedAt: z.string().nullable().optional(),
   fcmToken: z.string().nullable().optional(),
+  access_pin: z.string().optional(),
 });
 
 export type Pager = z.infer<typeof pagerSchema>;
