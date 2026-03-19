@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "wouter";
-import { doc, getDoc, onSnapshot, updateDoc } from "firebase/firestore";
+import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Download } from "lucide-react";
 import { StarRatingPopup } from "@/components/star-rating-popup";
@@ -25,6 +25,7 @@ interface OrderData {
   createdAt?: string;
   loyalty_opted_in?: boolean;
   reward_applied?: boolean;
+  reward_amount?: number;
   status?: string;
 }
 
@@ -42,10 +43,8 @@ export default function OrderCompletedPage() {
   const [ratingDone, setRatingDone] = useState(false);
 
   const [rewardEarned, setRewardEarned] = useState(0);
-  const [rewardTotal, setRewardTotal] = useState(0);
   const [rewardVisible, setRewardVisible] = useState(false);
 
-  const onlinePctRef = useRef(0);
   const rewardApplyingRef = useRef(false);
   const confettiFired = useRef(false);
 
@@ -57,8 +56,6 @@ export default function OrderCompletedPage() {
           const d = merchantSnap.data();
           setMerchantName(d.storeName || "");
           setGoogleMapsReviewUrl(d.googleMapsReviewUrl || "");
-          const lc = d.loyalty_config;
-          if (lc?.is_enabled) onlinePctRef.current = lc.online_percent || 0;
         }
 
         if (orderId && orderType !== "manual") {
@@ -74,56 +71,25 @@ export default function OrderCompletedPage() {
     fetchData();
   }, [merchantId, orderId, orderType]);
 
-  // Listen for order status → "archived" and trigger reward if not yet applied
+  // Listen for order status → "archived" and display reward (crediting is server-side)
   useEffect(() => {
     if (!orderId || orderType === "manual") return;
     const unsub = onSnapshot(
       doc(db, "merchants", merchantId, "whatsappOrders", orderId),
-      async (snap) => {
+      (snap) => {
         if (!snap.exists()) return;
         const data = snap.data() as OrderData;
         setOrder(prev => ({ ...prev, ...data }));
 
         const isArchived = data.status === "archived";
-        const alreadyApplied = data.reward_applied === true;
+        const rewardApplied = data.reward_applied === true;
         const optedIn = data.loyalty_opted_in === true;
-        const phone = data.customerPhone?.replace(/\D/g, "");
-        const orderTotal = data.total || 0;
-        const pct = onlinePctRef.current;
+        const rewardAmt = data.reward_amount || 0;
 
-        if (isArchived && !alreadyApplied && optedIn && phone && pct > 0 && !rewardApplyingRef.current) {
+        // Server has already credited the wallet and set reward_applied + reward_amount
+        if (isArchived && rewardApplied && optedIn && rewardAmt > 0 && !rewardApplyingRef.current) {
           rewardApplyingRef.current = true;
-          const earned = Math.round(orderTotal * pct / 100 * 100) / 100;
-          if (earned > 0) {
-            try {
-              // Credit wallet
-              const walletRes = await fetch(`/api/wallet/${merchantId}/add`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  phone,
-                  amount: earned,
-                  balance_type: "online",
-                  type: "earn_online",
-                  note: `مكافأة طلب #${data.displayOrderId || data.orderNumber}`,
-                }),
-              });
-              const walletData = await walletRes.json();
-              // Mark reward as applied on the order doc
-              await updateDoc(doc(db, "merchants", merchantId, "whatsappOrders", orderId), {
-                reward_applied: true,
-              });
-              setRewardEarned(earned);
-              setRewardTotal(walletData.newBalance || 0);
-              setRewardVisible(true);
-            } catch {
-              rewardApplyingRef.current = false;
-            }
-          }
-        }
-
-        // If already applied, just mark reward visible (e.g. page reload)
-        if (isArchived && alreadyApplied && optedIn) {
+          setRewardEarned(rewardAmt);
           setRewardVisible(true);
         }
       }
@@ -385,11 +351,7 @@ export default function OrderCompletedPage() {
               <p className="text-base font-black text-amber-400" data-testid="text-reward-earned">
                 مبروك! كسبت {rewardEarned.toFixed(2)} ريال
               </p>
-              <p className="text-sm mt-1 text-white/70" data-testid="text-reward-total">
-                مجموع رصيدك الحالي هو{" "}
-                <span className="text-amber-400 font-bold">{rewardTotal.toFixed(2)} ريال</span>
-              </p>
-              <p className="text-xs mt-2 text-white/30">يمكن استخدام الرصيد في طلبك القادم</p>
+              <p className="text-xs mt-2 text-white/30">يمكن استخدام الرصيد في طلبك القادم عبر كاشير المتجر</p>
             </>
           ) : (
             <>
