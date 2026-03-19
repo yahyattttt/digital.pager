@@ -2165,6 +2165,8 @@ export default function DashboardPage() {
                 lastShiftNumber={lastShiftNumber}
                 manualInputRef={manualInputRef}
                 isApproved={isApproved}
+                onOpenQuickRedeem={() => { setShowQuickRedeem(true); setQrSuccess(false); }}
+                loyaltyEnabled={!!merchant?.loyalty_config?.is_enabled}
               />
             )}
 
@@ -2591,6 +2593,8 @@ function OverviewView({
   lastShiftNumber,
   manualInputRef,
   isApproved,
+  onOpenQuickRedeem,
+  loyaltyEnabled,
 }: {
   merchant: any;
   waitingPagers: (Pager & { docId: string })[];
@@ -2634,6 +2638,8 @@ function OverviewView({
   lastShiftNumber: number;
   manualInputRef: React.RefObject<HTMLInputElement>;
   isApproved: boolean;
+  onOpenQuickRedeem: () => void;
+  loyaltyEnabled: boolean;
 }) {
   const { toast } = useToast();
   const [printOrder, setPrintOrder] = useState<WhatsAppOrder | null>(null);
@@ -2642,7 +2648,6 @@ function OverviewView({
   const [customerNoShowMap, setCustomerNoShowMap] = useState<Record<string, number>>({});
   const [customerOrderCounts, setCustomerOrderCounts] = useState<Record<string, number>>({});
   const [overviewStats, setOverviewStats] = useState<{ totalRevenueToday: number; completedTodayCount: number; cancelledToday: number } | null>(null);
-  const loyaltyEnabled = !!(merchant as any)?.loyalty_config?.is_enabled;
   const loyaltyVisitRewardAmt = parseFloat((merchant as any)?.loyalty_config?.manual_visit_reward || 2);
   const [compensateModal, setCompensateModal] = useState<{ open: boolean; phone: string; amount: string; saving: boolean }>({ open: false, phone: "", amount: "", saving: false });
   const [visitRewardModal, setVisitRewardModal] = useState<{ open: boolean; phone: string; saving: boolean }>({ open: false, phone: "", saving: false });
@@ -3062,9 +3067,9 @@ function OverviewView({
           )}
         </div>
         <div className="flex items-center gap-2">
-          {merchant?.loyalty_config?.is_enabled && (
+          {loyaltyEnabled && (
             <button
-              onClick={() => { setShowQuickRedeem(true); setQrSuccess(false); }}
+              onClick={onOpenQuickRedeem}
               className="flex items-center gap-1.5 h-7 px-3 rounded-full text-[11px] font-bold transition-all active:scale-[0.95]"
               style={{ background: "rgba(251,191,36,0.12)", border: "1px solid rgba(251,191,36,0.3)", color: "#fbbf24" }}
               data-testid="button-quick-redeem-open"
