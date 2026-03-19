@@ -3614,6 +3614,14 @@ export async function registerRoutes(
         storeLng: mf.storeLng?.doubleValue ?? null,
         commercialRegisterNumber: mf.commercialRegisterNumber?.stringValue || "",
         taxNumber: mf.taxNumber?.stringValue || "",
+        loyalty_config: (() => {
+          const lcf = mf.loyalty_config?.mapValue?.fields || {};
+          return {
+            is_enabled: lcf.is_enabled?.booleanValue === true,
+            online_percent: Number(lcf.online_percent?.integerValue || lcf.online_percent?.doubleValue || 0),
+            manual_visit_reward: Number(lcf.manual_visit_reward?.integerValue || lcf.manual_visit_reward?.doubleValue || 0),
+          };
+        })(),
       };
 
       // Fetch products via LIST using the resolved Firestore docId path

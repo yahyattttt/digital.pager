@@ -21,6 +21,12 @@ interface CartItem {
   itemPrice: number;
 }
 
+interface LoyaltyConfig {
+  is_enabled: boolean;
+  online_percent: number;
+  manual_visit_reward: number;
+}
+
 interface MerchantInfo {
   storeName: string;
   logoUrl: string;
@@ -44,6 +50,7 @@ interface MerchantInfo {
   storeLng: number | null;
   commercialRegisterNumber?: string;
   taxNumber?: string;
+  loyalty_config?: LoyaltyConfig;
 }
 
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -302,7 +309,7 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
       setWalletApplied(false);
       return;
     }
-    const loyaltyEnabled = !!(merchant as any)?.loyalty_config?.is_enabled;
+    const loyaltyEnabled = !!merchant?.loyalty_config?.is_enabled;
     if (!loyaltyEnabled) return;
     setWalletLoading(true);
     try {
@@ -883,80 +890,99 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
               )}
             </div>
 
-            {/* ── Loyalty Opt-In (always visible for online orders) ── */}
-            <div
-              className="mt-3 rounded-2xl px-4 py-3.5"
-              style={{
-                background: isLoyaltyOptIn
-                  ? "linear-gradient(135deg,rgba(40,24,0,0.95) 0%,rgba(18,10,0,0.98) 100%)"
-                  : "rgba(255,255,255,0.03)",
-                border: isLoyaltyOptIn
-                  ? "1.5px solid rgba(251,191,36,0.35)"
-                  : "1.5px solid rgba(255,255,255,0.08)",
-                transition: "all 0.2s ease",
-              }}
-              data-testid="section-loyalty-optin"
-              dir="rtl"
-            >
-              {/* Checkbox row */}
-              <button
-                type="button"
-                onClick={() => setIsLoyaltyOptIn(prev => !prev)}
-                className="w-full flex items-center gap-3 text-right"
-                data-testid="toggle-loyalty-optin"
+            {/* ── Loyalty Opt-In — shown only when merchant has loyalty enabled ── */}
+            {merchant?.loyalty_config?.is_enabled && (
+              <div
+                className="rounded-2xl px-4 py-4"
+                style={{
+                  background: isLoyaltyOptIn
+                    ? "linear-gradient(135deg, rgba(45,28,0,0.97) 0%, rgba(20,12,0,0.99) 100%)"
+                    : "linear-gradient(135deg, rgba(251,191,36,0.06) 0%, rgba(0,0,0,0.4) 100%)",
+                  border: isLoyaltyOptIn
+                    ? "1.5px solid rgba(251,191,36,0.55)"
+                    : "1.5px solid rgba(251,191,36,0.22)",
+                  boxShadow: isLoyaltyOptIn ? "0 0 18px rgba(251,191,36,0.12)" : "none",
+                  transition: "all 0.25s ease",
+                }}
+                data-testid="section-loyalty-optin"
+                dir="rtl"
               >
-                {/* Custom checkbox */}
-                <div
-                  className="shrink-0 w-5 h-5 rounded-md flex items-center justify-center transition-all"
-                  style={{
-                    background: isLoyaltyOptIn ? "#fbbf24" : "transparent",
-                    border: isLoyaltyOptIn ? "2px solid #fbbf24" : "2px solid rgba(255,255,255,0.2)",
-                  }}
-                >
-                  {isLoyaltyOptIn && (
-                    <svg width="11" height="9" viewBox="0 0 11 9" fill="none">
-                      <path d="M1 4.5L4 7.5L10 1.5" stroke="#000" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  )}
+                {/* Header badge */}
+                <div className="flex items-center gap-1.5 mb-3">
+                  <span className="text-[10px] font-black tracking-widest uppercase" style={{ color: "#fbbf24" }}>نظام الولاء</span>
+                  <span className="flex-1 h-px" style={{ background: "rgba(251,191,36,0.2)" }} />
+                  <span className="text-[10px]">🏆</span>
                 </div>
-                <div className="flex-1">
-                  <p
-                    className="text-sm font-bold leading-snug"
-                    style={{ color: isLoyaltyOptIn ? "#fbbf24" : "rgba(255,255,255,0.7)" }}
-                  >
-                    انضم لنظام الولاء واحصل على كاش باك 🎁
-                  </p>
-                  <p className="text-[10px] mt-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>
-                    بالموافقة، أنت تقبل شروط نظام الولاء
-                  </p>
-                </div>
-              </button>
 
-              {/* Expanded earn info when opted in */}
-              {isLoyaltyOptIn && (() => {
-                const onlinePct = parseFloat((merchant as any)?.loyalty_config?.online_percent ?? 0);
-                const earnAmount = onlinePct > 0
-                  ? Math.round(finalTotal * onlinePct / 100 * 100) / 100
-                  : 0;
-                return earnAmount > 0 ? (
+                {/* Checkbox row */}
+                <button
+                  type="button"
+                  onClick={() => setIsLoyaltyOptIn(prev => !prev)}
+                  className="w-full flex items-center gap-3 text-right"
+                  data-testid="toggle-loyalty-optin"
+                >
+                  {/* Custom gold checkbox */}
                   <div
-                    className="mt-3 flex items-center gap-2 rounded-xl px-3 py-2"
-                    style={{ background: "rgba(251,191,36,0.07)", border: "1px solid rgba(251,191,36,0.15)" }}
-                    data-testid="text-loyalty-earn-preview"
+                    className="shrink-0 w-6 h-6 rounded-lg flex items-center justify-center transition-all"
+                    style={{
+                      background: isLoyaltyOptIn
+                        ? "linear-gradient(135deg, #fbbf24, #f59e0b)"
+                        : "rgba(251,191,36,0.08)",
+                      border: isLoyaltyOptIn ? "2px solid #fbbf24" : "2px solid rgba(251,191,36,0.35)",
+                      boxShadow: isLoyaltyOptIn ? "0 0 8px rgba(251,191,36,0.4)" : "none",
+                    }}
                   >
-                    <span>✨</span>
-                    <p className="text-[11px] leading-relaxed" style={{ color: "rgba(255,255,255,0.65)" }}>
-                      ستكسب{" "}
-                      <span className="font-black text-amber-400">{earnAmount.toFixed(2)} ريال</span>
-                      {" "}في محفظتك عند اكتمال الطلب
+                    {isLoyaltyOptIn && (
+                      <svg width="12" height="10" viewBox="0 0 12 10" fill="none">
+                        <path d="M1 5L4.5 8.5L11 1.5" stroke="#000" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <p
+                      className="text-sm font-black leading-snug"
+                      style={{ color: isLoyaltyOptIn ? "#fbbf24" : "rgba(255,255,255,0.85)" }}
+                    >
+                      انضم لنظام الولاء واحصل على كاش باك 🎁
+                    </p>
+                    <p className="text-[10px] mt-0.5 font-medium" style={{ color: "rgba(255,255,255,0.35)" }}>
+                      بالموافقة، أنت تقبل شروط نظام الولاء
                     </p>
                   </div>
-                ) : null;
-              })()}
-            </div>
+                </button>
+
+                {/* Earn preview when opted in */}
+                {isLoyaltyOptIn && (() => {
+                  const onlinePct = merchant.loyalty_config!.online_percent;
+                  const earnAmount = onlinePct > 0
+                    ? Math.round(finalTotal * onlinePct / 100 * 100) / 100
+                    : 0;
+                  return (
+                    <div
+                      className="mt-3 flex items-center gap-2.5 rounded-xl px-3 py-2.5"
+                      style={{ background: "rgba(251,191,36,0.09)", border: "1px solid rgba(251,191,36,0.2)" }}
+                      data-testid="text-loyalty-earn-preview"
+                    >
+                      <span className="text-lg">✨</span>
+                      <p className="text-xs leading-relaxed font-medium" style={{ color: "rgba(255,255,255,0.75)" }}>
+                        {earnAmount > 0 ? (
+                          <>
+                            ستكسب{" "}
+                            <span className="font-black text-base" style={{ color: "#fbbf24" }}>{earnAmount.toFixed(2)}</span>
+                            {" "}ريال في محفظتك عند اكتمال الطلب
+                          </>
+                        ) : (
+                          <>سيتم إضافة مكافأة الولاء لمحفظتك عند اكتمال الطلب</>
+                        )}
+                      </p>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
 
             {/* ── Wallet Balance Panel (when loyalty enabled) ── */}
-            {!!(merchant as any)?.loyalty_config?.is_enabled && (
+            {!!merchant?.loyalty_config?.is_enabled && (
               !walletVerified ? (
                 <button
                   type="button"
