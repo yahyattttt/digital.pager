@@ -981,11 +981,11 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
 
                 {/* Customer note — always visible inside the loyalty card */}
                 <p
-                  className="mt-2 text-[10px] leading-relaxed text-center"
-                  style={{ color: "rgba(255,255,255,0.28)" }}
+                  className="mt-3 text-base font-bold leading-relaxed text-center"
+                  style={{ color: "#FFD700" }}
                   data-testid="text-loyalty-cashier-note"
                 >
-                  للاستفسار عن رصيدك أو استبداله من خلال كاشير المتجر
+                  للإستعلام عن رصيد مكافأتك أو الاستفادة منها عن طريق كاشير المتجر
                 </p>
               </div>
             )}
