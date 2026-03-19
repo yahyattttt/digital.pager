@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams } from "wouter";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Download, Gift, Loader2 } from "lucide-react";
+import { Download } from "lucide-react";
 import { StarRatingPopup } from "@/components/star-rating-popup";
 
 interface OrderItem {
@@ -36,12 +36,10 @@ export default function OrderCompletedPage() {
   const [loading, setLoading] = useState(true);
   const [showRating, setShowRating] = useState(false);
   const [ratingDone, setRatingDone] = useState(false);
-  const [loyaltyConfig, setLoyaltyConfig] = useState<{ is_enabled?: boolean; online_percent?: number } | null>(null);
-  const [loyaltyPhone, setLoyaltyPhone] = useState<string>(() => localStorage.getItem("dp_customer_phone") || "");
-  const [loyaltyConsent, setLoyaltyConsent] = useState(false);
-  const [loyaltyLoading, setLoyaltyLoading] = useState(false);
-  const [loyaltySubmitted, setLoyaltySubmitted] = useState(false);
-  const [loyaltyReward, setLoyaltyReward] = useState(0);
+  const [walletCredited, setWalletCredited] = useState(false);
+  const [loyaltyEnabled, setLoyaltyEnabled] = useState(false);
+  const confettiFired = useRef(false);
+  const hasReward = walletCredited && loyaltyEnabled;
 
   useEffect(() => {
     async function fetchData() {
@@ -51,22 +49,37 @@ export default function OrderCompletedPage() {
           const d = merchantSnap.data();
           setMerchantName(d.storeName || "");
           setGoogleMapsReviewUrl(d.googleMapsReviewUrl || "");
-          if (d.loyalty_config) {
-            setLoyaltyConfig(d.loyalty_config);
-          }
+          const lc = d.loyalty_config;
+          if (lc?.is_enabled && (lc?.online_percent || 0) > 0) setLoyaltyEnabled(true);
         }
 
         if (orderId) {
           const collection = orderType === "manual" ? "pagers" : "whatsappOrders";
           const orderSnap = await getDoc(doc(db, "merchants", merchantId, collection, orderId));
           if (orderSnap.exists()) {
-            setOrder(orderSnap.data() as OrderData);
+            const data = orderSnap.data() as OrderData & { status?: string };
+            setOrder(data);
+            if (data.status === "archived") setWalletCredited(true);
           }
         }
       } catch {}
       setLoading(false);
     }
     fetchData();
+  }, [merchantId, orderId, orderType]);
+
+  useEffect(() => {
+    if (!orderId || orderType === "manual") return;
+    const unsub = onSnapshot(
+      doc(db, "merchants", merchantId, "whatsappOrders", orderId),
+      (snap) => {
+        if (snap.exists()) {
+          const data = snap.data() as { status?: string };
+          if (data.status === "archived") setWalletCredited(true);
+        }
+      }
+    );
+    return () => unsub();
   }, [merchantId, orderId, orderType]);
 
   useEffect(() => {
@@ -209,31 +222,41 @@ export default function OrderCompletedPage() {
     }, 700);
   }
 
-  async function handleEarnReward() {
-    if (!loyaltyPhone || !loyaltyConsent || !loyaltyConfig?.is_enabled) return;
-    setLoyaltyLoading(true);
-    try {
-      const total = order?.total || 0;
-      const pct = loyaltyConfig.online_percent || 0;
-      const rewardAmt = Math.round(total * pct / 100 * 100) / 100;
-      if (rewardAmt <= 0) {
-        setLoyaltySubmitted(true);
-        setLoyaltyLoading(false);
-        return;
+  useEffect(() => {
+    if (!hasReward || confettiFired.current) return;
+    confettiFired.current = true;
+    const style = document.createElement("style");
+    style.textContent = `
+      @keyframes confetti-fall {
+        0%   { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+        100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
       }
-      const res = await fetch(`/api/wallet/${merchantId}/add`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: loyaltyPhone.replace(/\D/g, ""), amount: rewardAmt, type: "earn_online", note: `مكافأة طلب #${order?.displayOrderId || orderId.slice(-6)}` }),
-      });
-      if (!res.ok) throw new Error("Failed");
-      setLoyaltyReward(rewardAmt);
-      setLoyaltySubmitted(true);
-    } catch {
-      setLoyaltyLoading(false);
+      .confetti-particle {
+        position: fixed; top: -20px; width: 10px; height: 10px;
+        border-radius: 2px; z-index: 9999; pointer-events: none;
+        animation: confetti-fall linear forwards;
+      }
+    `;
+    document.head.appendChild(style);
+    const colors = ["#fbbf24","#f97316","#ef4444","#22c55e","#3b82f6","#a855f7","#ec4899"];
+    const particles: HTMLDivElement[] = [];
+    for (let i = 0; i < 60; i++) {
+      const el = document.createElement("div");
+      el.className = "confetti-particle";
+      el.style.left = Math.random() * 100 + "vw";
+      el.style.background = colors[Math.floor(Math.random() * colors.length)];
+      el.style.animationDuration = (2.5 + Math.random() * 2) + "s";
+      el.style.animationDelay = (Math.random() * 1.5) + "s";
+      el.style.width = (6 + Math.random() * 8) + "px";
+      el.style.height = (6 + Math.random() * 8) + "px";
+      document.body.appendChild(el);
+      particles.push(el);
     }
-    setLoyaltyLoading(false);
-  }
+    setTimeout(() => {
+      particles.forEach(p => p.remove());
+      style.remove();
+    }, 6000);
+  }, [hasReward, loading]);
 
   const bg = "linear-gradient(180deg, #050000 0%, #000000 50%, #050000 100%)";
 
@@ -298,77 +321,19 @@ export default function OrderCompletedPage() {
         </div>
       )}
 
-      {/* Loyalty Earn Card */}
-      {orderType !== "manual" && loyaltyConfig?.is_enabled && (loyaltyConfig.online_percent || 0) > 0 && (
-        <div className="w-full max-w-sm mt-4">
-          {!loyaltySubmitted ? (
-            <div
-              className="rounded-2xl p-5 space-y-4"
-              style={{ background: "rgba(20,12,0,0.9)", border: "1.5px solid rgba(251,191,36,0.15)" }}
-              data-testid="loyalty-earn-card"
-              dir="rtl"
-            >
-              <div className="flex items-center gap-2.5">
-                <Gift className="w-5 h-5 text-amber-400 shrink-0" />
-                <div>
-                  <p className="text-sm font-bold text-white">اكسب نقاط ولاء 🎁</p>
-                  <p className="text-xs" style={{ color: "rgba(251,191,36,0.6)" }}>
-                    احصل على {loyaltyConfig.online_percent}% من قيمة طلبك كرصيد في محفظتك
-                  </p>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>رقم جوالك</label>
-                <input
-                  type="tel"
-                  value={loyaltyPhone}
-                  onChange={(e) => setLoyaltyPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                  placeholder="05XXXXXXXX"
-                  dir="ltr"
-                  maxLength={10}
-                  className="w-full h-10 px-3 rounded-xl text-white text-sm"
-                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(251,191,36,0.15)" }}
-                  data-testid="input-loyalty-phone"
-                />
-              </div>
-              <label className="flex items-start gap-2.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={loyaltyConsent}
-                  onChange={(e) => setLoyaltyConsent(e.target.checked)}
-                  className="mt-0.5 accent-amber-500"
-                  data-testid="checkbox-loyalty-consent"
-                />
-                <span className="text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>
-                  أوافق على استخدام رقم جوالي لبرنامج الولاء وإضافة المكافآت
-                </span>
-              </label>
-              <button
-                onClick={handleEarnReward}
-                disabled={loyaltyLoading || !loyaltyPhone || loyaltyPhone.length < 9 || !loyaltyConsent}
-                className="w-full py-3 rounded-xl text-sm font-bold transition-all active:scale-95 disabled:opacity-40 flex items-center justify-center gap-2"
-                style={{ background: loyaltyLoading || !loyaltyPhone || loyaltyPhone.length < 9 || !loyaltyConsent ? "rgba(251,191,36,0.1)" : "rgba(251,191,36,0.9)", color: "#000", border: "1.5px solid rgba(251,191,36,0.3)" }}
-                data-testid="button-earn-reward"
-              >
-                {loyaltyLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Gift className="w-4 h-4" />}
-                اكسب مكافأتك
-              </button>
-            </div>
-          ) : (
-            <div
-              className="rounded-2xl p-5 text-center"
-              style={{ background: "rgba(20,12,0,0.9)", border: "1.5px solid rgba(251,191,36,0.25)" }}
-              data-testid="loyalty-earn-success"
-            >
-              <div className="text-3xl mb-2">🎉</div>
-              <p className="text-sm font-bold text-white">تمت إضافة المكافأة!</p>
-              {loyaltyReward > 0 && (
-                <p className="text-xs mt-1" style={{ color: "rgba(251,191,36,0.7)" }}>
-                  تمت إضافة {loyaltyReward.toFixed(2)} ريال لمحفظتك
-                </p>
-              )}
-            </div>
-          )}
+      {/* Loyalty Reward Notification — shown when merchant marks order Received */}
+      {hasReward && (
+        <div
+          className="w-full max-w-sm mt-4 rounded-2xl p-5 text-center"
+          style={{ background: "rgba(20,12,0,0.9)", border: "1.5px solid rgba(251,191,36,0.25)" }}
+          data-testid="loyalty-reward-banner"
+          dir="rtl"
+        >
+          <div className="text-3xl mb-2">🎉</div>
+          <p className="text-sm font-bold text-white">تمت إضافة مكافأة الولاء!</p>
+          <p className="text-xs mt-1" style={{ color: "rgba(251,191,36,0.7)" }}>
+            تحقق من رصيد محفظتك في طلبك القادم
+          </p>
         </div>
       )}
     </div>

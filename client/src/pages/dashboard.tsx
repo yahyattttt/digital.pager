@@ -134,7 +134,7 @@ const businessTypeLabelsEn: Record<string, string> = {
 const ADMIN_WHATSAPP = "https://wa.me/966500000000";
 const PRIMARY_ADMIN_EMAIL = (import.meta.env.VITE_SUPER_ADMIN_EMAIL || "yahiatohary@hotmail.com").toLowerCase();
 
-type DashboardView = "overview" | "menu" | "analytics" | "tracking" | "customers" | "coupons" | "financial" | "settings" | "archive" | "subscription" | "reviews" | "syshealth";
+type DashboardView = "overview" | "menu" | "analytics" | "tracking" | "customers" | "coupons" | "financial" | "settings" | "archive" | "subscription" | "reviews" | "syshealth" | "loyalty";
 
 function SubscriptionRequiredScreen({
   storeName,
@@ -1312,6 +1312,26 @@ export default function DashboardPage() {
 
       const orderRef = doc(db, "merchants", merchant.uid, "whatsappOrders", order.id);
       await updateDoc(orderRef, { status: "archived", archivedAt: new Date().toISOString() });
+
+      // Credit loyalty wallet when order is marked Received/Complete
+      const loyaltyCfg = (merchant as any)?.loyalty_config;
+      if (loyaltyCfg?.is_enabled && order.customerPhone) {
+        const pct = loyaltyCfg.online_percent || 0;
+        const rewardAmt = Math.round((order.total || 0) * pct / 100 * 100) / 100;
+        if (rewardAmt > 0) {
+          fetch(`/api/wallet/${merchant.uid}/add`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              phone: order.customerPhone.replace(/\D/g, ""),
+              amount: rewardAmt,
+              type: "earn_online",
+              note: `مكافأة طلب #${order.displayOrderId || order.orderNumber}`,
+            }),
+          }).catch(() => {});
+        }
+      }
+
       setFlyingOrderId(null);
       toast({
         title: t("تم إغلاق الطلب", "Order Closed"),
@@ -1701,6 +1721,7 @@ export default function DashboardPage() {
     { id: "coupons", icon: Ticket, label: t("الكوبونات", "Coupons") },
     { id: "financial", icon: DollarSign, label: t("الإدارة المالية", "Financial") },
     { id: "reviews", icon: Star, label: t("تقييمات العملاء", "Customer Reviews") },
+    { id: "loyalty", icon: Wallet, label: t("نظام الولاء والمحفظة", "Loyalty & Wallet") },
     { id: "archive", icon: FolderArchive, label: t("أرشيف الطلبات", "Order Archive") },
     { id: "subscription", icon: CreditCard, label: t("اشتراكي", "My Subscription") },
     { id: "settings", icon: Settings, label: t("الإعدادات", "Settings") },
@@ -2149,6 +2170,10 @@ export default function DashboardPage() {
 
             {!isContentLocked && currentView === "reviews" && (
               <ReviewsView merchant={merchant} t={t} lang={lang} />
+            )}
+
+            {!isContentLocked && currentView === "loyalty" && (
+              <LoyaltyView merchant={merchant} t={t} lang={lang} />
             )}
 
             {currentView === "settings" && (
@@ -6160,12 +6185,7 @@ function SettingsView({
   const [crPdfUploading, setCrPdfUploading] = useState(false);
   const crPdfInputRef = useRef<HTMLInputElement>(null);
   const [supportWhatsappEdit, setSupportWhatsappEdit] = useState<string>((merchant as any)?.support_whatsapp || "");
-  const [settingsTab, setSettingsTab] = useState<"general" | "delivery" | "support" | "finance" | "loyalty">("general");
-  const loyaltyConfig = (merchant as any)?.loyalty_config || {};
-  const [loyaltyEnabled, setLoyaltyEnabled] = useState<boolean>(loyaltyConfig.is_enabled || false);
-  const [loyaltyOnlinePercent, setLoyaltyOnlinePercent] = useState<string>(String(loyaltyConfig.online_percent ?? 5));
-  const [loyaltyVisitReward, setLoyaltyVisitReward] = useState<string>(String(loyaltyConfig.manual_visit_reward ?? 2));
-  const [loyaltySaving, setLoyaltySaving] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<"general" | "delivery" | "support" | "finance">("general");
   const [supportSaving, setSupportSaving] = useState(false);
   const [legalDocsSaving, setLegalDocsSaving] = useState(false);
   const [storeSlugEdit, setStoreSlugEdit] = useState<string>((merchant as any)?.storeSlug || "");
@@ -6503,35 +6523,11 @@ function SettingsView({
     }
   }
 
-  async function handleSaveLoyalty() {
-    if (!merchant?.uid) return;
-    setLoyaltySaving(true);
-    try {
-      const pct = parseFloat(loyaltyOnlinePercent) || 0;
-      const visitRew = parseFloat(loyaltyVisitReward) || 0;
-      const docRef = doc(db, "merchants", merchant.uid);
-      await updateDoc(docRef, {
-        loyalty_config: {
-          is_enabled: loyaltyEnabled,
-          online_percent: pct,
-          manual_visit_reward: visitRew,
-        }
-      });
-      toast({ title: t("تم الحفظ", "Saved"), description: t("تم حفظ إعدادات الولاء", "Loyalty settings saved") });
-    } catch (err) {
-      console.error("[Loyalty] save error:", err);
-      toast({ title: t("خطأ", "Error"), description: t("فشل في الحفظ", "Failed to save"), variant: "destructive" });
-    } finally {
-      setLoyaltySaving(false);
-    }
-  }
-
   const tabDef = [
     { key: "general" as const, arLabel: "عام", enLabel: "General", icon: <Store className="w-3.5 h-3.5" /> },
     { key: "delivery" as const, arLabel: "توصيل", enLabel: "Delivery", icon: <MapPin className="w-3.5 h-3.5" /> },
     { key: "support" as const, arLabel: "دعم", enLabel: "Support", icon: <Phone className="w-3.5 h-3.5" /> },
     { key: "finance" as const, arLabel: "مالية/قانوني", enLabel: "Finance/Legal", icon: <CreditCard className="w-3.5 h-3.5" /> },
-    { key: "loyalty" as const, arLabel: "ولاء", enLabel: "Loyalty", icon: <Wallet className="w-3.5 h-3.5" /> },
   ];
 
   return (
@@ -7281,85 +7277,355 @@ function SettingsView({
 
       </>)}
 
-      {/* ── Loyalty Tab ────────────────────────────────────── */}
-      {settingsTab === "loyalty" && (<>
+    </div>
+  );
+}
 
+function LoyaltyView({
+  merchant,
+  t,
+  lang,
+}: {
+  merchant: any;
+  t: (ar: string, en: string) => string;
+  lang: string;
+}) {
+  const { toast } = useToast();
+  const loyaltyConfig = merchant?.loyalty_config || {};
+  const [loyaltyEnabled, setLoyaltyEnabled] = useState<boolean>(loyaltyConfig.is_enabled || false);
+  const [onlinePercent, setOnlinePercent] = useState<string>(String(loyaltyConfig.online_percent ?? 5));
+  const [visitReward, setVisitReward] = useState<string>(String(loyaltyConfig.manual_visit_reward ?? 2));
+  const [saving, setSaving] = useState(false);
+
+  const [compPhone, setCompPhone] = useState("");
+  const [compAmount, setCompAmount] = useState("");
+  const [compNote, setCompNote] = useState("");
+  const [compLoading, setCompLoading] = useState(false);
+
+  const [walletPhone, setWalletPhone] = useState("");
+  const [walletData, setWalletData] = useState<{ balance: number; history: any[] } | null>(null);
+  const [walletLoading, setWalletLoading] = useState(false);
+
+  const [topItems, setTopItems] = useState<{ name: string; count: number }[]>([]);
+  const [activeCustomers, setActiveCustomers] = useState(0);
+  const [analyticsLoading, setAnalyticsLoading] = useState(true);
+
+  useEffect(() => {
+    if (!merchant?.uid) return;
+    async function loadAnalytics() {
+      setAnalyticsLoading(true);
+      try {
+        const ordersRef = collection(db, "merchants", merchant.uid, "whatsappOrders");
+        const snap = await getDocs(ordersRef);
+        const itemCounts: Record<string, number> = {};
+        const phones = new Set<string>();
+        snap.forEach((d) => {
+          const data = d.data();
+          if (data.customerPhone) phones.add(data.customerPhone.replace(/\D/g, ""));
+          (data.items || []).forEach((item: any) => {
+            const name = item.name || "بند";
+            itemCounts[name] = (itemCounts[name] || 0) + (item.quantity || 1);
+          });
+        });
+        const sorted = Object.entries(itemCounts)
+          .map(([name, count]) => ({ name, count }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 5);
+        setTopItems(sorted);
+        setActiveCustomers(phones.size);
+      } catch { /**/ }
+      setAnalyticsLoading(false);
+    }
+    loadAnalytics();
+  }, [merchant?.uid]);
+
+  async function handleSave() {
+    if (!merchant?.uid) return;
+    setSaving(true);
+    try {
+      await updateDoc(doc(db, "merchants", merchant.uid), {
+        loyalty_config: {
+          is_enabled: loyaltyEnabled,
+          online_percent: parseFloat(onlinePercent) || 0,
+          manual_visit_reward: parseFloat(visitReward) || 0,
+        },
+      });
+      toast({ title: t("تم الحفظ", "Saved"), description: t("تم حفظ إعدادات الولاء", "Loyalty settings saved") });
+    } catch {
+      toast({ title: t("خطأ", "Error"), description: t("فشل في الحفظ", "Failed to save"), variant: "destructive" });
+    }
+    setSaving(false);
+  }
+
+  async function handleCompensate() {
+    if (!merchant?.uid || !compPhone.trim() || !compAmount) return;
+    const amt = parseFloat(compAmount);
+    if (isNaN(amt) || amt <= 0) return;
+    setCompLoading(true);
+    try {
+      const res = await fetch(`/api/wallet/${merchant.uid}/add`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: compPhone.replace(/\D/g, ""), amount: amt, type: "compensate", note: compNote.trim() || t("تعويض من المتجر", "Store compensation") }),
+      });
+      const data = await res.json();
+      toast({ title: t("تم منح التعويض", "Compensation Added"), description: t(`تمت إضافة ${amt} ريال. الرصيد الجديد: ${data.newBalance}`, `Added ${amt} SAR. New balance: ${data.newBalance} SAR`) });
+      setCompPhone(""); setCompAmount(""); setCompNote("");
+    } catch {
+      toast({ title: t("خطأ", "Error"), description: t("فشل في إضافة التعويض", "Failed to add compensation"), variant: "destructive" });
+    }
+    setCompLoading(false);
+  }
+
+  async function handleWalletSearch() {
+    if (!merchant?.uid || !walletPhone.trim()) return;
+    setWalletLoading(true);
+    try {
+      const res = await fetch(`/api/wallet/${merchant.uid}/${walletPhone.replace(/\D/g, "")}`);
+      const data = await res.json();
+      setWalletData({ balance: data.balance || 0, history: data.history || [] });
+    } catch {
+      setWalletData({ balance: 0, history: [] });
+    }
+    setWalletLoading(false);
+  }
+
+  return (
+    <div className="space-y-5" dir={lang === "ar" ? "rtl" : "ltr"} style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}>
+      <div>
+        <h2 className="text-xl font-bold">{t("نظام الولاء والمحفظة", "Loyalty & Wallet System")}</h2>
+        <p className="text-sm text-muted-foreground mt-0.5">{t("إدارة برنامج الولاء وتحليلات العملاء وأدوات التعويض", "Manage loyalty program, customer analytics & compensation tools")}</p>
+      </div>
+
+      {/* ── Master Toggle + Config ── */}
       <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
         <CardContent className="p-6 space-y-5">
           <div className="flex items-center gap-3 mb-1">
             <div className="w-8 h-8 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0">
-              <Gift className="w-4 h-4 text-amber-400" />
+              <Wallet className="w-4 h-4 text-amber-400" />
             </div>
             <div>
-              <h3 className="font-semibold text-sm">{t("برنامج الولاء", "Loyalty Program")}</h3>
-              <p className="text-xs text-muted-foreground">{t("امنح عملاءك نقاطاً ومكافآت", "Reward your customers with points & cash back")}</p>
+              <h3 className="font-semibold text-sm">{t("إعدادات برنامج الولاء", "Loyalty Program Settings")}</h3>
+              <p className="text-xs text-muted-foreground">{t("تحكم في المكافآت والنسب", "Control rewards and percentages")}</p>
             </div>
           </div>
 
-          {/* Enable toggle */}
           <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]">
-            <div className="flex-1" dir="rtl">
+            <div className="flex-1">
               <p className="text-sm font-semibold">{t("تفعيل برنامج الولاء", "Enable Loyalty Program")}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{t("يظهر للعملاء بعد اكتمال الطلب الأونلاين", "Shown to customers after completing an online order")}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{t("تُضاف المكافآت عند اكتمال الطلب (تم الاستلام)", "Rewards added when order is marked Received")}</p>
             </div>
-            <Switch checked={loyaltyEnabled} onCheckedChange={setLoyaltyEnabled} className="data-[state=checked]:bg-emerald-600 ms-4" data-testid="switch-loyalty-enabled" />
+            <Switch checked={loyaltyEnabled} onCheckedChange={setLoyaltyEnabled} className="data-[state=checked]:bg-emerald-600 ms-4" data-testid="switch-loyalty-master" />
           </div>
 
           {loyaltyEnabled && (
             <div className="space-y-4">
-              {/* Online order reward percent */}
               <div className="space-y-2">
-                <label className="text-xs text-muted-foreground block" dir="rtl">
-                  {t("نسبة مكافأة الطلبات الأونلاين (%)", "Online Order Reward (%)")}
-                </label>
+                <label className="text-xs text-muted-foreground block">{t("نسبة مكافأة الطلبات الأونلاين (%)", "Online Order Reward (%)")}</label>
                 <div className="flex items-center gap-3">
                   <input
-                    type="number"
-                    value={loyaltyOnlinePercent}
-                    onChange={(e) => setLoyaltyOnlinePercent(e.target.value)}
+                    type="number" value={onlinePercent}
+                    onChange={(e) => setOnlinePercent(e.target.value)}
                     min="0" max="50" step="0.5"
                     className="w-28 h-10 px-3 rounded-xl bg-white/[0.04] border border-white/10 text-white text-sm focus:outline-none focus:border-amber-500/50"
                     data-testid="input-loyalty-online-percent"
                   />
-                  <span className="text-xs text-muted-foreground" dir="rtl">{t("% من قيمة الطلب يُضاف لمحفظة العميل", "% of order value added to customer wallet")}</span>
+                  <span className="text-xs text-muted-foreground">{t("% من قيمة الطلب تُضاف للمحفظة عند الاستلام", "% of order added to wallet on collection")}</span>
                 </div>
               </div>
-
-              {/* Manual visit reward */}
               <div className="space-y-2">
-                <label className="text-xs text-muted-foreground block" dir="rtl">
-                  {t("مكافأة الزيارة اليدوية (ريال)", "Manual Visit Reward (SAR)")}
-                </label>
+                <label className="text-xs text-muted-foreground block">{t("مكافأة الزيارة الحضورية (ريال)", "Manual Visit Reward (SAR)")}</label>
                 <div className="flex items-center gap-3">
                   <input
-                    type="number"
-                    value={loyaltyVisitReward}
-                    onChange={(e) => setLoyaltyVisitReward(e.target.value)}
+                    type="number" value={visitReward}
+                    onChange={(e) => setVisitReward(e.target.value)}
                     min="0" step="0.5"
                     className="w-28 h-10 px-3 rounded-xl bg-white/[0.04] border border-white/10 text-white text-sm focus:outline-none focus:border-amber-500/50"
                     data-testid="input-loyalty-visit-reward"
                   />
-                  <span className="text-xs text-muted-foreground" dir="rtl">{t("مبلغ ثابت يُضاف عند منح مكافأة الزيارة", "Fixed amount added when giving a visit reward")}</span>
+                  <span className="text-xs text-muted-foreground">{t("مبلغ ثابت عند منح مكافأة الزيارة يدوياً", "Fixed amount for manual visit reward")}</span>
+                </div>
+              </div>
+              <div className="rounded-xl bg-amber-500/5 border border-amber-500/10 p-3">
+                <p className="text-xs text-amber-300/80">
+                  💡 {t("المكافآت تُضاف تلقائياً عند الضغط على 'تم الاستلام' في لوحة الطلبات.", "Rewards are added automatically when clicking 'Received' in the orders dashboard.")}
+                </p>
+              </div>
+            </div>
+          )}
+
+          <Button onClick={handleSave} disabled={saving} className="w-full h-10 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-2xl" data-testid="button-save-loyalty">
+            {saving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Save className="w-4 h-4 me-2" />}
+            {t("حفظ الإعدادات", "Save Settings")}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* ── Analytics Dashboard ── */}
+      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
+        <CardContent className="p-6">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-8 h-8 rounded-xl bg-violet-500/10 flex items-center justify-center shrink-0">
+              <TrendingUp className="w-4 h-4 text-violet-400" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-sm">{t("تحليلات سلوك العملاء", "Customer Behavior Analytics")}</h3>
+              <p className="text-xs text-muted-foreground">{t("إحصائيات الطلبات والعملاء النشطين", "Order stats & active customers")}</p>
+            </div>
+          </div>
+
+          {analyticsLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-white/20" />
+            </div>
+          ) : (
+            <div className="space-y-5">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl p-4 bg-white/[0.03] border border-white/[0.06] text-center">
+                  <p className="text-2xl font-black text-violet-400" data-testid="stat-active-customers">{activeCustomers}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{t("عميل فريد", "Unique Customers")}</p>
+                </div>
+                <div className="rounded-xl p-4 bg-white/[0.03] border border-white/[0.06] text-center">
+                  <p className="text-2xl font-black text-amber-400" data-testid="stat-top-item-count">{topItems[0]?.count || 0}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{t("أعلى مبيعات (الأكثر طلباً)", "Top Item Orders")}</p>
                 </div>
               </div>
 
-              <div className="rounded-xl bg-amber-500/5 border border-amber-500/10 p-3">
-                <p className="text-xs text-amber-300/80" dir="rtl">
-                  💡 {t("زر التعويض (🎁) يظهر على بطاقات الطلبات الأونلاين. زر مكافأة الزيارة يظهر على بطاقات الأوردر الحضوري.", "The compensate button (🎁) appears on online order cards. The visit reward button appears on manual pager cards.")}
-                </p>
-              </div>
+              {topItems.length > 0 && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-3">{t("الأصناف الأكثر طلباً", "Most Ordered Items")}</p>
+                  <div className="space-y-2">
+                    {topItems.map((item, i) => (
+                      <div key={i} className="flex items-center gap-3">
+                        <span className="text-xs font-bold text-white/30 w-4">{i + 1}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-medium text-white truncate" data-testid={`top-item-${i}`}>{item.name}</span>
+                            <span className="text-xs text-amber-400/80 font-bold ms-2">{item.count}x</span>
+                          </div>
+                          <div className="h-1.5 rounded-full bg-white/[0.05] overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-gradient-to-r from-amber-600 to-amber-400"
+                              style={{ width: `${Math.min(100, (item.count / (topItems[0]?.count || 1)) * 100)}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
       </Card>
 
-      <Button onClick={handleSaveLoyalty} disabled={loyaltySaving} className="w-full h-11 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-2xl disabled:opacity-30" data-testid="button-save-loyalty">
-        {loyaltySaving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Save className="w-4 h-4 me-2" />}
-        {t("حفظ إعدادات الولاء", "Save Loyalty Settings")}
-      </Button>
+      {/* ── Wallet Search / Customer Balance ── */}
+      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
+        <CardContent className="p-6 space-y-4">
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0">
+              <Search className="w-4 h-4 text-blue-400" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-sm">{t("استعلام رصيد المحفظة", "Wallet Balance Lookup")}</h3>
+              <p className="text-xs text-muted-foreground">{t("ابحث عن رصيد عميل بالجوال", "Search customer balance by phone")}</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="tel" value={walletPhone}
+              onChange={(e) => { setWalletPhone(e.target.value.replace(/\D/g, "").slice(0, 10)); setWalletData(null); }}
+              placeholder="05XXXXXXXX"
+              dir="ltr" maxLength={10}
+              className="flex-1 h-10 px-3 rounded-xl bg-white/[0.04] border border-white/10 text-white text-sm focus:outline-none focus:border-blue-500/50"
+              data-testid="input-wallet-search-phone"
+            />
+            <Button onClick={handleWalletSearch} disabled={walletLoading || walletPhone.length < 9} className="h-10 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold" data-testid="button-wallet-search">
+              {walletLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+            </Button>
+          </div>
+          {walletData && (
+            <div className="rounded-xl bg-white/[0.02] border border-white/[0.06] p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">{t("الرصيد الحالي", "Current Balance")}</span>
+                <span className="text-xl font-black text-amber-400" data-testid="wallet-balance-result">{walletData.balance.toFixed(2)} {t("ريال", "SAR")}</span>
+              </div>
+              {walletData.history.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs text-muted-foreground">{t("آخر المعاملات", "Recent Transactions")}</p>
+                  {walletData.history.slice(0, 5).map((h: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between text-xs">
+                      <span className="text-white/60 truncate max-w-[160px]">{h.note || h.type}</span>
+                      <span className={`font-bold ${h.amount > 0 ? "text-emerald-400" : "text-red-400"}`}>{h.amount > 0 ? "+" : ""}{h.amount.toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-      </>)}
+      {/* ── Compensation Tool ── */}
+      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
+        <CardContent className="p-6 space-y-4">
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 flex items-center justify-center shrink-0">
+              <Gift className="w-4 h-4 text-emerald-400" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-sm">{t("أداة التعويض والمكافأة", "Compensation & Reward Tool")}</h3>
+              <p className="text-xs text-muted-foreground">{t("أضف رصيداً مباشرة لمحفظة عميل", "Add credit directly to a customer's wallet")}</p>
+            </div>
+          </div>
 
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1.5 block">{t("رقم الجوال", "Phone Number")}</label>
+              <input
+                type="tel" value={compPhone}
+                onChange={(e) => setCompPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                placeholder="05XXXXXXXX"
+                dir="ltr" maxLength={10}
+                className="w-full h-10 px-3 rounded-xl bg-white/[0.04] border border-white/10 text-white text-sm focus:outline-none focus:border-emerald-500/50"
+                data-testid="input-comp-phone"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1.5 block">{t("المبلغ (ريال)", "Amount (SAR)")}</label>
+                <input
+                  type="number" value={compAmount}
+                  onChange={(e) => setCompAmount(e.target.value)}
+                  min="0.5" step="0.5" placeholder="0.00"
+                  className="w-full h-10 px-3 rounded-xl bg-white/[0.04] border border-white/10 text-white text-sm focus:outline-none focus:border-emerald-500/50"
+                  data-testid="input-comp-amount"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1.5 block">{t("ملاحظة (اختياري)", "Note (optional)")}</label>
+                <input
+                  type="text" value={compNote}
+                  onChange={(e) => setCompNote(e.target.value)}
+                  placeholder={t("تعويض طلب...", "Order compensation...")}
+                  className="w-full h-10 px-3 rounded-xl bg-white/[0.04] border border-white/10 text-white text-sm focus:outline-none focus:border-emerald-500/50"
+                  data-testid="input-comp-note"
+                />
+              </div>
+            </div>
+            <Button
+              onClick={handleCompensate}
+              disabled={compLoading || !compPhone || compPhone.length < 9 || !compAmount}
+              className="w-full h-10 bg-emerald-700 hover:bg-emerald-600 text-white font-bold rounded-2xl"
+              data-testid="button-add-compensation"
+            >
+              {compLoading ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Gift className="w-4 h-4 me-2" />}
+              {t("إضافة المكافأة للمحفظة", "Add Reward to Wallet")}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

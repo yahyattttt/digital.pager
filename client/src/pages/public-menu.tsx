@@ -104,6 +104,8 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
   const [walletBalance, setWalletBalance] = useState(0);
   const [walletLoading, setWalletLoading] = useState(false);
   const [walletApplied, setWalletApplied] = useState(false);
+  const [walletVerified, setWalletVerified] = useState(false);
+  const [showWalletModal, setShowWalletModal] = useState(false);
 
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"online" | "cod" | null>(null);
   const [moyasarPaymentCompleted, setMoyasarPaymentCompleted] = useState(false);
@@ -810,27 +812,40 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
             {couponError && <p className="text-red-400/70 text-[11px] mt-1.5" data-testid="text-coupon-error">{couponError}</p>}
           </div>
 
-          {/* ── Wallet Section ── */}
-          {!!(merchant as any)?.loyalty_config?.is_enabled && walletBalance > 0 && (
+          {/* ── Wallet / Loyalty Section ── */}
+          {!!(merchant as any)?.loyalty_config?.is_enabled && (
             <div className="mb-6">
-              <div className="flex items-center justify-between p-4 rounded-xl bg-amber-500/5 border border-amber-500/20" data-testid="wallet-section">
-                <div className="flex items-center gap-2.5">
-                  <Wallet className="w-4 h-4 text-amber-400 shrink-0" />
-                  <div>
-                    <p className="text-sm font-semibold text-white" dir="rtl">{t("محفظة الولاء", "Loyalty Wallet")}</p>
-                    <p className="text-xs text-amber-300/70" dir="rtl">
-                      {walletLoading ? t("جاري التحقق...", "Checking...") : t(`رصيد متاح: ${walletBalance.toFixed(2)} ريال`, `Available: ${walletBalance.toFixed(2)} SAR`)}
-                    </p>
-                  </div>
-                </div>
+              {!walletVerified ? (
                 <button
-                  onClick={() => setWalletApplied(prev => !prev)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${walletApplied ? "bg-amber-500 text-black border-amber-500" : "bg-transparent text-amber-400 border-amber-500/40 hover:border-amber-500"}`}
-                  data-testid="button-toggle-wallet"
+                  onClick={() => setShowWalletModal(true)}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold border border-amber-500/20 bg-amber-500/5 text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/35 transition-all active:scale-[0.98]"
+                  data-testid="button-join-wallet"
                 >
-                  {walletApplied ? t("مطبق", "Applied") : t("استخدم", "Use")}
+                  <Wallet className="w-4 h-4" />
+                  {t("استخدم / انضم لمحفظة الولاء 🎁", "Use / Join Loyalty Wallet 🎁")}
                 </button>
-              </div>
+              ) : (
+                <div className="flex items-center justify-between p-4 rounded-xl bg-amber-500/5 border border-amber-500/20" data-testid="wallet-verified-section">
+                  <div className="flex items-center gap-2.5">
+                    <Wallet className="w-4 h-4 text-amber-400 shrink-0" />
+                    <div>
+                      <p className="text-sm font-semibold text-white" dir="rtl">{t("محفظة الولاء", "Loyalty Wallet")}</p>
+                      <p className="text-xs text-amber-300/70" dir="rtl">
+                        {walletLoading ? t("جاري التحقق...", "Checking...") : walletBalance > 0 ? t(`رصيد: ${walletBalance.toFixed(2)} ريال`, `Balance: ${walletBalance.toFixed(2)} SAR`) : t("لا يوجد رصيد بعد", "No balance yet")}
+                      </p>
+                    </div>
+                  </div>
+                  {walletBalance > 0 && (
+                    <button
+                      onClick={() => setWalletApplied(prev => !prev)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${walletApplied ? "bg-amber-500 text-black border-amber-500" : "bg-transparent text-amber-400 border-amber-500/40 hover:border-amber-500"}`}
+                      data-testid="button-toggle-wallet"
+                    >
+                      {walletApplied ? t("مطبق ✓", "Applied ✓") : t("استخدم", "Use")}
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -865,7 +880,6 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
                     const val = normalizePhone(e.target.value);
                     setCustomerPhone(val);
                   }}
-                  onBlur={(e) => fetchWalletBalance(e.target.value)}
                   placeholder={t("رقم الجوال (05xxxxxxxx)", "Phone (05xxxxxxxx)")}
                   type="tel"
                   inputMode="numeric"
@@ -1180,6 +1194,67 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
             </div>
           )}
         </div>
+
+        {/* ── Wallet Verification Modal ── */}
+        {showWalletModal && (
+          <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center" data-testid="modal-wallet-verify">
+            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowWalletModal(false)} />
+            <div
+              className="relative w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl p-6 space-y-5"
+              style={{ background: "linear-gradient(160deg, #13100a 0%, #0c0a00 100%)", border: "1.5px solid rgba(251,191,36,0.2)" }}
+            >
+              <div className="text-center" dir="rtl" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}>
+                <div className="text-3xl mb-2">🎁</div>
+                <p className="text-white font-bold text-lg mb-1">{t("محفظة الولاء", "Loyalty Wallet")}</p>
+                <p className="text-xs text-white/40">{t("سجّل رقمك للاستخدام والحصول على المكافآت", "Register your number to use & earn rewards")}</p>
+              </div>
+              <div className="space-y-2" dir="rtl">
+                <label className="text-xs text-white/50">{t("رقم الجوال", "Phone Number")}</label>
+                <input
+                  type="tel"
+                  value={customerPhone}
+                  readOnly
+                  className="w-full h-11 px-3 rounded-xl text-white text-sm font-bold"
+                  style={{ background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.2)" }}
+                  dir="ltr"
+                  data-testid="input-wallet-modal-phone"
+                />
+                {customerPhone.length < 9 && (
+                  <p className="text-amber-400/60 text-xs">{t("أدخل رقم جوالك أولاً في الأعلى", "Enter your phone number above first")}</p>
+                )}
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowWalletModal(false)}
+                  className="flex-1 h-11 rounded-xl text-sm font-bold text-white/50 border border-white/10 hover:border-white/20 transition-all"
+                  data-testid="button-wallet-modal-cancel"
+                >
+                  {t("إلغاء", "Cancel")}
+                </button>
+                <button
+                  onClick={async () => {
+                    if (customerPhone.length < 9) return;
+                    setWalletLoading(true);
+                    setShowWalletModal(false);
+                    try {
+                      const res = await fetch(`/api/wallet/${merchantId}/${customerPhone.replace(/\D/g, "")}`);
+                      const data = await res.json();
+                      setWalletBalance(data.balance || 0);
+                    } catch { setWalletBalance(0); }
+                    setWalletVerified(true);
+                    setWalletLoading(false);
+                  }}
+                  disabled={customerPhone.length < 9}
+                  className="flex-1 h-11 rounded-xl text-sm font-bold text-black transition-all disabled:opacity-40 active:scale-95"
+                  style={{ background: customerPhone.length >= 9 ? "rgba(251,191,36,0.9)" : "rgba(251,191,36,0.2)" }}
+                  data-testid="button-wallet-modal-confirm"
+                >
+                  {walletLoading ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : t("تأكيد وعرض الرصيد", "Confirm & Show Balance")}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {showStoreTermsModal && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center" data-testid="modal-store-legal">

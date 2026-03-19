@@ -3828,6 +3828,13 @@ export async function registerRoutes(
         expiryDate !== null &&
         expiryDate > now;
 
+      const lcFields = mf.loyalty_config?.mapValue?.fields || {};
+      const loyalty_config = {
+        is_enabled: lcFields.is_enabled?.booleanValue === true,
+        online_percent: Number(lcFields.online_percent?.integerValue || lcFields.online_percent?.doubleValue || 0),
+        manual_visit_reward: Number(lcFields.manual_visit_reward?.integerValue || lcFields.manual_visit_reward?.doubleValue || 0),
+      };
+
       return res.json({
         storeName: mf.storeName?.stringValue || "",
         logoUrl: mf.logoUrl?.stringValue || "",
@@ -3839,6 +3846,7 @@ export async function registerRoutes(
         subscriptionExpiry: subExpiry,
         status: merchantStatus,
         isStoreActive,
+        loyalty_config,
       });
     } catch (error) {
       console.error("Merchant public fetch error:", error);

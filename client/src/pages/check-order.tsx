@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams } from "wouter";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Loader2 } from "lucide-react";
+import { Loader2, Wallet } from "lucide-react";
 
 type PagerDoc = {
   docId: string;
@@ -17,6 +17,8 @@ export default function CheckOrderPage() {
   const [merchantName, setMerchantName] = useState<string>("");
   const [merchantLogo, setMerchantLogo] = useState<string>("");
   const [loadingMerchant, setLoadingMerchant] = useState(true);
+  const [loyaltyEnabled, setLoyaltyEnabled] = useState(false);
+  const [loyaltyRewardPct, setLoyaltyRewardPct] = useState(0);
 
   const [pinOpen, setPinOpen] = useState(false);
   const [pendingPager, setPendingPager] = useState<PagerDoc | null>(null);
@@ -25,6 +27,13 @@ export default function CheckOrderPage() {
   const [pinChecking, setPinChecking] = useState(false);
   const pinInputRef = useRef<HTMLInputElement>(null);
 
+  const [loyaltyPromptOpen, setLoyaltyPromptOpen] = useState(false);
+  const [confirmedPager, setConfirmedPager] = useState<PagerDoc | null>(null);
+  const [loyaltyPhone, setLoyaltyPhone] = useState<string>(() => localStorage.getItem("dp_customer_phone") || "");
+  const [loyaltyJoining, setLoyaltyJoining] = useState(false);
+  const [loyaltyJoined, setLoyaltyJoined] = useState(false);
+  const loyaltyPhoneRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     if (!merchantId) return;
     fetch(`/api/merchant-public/${merchantId}`)
@@ -32,6 +41,10 @@ export default function CheckOrderPage() {
       .then((data) => {
         if (data?.storeName) setMerchantName(data.storeName);
         if (data?.logoUrl) setMerchantLogo(data.logoUrl);
+        if (data?.loyalty_config?.is_enabled && (data.loyalty_config.manual_visit_reward || 0) > 0) {
+          setLoyaltyEnabled(true);
+          setLoyaltyRewardPct(data.loyalty_config.manual_visit_reward || 0);
+        }
       })
       .catch(() => {})
       .finally(() => setLoadingMerchant(false));
@@ -71,6 +84,10 @@ export default function CheckOrderPage() {
     setTimeout(() => pinInputRef.current?.focus(), 120);
   }
 
+  function redirectToPager(pager: PagerDoc) {
+    window.location.href = `/digital-pager/${pager.docId}?m=${merchantId}&type=manual`;
+  }
+
   function handlePinConfirm() {
     if (!pendingPager) return;
     const entered = pinInput.trim();
@@ -80,7 +97,14 @@ export default function CheckOrderPage() {
     }
     setPinChecking(true);
     if (entered === pendingPager.access_pin) {
-      window.location.href = `/digital-pager/${pendingPager.docId}?m=${merchantId}&type=manual`;
+      setPinOpen(false);
+      setConfirmedPager(pendingPager);
+      if (loyaltyEnabled) {
+        setLoyaltyPromptOpen(true);
+        setTimeout(() => loyaltyPhoneRef.current?.focus(), 120);
+      } else {
+        redirectToPager(pendingPager);
+      }
     } else {
       setPinError("الرمز غير صحيح، يرجى التأكد من الكاشير");
       setPinChecking(false);
@@ -98,6 +122,33 @@ export default function CheckOrderPage() {
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Enter") handlePinConfirm();
+  }
+
+  async function handleJoinLoyalty() {
+    if (!confirmedPager || !loyaltyPhone || loyaltyPhone.length < 9) return;
+    setLoyaltyJoining(true);
+    try {
+      const cleanPhone = loyaltyPhone.replace(/\D/g, "");
+      localStorage.setItem("dp_customer_phone", cleanPhone);
+      await fetch(`/api/wallet/${merchantId}/add`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: cleanPhone,
+          amount: loyaltyRewardPct,
+          type: "earn_visit",
+          note: `مكافأة زيارة طلب #${confirmedPager.displayOrderId || confirmedPager.orderNumber}`,
+        }),
+      });
+      setLoyaltyJoined(true);
+      setTimeout(() => redirectToPager(confirmedPager), 1500);
+    } catch {
+      setLoyaltyJoining(false);
+    }
+  }
+
+  function handleSkipLoyalty() {
+    if (confirmedPager) redirectToPager(confirmedPager);
   }
 
   const bg = "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)";
@@ -192,10 +243,7 @@ export default function CheckOrderPage() {
             <div className="text-center" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
               <p className="text-white/35 text-[11px] tracking-[0.25em] uppercase mb-3">PIN VERIFICATION</p>
 
-              <p
-                className="text-white text-lg font-bold mb-1"
-                data-testid="text-pin-modal-title"
-              >
+              <p className="text-white text-lg font-bold mb-1" data-testid="text-pin-modal-title">
                 تأكيد ملكية الطلب
               </p>
 
@@ -207,10 +255,7 @@ export default function CheckOrderPage() {
                 {pendingPager.displayOrderId || `#${pendingPager.orderNumber}`}
               </p>
 
-              <p
-                className="text-white/50 text-sm mb-5 leading-relaxed"
-                data-testid="text-pin-subtitle"
-              >
+              <p className="text-white/50 text-sm mb-5 leading-relaxed" data-testid="text-pin-subtitle">
                 فضلاً أدخل الرمز الموجود في كرت الطلب
               </p>
 
@@ -241,11 +286,7 @@ export default function CheckOrderPage() {
               />
 
               {pinError && (
-                <p
-                  className="text-red-400 text-sm font-semibold mt-3"
-                  data-testid="text-pin-error"
-                  dir="rtl"
-                >
+                <p className="text-red-400 text-sm font-semibold mt-3" data-testid="text-pin-error" dir="rtl">
                   {pinError}
                 </p>
               )}
@@ -292,6 +333,111 @@ export default function CheckOrderPage() {
             >
               ⚠️ تنويه: يجب إحضار الفاتورة الورقية الأصلية أثناء استلام طلبك من الكاونتر.
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Loyalty Join Prompt — shown after successful PIN if loyalty is enabled */}
+      {loyaltyPromptOpen && confirmedPager && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm px-5"
+          data-testid="loyalty-prompt-modal"
+        >
+          <div
+            className="w-full max-w-sm rounded-3xl p-6 space-y-5"
+            style={{
+              background: "linear-gradient(160deg, #0d1008 0%, #0a0a0a 100%)",
+              border: "1.5px solid rgba(251,191,36,0.2)",
+              boxShadow: "0 0 40px rgba(180,130,0,0.08)",
+            }}
+          >
+            {!loyaltyJoined ? (
+              <>
+                <div className="text-center" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
+                  <div
+                    className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4"
+                    style={{ background: "rgba(251,191,36,0.1)", border: "1.5px solid rgba(251,191,36,0.2)" }}
+                  >
+                    <Wallet className="w-7 h-7 text-amber-400" />
+                  </div>
+                  <p className="text-white text-lg font-bold mb-1" data-testid="text-loyalty-prompt-title">
+                    انضم لمحفظة الولاء 🎁
+                  </p>
+                  <p className="text-sm leading-relaxed mt-2" style={{ color: "rgba(251,191,36,0.65)" }}>
+                    احصل على {loyaltyRewardPct} ريال مكافأة على هذه الزيارة فوراً
+                  </p>
+                </div>
+
+                <div className="space-y-2" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
+                  <label className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>رقم جوالك</label>
+                  <input
+                    ref={loyaltyPhoneRef}
+                    type="tel"
+                    inputMode="numeric"
+                    value={loyaltyPhone}
+                    onChange={(e) => setLoyaltyPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                    placeholder="05XXXXXXXX"
+                    dir="ltr"
+                    maxLength={10}
+                    className="w-full h-11 px-3 rounded-xl text-white text-base"
+                    style={{
+                      background: "rgba(255,255,255,0.04)",
+                      border: "1px solid rgba(251,191,36,0.18)",
+                      outline: "none",
+                    }}
+                    data-testid="input-loyalty-join-phone"
+                  />
+                </div>
+
+                <div className="flex gap-3" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
+                  <button
+                    onClick={handleSkipLoyalty}
+                    className="flex-1 py-3.5 rounded-2xl text-sm font-bold transition-all active:scale-[0.97]"
+                    style={{
+                      background: "rgba(255,255,255,0.04)",
+                      border: "1.5px solid rgba(255,255,255,0.08)",
+                      color: "rgba(255,255,255,0.35)",
+                    }}
+                    data-testid="button-loyalty-skip"
+                  >
+                    تخطي
+                  </button>
+                  <button
+                    onClick={handleJoinLoyalty}
+                    disabled={loyaltyJoining || loyaltyPhone.length < 9}
+                    className="flex-1 py-3.5 rounded-2xl text-sm font-bold transition-all active:scale-[0.97] disabled:opacity-40 flex items-center justify-center gap-2"
+                    style={{
+                      background: "rgba(251,191,36,0.88)",
+                      border: "1.5px solid rgba(251,191,36,0.3)",
+                      color: "#000",
+                    }}
+                    data-testid="button-loyalty-join"
+                  >
+                    {loyaltyJoining ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Wallet className="w-4 h-4" />
+                        انضم واكسب
+                      </>
+                    )}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-4" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
+                <div className="text-4xl mb-3">🎉</div>
+                <p className="text-white font-bold text-lg mb-1" data-testid="text-loyalty-joined-success">
+                  تمت إضافة المكافأة!
+                </p>
+                <p className="text-sm" style={{ color: "rgba(251,191,36,0.65)" }}>
+                  تم إضافة {loyaltyRewardPct} ريال لمحفظتك
+                </p>
+                <p className="text-xs mt-3" style={{ color: "rgba(255,255,255,0.3)" }}>
+                  جاري التوجيه...
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}
