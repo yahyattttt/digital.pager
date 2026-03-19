@@ -286,6 +286,13 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
     }
   }, [merchant]);
 
+  // Auto-uncheck loyalty opt-in if phone becomes invalid
+  useEffect(() => {
+    if (customerPhone.length !== 10) {
+      setIsLoyaltyOptIn(false);
+    }
+  }, [customerPhone]);
+
   // Real-time wallet balance listener
   useEffect(() => {
     if (!walletVerified || !merchantId || !customerPhone || customerPhone.length < 9) return;
@@ -914,11 +921,19 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
                   <span className="text-[10px]">🏆</span>
                 </div>
 
+                {/* Phone-not-ready hint */}
+                {customerPhone.length < 10 && (
+                  <p className="text-[11px] text-amber-400/50 mb-2 font-medium text-center" data-testid="text-loyalty-phone-hint">
+                    أدخل رقم جوالك أولاً لتفعيل برنامج الولاء
+                  </p>
+                )}
+
                 {/* Checkbox row */}
                 <button
                   type="button"
-                  onClick={() => setIsLoyaltyOptIn(prev => !prev)}
-                  className="w-full flex items-center gap-3 text-right"
+                  onClick={() => customerPhone.length === 10 && setIsLoyaltyOptIn(prev => !prev)}
+                  disabled={customerPhone.length !== 10}
+                  className="w-full flex items-center gap-3 text-right disabled:opacity-40"
                   data-testid="toggle-loyalty-optin"
                 >
                   {/* Custom gold checkbox */}
@@ -951,7 +966,7 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
                   </div>
                 </button>
 
-                {/* Earn preview when opted in */}
+                {/* Earn preview when opted in — shows phone linked */}
                 {isLoyaltyOptIn && (() => {
                   const onlinePct = merchant.loyalty_config!.online_percent;
                   const earnAmount = onlinePct > 0
@@ -959,21 +974,26 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
                     : 0;
                   return (
                     <div
-                      className="mt-3 flex items-center gap-2.5 rounded-xl px-3 py-2.5"
+                      className="mt-3 rounded-xl px-3 py-2.5 space-y-1.5"
                       style={{ background: "rgba(251,191,36,0.09)", border: "1px solid rgba(251,191,36,0.2)" }}
                       data-testid="text-loyalty-earn-preview"
                     >
-                      <span className="text-lg">✨</span>
-                      <p className="text-xs leading-relaxed font-medium" style={{ color: "rgba(255,255,255,0.75)" }}>
-                        {earnAmount > 0 ? (
-                          <>
-                            ستكسب{" "}
-                            <span className="font-black text-base" style={{ color: "#fbbf24" }}>{earnAmount.toFixed(2)}</span>
-                            {" "}ريال في محفظتك عند اكتمال الطلب
-                          </>
-                        ) : (
-                          <>سيتم إضافة مكافأة الولاء لمحفظتك عند اكتمال الطلب</>
-                        )}
+                      <div className="flex items-start gap-2.5">
+                        <span className="text-lg">✨</span>
+                        <p className="text-xs leading-relaxed font-medium" style={{ color: "rgba(255,255,255,0.75)" }}>
+                          {earnAmount > 0 ? (
+                            <>
+                              ستكسب{" "}
+                              <span className="font-black text-base" style={{ color: "#fbbf24" }}>{earnAmount.toFixed(2)}</span>
+                              {" "}ريال في محفظتك عند اكتمال الطلب
+                            </>
+                          ) : (
+                            <>سيتم إضافة مكافأة الولاء لمحفظتك عند اكتمال الطلب</>
+                          )}
+                        </p>
+                      </div>
+                      <p className="text-[10px] font-mono text-center" style={{ color: "rgba(251,191,36,0.45)" }} data-testid="text-loyalty-linked-phone" dir="ltr">
+                        📱 {customerPhone}
                       </p>
                     </div>
                   );
