@@ -3521,16 +3521,6 @@ function OverviewView({
                           >
                             <Utensils className="w-3.5 h-3.5 me-1" />{t("جاهز", "Ready")}
                           </Button>
-                          {loyaltyEnabled && (
-                            <Button
-                              onClick={() => setCompensateModal({ open: true, phone: waOrder.customerPhone || "", amount: "", saving: false })}
-                              className="h-9 px-3 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 rounded-xl border border-purple-500/20"
-                              data-testid={`button-compensate-preparing-${item.id}`}
-                              title={t("تعويض العميل", "Compensate Customer")}
-                            >
-                              <Gift className="w-3.5 h-3.5" />
-                            </Button>
-                          )}
                           <Button
                             onClick={() => onCancelWhatsAppOrder(waOrder)}
                             disabled={cancellingOrderId === waOrder.id}
@@ -3551,16 +3541,6 @@ function OverviewView({
                           >
                             <CheckCircle className="w-3.5 h-3.5 me-1" />{t("تم الاستلام", "Collected")}
                           </Button>
-                          {loyaltyEnabled && (
-                            <Button
-                              onClick={() => setCompensateModal({ open: true, phone: waOrder.customerPhone || "", amount: "", saving: false })}
-                              className="h-9 px-3 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 rounded-xl border border-purple-500/20"
-                              data-testid={`button-compensate-ready-${item.id}`}
-                              title={t("تعويض العميل", "Compensate Customer")}
-                            >
-                              <Gift className="w-3.5 h-3.5" />
-                            </Button>
-                          )}
                           <Button
                             onClick={() => setUncollectedConfirmOrder(waOrder)}
                             className="h-9 px-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold text-xs rounded-xl border border-red-500/20"
