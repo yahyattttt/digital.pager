@@ -3,10 +3,8 @@ import { useParams } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Store, ShoppingCart, Plus, Minus, X, AlertTriangle, Loader2, Check, ArrowLeft, Clock, Banknote, Tag, CreditCard, Wallet, UtensilsCrossed, ShoppingBag, Globe, Truck, MapPin, Navigation, User, Phone, ShieldCheck } from "lucide-react";
+import { Store, ShoppingCart, Plus, Minus, X, AlertTriangle, Loader2, Check, ArrowLeft, Clock, Banknote, Tag, CreditCard, UtensilsCrossed, ShoppingBag, Globe, Truck, MapPin, Navigation, User, Phone } from "lucide-react";
 import { lazy, Suspense } from "react";
-import { doc, onSnapshot } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 const DeliveryMapPicker = lazy(() => import("@/components/delivery-map-picker"));
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
@@ -110,13 +108,6 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
   const [couponLoading, setCouponLoading] = useState(false);
   const [couponError, setCouponError] = useState("");
 
-  const [walletBalance, setWalletBalance] = useState(0);
-  const [walletLoading, setWalletLoading] = useState(false);
-  const [walletApplied, setWalletApplied] = useState(false);
-  const [walletVerified, setWalletVerified] = useState(false);
-  const [showWalletModal, setShowWalletModal] = useState(false);
-  const [walletVisits, setWalletVisits] = useState(0);
-  const [isLoyaltyOptIn, setIsLoyaltyOptIn] = useState(false);
 
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"online" | "cod" | null>(null);
   const [moyasarPaymentCompleted, setMoyasarPaymentCompleted] = useState(false);
@@ -205,8 +196,7 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
 
   const discountAmount = couponValid ? Math.round(cartTotal * couponDiscount / 100 * 100) / 100 : 0;
   const deliveryFeeAmount = (diningType === "delivery" && merchant?.deliveryEnabled && merchant?.deliveryFee > 0) ? merchant.deliveryFee : 0;
-  const walletDiscount = walletApplied ? Math.min(walletBalance, Math.max(0, Math.round((cartTotal - discountAmount) * 100) / 100)) : 0;
-  const finalTotal = Math.max(0, Math.round((cartTotal - discountAmount - walletDiscount + deliveryFeeAmount) * 100) / 100);
+  const finalTotal = Math.max(0, Math.round((cartTotal - discountAmount + deliveryFeeAmount) * 100) / 100);
 
   useEffect(() => {
     if (!merchant?.onlinePaymentEnabled || !merchant?.moyasarPublishableKey) return;
@@ -285,52 +275,6 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
       setSelectedPaymentMethod("cod");
     }
   }, [merchant]);
-
-  // Auto-uncheck loyalty opt-in if phone becomes invalid
-  useEffect(() => {
-    if (customerPhone.length !== 10) {
-      setIsLoyaltyOptIn(false);
-    }
-  }, [customerPhone]);
-
-  // Real-time wallet balance listener
-  useEffect(() => {
-    if (!walletVerified || !merchantId || !customerPhone || customerPhone.length < 9) return;
-    const cleanPhone = customerPhone.replace(/\D/g, "");
-    const walletDocId = `${merchantId}_${cleanPhone}`;
-    const unsub = onSnapshot(doc(db, "wallets", walletDocId), (snap) => {
-      if (snap.exists()) {
-        const d = snap.data();
-        const bal = d.balance || 0;
-        setWalletBalance(bal);
-        setWalletVisits(d.visits_count || 0);
-        if (bal <= 0) setWalletApplied(false);
-      }
-    });
-    return () => unsub();
-  }, [walletVerified, merchantId, customerPhone]);
-
-  async function fetchWalletBalance(phone: string) {
-    if (!merchantId || !phone || phone.length < 9) {
-      setWalletBalance(0);
-      setWalletApplied(false);
-      return;
-    }
-    const loyaltyEnabled = !!merchant?.loyalty_config?.is_enabled;
-    if (!loyaltyEnabled) return;
-    setWalletLoading(true);
-    try {
-      const res = await fetch(`/api/wallet/${merchantId}/${phone.replace(/\D/g, "")}`);
-      const data = await res.json();
-      setWalletBalance(data.balance || 0);
-      setWalletVisits(data.visits_count || 0);
-      if ((data.balance || 0) <= 0) setWalletApplied(false);
-    } catch {
-      setWalletBalance(0);
-    } finally {
-      setWalletLoading(false);
-    }
-  }
 
   async function handleApplyCoupon() {
     if (!couponCode.trim() || !merchantId) return;
@@ -604,11 +548,6 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
       if (couponValid && couponCode.trim()) {
         orderBody.couponCode = couponCode.trim();
       }
-      if (walletApplied && walletDiscount > 0) {
-        orderBody.walletDiscount = walletDiscount;
-        orderBody.customerPhone = customerPhone.trim();
-      }
-      orderBody.loyalty_opted_in = isLoyaltyOptIn;
 
       const res = await fetch(`/api/whatsapp-orders/${merchantId}`, {
         method: "POST",
@@ -625,15 +564,6 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
 
       // Track completed order
       fetch(`/api/track/ordercompleted/${merchantId}`, { method: "POST" }).catch(() => {});
-
-      // Redeem wallet if applied
-      if (walletApplied && walletDiscount > 0 && customerPhone.trim()) {
-        fetch(`/api/wallet/${merchantId}/redeem`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone: customerPhone.trim(), amount: walletDiscount }),
-        }).catch(() => {});
-      }
 
       // Persist customer info for future visits
       localStorage.setItem("dp_customer_name", customerName.trim());
@@ -784,15 +714,6 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
               </div>
             )}
 
-            {walletApplied && walletDiscount > 0 && (
-              <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-amber-500/5 border border-amber-500/15">
-                <span className="text-amber-400 text-sm font-medium flex items-center gap-1.5">
-                  <Wallet className="w-3.5 h-3.5" />
-                  {t("رصيد المحفظة", "Wallet Balance")}
-                </span>
-                <span className="text-amber-400 text-sm font-bold" data-testid="text-wallet-discount">-{walletDiscount.toFixed(2)} SAR</span>
-              </div>
-            )}
 
             {deliveryFeeAmount > 0 && (
               <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-emerald-500/5 border border-emerald-500/15" data-testid="delivery-fee-line">
@@ -804,7 +725,7 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
               </div>
             )}
 
-            {(couponValid || deliveryFeeAmount > 0 || walletApplied) && (
+            {(couponValid || deliveryFeeAmount > 0) && (
               <div className="flex items-center justify-between p-4 rounded-xl bg-emerald-600/10 border border-emerald-500/20">
                 <span className="text-white font-bold">{t("الإجمالي", "Total")}</span>
                 <span className="text-emerald-400 text-xl font-bold" data-testid="text-final-total">{finalTotal.toFixed(2)} SAR</span>
@@ -897,170 +818,6 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
               )}
             </div>
 
-            {/* ── Loyalty Opt-In — shown only when merchant has loyalty enabled ── */}
-            {merchant?.loyalty_config?.is_enabled && (
-              <div
-                className="rounded-2xl px-4 py-4"
-                style={{
-                  background: isLoyaltyOptIn
-                    ? "linear-gradient(135deg, rgba(45,28,0,0.97) 0%, rgba(20,12,0,0.99) 100%)"
-                    : "linear-gradient(135deg, rgba(251,191,36,0.06) 0%, rgba(0,0,0,0.4) 100%)",
-                  border: isLoyaltyOptIn
-                    ? "1.5px solid rgba(251,191,36,0.55)"
-                    : "1.5px solid rgba(251,191,36,0.22)",
-                  boxShadow: isLoyaltyOptIn ? "0 0 18px rgba(251,191,36,0.12)" : "none",
-                  transition: "all 0.25s ease",
-                }}
-                data-testid="section-loyalty-optin"
-                dir="rtl"
-              >
-                {/* Header badge */}
-                <div className="flex items-center gap-1.5 mb-3">
-                  <span className="text-[10px] font-black tracking-widest uppercase" style={{ color: "#fbbf24" }}>نظام الولاء</span>
-                  <span className="flex-1 h-px" style={{ background: "rgba(251,191,36,0.2)" }} />
-                  <span className="text-[10px]">🏆</span>
-                </div>
-
-                {/* Phone-not-ready hint */}
-                {customerPhone.length < 10 && (
-                  <p className="text-[11px] text-amber-400/50 mb-2 font-medium text-center" data-testid="text-loyalty-phone-hint">
-                    أدخل رقم جوالك أولاً لتفعيل برنامج الولاء
-                  </p>
-                )}
-
-                {/* Checkbox row */}
-                <button
-                  type="button"
-                  onClick={() => customerPhone.length === 10 && setIsLoyaltyOptIn(prev => !prev)}
-                  disabled={customerPhone.length !== 10}
-                  className="w-full flex items-center gap-3 text-right disabled:opacity-40"
-                  data-testid="toggle-loyalty-optin"
-                >
-                  {/* Custom gold checkbox */}
-                  <div
-                    className="shrink-0 w-6 h-6 rounded-lg flex items-center justify-center transition-all"
-                    style={{
-                      background: isLoyaltyOptIn
-                        ? "linear-gradient(135deg, #fbbf24, #f59e0b)"
-                        : "rgba(251,191,36,0.08)",
-                      border: isLoyaltyOptIn ? "2px solid #fbbf24" : "2px solid rgba(251,191,36,0.35)",
-                      boxShadow: isLoyaltyOptIn ? "0 0 8px rgba(251,191,36,0.4)" : "none",
-                    }}
-                  >
-                    {isLoyaltyOptIn && (
-                      <svg width="12" height="10" viewBox="0 0 12 10" fill="none">
-                        <path d="M1 5L4.5 8.5L11 1.5" stroke="#000" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <p
-                      className="text-sm font-black leading-snug"
-                      style={{ color: isLoyaltyOptIn ? "#fbbf24" : "rgba(255,255,255,0.85)" }}
-                    >
-                      انضم لنظام الولاء واحصل على كاش باك 🎁
-                    </p>
-                    <p className="text-[10px] mt-0.5 font-medium" style={{ color: "rgba(255,255,255,0.35)" }}>
-                      بالموافقة، أنت تقبل شروط نظام الولاء
-                    </p>
-                  </div>
-                </button>
-
-                {/* Earn preview when opted in — shows phone linked */}
-                {isLoyaltyOptIn && (() => {
-                  const onlinePct = merchant.loyalty_config!.online_percent;
-                  const earnAmount = onlinePct > 0
-                    ? Math.round(finalTotal * onlinePct / 100 * 100) / 100
-                    : 0;
-                  return (
-                    <div
-                      className="mt-3 rounded-xl px-3 py-2.5 space-y-1.5"
-                      style={{ background: "rgba(251,191,36,0.09)", border: "1px solid rgba(251,191,36,0.2)" }}
-                      data-testid="text-loyalty-earn-preview"
-                    >
-                      <div className="flex items-start gap-2.5">
-                        <span className="text-lg">✨</span>
-                        <p className="text-xs leading-relaxed font-medium" style={{ color: "rgba(255,255,255,0.75)" }}>
-                          {earnAmount > 0 ? (
-                            <>
-                              ستكسب{" "}
-                              <span className="font-black text-base" style={{ color: "#fbbf24" }}>{earnAmount.toFixed(2)}</span>
-                              {" "}ريال في محفظتك عند اكتمال الطلب
-                            </>
-                          ) : (
-                            <>سيتم إضافة مكافأة الولاء لمحفظتك عند اكتمال الطلب</>
-                          )}
-                        </p>
-                      </div>
-                      <p className="text-[10px] font-mono text-center" style={{ color: "rgba(251,191,36,0.45)" }} data-testid="text-loyalty-linked-phone" dir="ltr">
-                        📱 {customerPhone}
-                      </p>
-                    </div>
-                  );
-                })()}
-
-                {/* Customer note — always visible inside the loyalty card */}
-                <p
-                  className="mt-3 text-base font-bold leading-relaxed text-center"
-                  style={{ color: "#FFD700" }}
-                  data-testid="text-loyalty-cashier-note"
-                >
-                  للإستعلام عن رصيد مكافأتك أو الاستفادة منها عن طريق كاشير المتجر
-                </p>
-              </div>
-            )}
-
-            {/* ── Wallet Balance Panel (only when verified) ── */}
-            {!!merchant?.loyalty_config?.is_enabled && walletVerified && (
-                <div
-                  className="mt-2 rounded-2xl overflow-hidden"
-                  style={{ background: "linear-gradient(135deg,rgba(30,18,0,0.97) 0%,rgba(12,8,0,0.99) 100%)", border: "1.5px solid rgba(251,191,36,0.25)" }}
-                  data-testid="wallet-verified-section"
-                >
-                  <div className="flex items-center justify-between px-4 pt-3 pb-1" dir="rtl">
-                    <div className="flex items-center gap-2">
-                      <Wallet className="w-4 h-4 text-amber-400" />
-                      <span className="text-xs font-bold text-amber-300/80">{t("محفظة الولاء", "Loyalty Wallet")}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                      <span className="text-[10px] text-emerald-400">✅</span>
-                    </div>
-                  </div>
-                  <div className="px-4 pb-1" dir="rtl">
-                    {walletLoading ? (
-                      <div className="flex items-center gap-2 py-1">
-                        <Loader2 className="w-4 h-4 text-amber-400/50 animate-spin" />
-                        <span className="text-xs text-white/40">{t("جاري...", "Loading...")}</span>
-                      </div>
-                    ) : (
-                      <p className="text-2xl font-black text-amber-400 leading-none" data-testid="text-wallet-balance">
-                        {walletBalance.toFixed(2)} <span className="text-xs font-normal text-white/30">ريال</span>
-                      </p>
-                    )}
-                    <p className="text-[10px] font-mono text-white/20 mt-0.5 mb-2" dir="ltr">{customerPhone}</p>
-                  </div>
-                  {walletBalance > 0 && (
-                    <div className="px-4 pb-3" dir="rtl">
-                      <button
-                        type="button"
-                        onClick={() => setWalletApplied(prev => !prev)}
-                        className={`w-full py-2.5 rounded-xl text-xs font-bold border transition-all active:scale-[0.97] ${walletApplied ? "bg-amber-500 text-black border-amber-500" : "bg-amber-500/10 text-amber-400 border-amber-500/30"}`}
-                        data-testid="button-toggle-wallet"
-                      >
-                        {walletApplied
-                          ? t(`✓ مطبق — خصم ${Math.min(walletBalance, Math.max(0, cartTotal - discountAmount)).toFixed(2)} ريال`, `✓ Applied — ${Math.min(walletBalance, Math.max(0, cartTotal - discountAmount)).toFixed(2)} SAR off`)
-                          : t("استخدم رصيدي في هذا الطلب", "Use balance on this order")}
-                      </button>
-                    </div>
-                  )}
-                  {walletBalance <= 0 && !walletLoading && (
-                    <p className="px-4 pb-3 text-[10px] text-white/25" dir="rtl">
-                      {t("لا يوجد رصيد بعد — ستكسب مكافآت عند اكتمال طلبك", "No balance yet — earn rewards when order completes")}
-                    </p>
-                  )}
-                </div>
-            )}
           </div>
 
           <div className="mb-6" data-testid="section-order-type">
@@ -1361,66 +1118,6 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
           )}
         </div>
 
-        {/* ── Wallet Verification Modal ── */}
-        {showWalletModal && (
-          <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center" data-testid="modal-wallet-verify">
-            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowWalletModal(false)} />
-            <div
-              className="relative w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl p-6 space-y-5"
-              style={{ background: "linear-gradient(160deg, #13100a 0%, #0c0a00 100%)", border: "1.5px solid rgba(251,191,36,0.2)" }}
-            >
-              <div className="text-center" dir="rtl" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}>
-                <div className="text-3xl mb-2">🎁</div>
-                <p className="text-white font-bold text-lg mb-1">{t("محفظة الولاء", "Loyalty Wallet")}</p>
-                <p className="text-xs text-white/40">{t("سجّل رقمك للاستخدام والحصول على المكافآت", "Register your number to use & earn rewards")}</p>
-              </div>
-              <div className="space-y-2" dir="rtl">
-                <label className="text-xs text-white/50">{t("رقم الجوال", "Phone Number")}</label>
-                <input
-                  type="tel"
-                  value={customerPhone}
-                  readOnly
-                  className="w-full h-11 px-3 rounded-xl text-white text-sm font-bold"
-                  style={{ background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.2)" }}
-                  dir="ltr"
-                  data-testid="input-wallet-modal-phone"
-                />
-                {customerPhone.length < 9 && (
-                  <p className="text-amber-400/60 text-xs">{t("أدخل رقم جوالك أولاً في الأعلى", "Enter your phone number above first")}</p>
-                )}
-              </div>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowWalletModal(false)}
-                  className="flex-1 h-11 rounded-xl text-sm font-bold text-white/50 border border-white/10 hover:border-white/20 transition-all"
-                  data-testid="button-wallet-modal-cancel"
-                >
-                  {t("إلغاء", "Cancel")}
-                </button>
-                <button
-                  onClick={async () => {
-                    if (customerPhone.length < 9) return;
-                    setWalletLoading(true);
-                    setShowWalletModal(false);
-                    try {
-                      const res = await fetch(`/api/wallet/${merchantId}/${customerPhone.replace(/\D/g, "")}`);
-                      const data = await res.json();
-                      setWalletBalance(data.balance || 0);
-                    } catch { setWalletBalance(0); }
-                    setWalletVerified(true);
-                    setWalletLoading(false);
-                  }}
-                  disabled={customerPhone.length < 9}
-                  className="flex-1 h-11 rounded-xl text-sm font-bold text-black transition-all disabled:opacity-40 active:scale-95"
-                  style={{ background: customerPhone.length >= 9 ? "rgba(251,191,36,0.9)" : "rgba(251,191,36,0.2)" }}
-                  data-testid="button-wallet-modal-confirm"
-                >
-                  {walletLoading ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : t("تأكيد وعرض الرصيد", "Confirm & Show Balance")}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {showStoreTermsModal && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center" data-testid="modal-store-legal">
