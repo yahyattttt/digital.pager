@@ -283,6 +283,15 @@ export default function CheckOrderPage() {
                 ) : "تأكيد"}
               </button>
             </div>
+
+            <p
+              className="text-center text-[12px] font-bold leading-snug pt-1"
+              style={{ color: "#FBBF24", fontFamily: "'Tajawal', 'Cairo', sans-serif" }}
+              dir="rtl"
+              data-testid="text-pin-disclaimer"
+            >
+              ⚠️ تنويه: يجب إحضار الفاتورة الورقية الأصلية أثناء استلام طلبك من الكاونتر.
+            </p>
           </div>
         </div>
       )}
