@@ -1888,11 +1888,62 @@ export async function registerRoutes(
     }
   });
 
+  /* ── Wallets: List all loyalty customers for a merchant ── */
+  app.get("/api/wallets/:merchantId", async (req, res) => {
+    try {
+      const { merchantId } = req.params;
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Config error" });
+      const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
+      const apiKey = getApiKey();
+      const queryUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery?key=${apiKey}`;
+      const queryRes = await fetch(queryUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          structuredQuery: {
+            from: [{ collectionId: "wallets" }],
+            where: {
+              fieldFilter: {
+                field: { fieldPath: "merchantId" },
+                op: "EQUAL",
+                value: { stringValue: merchantId },
+              },
+            },
+          },
+        }),
+      });
+      if (!queryRes.ok) return res.status(500).json({ message: "Query failed" });
+      const rows = await queryRes.json();
+      const customers = (Array.isArray(rows) ? rows : [])
+        .filter((r: any) => r.document)
+        .map((r: any) => {
+          const f = r.document.fields || {};
+          const balance = parseFloat(String(f.balance?.doubleValue ?? f.balance?.integerValue ?? "0")) || 0;
+          const online_balance = parseFloat(String(f.online_balance?.doubleValue ?? f.online_balance?.integerValue ?? "0")) || 0;
+          const manual_balance = parseFloat(String(f.manual_balance?.doubleValue ?? f.manual_balance?.integerValue ?? "0")) || 0;
+          const visits_count = parseInt(f.visits_count?.integerValue || "0") || 0;
+          const phone = f.phone?.stringValue || "";
+          const history: any[] = f.history?.arrayValue?.values || [];
+          const joinedDate = history.length > 0 ? (history[0].mapValue?.fields?.timestamp?.stringValue || null) : null;
+          const lastActivity = history.length > 0 ? (history[history.length - 1].mapValue?.fields?.timestamp?.stringValue || null) : null;
+          const hasOnline = online_balance > 0 || history.some((h: any) => h.mapValue?.fields?.type?.stringValue === "earn_online");
+          const hasManual = manual_balance > 0 || visits_count > 0 || history.some((h: any) => h.mapValue?.fields?.type?.stringValue === "earn_visit");
+          const type = hasOnline && hasManual ? "both" : hasOnline ? "online" : "manual";
+          return { phone, balance, online_balance, manual_balance, visits_count, joinedDate, lastActivity, type };
+        });
+      return res.json({ customers });
+    } catch (err) {
+      console.error("[Wallets] list error:", err);
+      return res.status(500).json({ message: "Internal error" });
+    }
+  });
+
   /* ── Wallet: Reset (Redeem All — Merchant-triggered) ── */
   app.post("/api/wallet/:merchantId/reset", async (req, res) => {
     try {
       const { merchantId } = req.params;
-      const { phone, note } = req.body;
+      const { phone, note, invoiceNumber } = req.body;
       if (!phone) return res.status(400).json({ message: "phone required" });
       const baseUrl = getApiKeyBaseUrl();
       if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Config error" });
@@ -1904,13 +1955,17 @@ export async function registerRoutes(
       const f = doc.fields || {};
       const prevBalance = parseFloat((f.balance?.doubleValue ?? f.balance?.integerValue) || "0") || 0;
       const currentHistory: any[] = f.history?.arrayValue?.values || [];
+      const now = new Date();
       const resetEntry = {
         mapValue: {
           fields: {
             type: { stringValue: "redeem_reset" },
             amount: { doubleValue: -prevBalance },
             note: { stringValue: note || "تم استخدام وتصفير الرصيد من قِبل المتجر" },
-            timestamp: { stringValue: new Date().toISOString() },
+            timestamp: { stringValue: now.toISOString() },
+            date: { stringValue: now.toLocaleDateString("ar-SA") },
+            time: { stringValue: now.toLocaleTimeString("ar-SA") },
+            ...(invoiceNumber ? { invoiceNumber: { stringValue: String(invoiceNumber) } } : {}),
           },
         },
       };

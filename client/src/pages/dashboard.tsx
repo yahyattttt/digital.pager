@@ -134,7 +134,7 @@ const businessTypeLabelsEn: Record<string, string> = {
 const ADMIN_WHATSAPP = "https://wa.me/966500000000";
 const PRIMARY_ADMIN_EMAIL = (import.meta.env.VITE_SUPER_ADMIN_EMAIL || "yahiatohary@hotmail.com").toLowerCase();
 
-type DashboardView = "overview" | "menu" | "analytics" | "tracking" | "customers" | "coupons" | "financial" | "settings" | "archive" | "subscription" | "reviews" | "syshealth" | "loyalty";
+type DashboardView = "overview" | "menu" | "analytics" | "tracking" | "customers" | "coupons" | "financial" | "settings" | "archive" | "subscription" | "reviews" | "syshealth" | "loyalty" | "crm";
 
 function SubscriptionRequiredScreen({
   storeName,
@@ -1310,8 +1310,12 @@ export default function DashboardPage() {
       setFlyingOrderId(`wa-${order.id}`);
       await new Promise(r => setTimeout(r, 600));
 
-      const orderRef = doc(db, "merchants", merchant.uid, "whatsappOrders", order.id);
-      await updateDoc(orderRef, { status: "archived", archivedAt: new Date().toISOString() });
+      // Use server PATCH so server-side loyalty crediting runs correctly
+      await fetch(`/api/whatsapp-orders/${merchant.uid}/${order.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "x-admin-email": merchant.email || "" },
+        body: JSON.stringify({ status: "archived", archivedAt: new Date().toISOString() }),
+      });
 
       setFlyingOrderId(null);
       toast({
@@ -1703,6 +1707,7 @@ export default function DashboardPage() {
     { id: "financial", icon: DollarSign, label: t("الإدارة المالية", "Financial") },
     { id: "reviews", icon: Star, label: t("تقييمات العملاء", "Customer Reviews") },
     { id: "loyalty", icon: Wallet, label: t("نظام الولاء والمحفظة", "Loyalty & Wallet") },
+    { id: "crm", icon: Users2, label: t("عملاء الولاء", "Loyalty CRM") },
     { id: "archive", icon: FolderArchive, label: t("أرشيف الطلبات", "Order Archive") },
     { id: "subscription", icon: CreditCard, label: t("اشتراكي", "My Subscription") },
     { id: "settings", icon: Settings, label: t("الإعدادات", "Settings") },
@@ -2155,6 +2160,10 @@ export default function DashboardPage() {
 
             {!isContentLocked && currentView === "loyalty" && (
               <LoyaltyView merchant={merchant} t={t} lang={lang} />
+            )}
+
+            {!isContentLocked && currentView === "crm" && (
+              <CRMLoyaltyView merchant={merchant} t={t} lang={lang} />
             )}
 
             {currentView === "settings" && (
@@ -7383,6 +7392,7 @@ function LoyaltyView({
   const [customerProfile, setCustomerProfile] = useState<{ ordersCount: number; favoriteItems: { name: string; count: number }[] } | null>(null);
   const [showRedeemConfirm, setShowRedeemConfirm] = useState(false);
   const [redeemLoading, setRedeemLoading] = useState(false);
+  const [invoiceNumber, setInvoiceNumber] = useState("");
 
   const [topItems, setTopItems] = useState<{ name: string; count: number }[]>([]);
   const [activeCustomers, setActiveCustomers] = useState(0);
@@ -7457,16 +7467,18 @@ function LoyaltyView({
 
   async function handleRedeemReset() {
     if (!merchant?.uid || !walletPhone || !walletData) return;
+    if (!invoiceNumber.trim()) return;
     setRedeemLoading(true);
     try {
       const cleanPhone = walletPhone.replace(/\D/g, "");
       const res = await fetch(`/api/wallet/${merchant.uid}/reset`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: cleanPhone, note: "تصفير يدوي من المتجر" }),
+        body: JSON.stringify({ phone: cleanPhone, note: `تصفير يدوي — فاتورة رقم: ${invoiceNumber.trim()}`, invoiceNumber: invoiceNumber.trim() }),
       });
       if (res.ok) {
         setWalletData({ ...walletData, balance: 0, online_balance: 0, manual_balance: 0 });
+        setInvoiceNumber("");
         toast({ title: t("تم التصفير", "Balance Reset"), description: t("تم تصفير رصيد العميل بنجاح", "Customer balance has been reset") });
       } else {
         toast({ title: t("خطأ", "Error"), description: t("فشل في التصفير", "Failed to reset"), variant: "destructive" });
@@ -7705,7 +7717,7 @@ function LoyaltyView({
               {/* Redeem & Reset Button + Confirmation */}
               {!showRedeemConfirm ? (
                 <Button
-                  onClick={() => setShowRedeemConfirm(true)}
+                  onClick={() => { setShowRedeemConfirm(true); setInvoiceNumber(""); }}
                   disabled={walletData.balance <= 0}
                   className="w-full h-10 rounded-xl bg-red-900/80 hover:bg-red-800 text-red-200 text-sm font-bold border border-red-700/40 disabled:opacity-30"
                   data-testid="button-redeem-reset"
@@ -7713,19 +7725,38 @@ function LoyaltyView({
                   🔁 {t("استخدام وتصفير الرصيد", "Redeem & Reset Balance")}
                 </Button>
               ) : (
-                <div className="rounded-2xl p-4 border border-red-500/30 bg-red-950/30 space-y-3" data-testid="redeem-confirm-dialog">
-                  <p className="text-sm font-bold text-white text-center" dir="rtl">⚠️ {t("تأكيد الاستخدام", "Confirm Redemption")}</p>
-                  <p className="text-xs text-white/60 text-center leading-relaxed" dir="rtl">
+                <div className="rounded-2xl p-4 border border-red-500/30 bg-red-950/30 space-y-3" data-testid="redeem-confirm-dialog" dir="rtl">
+                  <p className="text-sm font-bold text-white text-center">⚠️ {t("تأكيد الاستخدام", "Confirm Redemption")}</p>
+                  <p className="text-xs text-white/60 text-center leading-relaxed">
                     {t(
                       `هل قمت بخصم المبلغ (${walletData.balance.toFixed(2)} ريال) للعميل في الكاشير؟ سيتم تصفير الرصيد الآن.`,
                       `Did you apply the discount (${walletData.balance.toFixed(2)} SAR) at the cashier? The balance will be reset to zero.`
                     )}
                   </p>
+                  {/* Mandatory invoice number */}
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-red-300 flex items-center gap-1">
+                      🧾 {t("رقم فاتورة المطعم (إجباري)", "Restaurant Invoice Number (Required)")}
+                    </label>
+                    <input
+                      type="text"
+                      value={invoiceNumber}
+                      onChange={(e) => setInvoiceNumber(e.target.value)}
+                      placeholder={t("أدخل رقم الفاتورة...", "Enter invoice number...")}
+                      className="w-full h-10 px-3 rounded-xl text-white text-sm bg-white/5 border border-red-500/30 focus:border-red-400 outline-none"
+                      data-testid="input-invoice-number"
+                      dir="ltr"
+                      autoFocus
+                    />
+                    {!invoiceNumber.trim() && (
+                      <p className="text-[10px] text-red-400/70">{t("يجب إدخال رقم الفاتورة لتأكيد الاستخدام", "Invoice number is required to confirm redemption")}</p>
+                    )}
+                  </div>
                   <div className="flex gap-2">
-                    <Button onClick={() => setShowRedeemConfirm(false)} variant="outline" className="flex-1 h-9 rounded-xl text-xs border-white/10" data-testid="button-redeem-cancel">
+                    <Button onClick={() => { setShowRedeemConfirm(false); setInvoiceNumber(""); }} variant="outline" className="flex-1 h-9 rounded-xl text-xs border-white/10" data-testid="button-redeem-cancel">
                       {t("إلغاء", "Cancel")}
                     </Button>
-                    <Button onClick={handleRedeemReset} disabled={redeemLoading} className="flex-1 h-9 rounded-xl bg-red-700 hover:bg-red-600 text-white text-xs font-bold" data-testid="button-redeem-confirm">
+                    <Button onClick={handleRedeemReset} disabled={redeemLoading || !invoiceNumber.trim()} className="flex-1 h-9 rounded-xl bg-red-700 hover:bg-red-600 text-white text-xs font-bold disabled:opacity-40" data-testid="button-redeem-confirm">
                       {redeemLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : t("نعم، تم الخصم — صفّر الرصيد", "Yes, Applied — Reset")}
                     </Button>
                   </div>
@@ -7848,6 +7879,178 @@ function LoyaltyView({
               {t("إضافة المكافأة للمحفظة", "Add Reward to Wallet")}
             </Button>
           </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════
+   CRM & Loyalty Dashboard View
+   ═══════════════════════════════════════════════════ */
+function CRMLoyaltyView({ merchant, t, lang }: { merchant: any; t: (ar: string, en: string) => string; lang: string }) {
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState<"all" | "online" | "manual" | "both">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "new" | "active" | "inactive">("all");
+
+  useEffect(() => {
+    if (!merchant?.uid) return;
+    async function load() {
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/wallets/${merchant.uid}`);
+        if (res.ok) {
+          const data = await res.json();
+          setCustomers(data.customers || []);
+        }
+      } catch {}
+      setLoading(false);
+    }
+    load();
+  }, [merchant?.uid]);
+
+  function getStatus(c: any): "new" | "active" | "inactive" {
+    if (!c.lastActivity) return "new";
+    const days = (Date.now() - new Date(c.lastActivity).getTime()) / (1000 * 60 * 60 * 24);
+    if (days > 30) return "inactive";
+    if (!c.joinedDate) return "new";
+    const joinDays = (Date.now() - new Date(c.joinedDate).getTime()) / (1000 * 60 * 60 * 24);
+    if (joinDays <= 30) return "new";
+    return "active";
+  }
+
+  const totalOnline = customers.filter(c => c.type === "online" || c.type === "both").length;
+  const totalManual = customers.filter(c => c.type === "manual" || c.type === "both").length;
+
+  const filtered = customers.filter(c => {
+    if (search && !c.phone.includes(search.replace(/\D/g, ""))) return false;
+    if (typeFilter !== "all" && c.type !== typeFilter) return false;
+    if (statusFilter !== "all" && getStatus(c) !== statusFilter) return false;
+    return true;
+  });
+
+  const statusBadge = (status: string) => {
+    if (status === "new") return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-300">جديد</span>;
+    if (status === "active") return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300">نشط</span>;
+    return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-zinc-500/20 text-zinc-400">غير نشط</span>;
+  };
+
+  const typeBadge = (type: string) => {
+    if (type === "online") return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-500/20 text-violet-300">أونلاين</span>;
+    if (type === "manual") return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300">حضوري</span>;
+    return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/20 text-cyan-300">مختلط</span>;
+  };
+
+  return (
+    <div className="space-y-5" dir={lang === "ar" ? "rtl" : "ltr"} style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}>
+      <div>
+        <h2 className="text-xl font-bold">{t("عملاء الولاء", "Loyalty CRM")}</h2>
+        <p className="text-sm text-muted-foreground mt-0.5">{t("قائمة عملاء برنامج الولاء والمحفظة", "All loyalty program customers and wallet holders")}</p>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 gap-3">
+        <Card className="border-violet-500/20 bg-violet-500/5 rounded-2xl">
+          <CardContent className="p-4 text-center">
+            <p className="text-3xl font-black text-violet-400" data-testid="stat-online-loyalty-customers">{loading ? "—" : totalOnline}</p>
+            <p className="text-xs text-muted-foreground mt-1">{t("عملاء الولاء الأونلاين", "Online Loyalty Customers")}</p>
+          </CardContent>
+        </Card>
+        <Card className="border-amber-500/20 bg-amber-500/5 rounded-2xl">
+          <CardContent className="p-4 text-center">
+            <p className="text-3xl font-black text-amber-400" data-testid="stat-manual-loyalty-customers">{loading ? "—" : totalManual}</p>
+            <p className="text-xs text-muted-foreground mt-1">{t("عملاء الولاء الحضوري", "Manual Loyalty Customers")}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Filters */}
+      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
+        <CardContent className="p-4 space-y-3">
+          <div className="relative">
+            <input
+              type="tel"
+              inputMode="numeric"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder={t("بحث برقم الجوال...", "Search by phone...")}
+              className="w-full h-10 px-4 rounded-xl bg-white/5 border border-white/10 text-white text-sm outline-none focus:border-white/25"
+              dir="ltr"
+              data-testid="input-crm-search"
+            />
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            {/* Type filter */}
+            {(["all", "online", "manual", "both"] as const).map(opt => (
+              <button
+                key={opt}
+                onClick={() => setTypeFilter(opt)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${typeFilter === opt ? "bg-white/15 text-white" : "bg-white/5 text-white/40 hover:text-white/70"}`}
+                data-testid={`filter-type-${opt}`}
+              >
+                {opt === "all" ? t("الكل", "All") : opt === "online" ? t("أونلاين", "Online") : opt === "manual" ? t("حضوري", "Manual") : t("مختلط", "Both")}
+              </button>
+            ))}
+            <span className="w-px bg-white/10 mx-1" />
+            {/* Status filter */}
+            {(["all", "new", "active", "inactive"] as const).map(opt => (
+              <button
+                key={opt}
+                onClick={() => setStatusFilter(opt)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${statusFilter === opt ? "bg-white/15 text-white" : "bg-white/5 text-white/40 hover:text-white/70"}`}
+                data-testid={`filter-status-${opt}`}
+              >
+                {opt === "all" ? t("كل الحالات", "All Status") : opt === "new" ? t("جديد", "New") : opt === "active" ? t("نشط", "Active") : t("غير نشط", "Inactive")}
+              </button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Customer Table */}
+      <Card className="border-white/[0.06] bg-[#111] rounded-2xl overflow-hidden">
+        <CardContent className="p-0">
+          {loading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="w-6 h-6 animate-spin text-amber-400" />
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="text-center py-16 text-muted-foreground text-sm">{t("لا توجد نتائج", "No results found")}</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm" dir={lang === "ar" ? "rtl" : "ltr"}>
+                <thead>
+                  <tr className="border-b border-white/[0.06] bg-white/[0.02]">
+                    <th className="px-4 py-3 text-right text-xs text-muted-foreground font-medium">{t("الجوال", "Phone")}</th>
+                    <th className="px-4 py-3 text-right text-xs text-muted-foreground font-medium">{t("النوع", "Type")}</th>
+                    <th className="px-4 py-3 text-right text-xs text-muted-foreground font-medium">{t("الرصيد الكلي", "Total Balance")}</th>
+                    <th className="px-4 py-3 text-right text-xs text-muted-foreground font-medium">{t("أونلاين", "Online")}</th>
+                    <th className="px-4 py-3 text-right text-xs text-muted-foreground font-medium">{t("حضوري", "Manual")}</th>
+                    <th className="px-4 py-3 text-right text-xs text-muted-foreground font-medium">{t("تاريخ الانضمام", "Joined")}</th>
+                    <th className="px-4 py-3 text-right text-xs text-muted-foreground font-medium">{t("الحالة", "Status")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((c, i) => {
+                    const status = getStatus(c);
+                    return (
+                      <tr key={c.phone || i} className="border-b border-white/[0.04] hover:bg-white/[0.03] transition-colors cursor-pointer" data-testid={`row-crm-customer-${i}`}>
+                        <td className="px-4 py-3 font-mono text-white/80 text-xs" dir="ltr">{c.phone || "—"}</td>
+                        <td className="px-4 py-3">{typeBadge(c.type)}</td>
+                        <td className="px-4 py-3 font-bold text-amber-400">{c.balance?.toFixed(2) || "0.00"} <span className="text-[10px] text-white/30">ر.س</span></td>
+                        <td className="px-4 py-3 text-violet-300 text-xs">{c.online_balance?.toFixed(2) || "0.00"}</td>
+                        <td className="px-4 py-3 text-amber-300 text-xs">{c.manual_balance?.toFixed(2) || "0.00"}</td>
+                        <td className="px-4 py-3 text-white/40 text-xs">{c.joinedDate ? new Date(c.joinedDate).toLocaleDateString("ar-SA") : "—"}</td>
+                        <td className="px-4 py-3">{statusBadge(status)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

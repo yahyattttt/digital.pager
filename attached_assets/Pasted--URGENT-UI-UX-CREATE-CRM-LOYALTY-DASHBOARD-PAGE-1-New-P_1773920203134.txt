@@ -1,0 +1,59 @@
+"URGENT UI/UX: CREATE CRM & LOYALTY DASHBOARD PAGE"
+
+1. New Page: Create a new page named Customers & Loyalty in the merchant dashboard.
+
+2. Top Cards: Add two distinct KPI cards at the top:
+
+Total Online Loyalty Customers.
+
+Total Manual Loyalty Customers.
+
+3. Filters Section: Add a filtering bar with options:
+
+Search: (By phone number).
+
+Type: (Online / Manual).
+
+Status: (New / Active / Inactive - with automatic calculation logic).
+
+4. Customer Table: Create a table listing all loyalty customers with columns: Phone, Type, Total Points, Joined Date, Status Tab. Make rows clickable.
+
+Goal: Build the UI structure for the new CRM system without backend functionality yet."
+
+المرحلة الثانية: أتمتة الأمن في "سحب الرصيد" (Mandatory Invoice)
+انسخ هذا الأمر وضعه للأيجنت:
+
+"CRITICAL SECURITY UPDATE: MANDATORY INVOICE NUMBER ON WITHDRAWAL"
+
+1. Target UI: Go to the merchant app's Wallet Lookup/Redemption view.
+
+2. Requirement: Locate the withdrawal/redemption input.
+
+3. ACTION: You MUST add a new input field labeled 'رقم فاتورة المطعم (إجباري)' (Restaurant Invoice Number - Mandatory).
+
+4. Validation: In the submission logic, ensure that the Redeem/Withdraw button is DISABLED until a valid Invoice Number is entered. Do not allow 0 points redemption; only allow withdrawals if an invoice is attached.
+
+5. Database: When saving the transaction, create a detailed log containing Date, Time, CustomerPhone, AmountWithdrawn, and the InvoiceNumber.
+
+Goal: Implement the security lock to ensure every points redemption is tied to a physical restaurant invoice."
+
+المرحلة الثالثة: منطق الترحيل والربط بالأونلاين (حل مشكلة الـ 0.00)
+انسخ هذا الأمر وضعه للأيجنت:
+
+"FINAL BUG FIX: AUTO-ACCRUE ONLINE REWARDS ON COMPLETION"
+
+1. Target Logic: Locate the server-side function that runs when a merchant clicks 'تم الاستلام' (Complete Order).
+
+2. Fix: Inside this function, automatically trigger the loyalty points addition logic for ONLINE orders.
+
+3. Actions:
+
+Fetch the order details.
+
+Calculate the reward points based on the merchant's percentage (6%).
+
+Increment the online_balance and total_balance in the customer's wallet using the order's phone number.
+
+Mark the order with loyalty_processed: true to prevent double-crediting.
+
+4. Verification: Confirm that online orders now successfully increase the customer's loyalty balance without manual intervention."
