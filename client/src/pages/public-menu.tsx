@@ -981,37 +981,8 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
               </div>
             )}
 
-            {/* ── Wallet Balance Panel (when loyalty enabled) ── */}
-            {!!merchant?.loyalty_config?.is_enabled && (
-              !walletVerified ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (customerPhone.length >= 9) {
-                      setWalletLoading(true);
-                      fetch(`/api/wallet/${merchantId}/${customerPhone.replace(/\D/g, "")}`)
-                        .then(r => r.json())
-                        .then(data => { setWalletBalance(data.balance || 0); setWalletVerified(true); })
-                        .catch(() => setWalletBalance(0))
-                        .finally(() => setWalletLoading(false));
-                    } else {
-                      setShowWalletModal(true);
-                    }
-                  }}
-                  className="mt-2 w-full flex items-center justify-between px-4 py-2.5 rounded-2xl transition-all active:scale-[0.98]"
-                  style={{ background: "rgba(251,191,36,0.04)", border: "1px dashed rgba(251,191,36,0.2)" }}
-                  data-testid="button-join-wallet"
-                  dir="rtl"
-                >
-                  <div className="flex items-center gap-2">
-                    <Wallet className="w-4 h-4 text-amber-400/60" />
-                    <span className="text-xs text-amber-400/70 font-semibold">{t("تحقق من رصيد محفظتك", "Check your wallet balance")}</span>
-                  </div>
-                  {walletLoading
-                    ? <Loader2 className="w-3.5 h-3.5 text-amber-400/50 animate-spin" />
-                    : <span className="text-amber-400/40 text-xs">←</span>}
-                </button>
-              ) : (
+            {/* ── Wallet Balance Panel (only when verified) ── */}
+            {!!merchant?.loyalty_config?.is_enabled && walletVerified && (
                 <div
                   className="mt-2 rounded-2xl overflow-hidden"
                   style={{ background: "linear-gradient(135deg,rgba(30,18,0,0.97) 0%,rgba(12,8,0,0.99) 100%)", border: "1.5px solid rgba(251,191,36,0.25)" }}
@@ -1060,7 +1031,6 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
                     </p>
                   )}
                 </div>
-              )
             )}
           </div>
 
