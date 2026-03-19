@@ -109,7 +109,7 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
   const [walletVerified, setWalletVerified] = useState(false);
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [walletVisits, setWalletVisits] = useState(0);
-  const [loyaltyOptIn, setLoyaltyOptIn] = useState(true);
+  const [loyaltyOptIn, setLoyaltyOptIn] = useState(false);
 
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"online" | "cod" | null>(null);
   const [moyasarPaymentCompleted, setMoyasarPaymentCompleted] = useState(false);
@@ -942,21 +942,119 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
               )}
             </div>
 
-            {/* Loyalty opt-in checkbox — shown when loyalty is enabled */}
-            {!!(merchant as any)?.loyalty_config?.is_enabled && (
-              <label className="flex items-center gap-2.5 cursor-pointer mt-3 select-none" dir="rtl" data-testid="label-loyalty-optin">
+            {/* Loyalty opt-in card — shown when merchant loyalty is enabled */}
+            {!!(merchant as any)?.loyalty_config?.is_enabled && (() => {
+              const onlinePct = parseFloat((merchant as any)?.loyalty_config?.online_percent ?? 0);
+              const earnAmount = onlinePct > 0
+                ? Math.round(finalTotal * onlinePct / 100 * 100) / 100
+                : 0;
+              return (
                 <div
-                  onClick={() => setLoyaltyOptIn(prev => !prev)}
-                  className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all shrink-0 ${loyaltyOptIn ? "bg-amber-500 border-amber-500" : "bg-transparent border-white/25"}`}
-                  data-testid="checkbox-loyalty-optin"
+                  className="mt-4 rounded-2xl overflow-hidden transition-all"
+                  style={{
+                    background: loyaltyOptIn
+                      ? "linear-gradient(135deg,rgba(40,25,0,0.95) 0%,rgba(20,12,0,0.98) 100%)"
+                      : "rgba(18,12,0,0.5)",
+                    border: loyaltyOptIn
+                      ? "1.5px solid rgba(251,191,36,0.3)"
+                      : "1.5px solid rgba(255,255,255,0.07)",
+                  }}
+                  data-testid="section-loyalty-optin"
                 >
-                  {loyaltyOptIn && <Check className="w-3 h-3 text-black" />}
+                  {/* Toggle row */}
+                  <label
+                    className="flex items-center gap-3 px-4 py-3.5 cursor-pointer select-none"
+                    dir="rtl"
+                    data-testid="label-loyalty-optin"
+                  >
+                    <div
+                      onClick={() => setLoyaltyOptIn(prev => !prev)}
+                      className="flex items-center justify-center shrink-0 transition-all rounded-full"
+                      style={{
+                        width: 42, height: 24,
+                        background: loyaltyOptIn ? "rgba(251,191,36,0.9)" : "rgba(255,255,255,0.1)",
+                        position: "relative",
+                      }}
+                      data-testid="toggle-loyalty-optin"
+                    >
+                      <div
+                        style={{
+                          position: "absolute",
+                          width: 18, height: 18,
+                          borderRadius: "50%",
+                          background: "#fff",
+                          top: 3,
+                          right: loyaltyOptIn ? 3 : undefined,
+                          left: loyaltyOptIn ? undefined : 3,
+                          transition: "all 0.2s ease",
+                          boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
+                        }}
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xs font-bold leading-snug" style={{ color: loyaltyOptIn ? "#fbbf24" : "rgba(255,255,255,0.55)" }}>
+                        {t("هل تود استخدام الولاء بنفس رقم الجوال المدخل؟", "Join loyalty with the phone number above?")}
+                      </p>
+                      {!loyaltyOptIn && (
+                        <p className="text-[10px] mt-0.5" style={{ color: "rgba(255,255,255,0.25)" }}>
+                          {t("اكسب رصيداً عند كل طلب 🎁", "Earn wallet credit on every order 🎁")}
+                        </p>
+                      )}
+                    </div>
+                  </label>
+
+                  {/* Expanded reward info — only when opted in */}
+                  {loyaltyOptIn && (
+                    <div
+                      className="px-4 pb-4 pt-1 flex flex-col gap-2"
+                      dir="rtl"
+                    >
+                      {/* Earn preview */}
+                      {earnAmount > 0 ? (
+                        <div
+                          className="flex items-center gap-2.5 rounded-xl px-3.5 py-2.5"
+                          style={{ background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.18)" }}
+                          data-testid="text-loyalty-earn-preview"
+                        >
+                          <span className="text-lg">🎁</span>
+                          <p className="text-xs leading-relaxed" style={{ color: "rgba(255,255,255,0.7)" }}>
+                            سيتم تسجيلك في نظام الولاء وستكسب{" "}
+                            <span className="font-black text-amber-400">{earnAmount.toFixed(2)} ريال</span>
+                            {" "}لمحفظتك عند اكتمال الطلب.
+                          </p>
+                        </div>
+                      ) : (
+                        <div
+                          className="flex items-center gap-2.5 rounded-xl px-3.5 py-2.5"
+                          style={{ background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.12)" }}
+                          data-testid="text-loyalty-earn-preview"
+                        >
+                          <span className="text-lg">🎁</span>
+                          <p className="text-xs" style={{ color: "rgba(255,255,255,0.6)" }}>
+                            سيتم تسجيلك في نظام الولاء وستكسب مكافأة عند اكتمال الطلب.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Redemption disclaimer */}
+                      <div
+                        className="flex items-start gap-2 rounded-xl px-3 py-2"
+                        style={{ background: "rgba(255,80,0,0.06)", border: "1px solid rgba(255,80,0,0.15)" }}
+                        data-testid="text-loyalty-disclaimer"
+                      >
+                        <span className="text-sm shrink-0 mt-0.5">⚠️</span>
+                        <p className="text-[10px] leading-relaxed font-medium" style={{ color: "rgba(255,180,80,0.8)" }}>
+                          {t(
+                            "تنويه: استبدال محفظتك فقط من خلال كاشير المتجر.",
+                            "Note: Wallet redemption is only through the store cashier."
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <span className="text-xs text-white/60 leading-relaxed">
-                  {t("الانضمام لبرنامج الولاء — اكسب رصيداً على هذا الطلب 🎁", "Join Loyalty Program — earn credit on this order 🎁")}
-                </span>
-              </label>
-            )}
+              );
+            })()}
           </div>
 
           <div className="mb-6" data-testid="section-order-type">
