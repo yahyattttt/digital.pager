@@ -729,8 +729,8 @@ export default function DigitalPagerPage() {
       </div>
 
 
-      {/* Wallet balance card — shown for whatsapp orders with loyalty enabled */}
-      {loyaltyEnabled && !isManual && customerPhone && walletBalance !== null && (
+      {/* Wallet balance card — shown ONLY during processing (not preparing/ready/done) */}
+      {loyaltyEnabled && !isManual && customerPhone && walletBalance !== null && status === "processing" && (
         <div className="w-full max-w-xs px-4 mt-4">
           <div
             className="rounded-2xl p-4 relative overflow-hidden"

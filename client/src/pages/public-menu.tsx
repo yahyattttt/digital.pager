@@ -109,6 +109,7 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
   const [walletVerified, setWalletVerified] = useState(false);
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [walletVisits, setWalletVisits] = useState(0);
+  const [loyaltyOptIn, setLoyaltyOptIn] = useState(true);
 
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"online" | "cod" | null>(null);
   const [moyasarPaymentCompleted, setMoyasarPaymentCompleted] = useState(false);
@@ -593,6 +594,10 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
         orderBody.walletDiscount = walletDiscount;
         orderBody.customerPhone = customerPhone.trim();
       }
+      const isLoyaltyEnabled = !!(merchant as any)?.loyalty_config?.is_enabled;
+      if (isLoyaltyEnabled) {
+        orderBody.loyalty_opted_in = loyaltyOptIn;
+      }
 
       const res = await fetch(`/api/whatsapp-orders/${merchantId}`, {
         method: "POST",
@@ -936,6 +941,22 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
                 <p className="text-red-400/60 text-[10px] mt-1">{t("يجب إدخال 10 أرقام", "Must be 10 digits")}</p>
               )}
             </div>
+
+            {/* Loyalty opt-in checkbox — shown when loyalty is enabled */}
+            {!!(merchant as any)?.loyalty_config?.is_enabled && (
+              <label className="flex items-center gap-2.5 cursor-pointer mt-3 select-none" dir="rtl" data-testid="label-loyalty-optin">
+                <div
+                  onClick={() => setLoyaltyOptIn(prev => !prev)}
+                  className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all shrink-0 ${loyaltyOptIn ? "bg-amber-500 border-amber-500" : "bg-transparent border-white/25"}`}
+                  data-testid="checkbox-loyalty-optin"
+                >
+                  {loyaltyOptIn && <Check className="w-3 h-3 text-black" />}
+                </div>
+                <span className="text-xs text-white/60 leading-relaxed">
+                  {t("الانضمام لبرنامج الولاء — اكسب رصيداً على هذا الطلب 🎁", "Join Loyalty Program — earn credit on this order 🎁")}
+                </span>
+              </label>
+            )}
           </div>
 
           <div className="mb-6" data-testid="section-order-type">

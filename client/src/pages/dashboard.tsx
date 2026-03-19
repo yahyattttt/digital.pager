@@ -1313,25 +1313,6 @@ export default function DashboardPage() {
       const orderRef = doc(db, "merchants", merchant.uid, "whatsappOrders", order.id);
       await updateDoc(orderRef, { status: "archived", archivedAt: new Date().toISOString() });
 
-      // Credit loyalty wallet when order is marked Received/Complete
-      const loyaltyCfg = (merchant as any)?.loyalty_config;
-      if (loyaltyCfg?.is_enabled && order.customerPhone) {
-        const pct = loyaltyCfg.online_percent || 0;
-        const rewardAmt = Math.round((order.total || 0) * pct / 100 * 100) / 100;
-        if (rewardAmt > 0) {
-          fetch(`/api/wallet/${merchant.uid}/add`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              phone: order.customerPhone.replace(/\D/g, ""),
-              amount: rewardAmt,
-              type: "earn_online",
-              note: `مكافأة طلب #${order.displayOrderId || order.orderNumber}`,
-            }),
-          }).catch(() => {});
-        }
-      }
-
       setFlyingOrderId(null);
       toast({
         title: t("تم إغلاق الطلب", "Order Closed"),
@@ -7417,9 +7398,11 @@ function LoyaltyView({
   const [compLoading, setCompLoading] = useState(false);
 
   const [walletPhone, setWalletPhone] = useState("");
-  const [walletData, setWalletData] = useState<{ balance: number; visits_count: number; history: any[] } | null>(null);
+  const [walletData, setWalletData] = useState<{ balance: number; online_balance: number; manual_balance: number; visits_count: number; history: any[] } | null>(null);
   const [walletLoading, setWalletLoading] = useState(false);
   const [customerProfile, setCustomerProfile] = useState<{ ordersCount: number; favoriteItems: { name: string; count: number }[] } | null>(null);
+  const [showRedeemConfirm, setShowRedeemConfirm] = useState(false);
+  const [redeemLoading, setRedeemLoading] = useState(false);
 
   const [topItems, setTopItems] = useState<{ name: string; count: number }[]>([]);
   const [activeCustomers, setActiveCustomers] = useState(0);
@@ -7492,17 +7475,41 @@ function LoyaltyView({
     setCompLoading(false);
   }
 
+  async function handleRedeemReset() {
+    if (!merchant?.uid || !walletPhone || !walletData) return;
+    setRedeemLoading(true);
+    try {
+      const cleanPhone = walletPhone.replace(/\D/g, "");
+      const res = await fetch(`/api/wallet/${merchant.uid}/reset`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: cleanPhone, note: "تصفير يدوي من المتجر" }),
+      });
+      if (res.ok) {
+        setWalletData({ ...walletData, balance: 0, online_balance: 0, manual_balance: 0 });
+        toast({ title: t("تم التصفير", "Balance Reset"), description: t("تم تصفير رصيد العميل بنجاح", "Customer balance has been reset") });
+      } else {
+        toast({ title: t("خطأ", "Error"), description: t("فشل في التصفير", "Failed to reset"), variant: "destructive" });
+      }
+    } catch {
+      toast({ title: t("خطأ", "Error"), description: t("فشل في التصفير", "Failed to reset"), variant: "destructive" });
+    }
+    setRedeemLoading(false);
+    setShowRedeemConfirm(false);
+  }
+
   async function handleWalletSearch() {
     if (!merchant?.uid || !walletPhone.trim()) return;
     setWalletLoading(true);
     setCustomerProfile(null);
+    setShowRedeemConfirm(false);
     try {
       const cleanPhone = walletPhone.replace(/\D/g, "");
       const [walletRes] = await Promise.all([
         fetch(`/api/wallet/${merchant.uid}/${cleanPhone}`),
       ]);
       const data = await walletRes.json();
-      setWalletData({ balance: data.balance || 0, visits_count: data.visits_count || 0, history: data.history || [] });
+      setWalletData({ balance: data.balance || 0, online_balance: data.online_balance || 0, manual_balance: data.manual_balance || 0, visits_count: data.visits_count || 0, history: data.history || [] });
       // Build customer profile from Firestore orders
       const ordersRef = collection(db, "merchants", merchant.uid, "whatsappOrders");
       const snap = await getDocs(query(ordersRef, where("customerPhone", ">=", cleanPhone), where("customerPhone", "<=", cleanPhone + "\uf8ff")));
@@ -7686,7 +7693,7 @@ function LoyaltyView({
           </div>
           {walletData && (
             <div className="space-y-3">
-              {/* Wallet Card */}
+              {/* Wallet Card with Breakdown */}
               <div
                 className="rounded-2xl p-4 relative overflow-hidden"
                 style={{ background: "linear-gradient(135deg, #1a0a00 0%, #0d0500 50%, #1a0800 100%)", border: "1.5px solid rgba(251,191,36,0.2)" }}
@@ -7700,9 +7707,50 @@ function LoyaltyView({
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">نشط ✅</span>
                 </div>
                 <p className="text-3xl font-black text-amber-400 mb-1" data-testid="wallet-balance-result">{walletData.balance.toFixed(2)}</p>
-                <p className="text-xs text-white/40">{t("ريال سعودي — رصيد المحفظة", "SAR — Wallet Balance")}</p>
-                <p className="text-xs text-white/30 mt-2 font-mono" dir="ltr">{walletPhone}</p>
+                <p className="text-xs text-white/40">{t("ريال سعودي — إجمالي الرصيد", "SAR — Total Balance")}</p>
+                {/* Online / Manual breakdown */}
+                <div className="grid grid-cols-2 gap-2 mt-3">
+                  <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] p-2 text-center">
+                    <p className="text-sm font-black text-blue-400" data-testid="wallet-online-balance">{walletData.online_balance.toFixed(2)}</p>
+                    <p className="text-[10px] text-white/30 mt-0.5">{t("أونلاين", "Online")}</p>
+                  </div>
+                  <div className="rounded-xl bg-white/[0.04] border border-white/[0.07] p-2 text-center">
+                    <p className="text-sm font-black text-violet-400" data-testid="wallet-manual-balance">{walletData.manual_balance.toFixed(2)}</p>
+                    <p className="text-[10px] text-white/30 mt-0.5">{t("حضوري", "In-Person")}</p>
+                  </div>
+                </div>
+                <p className="text-xs text-white/20 mt-2 font-mono" dir="ltr">{walletPhone}</p>
               </div>
+
+              {/* Redeem & Reset Button + Confirmation */}
+              {!showRedeemConfirm ? (
+                <Button
+                  onClick={() => setShowRedeemConfirm(true)}
+                  disabled={walletData.balance <= 0}
+                  className="w-full h-10 rounded-xl bg-red-900/80 hover:bg-red-800 text-red-200 text-sm font-bold border border-red-700/40 disabled:opacity-30"
+                  data-testid="button-redeem-reset"
+                >
+                  🔁 {t("استخدام وتصفير الرصيد", "Redeem & Reset Balance")}
+                </Button>
+              ) : (
+                <div className="rounded-2xl p-4 border border-red-500/30 bg-red-950/30 space-y-3" data-testid="redeem-confirm-dialog">
+                  <p className="text-sm font-bold text-white text-center" dir="rtl">⚠️ {t("تأكيد الاستخدام", "Confirm Redemption")}</p>
+                  <p className="text-xs text-white/60 text-center leading-relaxed" dir="rtl">
+                    {t(
+                      `هل قمت بخصم المبلغ (${walletData.balance.toFixed(2)} ريال) للعميل في الكاشير؟ سيتم تصفير الرصيد الآن.`,
+                      `Did you apply the discount (${walletData.balance.toFixed(2)} SAR) at the cashier? The balance will be reset to zero.`
+                    )}
+                  </p>
+                  <div className="flex gap-2">
+                    <Button onClick={() => setShowRedeemConfirm(false)} variant="outline" className="flex-1 h-9 rounded-xl text-xs border-white/10" data-testid="button-redeem-cancel">
+                      {t("إلغاء", "Cancel")}
+                    </Button>
+                    <Button onClick={handleRedeemReset} disabled={redeemLoading} className="flex-1 h-9 rounded-xl bg-red-700 hover:bg-red-600 text-white text-xs font-bold" data-testid="button-redeem-confirm">
+                      {redeemLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : t("نعم، تم الخصم — صفّر الرصيد", "Yes, Applied — Reset")}
+                    </Button>
+                  </div>
+                </div>
+              )}
 
               {/* Customer Stats */}
               {customerProfile && (

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "wouter";
-import { doc, getDoc, onSnapshot } from "firebase/firestore";
+import { doc, getDoc, onSnapshot, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Download } from "lucide-react";
 import { StarRatingPopup } from "@/components/star-rating-popup";
@@ -16,12 +16,16 @@ interface OrderData {
   orderNumber?: string;
   displayOrderId?: string;
   customerName?: string;
+  customerPhone?: string;
   items?: OrderItem[];
   total?: number;
   deliveryFee?: number;
   paymentMethod?: string;
   diningType?: string;
   createdAt?: string;
+  loyalty_opted_in?: boolean;
+  reward_applied?: boolean;
+  status?: string;
 }
 
 export default function OrderCompletedPage() {
@@ -36,10 +40,14 @@ export default function OrderCompletedPage() {
   const [loading, setLoading] = useState(true);
   const [showRating, setShowRating] = useState(false);
   const [ratingDone, setRatingDone] = useState(false);
-  const [walletCredited, setWalletCredited] = useState(false);
-  const [loyaltyEnabled, setLoyaltyEnabled] = useState(false);
+
+  const [rewardEarned, setRewardEarned] = useState(0);
+  const [rewardTotal, setRewardTotal] = useState(0);
+  const [rewardVisible, setRewardVisible] = useState(false);
+
+  const onlinePctRef = useRef(0);
+  const rewardApplyingRef = useRef(false);
   const confettiFired = useRef(false);
-  const hasReward = walletCredited && loyaltyEnabled;
 
   useEffect(() => {
     async function fetchData() {
@@ -50,16 +58,14 @@ export default function OrderCompletedPage() {
           setMerchantName(d.storeName || "");
           setGoogleMapsReviewUrl(d.googleMapsReviewUrl || "");
           const lc = d.loyalty_config;
-          if (lc?.is_enabled && (lc?.online_percent || 0) > 0) setLoyaltyEnabled(true);
+          if (lc?.is_enabled) onlinePctRef.current = lc.online_percent || 0;
         }
 
-        if (orderId) {
-          const collection = orderType === "manual" ? "pagers" : "whatsappOrders";
-          const orderSnap = await getDoc(doc(db, "merchants", merchantId, collection, orderId));
+        if (orderId && orderType !== "manual") {
+          const orderSnap = await getDoc(doc(db, "merchants", merchantId, "whatsappOrders", orderId));
           if (orderSnap.exists()) {
-            const data = orderSnap.data() as OrderData & { status?: string };
+            const data = orderSnap.data() as OrderData;
             setOrder(data);
-            if (data.status === "archived") setWalletCredited(true);
           }
         }
       } catch {}
@@ -68,14 +74,57 @@ export default function OrderCompletedPage() {
     fetchData();
   }, [merchantId, orderId, orderType]);
 
+  // Listen for order status → "archived" and trigger reward if not yet applied
   useEffect(() => {
     if (!orderId || orderType === "manual") return;
     const unsub = onSnapshot(
       doc(db, "merchants", merchantId, "whatsappOrders", orderId),
-      (snap) => {
-        if (snap.exists()) {
-          const data = snap.data() as { status?: string };
-          if (data.status === "archived") setWalletCredited(true);
+      async (snap) => {
+        if (!snap.exists()) return;
+        const data = snap.data() as OrderData;
+        setOrder(prev => ({ ...prev, ...data }));
+
+        const isArchived = data.status === "archived";
+        const alreadyApplied = data.reward_applied === true;
+        const optedIn = data.loyalty_opted_in === true;
+        const phone = data.customerPhone?.replace(/\D/g, "");
+        const orderTotal = data.total || 0;
+        const pct = onlinePctRef.current;
+
+        if (isArchived && !alreadyApplied && optedIn && phone && pct > 0 && !rewardApplyingRef.current) {
+          rewardApplyingRef.current = true;
+          const earned = Math.round(orderTotal * pct / 100 * 100) / 100;
+          if (earned > 0) {
+            try {
+              // Credit wallet
+              const walletRes = await fetch(`/api/wallet/${merchantId}/add`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  phone,
+                  amount: earned,
+                  balance_type: "online",
+                  type: "earn_online",
+                  note: `مكافأة طلب #${data.displayOrderId || data.orderNumber}`,
+                }),
+              });
+              const walletData = await walletRes.json();
+              // Mark reward as applied on the order doc
+              await updateDoc(doc(db, "merchants", merchantId, "whatsappOrders", orderId), {
+                reward_applied: true,
+              });
+              setRewardEarned(earned);
+              setRewardTotal(walletData.newBalance || 0);
+              setRewardVisible(true);
+            } catch {
+              rewardApplyingRef.current = false;
+            }
+          }
+        }
+
+        // If already applied, just mark reward visible (e.g. page reload)
+        if (isArchived && alreadyApplied && optedIn) {
+          setRewardVisible(true);
         }
       }
     );
@@ -88,6 +137,43 @@ export default function OrderCompletedPage() {
       return () => clearTimeout(t);
     }
   }, [loading, merchantId, ratingDone]);
+
+  // Confetti when reward is earned
+  useEffect(() => {
+    if (!rewardVisible || confettiFired.current) return;
+    confettiFired.current = true;
+    const style = document.createElement("style");
+    style.textContent = `
+      @keyframes confetti-fall {
+        0%   { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+        100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+      }
+      .confetti-particle {
+        position: fixed; top: -20px; width: 10px; height: 10px;
+        border-radius: 2px; z-index: 9999; pointer-events: none;
+        animation: confetti-fall linear forwards;
+      }
+    `;
+    document.head.appendChild(style);
+    const colors = ["#fbbf24","#f97316","#ef4444","#22c55e","#3b82f6","#a855f7","#ec4899"];
+    const particles: HTMLDivElement[] = [];
+    for (let i = 0; i < 60; i++) {
+      const el = document.createElement("div");
+      el.className = "confetti-particle";
+      el.style.left = Math.random() * 100 + "vw";
+      el.style.background = colors[Math.floor(Math.random() * colors.length)];
+      el.style.animationDuration = (2.5 + Math.random() * 2) + "s";
+      el.style.animationDelay = (Math.random() * 1.5) + "s";
+      el.style.width = (6 + Math.random() * 8) + "px";
+      el.style.height = (6 + Math.random() * 8) + "px";
+      document.body.appendChild(el);
+      particles.push(el);
+    }
+    setTimeout(() => {
+      particles.forEach(p => p.remove());
+      style.remove();
+    }, 6000);
+  }, [rewardVisible]);
 
   async function downloadInvoice() {
     if (!order) return;
@@ -222,42 +308,6 @@ export default function OrderCompletedPage() {
     }, 700);
   }
 
-  useEffect(() => {
-    if (!hasReward || confettiFired.current) return;
-    confettiFired.current = true;
-    const style = document.createElement("style");
-    style.textContent = `
-      @keyframes confetti-fall {
-        0%   { transform: translateY(-20px) rotate(0deg); opacity: 1; }
-        100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
-      }
-      .confetti-particle {
-        position: fixed; top: -20px; width: 10px; height: 10px;
-        border-radius: 2px; z-index: 9999; pointer-events: none;
-        animation: confetti-fall linear forwards;
-      }
-    `;
-    document.head.appendChild(style);
-    const colors = ["#fbbf24","#f97316","#ef4444","#22c55e","#3b82f6","#a855f7","#ec4899"];
-    const particles: HTMLDivElement[] = [];
-    for (let i = 0; i < 60; i++) {
-      const el = document.createElement("div");
-      el.className = "confetti-particle";
-      el.style.left = Math.random() * 100 + "vw";
-      el.style.background = colors[Math.floor(Math.random() * colors.length)];
-      el.style.animationDuration = (2.5 + Math.random() * 2) + "s";
-      el.style.animationDelay = (Math.random() * 1.5) + "s";
-      el.style.width = (6 + Math.random() * 8) + "px";
-      el.style.height = (6 + Math.random() * 8) + "px";
-      document.body.appendChild(el);
-      particles.push(el);
-    }
-    setTimeout(() => {
-      particles.forEach(p => p.remove());
-      style.remove();
-    }, 6000);
-  }, [hasReward, loading]);
-
   const bg = "linear-gradient(180deg, #050000 0%, #000000 50%, #050000 100%)";
 
   if (loading) {
@@ -321,19 +371,34 @@ export default function OrderCompletedPage() {
         </div>
       )}
 
-      {/* Loyalty Reward Notification — shown when merchant marks order Received */}
-      {hasReward && (
+      {/* Loyalty Reward Notification — shown when reward is earned on this page */}
+      {rewardVisible && (
         <div
           className="w-full max-w-sm mt-4 rounded-2xl p-5 text-center"
-          style={{ background: "rgba(20,12,0,0.9)", border: "1.5px solid rgba(251,191,36,0.25)" }}
+          style={{ background: "rgba(20,12,0,0.9)", border: "1.5px solid rgba(251,191,36,0.3)" }}
           data-testid="loyalty-reward-banner"
           dir="rtl"
         >
           <div className="text-3xl mb-2">🎉</div>
-          <p className="text-sm font-bold text-white">تمت إضافة مكافأة الولاء!</p>
-          <p className="text-xs mt-1" style={{ color: "rgba(251,191,36,0.7)" }}>
-            تحقق من رصيد محفظتك في طلبك القادم
-          </p>
+          {rewardEarned > 0 ? (
+            <>
+              <p className="text-base font-black text-amber-400" data-testid="text-reward-earned">
+                مبروك! كسبت {rewardEarned.toFixed(2)} ريال
+              </p>
+              <p className="text-sm mt-1 text-white/70" data-testid="text-reward-total">
+                مجموع رصيدك الحالي هو{" "}
+                <span className="text-amber-400 font-bold">{rewardTotal.toFixed(2)} ريال</span>
+              </p>
+              <p className="text-xs mt-2 text-white/30">يمكن استخدام الرصيد في طلبك القادم</p>
+            </>
+          ) : (
+            <>
+              <p className="text-sm font-bold text-white">تمت إضافة مكافأة الولاء!</p>
+              <p className="text-xs mt-1" style={{ color: "rgba(251,191,36,0.7)" }}>
+                تحقق من رصيد محفظتك في طلبك القادم
+              </p>
+            </>
+          )}
         </div>
       )}
     </div>

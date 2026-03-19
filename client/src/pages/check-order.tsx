@@ -32,6 +32,7 @@ export default function CheckOrderPage() {
   const [loyaltyPhone, setLoyaltyPhone] = useState<string>(() => localStorage.getItem("dp_customer_phone") || "");
   const [loyaltyJoining, setLoyaltyJoining] = useState(false);
   const [loyaltyJoined, setLoyaltyJoined] = useState(false);
+  const [loyaltyTosAccepted, setLoyaltyTosAccepted] = useState(false);
   const loyaltyPhoneRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -125,7 +126,7 @@ export default function CheckOrderPage() {
   }
 
   async function handleJoinLoyalty() {
-    if (!confirmedPager || !loyaltyPhone || loyaltyPhone.length < 9) return;
+    if (!confirmedPager || !loyaltyPhone || loyaltyPhone.length < 9 || !loyaltyTosAccepted) return;
     setLoyaltyJoining(true);
     try {
       const cleanPhone = loyaltyPhone.replace(/\D/g, "");
@@ -136,6 +137,7 @@ export default function CheckOrderPage() {
         body: JSON.stringify({
           phone: cleanPhone,
           amount: loyaltyRewardPct,
+          balance_type: "manual",
           type: "earn_visit",
           note: `مكافأة زيارة طلب #${confirmedPager.displayOrderId || confirmedPager.orderNumber}`,
         }),
@@ -389,6 +391,33 @@ export default function CheckOrderPage() {
                   />
                 </div>
 
+                {/* ToS Acceptance Checkbox */}
+                <label
+                  className="flex items-start gap-2.5 cursor-pointer select-none"
+                  dir="rtl"
+                  style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}
+                  data-testid="label-loyalty-tos"
+                >
+                  <div
+                    onClick={() => setLoyaltyTosAccepted(prev => !prev)}
+                    className="mt-0.5 w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all"
+                    style={{
+                      background: loyaltyTosAccepted ? "rgba(251,191,36,0.9)" : "transparent",
+                      borderColor: loyaltyTosAccepted ? "rgba(251,191,36,0.6)" : "rgba(255,255,255,0.2)",
+                    }}
+                    data-testid="checkbox-loyalty-tos"
+                  >
+                    {loyaltyTosAccepted && (
+                      <svg width="11" height="9" viewBox="0 0 11 9" fill="none">
+                        <path d="M1 4.5L4 7.5L10 1.5" stroke="#000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    )}
+                  </div>
+                  <span className="text-xs leading-relaxed" style={{ color: "rgba(255,255,255,0.4)" }}>
+                    أوافق على حفظ رقمي في برنامج الولاء واستخدامه لإضافة وعرض المكافآت
+                  </span>
+                </label>
+
                 <div className="flex gap-3" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
                   <button
                     onClick={handleSkipLoyalty}
@@ -404,7 +433,7 @@ export default function CheckOrderPage() {
                   </button>
                   <button
                     onClick={handleJoinLoyalty}
-                    disabled={loyaltyJoining || loyaltyPhone.length < 9}
+                    disabled={loyaltyJoining || loyaltyPhone.length < 9 || !loyaltyTosAccepted}
                     className="flex-1 py-3.5 rounded-2xl text-sm font-bold transition-all active:scale-[0.97] disabled:opacity-40 flex items-center justify-center gap-2"
                     style={{
                       background: "rgba(251,191,36,0.88)",

@@ -1787,15 +1787,17 @@ export async function registerRoutes(
     try {
       const { merchantId, phone } = req.params;
       const sanitizedPhone = phone.replace(/\D/g, "");
-      if (!sanitizedPhone) return res.json({ balance: 0, visits_count: 0, history: [] });
+      if (!sanitizedPhone) return res.json({ balance: 0, online_balance: 0, manual_balance: 0, visits_count: 0, history: [] });
       const docId = `${merchantId}_${sanitizedPhone}`;
       const baseUrl = getApiKeyBaseUrl();
       if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Config error" });
       const r = await apikeyFetch(`${baseUrl}/wallets/${docId}`, { headers: {} });
-      if (!r.ok) return res.json({ balance: 0, visits_count: 0, history: [] });
+      if (!r.ok) return res.json({ balance: 0, online_balance: 0, manual_balance: 0, visits_count: 0, history: [] });
       const doc = await r.json();
       const f = doc.fields || {};
       const balance = parseFloat((f.balance?.doubleValue ?? f.balance?.integerValue) || "0") || 0;
+      const online_balance = parseFloat((f.online_balance?.doubleValue ?? f.online_balance?.integerValue) || "0") || 0;
+      const manual_balance = parseFloat((f.manual_balance?.doubleValue ?? f.manual_balance?.integerValue) || "0") || 0;
       const visits_count = parseInt(f.visits_count?.integerValue || "0") || 0;
       const history = (f.history?.arrayValue?.values || []).map((v: any) => {
         const hf = v.mapValue?.fields || {};
@@ -1806,9 +1808,9 @@ export async function registerRoutes(
           timestamp: hf.timestamp?.stringValue || "",
         };
       });
-      return res.json({ balance, visits_count, history });
+      return res.json({ balance, online_balance, manual_balance, visits_count, history });
     } catch {
-      return res.json({ balance: 0, visits_count: 0, history: [] });
+      return res.json({ balance: 0, online_balance: 0, manual_balance: 0, visits_count: 0, history: [] });
     }
   });
 
@@ -1816,7 +1818,7 @@ export async function registerRoutes(
     try {
       const { merchantId } = req.params;
       const merchantEmail = req.headers["x-merchant-email"] as string;
-      const { phone, amount, type, note } = req.body;
+      const { phone, amount, type, note, balance_type } = req.body;
       if (!phone || amount === undefined || isNaN(parseFloat(amount)))
         return res.status(400).json({ message: "phone and amount required" });
       const baseUrl = getApiKeyBaseUrl();
@@ -1832,16 +1834,24 @@ export async function registerRoutes(
       const docId = `${merchantId}_${sanitizedPhone}`;
       const addAmount = parseFloat(amount);
       const r = await apikeyFetch(`${baseUrl}/wallets/${docId}`, { headers: {} });
-      let currentBalance = 0, currentVisits = 0, currentHistory: any[] = [];
+      let currentBalance = 0, currentOnlineBalance = 0, currentManualBalance = 0, currentVisits = 0, currentHistory: any[] = [];
       if (r.ok) {
         const doc = await r.json();
         const f = doc.fields || {};
         currentBalance = parseFloat((f.balance?.doubleValue ?? f.balance?.integerValue) || "0") || 0;
+        currentOnlineBalance = parseFloat((f.online_balance?.doubleValue ?? f.online_balance?.integerValue) || "0") || 0;
+        currentManualBalance = parseFloat((f.manual_balance?.doubleValue ?? f.manual_balance?.integerValue) || "0") || 0;
         currentVisits = parseInt(f.visits_count?.integerValue || "0") || 0;
         currentHistory = f.history?.arrayValue?.values || [];
       }
       const newBalance = Math.round((currentBalance + addAmount) * 100) / 100;
-      const newVisits = type === "earn_visit" ? currentVisits + 1 : currentVisits;
+      const newOnlineBalance = balance_type === "online"
+        ? Math.round((currentOnlineBalance + addAmount) * 100) / 100
+        : currentOnlineBalance;
+      const newManualBalance = balance_type === "manual"
+        ? Math.round((currentManualBalance + addAmount) * 100) / 100
+        : currentManualBalance;
+      const newVisits = (type === "earn_visit" || balance_type === "manual") ? currentVisits + 1 : currentVisits;
       const historyEntry = {
         mapValue: {
           fields: {
@@ -1853,7 +1863,7 @@ export async function registerRoutes(
         },
       };
       const newHistory = [...currentHistory.slice(-49), historyEntry];
-      const fieldPaths = ["phone", "merchantId", "balance", "visits_count", "history"];
+      const fieldPaths = ["phone", "merchantId", "balance", "online_balance", "manual_balance", "visits_count", "history"];
       const maskParams = fieldPaths.map(fp => `updateMask.fieldPaths=${fp}`).join("&");
       const patchRes = await apikeyFetch(`${baseUrl}/wallets/${docId}?${maskParams}`, {
         method: "PATCH",
@@ -1863,6 +1873,8 @@ export async function registerRoutes(
             phone: { stringValue: sanitizedPhone },
             merchantId: { stringValue: merchantId },
             balance: { doubleValue: newBalance },
+            online_balance: { doubleValue: newOnlineBalance },
+            manual_balance: { doubleValue: newManualBalance },
             visits_count: { integerValue: String(newVisits) },
             history: { arrayValue: { values: newHistory } },
           },
@@ -1872,6 +1884,54 @@ export async function registerRoutes(
       return res.json({ success: true, newBalance });
     } catch (err) {
       console.error("[Wallet] add error:", err);
+      return res.status(500).json({ message: "Internal error" });
+    }
+  });
+
+  /* ── Wallet: Reset (Redeem All — Merchant-triggered) ── */
+  app.post("/api/wallet/:merchantId/reset", async (req, res) => {
+    try {
+      const { merchantId } = req.params;
+      const { phone, note } = req.body;
+      if (!phone) return res.status(400).json({ message: "phone required" });
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Config error" });
+      const sanitizedPhone = String(phone).replace(/\D/g, "");
+      const docId = `${merchantId}_${sanitizedPhone}`;
+      const r = await apikeyFetch(`${baseUrl}/wallets/${docId}`, { headers: {} });
+      if (!r.ok) return res.status(404).json({ message: "Wallet not found" });
+      const doc = await r.json();
+      const f = doc.fields || {};
+      const prevBalance = parseFloat((f.balance?.doubleValue ?? f.balance?.integerValue) || "0") || 0;
+      const currentHistory: any[] = f.history?.arrayValue?.values || [];
+      const resetEntry = {
+        mapValue: {
+          fields: {
+            type: { stringValue: "redeem_reset" },
+            amount: { doubleValue: -prevBalance },
+            note: { stringValue: note || "تم استخدام وتصفير الرصيد من قِبل المتجر" },
+            timestamp: { stringValue: new Date().toISOString() },
+          },
+        },
+      };
+      const newHistory = [...currentHistory.slice(-49), resetEntry];
+      const maskParams = "updateMask.fieldPaths=balance&updateMask.fieldPaths=online_balance&updateMask.fieldPaths=manual_balance&updateMask.fieldPaths=history";
+      const patchRes = await apikeyFetch(`${baseUrl}/wallets/${docId}?${maskParams}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fields: {
+            balance: { doubleValue: 0 },
+            online_balance: { doubleValue: 0 },
+            manual_balance: { doubleValue: 0 },
+            history: { arrayValue: { values: newHistory } },
+          },
+        }),
+      });
+      if (!patchRes.ok) return res.status(500).json({ message: "Failed to reset wallet" });
+      return res.json({ success: true });
+    } catch (err) {
+      console.error("[Wallet] reset error:", err);
       return res.status(500).json({ message: "Internal error" });
     }
   });
@@ -3618,7 +3678,7 @@ export async function registerRoutes(
   app.post("/api/whatsapp-orders/:merchantId", async (req, res) => {
     try {
       const { merchantId } = req.params;
-      const { customerName, customerPhone, items, total, paymentMethod, transactionId, diningType, customerNotes, deliveryAddress, deliveryLat, deliveryLng, deliveryMapLink } = req.body;
+      const { customerName, customerPhone, items, total, paymentMethod, transactionId, diningType, customerNotes, deliveryAddress, deliveryLat, deliveryLng, deliveryMapLink, loyalty_opted_in } = req.body;
 
       if (!customerName || !customerPhone || !items || !Array.isArray(items) || items.length === 0) {
         return res.status(400).json({ message: "customerName, customerPhone, and items are required" });
@@ -3706,6 +3766,8 @@ export async function registerRoutes(
         displayOrderId: { stringValue: displayOrderId },
         orderType: { stringValue: "online" },
         createdAt: { stringValue: new Date().toISOString() },
+        loyalty_opted_in: { booleanValue: loyalty_opted_in === true },
+        reward_applied: { booleanValue: false },
       };
 
       if (appliedCoupon) {
