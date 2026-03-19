@@ -101,6 +101,10 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
   const [couponLoading, setCouponLoading] = useState(false);
   const [couponError, setCouponError] = useState("");
 
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [walletLoading, setWalletLoading] = useState(false);
+  const [walletApplied, setWalletApplied] = useState(false);
+
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"online" | "cod" | null>(null);
   const [moyasarPaymentCompleted, setMoyasarPaymentCompleted] = useState(false);
   const [transactionId, setTransactionId] = useState("");
@@ -188,7 +192,8 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
 
   const discountAmount = couponValid ? Math.round(cartTotal * couponDiscount / 100 * 100) / 100 : 0;
   const deliveryFeeAmount = (diningType === "delivery" && merchant?.deliveryEnabled && merchant?.deliveryFee > 0) ? merchant.deliveryFee : 0;
-  const finalTotal = Math.round((cartTotal - discountAmount + deliveryFeeAmount) * 100) / 100;
+  const walletDiscount = walletApplied ? Math.min(walletBalance, Math.max(0, Math.round((cartTotal - discountAmount) * 100) / 100)) : 0;
+  const finalTotal = Math.max(0, Math.round((cartTotal - discountAmount - walletDiscount + deliveryFeeAmount) * 100) / 100);
 
   useEffect(() => {
     if (!merchant?.onlinePaymentEnabled || !merchant?.moyasarPublishableKey) return;
@@ -267,6 +272,27 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
       setSelectedPaymentMethod("cod");
     }
   }, [merchant]);
+
+  async function fetchWalletBalance(phone: string) {
+    if (!merchantId || !phone || phone.length < 9) {
+      setWalletBalance(0);
+      setWalletApplied(false);
+      return;
+    }
+    const loyaltyEnabled = !!(merchant as any)?.loyalty_config?.is_enabled;
+    if (!loyaltyEnabled) return;
+    setWalletLoading(true);
+    try {
+      const res = await fetch(`/api/wallet/${merchantId}/${phone.replace(/\D/g, "")}`);
+      const data = await res.json();
+      setWalletBalance(data.balance || 0);
+      if ((data.balance || 0) <= 0) setWalletApplied(false);
+    } catch {
+      setWalletBalance(0);
+    } finally {
+      setWalletLoading(false);
+    }
+  }
 
   async function handleApplyCoupon() {
     if (!couponCode.trim() || !merchantId) return;
@@ -540,6 +566,10 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
       if (couponValid && couponCode.trim()) {
         orderBody.couponCode = couponCode.trim();
       }
+      if (walletApplied && walletDiscount > 0) {
+        orderBody.walletDiscount = walletDiscount;
+        orderBody.customerPhone = customerPhone.trim();
+      }
 
       const res = await fetch(`/api/whatsapp-orders/${merchantId}`, {
         method: "POST",
@@ -556,6 +586,15 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
 
       // Track completed order
       fetch(`/api/track/ordercompleted/${merchantId}`, { method: "POST" }).catch(() => {});
+
+      // Redeem wallet if applied
+      if (walletApplied && walletDiscount > 0 && customerPhone.trim()) {
+        fetch(`/api/wallet/${merchantId}/redeem`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone: customerPhone.trim(), amount: walletDiscount }),
+        }).catch(() => {});
+      }
 
       // Persist customer info for future visits
       localStorage.setItem("dp_customer_name", customerName.trim());
@@ -706,6 +745,16 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
               </div>
             )}
 
+            {walletApplied && walletDiscount > 0 && (
+              <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-amber-500/5 border border-amber-500/15">
+                <span className="text-amber-400 text-sm font-medium flex items-center gap-1.5">
+                  <Wallet className="w-3.5 h-3.5" />
+                  {t("رصيد المحفظة", "Wallet Balance")}
+                </span>
+                <span className="text-amber-400 text-sm font-bold" data-testid="text-wallet-discount">-{walletDiscount.toFixed(2)} SAR</span>
+              </div>
+            )}
+
             {deliveryFeeAmount > 0 && (
               <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-emerald-500/5 border border-emerald-500/15" data-testid="delivery-fee-line">
                 <span className="text-emerald-400 text-sm font-medium flex items-center gap-1.5">
@@ -716,7 +765,7 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
               </div>
             )}
 
-            {(couponValid || deliveryFeeAmount > 0) && (
+            {(couponValid || deliveryFeeAmount > 0 || walletApplied) && (
               <div className="flex items-center justify-between p-4 rounded-xl bg-emerald-600/10 border border-emerald-500/20">
                 <span className="text-white font-bold">{t("الإجمالي", "Total")}</span>
                 <span className="text-emerald-400 text-xl font-bold" data-testid="text-final-total">{finalTotal.toFixed(2)} SAR</span>
@@ -761,6 +810,30 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
             {couponError && <p className="text-red-400/70 text-[11px] mt-1.5" data-testid="text-coupon-error">{couponError}</p>}
           </div>
 
+          {/* ── Wallet Section ── */}
+          {!!(merchant as any)?.loyalty_config?.is_enabled && walletBalance > 0 && (
+            <div className="mb-6">
+              <div className="flex items-center justify-between p-4 rounded-xl bg-amber-500/5 border border-amber-500/20" data-testid="wallet-section">
+                <div className="flex items-center gap-2.5">
+                  <Wallet className="w-4 h-4 text-amber-400 shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold text-white" dir="rtl">{t("محفظة الولاء", "Loyalty Wallet")}</p>
+                    <p className="text-xs text-amber-300/70" dir="rtl">
+                      {walletLoading ? t("جاري التحقق...", "Checking...") : t(`رصيد متاح: ${walletBalance.toFixed(2)} ريال`, `Available: ${walletBalance.toFixed(2)} SAR`)}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setWalletApplied(prev => !prev)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${walletApplied ? "bg-amber-500 text-black border-amber-500" : "bg-transparent text-amber-400 border-amber-500/40 hover:border-amber-500"}`}
+                  data-testid="button-toggle-wallet"
+                >
+                  {walletApplied ? t("مطبق", "Applied") : t("استخدم", "Use")}
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="space-y-4 mb-6">
             <div>
               <label className="text-white/70 text-xs font-medium mb-1.5 flex items-center gap-1.5 block">
@@ -792,6 +865,7 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
                     const val = normalizePhone(e.target.value);
                     setCustomerPhone(val);
                   }}
+                  onBlur={(e) => fetchWalletBalance(e.target.value)}
                   placeholder={t("رقم الجوال (05xxxxxxxx)", "Phone (05xxxxxxxx)")}
                   type="tel"
                   inputMode="numeric"

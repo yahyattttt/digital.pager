@@ -1781,6 +1781,150 @@ export async function registerRoutes(
     }
   });
 
+  // ── Wallet / Loyalty Endpoints ─────────────────────────────────────────────
+
+  app.get("/api/wallet/:merchantId/:phone", async (req, res) => {
+    try {
+      const { merchantId, phone } = req.params;
+      const sanitizedPhone = phone.replace(/\D/g, "");
+      if (!sanitizedPhone) return res.json({ balance: 0, visits_count: 0, history: [] });
+      const docId = `${merchantId}_${sanitizedPhone}`;
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Config error" });
+      const r = await apikeyFetch(`${baseUrl}/wallets/${docId}`, { headers: {} });
+      if (!r.ok) return res.json({ balance: 0, visits_count: 0, history: [] });
+      const doc = await r.json();
+      const f = doc.fields || {};
+      const balance = parseFloat((f.balance?.doubleValue ?? f.balance?.integerValue) || "0") || 0;
+      const visits_count = parseInt(f.visits_count?.integerValue || "0") || 0;
+      const history = (f.history?.arrayValue?.values || []).map((v: any) => {
+        const hf = v.mapValue?.fields || {};
+        return {
+          type: hf.type?.stringValue || "",
+          amount: parseFloat((hf.amount?.doubleValue ?? hf.amount?.integerValue) || "0") || 0,
+          note: hf.note?.stringValue || "",
+          timestamp: hf.timestamp?.stringValue || "",
+        };
+      });
+      return res.json({ balance, visits_count, history });
+    } catch {
+      return res.json({ balance: 0, visits_count: 0, history: [] });
+    }
+  });
+
+  app.post("/api/wallet/:merchantId/add", async (req, res) => {
+    try {
+      const { merchantId } = req.params;
+      const merchantEmail = req.headers["x-merchant-email"] as string;
+      const { phone, amount, type, note } = req.body;
+      if (!phone || amount === undefined || isNaN(parseFloat(amount)))
+        return res.status(400).json({ message: "phone and amount required" });
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Config error" });
+      if (merchantEmail) {
+        const mRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}`, { headers: {} });
+        if (!mRes.ok) return res.status(404).json({ message: "Merchant not found" });
+        const mDoc = await mRes.json();
+        const mEmail = mDoc.fields?.email?.stringValue || "";
+        if (mEmail !== merchantEmail) return res.status(403).json({ message: "Unauthorized" });
+      }
+      const sanitizedPhone = String(phone).replace(/\D/g, "");
+      const docId = `${merchantId}_${sanitizedPhone}`;
+      const addAmount = parseFloat(amount);
+      const r = await apikeyFetch(`${baseUrl}/wallets/${docId}`, { headers: {} });
+      let currentBalance = 0, currentVisits = 0, currentHistory: any[] = [];
+      if (r.ok) {
+        const doc = await r.json();
+        const f = doc.fields || {};
+        currentBalance = parseFloat((f.balance?.doubleValue ?? f.balance?.integerValue) || "0") || 0;
+        currentVisits = parseInt(f.visits_count?.integerValue || "0") || 0;
+        currentHistory = f.history?.arrayValue?.values || [];
+      }
+      const newBalance = Math.round((currentBalance + addAmount) * 100) / 100;
+      const newVisits = type === "earn_visit" ? currentVisits + 1 : currentVisits;
+      const historyEntry = {
+        mapValue: {
+          fields: {
+            type: { stringValue: type || "compensate" },
+            amount: { doubleValue: addAmount },
+            note: { stringValue: note || "" },
+            timestamp: { stringValue: new Date().toISOString() },
+          },
+        },
+      };
+      const newHistory = [...currentHistory.slice(-49), historyEntry];
+      const fieldPaths = ["phone", "merchantId", "balance", "visits_count", "history"];
+      const maskParams = fieldPaths.map(fp => `updateMask.fieldPaths=${fp}`).join("&");
+      const patchRes = await apikeyFetch(`${baseUrl}/wallets/${docId}?${maskParams}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fields: {
+            phone: { stringValue: sanitizedPhone },
+            merchantId: { stringValue: merchantId },
+            balance: { doubleValue: newBalance },
+            visits_count: { integerValue: String(newVisits) },
+            history: { arrayValue: { values: newHistory } },
+          },
+        }),
+      });
+      if (!patchRes.ok) return res.status(500).json({ message: "Failed to update wallet" });
+      return res.json({ success: true, newBalance });
+    } catch (err) {
+      console.error("[Wallet] add error:", err);
+      return res.status(500).json({ message: "Internal error" });
+    }
+  });
+
+  app.post("/api/wallet/:merchantId/redeem", async (req, res) => {
+    try {
+      const { merchantId } = req.params;
+      const { phone, amount } = req.body;
+      if (!phone || amount === undefined || isNaN(parseFloat(amount)))
+        return res.status(400).json({ message: "phone and amount required" });
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Config error" });
+      const sanitizedPhone = String(phone).replace(/\D/g, "");
+      const docId = `${merchantId}_${sanitizedPhone}`;
+      const redeemAmount = parseFloat(amount);
+      const r = await apikeyFetch(`${baseUrl}/wallets/${docId}`, { headers: {} });
+      if (!r.ok) return res.status(404).json({ message: "Wallet not found" });
+      const doc = await r.json();
+      const f = doc.fields || {};
+      const currentBalance = parseFloat((f.balance?.doubleValue ?? f.balance?.integerValue) || "0") || 0;
+      if (redeemAmount > currentBalance + 0.001) return res.status(400).json({ message: "Insufficient balance" });
+      const currentHistory: any[] = f.history?.arrayValue?.values || [];
+      const newBalance = Math.max(0, Math.round((currentBalance - redeemAmount) * 100) / 100);
+      const historyEntry = {
+        mapValue: {
+          fields: {
+            type: { stringValue: "redeem" },
+            amount: { doubleValue: -redeemAmount },
+            note: { stringValue: "استخدام رصيد عند الطلب" },
+            timestamp: { stringValue: new Date().toISOString() },
+          },
+        },
+      };
+      const newHistory = [...currentHistory.slice(-49), historyEntry];
+      const maskParams = "updateMask.fieldPaths=balance&updateMask.fieldPaths=history";
+      const patchRes = await apikeyFetch(`${baseUrl}/wallets/${docId}?${maskParams}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fields: {
+            balance: { doubleValue: newBalance },
+            history: { arrayValue: { values: newHistory } },
+          },
+        }),
+      });
+      if (!patchRes.ok) return res.status(500).json({ message: "Failed to update wallet" });
+      return res.json({ success: true, newBalance });
+    } catch (err) {
+      console.error("[Wallet] redeem error:", err);
+      return res.status(500).json({ message: "Internal error" });
+    }
+  });
+
   app.get("/api/admin/stats", async (req, res) => {
     try {
       if (!(await isAdminRequest(req))) {

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams } from "wouter";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Download } from "lucide-react";
+import { Download, Gift, Loader2 } from "lucide-react";
 import { StarRatingPopup } from "@/components/star-rating-popup";
 
 interface OrderItem {
@@ -36,6 +36,12 @@ export default function OrderCompletedPage() {
   const [loading, setLoading] = useState(true);
   const [showRating, setShowRating] = useState(false);
   const [ratingDone, setRatingDone] = useState(false);
+  const [loyaltyConfig, setLoyaltyConfig] = useState<{ is_enabled?: boolean; online_percent?: number } | null>(null);
+  const [loyaltyPhone, setLoyaltyPhone] = useState<string>(() => localStorage.getItem("dp_customer_phone") || "");
+  const [loyaltyConsent, setLoyaltyConsent] = useState(false);
+  const [loyaltyLoading, setLoyaltyLoading] = useState(false);
+  const [loyaltySubmitted, setLoyaltySubmitted] = useState(false);
+  const [loyaltyReward, setLoyaltyReward] = useState(0);
 
   useEffect(() => {
     async function fetchData() {
@@ -45,6 +51,9 @@ export default function OrderCompletedPage() {
           const d = merchantSnap.data();
           setMerchantName(d.storeName || "");
           setGoogleMapsReviewUrl(d.googleMapsReviewUrl || "");
+          if (d.loyalty_config) {
+            setLoyaltyConfig(d.loyalty_config);
+          }
         }
 
         if (orderId) {
@@ -200,6 +209,32 @@ export default function OrderCompletedPage() {
     }, 700);
   }
 
+  async function handleEarnReward() {
+    if (!loyaltyPhone || !loyaltyConsent || !loyaltyConfig?.is_enabled) return;
+    setLoyaltyLoading(true);
+    try {
+      const total = order?.total || 0;
+      const pct = loyaltyConfig.online_percent || 0;
+      const rewardAmt = Math.round(total * pct / 100 * 100) / 100;
+      if (rewardAmt <= 0) {
+        setLoyaltySubmitted(true);
+        setLoyaltyLoading(false);
+        return;
+      }
+      const res = await fetch(`/api/wallet/${merchantId}/add`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: loyaltyPhone.replace(/\D/g, ""), amount: rewardAmt, type: "earn_online", note: `مكافأة طلب #${order?.displayOrderId || orderId.slice(-6)}` }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      setLoyaltyReward(rewardAmt);
+      setLoyaltySubmitted(true);
+    } catch {
+      setLoyaltyLoading(false);
+    }
+    setLoyaltyLoading(false);
+  }
+
   const bg = "linear-gradient(180deg, #050000 0%, #000000 50%, #050000 100%)";
 
   if (loading) {
@@ -260,6 +295,80 @@ export default function OrderCompletedPage() {
             <Download className="w-4 h-4" />
             <span className="text-sm font-semibold">تحميل الفاتورة (PDF)</span>
           </button>
+        </div>
+      )}
+
+      {/* Loyalty Earn Card */}
+      {orderType !== "manual" && loyaltyConfig?.is_enabled && (loyaltyConfig.online_percent || 0) > 0 && (
+        <div className="w-full max-w-sm mt-4">
+          {!loyaltySubmitted ? (
+            <div
+              className="rounded-2xl p-5 space-y-4"
+              style={{ background: "rgba(20,12,0,0.9)", border: "1.5px solid rgba(251,191,36,0.15)" }}
+              data-testid="loyalty-earn-card"
+              dir="rtl"
+            >
+              <div className="flex items-center gap-2.5">
+                <Gift className="w-5 h-5 text-amber-400 shrink-0" />
+                <div>
+                  <p className="text-sm font-bold text-white">اكسب نقاط ولاء 🎁</p>
+                  <p className="text-xs" style={{ color: "rgba(251,191,36,0.6)" }}>
+                    احصل على {loyaltyConfig.online_percent}% من قيمة طلبك كرصيد في محفظتك
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>رقم جوالك</label>
+                <input
+                  type="tel"
+                  value={loyaltyPhone}
+                  onChange={(e) => setLoyaltyPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                  placeholder="05XXXXXXXX"
+                  dir="ltr"
+                  maxLength={10}
+                  className="w-full h-10 px-3 rounded-xl text-white text-sm"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(251,191,36,0.15)" }}
+                  data-testid="input-loyalty-phone"
+                />
+              </div>
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={loyaltyConsent}
+                  onChange={(e) => setLoyaltyConsent(e.target.checked)}
+                  className="mt-0.5 accent-amber-500"
+                  data-testid="checkbox-loyalty-consent"
+                />
+                <span className="text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>
+                  أوافق على استخدام رقم جوالي لبرنامج الولاء وإضافة المكافآت
+                </span>
+              </label>
+              <button
+                onClick={handleEarnReward}
+                disabled={loyaltyLoading || !loyaltyPhone || loyaltyPhone.length < 9 || !loyaltyConsent}
+                className="w-full py-3 rounded-xl text-sm font-bold transition-all active:scale-95 disabled:opacity-40 flex items-center justify-center gap-2"
+                style={{ background: loyaltyLoading || !loyaltyPhone || loyaltyPhone.length < 9 || !loyaltyConsent ? "rgba(251,191,36,0.1)" : "rgba(251,191,36,0.9)", color: "#000", border: "1.5px solid rgba(251,191,36,0.3)" }}
+                data-testid="button-earn-reward"
+              >
+                {loyaltyLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Gift className="w-4 h-4" />}
+                اكسب مكافأتك
+              </button>
+            </div>
+          ) : (
+            <div
+              className="rounded-2xl p-5 text-center"
+              style={{ background: "rgba(20,12,0,0.9)", border: "1.5px solid rgba(251,191,36,0.25)" }}
+              data-testid="loyalty-earn-success"
+            >
+              <div className="text-3xl mb-2">🎉</div>
+              <p className="text-sm font-bold text-white">تمت إضافة المكافأة!</p>
+              {loyaltyReward > 0 && (
+                <p className="text-xs mt-1" style={{ color: "rgba(251,191,36,0.7)" }}>
+                  تمت إضافة {loyaltyReward.toFixed(2)} ريال لمحفظتك
+                </p>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

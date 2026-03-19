@@ -113,6 +113,8 @@ import {
   Database,
   HeartPulse,
   Link2,
+  Wallet,
+  Gift,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import ArchiveView from "@/pages/order-archive";
@@ -2385,6 +2387,53 @@ function OverviewView({
   const [customerNoShowMap, setCustomerNoShowMap] = useState<Record<string, number>>({});
   const [customerOrderCounts, setCustomerOrderCounts] = useState<Record<string, number>>({});
   const [overviewStats, setOverviewStats] = useState<{ totalRevenueToday: number; completedTodayCount: number; cancelledToday: number } | null>(null);
+  const loyaltyEnabled = !!(merchant as any)?.loyalty_config?.is_enabled;
+  const loyaltyVisitRewardAmt = parseFloat((merchant as any)?.loyalty_config?.manual_visit_reward || 2);
+  const [compensateModal, setCompensateModal] = useState<{ open: boolean; phone: string; amount: string; saving: boolean }>({ open: false, phone: "", amount: "", saving: false });
+  const [visitRewardModal, setVisitRewardModal] = useState<{ open: boolean; phone: string; saving: boolean }>({ open: false, phone: "", saving: false });
+
+  async function handleCompensate() {
+    const mid = merchant?.uid;
+    if (!mid || !compensateModal.phone || !compensateModal.amount) return;
+    setCompensateModal(prev => ({ ...prev, saving: true }));
+    try {
+      const amt = parseFloat(compensateModal.amount);
+      if (isNaN(amt) || amt <= 0) throw new Error("Invalid amount");
+      const res = await fetch(`/api/wallet/${mid}/add`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-merchant-email": merchant?.email || "" },
+        body: JSON.stringify({ phone: compensateModal.phone, amount: amt, type: "compensate", note: "تعويض من المطعم" }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      const data = await res.json();
+      toast({ title: t("تم التعويض", "Compensated"), description: t(`تمت إضافة ${amt} ريال للعميل. الرصيد الجديد: ${data.newBalance}`, `Added ${amt} SAR. New balance: ${data.newBalance} SAR`) });
+      setCompensateModal({ open: false, phone: "", amount: "", saving: false });
+    } catch {
+      toast({ title: t("خطأ", "Error"), description: t("فشل التعويض", "Compensation failed"), variant: "destructive" });
+      setCompensateModal(prev => ({ ...prev, saving: false }));
+    }
+  }
+
+  async function handleVisitReward() {
+    const mid = merchant?.uid;
+    if (!mid || !visitRewardModal.phone) return;
+    setVisitRewardModal(prev => ({ ...prev, saving: true }));
+    try {
+      if (loyaltyVisitRewardAmt <= 0) throw new Error("Not configured");
+      const res = await fetch(`/api/wallet/${mid}/add`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-merchant-email": merchant?.email || "" },
+        body: JSON.stringify({ phone: visitRewardModal.phone, amount: loyaltyVisitRewardAmt, type: "earn_visit", note: "مكافأة زيارة" }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      const data = await res.json();
+      toast({ title: t("تم منح المكافأة", "Reward Given"), description: t(`تمت إضافة ${loyaltyVisitRewardAmt} ريال. الرصيد: ${data.newBalance}`, `Added ${loyaltyVisitRewardAmt} SAR. Balance: ${data.newBalance} SAR`) });
+      setVisitRewardModal({ open: false, phone: "", saving: false });
+    } catch {
+      toast({ title: t("خطأ", "Error"), description: t("فشل منح المكافأة", "Reward failed"), variant: "destructive" });
+      setVisitRewardModal(prev => ({ ...prev, saving: false }));
+    }
+  }
 
   useEffect(() => {
     if (!merchant?.uid) return;
@@ -3211,6 +3260,16 @@ function OverviewView({
                             >
                               <CheckCircle className="w-3.5 h-3.5 me-1" />{t("تم الاستلام", "Received")}
                             </Button>
+                            {loyaltyEnabled && (
+                              <Button
+                                onClick={() => setVisitRewardModal({ open: true, phone: "", saving: false })}
+                                className="h-10 px-3 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 rounded-xl border border-amber-500/20"
+                                data-testid={`button-visit-reward-${item.id}`}
+                                title={t("مكافأة زيارة", "Visit Reward")}
+                              >
+                                <Gift className="w-3.5 h-3.5" />
+                              </Button>
+                            )}
                             <Button
                               onClick={() => onCancelPager(pager)}
                               className="h-10 px-3 bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 rounded-xl border border-orange-500/20 text-xs font-bold"
@@ -3412,6 +3471,16 @@ function OverviewView({
                           >
                             <Utensils className="w-3.5 h-3.5 me-1" />{t("جاهز", "Ready")}
                           </Button>
+                          {loyaltyEnabled && (
+                            <Button
+                              onClick={() => setCompensateModal({ open: true, phone: waOrder.customerPhone || "", amount: "", saving: false })}
+                              className="h-9 px-3 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 rounded-xl border border-purple-500/20"
+                              data-testid={`button-compensate-preparing-${item.id}`}
+                              title={t("تعويض العميل", "Compensate Customer")}
+                            >
+                              <Gift className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
                           <Button
                             onClick={() => onCancelWhatsAppOrder(waOrder)}
                             disabled={cancellingOrderId === waOrder.id}
@@ -3432,6 +3501,16 @@ function OverviewView({
                           >
                             <CheckCircle className="w-3.5 h-3.5 me-1" />{t("تم الاستلام", "Collected")}
                           </Button>
+                          {loyaltyEnabled && (
+                            <Button
+                              onClick={() => setCompensateModal({ open: true, phone: waOrder.customerPhone || "", amount: "", saving: false })}
+                              className="h-9 px-3 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 rounded-xl border border-purple-500/20"
+                              data-testid={`button-compensate-ready-${item.id}`}
+                              title={t("تعويض العميل", "Compensate Customer")}
+                            >
+                              <Gift className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
                           <Button
                             onClick={() => setUncollectedConfirmOrder(waOrder)}
                             className="h-9 px-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold text-xs rounded-xl border border-red-500/20"
@@ -3637,6 +3716,84 @@ function OverviewView({
               {t("تأكيد عدم الحضور", "Confirm No-Show")}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Compensate Customer Modal ── */}
+      <Dialog open={compensateModal.open} onOpenChange={(open) => !open && setCompensateModal({ open: false, phone: "", amount: "", saving: false })}>
+        <DialogContent className="bg-[#111] border-white/10 max-w-sm rounded-2xl" data-testid="dialog-compensate">
+          <DialogHeader>
+            <DialogTitle dir="rtl" className="text-base font-bold flex items-center gap-2">
+              <Gift className="w-4 h-4 text-purple-400" />
+              {t("تعويض العميل", "Compensate Customer")}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2" dir="rtl">
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">{t("رقم جوال العميل", "Customer Phone")}</label>
+              <input
+                type="tel"
+                value={compensateModal.phone}
+                onChange={(e) => setCompensateModal(prev => ({ ...prev, phone: e.target.value }))}
+                placeholder="05XXXXXXXX"
+                dir="ltr"
+                className="w-full h-10 px-3 rounded-xl bg-white/[0.04] border border-white/10 text-white text-sm focus:outline-none focus:border-purple-500/50"
+                data-testid="input-compensate-phone"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">{t("مبلغ التعويض (ريال)", "Compensation Amount (SAR)")}</label>
+              <input
+                type="number"
+                value={compensateModal.amount}
+                onChange={(e) => setCompensateModal(prev => ({ ...prev, amount: e.target.value }))}
+                placeholder="5.00"
+                min="0.5"
+                step="0.5"
+                className="w-full h-10 px-3 rounded-xl bg-white/[0.04] border border-white/10 text-white text-sm focus:outline-none focus:border-purple-500/50"
+                data-testid="input-compensate-amount"
+              />
+            </div>
+          </div>
+          <DialogFooter className="pt-2">
+            <Button onClick={handleCompensate} disabled={compensateModal.saving || !compensateModal.phone || !compensateModal.amount} className="w-full h-10 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl" data-testid="button-confirm-compensate">
+              {compensateModal.saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Gift className="w-4 h-4 me-1.5" />}
+              {t("تعويض العميل", "Compensate")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Visit Reward Modal ── */}
+      <Dialog open={visitRewardModal.open} onOpenChange={(open) => !open && setVisitRewardModal({ open: false, phone: "", saving: false })}>
+        <DialogContent className="bg-[#111] border-white/10 max-w-sm rounded-2xl" data-testid="dialog-visit-reward">
+          <DialogHeader>
+            <DialogTitle dir="rtl" className="text-base font-bold flex items-center gap-2">
+              <Gift className="w-4 h-4 text-amber-400" />
+              {t("مكافأة الزيارة", "Visit Reward")} (+{loyaltyVisitRewardAmt} {t("ريال", "SAR")})
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2" dir="rtl">
+            <p className="text-sm text-muted-foreground">{t("أدخل رقم جوال العميل لمنحه مكافأة الزيارة", "Enter customer phone number to give a visit reward")}</p>
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">{t("رقم جوال العميل", "Customer Phone")}</label>
+              <input
+                type="tel"
+                value={visitRewardModal.phone}
+                onChange={(e) => setVisitRewardModal(prev => ({ ...prev, phone: e.target.value }))}
+                placeholder="05XXXXXXXX"
+                dir="ltr"
+                className="w-full h-10 px-3 rounded-xl bg-white/[0.04] border border-white/10 text-white text-sm focus:outline-none focus:border-amber-500/50"
+                data-testid="input-visit-reward-phone"
+              />
+            </div>
+          </div>
+          <DialogFooter className="pt-2">
+            <Button onClick={handleVisitReward} disabled={visitRewardModal.saving || !visitRewardModal.phone} className="w-full h-10 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl" data-testid="button-confirm-visit-reward">
+              {visitRewardModal.saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Gift className="w-4 h-4 me-1.5" />}
+              {t("منح المكافأة", "Give Reward")}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
@@ -6003,7 +6160,12 @@ function SettingsView({
   const [crPdfUploading, setCrPdfUploading] = useState(false);
   const crPdfInputRef = useRef<HTMLInputElement>(null);
   const [supportWhatsappEdit, setSupportWhatsappEdit] = useState<string>((merchant as any)?.support_whatsapp || "");
-  const [settingsTab, setSettingsTab] = useState<"general" | "delivery" | "support" | "finance">("general");
+  const [settingsTab, setSettingsTab] = useState<"general" | "delivery" | "support" | "finance" | "loyalty">("general");
+  const loyaltyConfig = (merchant as any)?.loyalty_config || {};
+  const [loyaltyEnabled, setLoyaltyEnabled] = useState<boolean>(loyaltyConfig.is_enabled || false);
+  const [loyaltyOnlinePercent, setLoyaltyOnlinePercent] = useState<string>(String(loyaltyConfig.online_percent ?? 5));
+  const [loyaltyVisitReward, setLoyaltyVisitReward] = useState<string>(String(loyaltyConfig.manual_visit_reward ?? 2));
+  const [loyaltySaving, setLoyaltySaving] = useState(false);
   const [supportSaving, setSupportSaving] = useState(false);
   const [legalDocsSaving, setLegalDocsSaving] = useState(false);
   const [storeSlugEdit, setStoreSlugEdit] = useState<string>((merchant as any)?.storeSlug || "");
@@ -6341,11 +6503,35 @@ function SettingsView({
     }
   }
 
+  async function handleSaveLoyalty() {
+    if (!merchantId || !user?.email) return;
+    setLoyaltySaving(true);
+    try {
+      const pct = parseFloat(loyaltyOnlinePercent) || 0;
+      const visitRew = parseFloat(loyaltyVisitReward) || 0;
+      const docRef = doc(db, "merchants", merchantId);
+      await updateDoc(docRef, {
+        loyalty_config: {
+          is_enabled: loyaltyEnabled,
+          online_percent: pct,
+          manual_visit_reward: visitRew,
+        }
+      });
+      toast({ title: t("تم الحفظ", "Saved"), description: t("تم حفظ إعدادات الولاء", "Loyalty settings saved") });
+    } catch (err) {
+      console.error("[Loyalty] save error:", err);
+      toast({ title: t("خطأ", "Error"), description: t("فشل في الحفظ", "Failed to save"), variant: "destructive" });
+    } finally {
+      setLoyaltySaving(false);
+    }
+  }
+
   const tabDef = [
     { key: "general" as const, arLabel: "عام", enLabel: "General", icon: <Store className="w-3.5 h-3.5" /> },
     { key: "delivery" as const, arLabel: "توصيل", enLabel: "Delivery", icon: <MapPin className="w-3.5 h-3.5" /> },
     { key: "support" as const, arLabel: "دعم", enLabel: "Support", icon: <Phone className="w-3.5 h-3.5" /> },
     { key: "finance" as const, arLabel: "مالية/قانوني", enLabel: "Finance/Legal", icon: <CreditCard className="w-3.5 h-3.5" /> },
+    { key: "loyalty" as const, arLabel: "ولاء", enLabel: "Loyalty", icon: <Wallet className="w-3.5 h-3.5" /> },
   ];
 
   return (
@@ -7091,6 +7277,85 @@ function SettingsView({
       <Button onClick={handleSaveLegalDocs} disabled={legalDocsSaving} className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl disabled:opacity-30" data-testid="button-save-legal-docs">
         {legalDocsSaving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Save className="w-4 h-4 me-2" />}
         {t("حفظ إعدادات المالية والقانونية", "Save Finance & Legal Settings")}
+      </Button>
+
+      </>)}
+
+      {/* ── Loyalty Tab ────────────────────────────────────── */}
+      {settingsTab === "loyalty" && (<>
+
+      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
+        <CardContent className="p-6 space-y-5">
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-8 h-8 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0">
+              <Gift className="w-4 h-4 text-amber-400" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-sm">{t("برنامج الولاء", "Loyalty Program")}</h3>
+              <p className="text-xs text-muted-foreground">{t("امنح عملاءك نقاطاً ومكافآت", "Reward your customers with points & cash back")}</p>
+            </div>
+          </div>
+
+          {/* Enable toggle */}
+          <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]">
+            <div className="flex-1" dir="rtl">
+              <p className="text-sm font-semibold">{t("تفعيل برنامج الولاء", "Enable Loyalty Program")}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{t("يظهر للعملاء بعد اكتمال الطلب الأونلاين", "Shown to customers after completing an online order")}</p>
+            </div>
+            <Switch checked={loyaltyEnabled} onCheckedChange={setLoyaltyEnabled} className="data-[state=checked]:bg-emerald-600 ms-4" data-testid="switch-loyalty-enabled" />
+          </div>
+
+          {loyaltyEnabled && (
+            <div className="space-y-4">
+              {/* Online order reward percent */}
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground block" dir="rtl">
+                  {t("نسبة مكافأة الطلبات الأونلاين (%)", "Online Order Reward (%)")}
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="number"
+                    value={loyaltyOnlinePercent}
+                    onChange={(e) => setLoyaltyOnlinePercent(e.target.value)}
+                    min="0" max="50" step="0.5"
+                    className="w-28 h-10 px-3 rounded-xl bg-white/[0.04] border border-white/10 text-white text-sm focus:outline-none focus:border-amber-500/50"
+                    data-testid="input-loyalty-online-percent"
+                  />
+                  <span className="text-xs text-muted-foreground" dir="rtl">{t("% من قيمة الطلب يُضاف لمحفظة العميل", "% of order value added to customer wallet")}</span>
+                </div>
+              </div>
+
+              {/* Manual visit reward */}
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground block" dir="rtl">
+                  {t("مكافأة الزيارة اليدوية (ريال)", "Manual Visit Reward (SAR)")}
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="number"
+                    value={loyaltyVisitReward}
+                    onChange={(e) => setLoyaltyVisitReward(e.target.value)}
+                    min="0" step="0.5"
+                    className="w-28 h-10 px-3 rounded-xl bg-white/[0.04] border border-white/10 text-white text-sm focus:outline-none focus:border-amber-500/50"
+                    data-testid="input-loyalty-visit-reward"
+                  />
+                  <span className="text-xs text-muted-foreground" dir="rtl">{t("مبلغ ثابت يُضاف عند منح مكافأة الزيارة", "Fixed amount added when giving a visit reward")}</span>
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-amber-500/5 border border-amber-500/10 p-3">
+                <p className="text-xs text-amber-300/80" dir="rtl">
+                  💡 {t("زر التعويض (🎁) يظهر على بطاقات الطلبات الأونلاين. زر مكافأة الزيارة يظهر على بطاقات الأوردر الحضوري.", "The compensate button (🎁) appears on online order cards. The visit reward button appears on manual pager cards.")}
+                </p>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Button onClick={handleSaveLoyalty} disabled={loyaltySaving} className="w-full h-11 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-2xl disabled:opacity-30" data-testid="button-save-loyalty">
+        {loyaltySaving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Save className="w-4 h-4 me-2" />}
+        {t("حفظ إعدادات الولاء", "Save Loyalty Settings")}
       </Button>
 
       </>)}
