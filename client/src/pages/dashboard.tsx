@@ -6504,12 +6504,12 @@ function SettingsView({
   }
 
   async function handleSaveLoyalty() {
-    if (!merchantId || !user?.email) return;
+    if (!merchant?.uid) return;
     setLoyaltySaving(true);
     try {
       const pct = parseFloat(loyaltyOnlinePercent) || 0;
       const visitRew = parseFloat(loyaltyVisitReward) || 0;
-      const docRef = doc(db, "merchants", merchantId);
+      const docRef = doc(db, "merchants", merchant.uid);
       await updateDoc(docRef, {
         loyalty_config: {
           is_enabled: loyaltyEnabled,
