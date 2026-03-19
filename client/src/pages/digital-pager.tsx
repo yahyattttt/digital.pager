@@ -5,10 +5,11 @@ import { db } from "@/lib/firebase";
 import { Bell, Share2, Wallet, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-type OrderStatus = "processing" | "preparing" | "ready" | "done" | "cancelled";
+type OrderStatus = "waiting_acceptance" | "processing" | "preparing" | "ready" | "done" | "cancelled";
 
 function getStatusFromWhatsapp(status: string): OrderStatus {
-  if (status === "pending_verification" || status === "awaiting_confirmation") return "processing";
+  // "pending_verification" / "awaiting_confirmation" = order created, NOT yet accepted by merchant
+  if (status === "pending_verification" || status === "awaiting_confirmation") return "waiting_acceptance";
   if (status === "preparing") return "preparing";
   if (status === "ready" || status === "notified") return "ready";
   if (status === "completed" || status === "archived") return "done";
@@ -547,6 +548,118 @@ export default function DigitalPagerPage() {
     );
   }
 
+  // ── Waiting for merchant acceptance (online orders only) ──
+  if (status === "waiting_acceptance" && !isManual) {
+    return (
+      <div
+        className="h-[100dvh] flex flex-col items-center justify-center px-6 gap-8"
+        style={{ background: bg, fontFamily: "'Tajawal','Cairo',sans-serif" }}
+        data-testid="screen-waiting-acceptance"
+        dir="rtl"
+      >
+        {/* Merchant logo / placeholder */}
+        {merchantLogo ? (
+          <img src={merchantLogo} alt="" className="w-16 h-16 rounded-2xl object-cover opacity-60" />
+        ) : merchantName ? (
+          <div
+            className="w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-black"
+            style={{ background: "rgba(30,5,5,0.8)", border: "1.5px solid rgba(120,0,0,0.35)", color: "rgba(200,60,60,0.7)" }}
+          >
+            {merchantName.charAt(0)}
+          </div>
+        ) : null}
+
+        {/* Pulsing ring animation */}
+        <div className="relative flex items-center justify-center" style={{ width: 100, height: 100 }}>
+          {/* Outer pulse rings */}
+          <div
+            className="absolute rounded-full"
+            style={{
+              width: 100, height: 100,
+              background: "rgba(180,30,30,0.06)",
+              border: "1.5px solid rgba(180,30,30,0.15)",
+              animation: "waitPulse 2s ease-in-out infinite",
+            }}
+          />
+          <div
+            className="absolute rounded-full"
+            style={{
+              width: 72, height: 72,
+              background: "rgba(180,30,30,0.08)",
+              border: "1.5px solid rgba(180,30,30,0.2)",
+              animation: "waitPulse 2s ease-in-out infinite 0.4s",
+            }}
+          />
+          {/* Inner circle */}
+          <div
+            className="w-12 h-12 rounded-full flex items-center justify-center"
+            style={{ background: "rgba(60,5,5,0.9)", border: "2px solid rgba(160,30,30,0.4)" }}
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(200,80,80,0.85)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+          </div>
+          <style>{`
+            @keyframes waitPulse {
+              0%, 100% { transform: scale(0.96); opacity: 0.5; }
+              50% { transform: scale(1.04); opacity: 1; }
+            }
+          `}</style>
+        </div>
+
+        {/* Message */}
+        <div className="text-center space-y-3 max-w-xs">
+          <p
+            className="text-lg font-bold leading-relaxed"
+            style={{ color: "rgba(255,255,255,0.85)" }}
+            data-testid="text-waiting-acceptance"
+          >
+            ننتظر قبول طلبك من قِبل المتجر..
+          </p>
+          <p
+            className="text-sm leading-relaxed"
+            style={{ color: "rgba(255,255,255,0.35)" }}
+          >
+            فضلاً انتظر لحظات
+          </p>
+        </div>
+
+        {/* Order number */}
+        {orderNumber && (
+          <div
+            className="px-5 py-2.5 rounded-2xl"
+            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
+          >
+            <p className="text-xs text-white/30 text-center">
+              رقم الطلب — <span className="font-bold text-white/50">#{orderNumber}</span>
+            </p>
+          </div>
+        )}
+
+        {/* Dots loader */}
+        <div className="flex items-center gap-2">
+          {[0, 1, 2].map(i => (
+            <div
+              key={i}
+              className="w-1.5 h-1.5 rounded-full"
+              style={{
+                background: "rgba(180,50,50,0.6)",
+                animation: `waitDot 1.2s ease-in-out infinite ${i * 0.2}s`,
+              }}
+            />
+          ))}
+          <style>{`
+            @keyframes waitDot {
+              0%, 80%, 100% { transform: scale(0.7); opacity: 0.4; }
+              40% { transform: scale(1.2); opacity: 1; }
+            }
+          `}</style>
+        </div>
+      </div>
+    );
+  }
+
   if (status === "cancelled") {
     return (
       <div
@@ -609,6 +722,8 @@ export default function DigitalPagerPage() {
     ? "طلبك جاهز! استلمه الآن"
     : status === "preparing"
     ? "جاري تحضير طلبك..."
+    : status === "waiting_acceptance"
+    ? "ننتظر قبول طلبك..."
     : "جاري التحضير";
 
   return (
@@ -732,11 +847,12 @@ export default function DigitalPagerPage() {
       {/* Wallet balance card
           Security: Hiding balance to prevent disclosure during link sharing.
           Visible only during initial processing — strictly hidden when status
-          is "preparing", "ready", "done", or "cancelled". */}
+          is "waiting_acceptance", "preparing", "ready", "done", or "cancelled". */}
       {loyaltyEnabled &&
         !isManual &&
         customerPhone &&
         walletBalance !== null &&
+        status !== "waiting_acceptance" &&
         status !== "preparing" &&
         status !== "ready" &&
         status !== "done" &&
