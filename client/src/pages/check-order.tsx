@@ -452,6 +452,16 @@ export default function CheckOrderPage() {
                     )}
                   </button>
                 </div>
+
+                {/* Cashier redemption notice */}
+                <p
+                  className="text-sm font-bold text-center leading-relaxed"
+                  style={{ color: "#FFD700", fontFamily: "'Tajawal', 'Cairo', sans-serif" }}
+                  data-testid="text-loyalty-popup-cashier-note"
+                  dir="rtl"
+                >
+                  ℹ️ للإستعلام عن رصيد مكافأتك أو الاستفادة منها عن طريق كاشير المتجر
+                </p>
               </>
             ) : (
               <div className="text-center py-4" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
