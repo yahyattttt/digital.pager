@@ -2053,7 +2053,7 @@ export async function registerRoutes(
   app.post("/api/wallet/:merchantId/redeem", async (req, res) => {
     try {
       const { merchantId } = req.params;
-      const { phone, amount } = req.body;
+      const { phone, amount, invoiceNumber } = req.body;
       if (!phone || amount === undefined || isNaN(parseFloat(amount)))
         return res.status(400).json({ message: "phone and amount required" });
       const baseUrl = getApiKeyBaseUrl();
@@ -2065,17 +2065,22 @@ export async function registerRoutes(
       if (!r.ok) return res.status(404).json({ message: "Wallet not found" });
       const doc = await r.json();
       const f = doc.fields || {};
-      const currentBalance = parseFloat((f.balance?.doubleValue ?? f.balance?.integerValue) || "0") || 0;
+      const currentBalance = parseFloat(String(f.balance?.doubleValue ?? f.balance?.integerValue ?? "0")) || 0;
       if (redeemAmount > currentBalance + 0.001) return res.status(400).json({ message: "Insufficient balance" });
       const currentHistory: any[] = f.history?.arrayValue?.values || [];
       const newBalance = Math.max(0, Math.round((currentBalance - redeemAmount) * 100) / 100);
+      const now = new Date();
       const historyEntry = {
         mapValue: {
           fields: {
-            type: { stringValue: "redeem" },
+            type: { stringValue: "redeem_reset" },
             amount: { doubleValue: -redeemAmount },
-            note: { stringValue: "استخدام رصيد عند الطلب" },
-            timestamp: { stringValue: new Date().toISOString() },
+            note: { stringValue: invoiceNumber ? `استرداد جزئي — فاتورة رقم: ${String(invoiceNumber).trim()}` : "استرداد جزئي من الكاشير" },
+            timestamp: { stringValue: now.toISOString() },
+            date: { stringValue: now.toLocaleDateString("ar-SA") },
+            time: { stringValue: now.toLocaleTimeString("ar-SA") },
+            phone: { stringValue: sanitizedPhone },
+            ...(invoiceNumber ? { invoiceNumber: { stringValue: String(invoiceNumber).trim() } } : {}),
           },
         },
       };

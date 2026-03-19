@@ -708,6 +708,18 @@ export default function DashboardPage() {
   const [shiftConfigInput, setShiftConfigInput] = useState("");
   const manualInputRef = useRef<HTMLInputElement>(null);
 
+  // ── Quick Loyalty Redemption Modal ─────────────────────────────────────
+  const [showQuickRedeem, setShowQuickRedeem] = useState(false);
+  const [qrPhone, setQrPhone] = useState("");
+  const [qrBalance, setQrBalance] = useState<number | null>(null);
+  const [qrBalanceLoading, setQrBalanceLoading] = useState(false);
+  const [qrBalanceError, setQrBalanceError] = useState("");
+  const [qrAmount, setQrAmount] = useState("");
+  const [qrInvoice, setQrInvoice] = useState("");
+  const [qrSubmitting, setQrSubmitting] = useState(false);
+  const [qrSuccess, setQrSuccess] = useState(false);
+  const qrPhoneRef = useRef<HTMLInputElement>(null);
+
   // ── System Health (super admin only) ────────────────────────────────────
   const [sysCounterData, setSysCounterData] = useState<{ last_global_number: number; last_reset_date: string; total_today: number } | null>(null);
   const [sysCounterLoading, setSysCounterLoading] = useState(false);
@@ -1106,6 +1118,61 @@ export default function DashboardPage() {
   }, [currentView]);
 
   const shiftAddLockRef = useRef(false);
+  async function handleQuickFetchBalance(phoneVal: string) {
+    const clean = phoneVal.replace(/\D/g, "");
+    if (clean.length < 9) { setQrBalance(null); setQrBalanceError(""); return; }
+    setQrBalanceLoading(true);
+    setQrBalanceError("");
+    setQrBalance(null);
+    try {
+      const res = await fetch(`/api/wallet/${merchant?.uid}/${clean}`);
+      if (!res.ok) { setQrBalanceError(t("لم يتم العثور على محفظة", "Wallet not found")); setQrBalanceLoading(false); return; }
+      const data = await res.json();
+      const bal = parseFloat(String(data.manual_balance ?? data.balance ?? 0)) || 0;
+      setQrBalance(bal);
+      if (bal === 0) setQrBalanceError(t("رصيد المحفظة صفر", "Wallet balance is zero"));
+    } catch { setQrBalanceError(t("فشل في جلب الرصيد", "Failed to fetch balance")); }
+    setQrBalanceLoading(false);
+  }
+
+  async function handleQuickRedeemSubmit() {
+    if (!merchant?.uid || !qrPhone || !qrInvoice.trim()) return;
+    const clean = qrPhone.replace(/\D/g, "");
+    const amt = parseFloat(qrAmount);
+    if (isNaN(amt) || amt <= 0) return;
+    if (qrBalance !== null && amt > qrBalance + 0.001) return;
+    setQrSubmitting(true);
+    try {
+      const res = await fetch(`/api/wallet/${merchant.uid}/redeem`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: clean, amount: amt, invoiceNumber: qrInvoice.trim() }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setQrBalance(data.newBalance ?? 0);
+        setQrSuccess(true);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast({ title: t("خطأ", "Error"), description: err.message || t("فشل في استرداد الرصيد", "Failed to redeem balance"), variant: "destructive" });
+      }
+    } catch {
+      toast({ title: t("خطأ", "Error"), description: t("فشل الاتصال", "Connection failed"), variant: "destructive" });
+    }
+    setQrSubmitting(false);
+  }
+
+  function closeQuickRedeem() {
+    setShowQuickRedeem(false);
+    setQrPhone("");
+    setQrBalance(null);
+    setQrBalanceError("");
+    setQrAmount("");
+    setQrInvoice("");
+    setQrSuccess(false);
+    setQrSubmitting(false);
+  }
+
   const handleShiftAdd = useCallback(async () => {
     if (!merchant?.uid || !isApproved || manualAddLoading || shiftAddLockRef.current) return;
     if (lastShiftNumber === 0) {
@@ -2199,6 +2266,179 @@ export default function DashboardPage() {
         </main>
       </div>
 
+      {/* ── Quick Loyalty Redemption Modal ── */}
+      {showQuickRedeem && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4" data-testid="modal-quick-redeem">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={closeQuickRedeem} />
+          <div
+            className="relative w-full max-w-sm rounded-2xl p-6 space-y-5"
+            style={{
+              background: "linear-gradient(160deg, #120e04 0%, #0a0800 100%)",
+              border: "1.5px solid rgba(251,191,36,0.25)",
+              boxShadow: "0 0 40px rgba(251,191,36,0.06)",
+              fontFamily: "'Tajawal','Cairo',sans-serif",
+            }}
+            dir="rtl"
+          >
+            {/* Close */}
+            <button onClick={closeQuickRedeem} className="absolute top-4 left-4 p-1 text-white/30 hover:text-white/60 transition-colors" data-testid="button-quick-redeem-close">
+              <X className="w-4 h-4" />
+            </button>
+
+            {/* Header */}
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(251,191,36,0.12)", border: "1px solid rgba(251,191,36,0.25)" }}>
+                <Wallet className="w-4.5 h-4.5 text-amber-400" style={{ width: "1.1rem", height: "1.1rem" }} />
+              </div>
+              <div>
+                <h3 className="font-bold text-base text-white">{t("استرداد مكافأة", "Redeem Reward")}</h3>
+                <p className="text-[11px] text-white/35">{t("سحب رصيد من محفظة عميل", "Withdraw from customer wallet")}</p>
+              </div>
+            </div>
+
+            {qrSuccess ? (
+              /* ── Success State ── */
+              <div className="text-center py-4 space-y-3">
+                <div className="w-14 h-14 rounded-full bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center mx-auto">
+                  <CheckCircle className="w-7 h-7 text-emerald-400" />
+                </div>
+                <div>
+                  <p className="text-white font-bold text-base">{t("تم الاسترداد بنجاح", "Redemption Successful")}</p>
+                  <p className="text-white/40 text-xs mt-1">{t("تم تحديث رصيد المحفظة", "Wallet balance has been updated")}</p>
+                  {qrBalance !== null && (
+                    <p className="text-amber-400 text-sm font-bold mt-2">
+                      {t("الرصيد المتبقي:", "Remaining balance:")} <span className="text-lg">{qrBalance.toFixed(2)}</span> {t("ر.س", "SAR")}
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={() => { setQrSuccess(false); setQrAmount(""); setQrInvoice(""); }}
+                  className="w-full h-10 rounded-xl text-sm font-bold text-white/70 border border-white/10 hover:border-white/20 transition-all"
+                  data-testid="button-quick-redeem-again"
+                >
+                  {t("استرداد آخر", "Redeem Another")}
+                </button>
+              </div>
+            ) : (
+              /* ── Form State ── */
+              <div className="space-y-4">
+                {/* Phone */}
+                <div>
+                  <label className="text-xs text-white/50 mb-1.5 block">{t("رقم جوال العميل", "Customer Phone")}</label>
+                  <div className="flex gap-2">
+                    <input
+                      ref={qrPhoneRef}
+                      type="tel"
+                      value={qrPhone}
+                      onChange={e => {
+                        const val = e.target.value.replace(/\D/g, "").slice(0, 10);
+                        setQrPhone(val);
+                        setQrBalance(null);
+                        setQrBalanceError("");
+                        setQrAmount("");
+                      }}
+                      placeholder="05XXXXXXXX"
+                      maxLength={10}
+                      dir="ltr"
+                      className="flex-1 h-10 px-3 rounded-xl text-white text-sm font-bold focus:outline-none"
+                      style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+                      data-testid="input-qr-phone"
+                    />
+                    <button
+                      onClick={() => handleQuickFetchBalance(qrPhone)}
+                      disabled={qrPhone.length < 9 || qrBalanceLoading}
+                      className="h-10 px-3.5 rounded-xl text-xs font-bold transition-all disabled:opacity-40 active:scale-95"
+                      style={{ background: "rgba(251,191,36,0.15)", border: "1px solid rgba(251,191,36,0.3)", color: "#fbbf24" }}
+                      data-testid="button-qr-fetch-balance"
+                    >
+                      {qrBalanceLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : t("بحث", "Search")}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Balance Display */}
+                {qrBalance !== null && !qrBalanceError && (
+                  <div className="flex items-center justify-between px-3 py-2.5 rounded-xl" style={{ background: "rgba(251,191,36,0.07)", border: "1px solid rgba(251,191,36,0.2)" }} data-testid="section-qr-balance">
+                    <span className="text-xs text-white/50">{t("الرصيد المتاح (نقاط يدوية)", "Available Balance (Manual Points)")}</span>
+                    <span className="text-amber-400 font-black text-base" data-testid="text-qr-balance">{qrBalance.toFixed(2)} <span className="text-xs font-normal">{t("ر.س", "SAR")}</span></span>
+                  </div>
+                )}
+                {qrBalanceError && (
+                  <p className="text-red-400 text-xs text-center py-1" data-testid="text-qr-balance-error">{qrBalanceError}</p>
+                )}
+
+                {/* Amount */}
+                <div>
+                  <label className="text-xs text-white/50 mb-1.5 block">{t("المبلغ المراد سحبه (ريال)", "Amount to Redeem (SAR)")}</label>
+                  <input
+                    type="number"
+                    value={qrAmount}
+                    onChange={e => setQrAmount(e.target.value)}
+                    placeholder="0.00"
+                    min="0.1"
+                    step="0.5"
+                    max={qrBalance ?? undefined}
+                    disabled={qrBalance === null || qrBalance === 0}
+                    className="w-full h-10 px-3 rounded-xl text-white text-sm font-bold focus:outline-none disabled:opacity-40"
+                    style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+                    dir="ltr"
+                    data-testid="input-qr-amount"
+                  />
+                  {qrBalance !== null && parseFloat(qrAmount) > qrBalance + 0.001 && (
+                    <p className="text-red-400 text-[10px] mt-1">{t("المبلغ أكبر من الرصيد المتاح", "Amount exceeds available balance")}</p>
+                  )}
+                </div>
+
+                {/* Invoice Number */}
+                <div>
+                  <label className="text-xs text-white/50 mb-1.5 block">
+                    {t("رقم فاتورة المطعم", "Restaurant Invoice Number")}
+                    <span className="text-red-400 ms-1">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={qrInvoice}
+                    onChange={e => setQrInvoice(e.target.value)}
+                    placeholder={t("أدخل رقم الفاتورة...", "Enter invoice number...")}
+                    disabled={qrBalance === null || qrBalance === 0}
+                    className="w-full h-10 px-3 rounded-xl text-white text-sm font-bold focus:outline-none disabled:opacity-40"
+                    style={{ background: "rgba(255,255,255,0.05)", border: qrInvoice.trim() ? "1px solid rgba(251,191,36,0.4)" : "1px solid rgba(255,255,255,0.1)" }}
+                    dir="ltr"
+                    data-testid="input-qr-invoice"
+                  />
+                  {!qrInvoice.trim() && qrBalance !== null && qrBalance > 0 && (
+                    <p className="text-amber-400/60 text-[10px] mt-1">{t("رقم الفاتورة مطلوب لتأكيد الاسترداد", "Invoice number is required to confirm redemption")}</p>
+                  )}
+                </div>
+
+                {/* Confirm Button */}
+                <button
+                  onClick={handleQuickRedeemSubmit}
+                  disabled={
+                    qrSubmitting ||
+                    !qrInvoice.trim() ||
+                    !qrAmount ||
+                    parseFloat(qrAmount) <= 0 ||
+                    qrBalance === null ||
+                    qrBalance === 0 ||
+                    parseFloat(qrAmount) > qrBalance + 0.001
+                  }
+                  className="w-full h-11 rounded-xl font-bold text-sm transition-all active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={{ background: "linear-gradient(135deg, #d97706, #b45309)", color: "#fff" }}
+                  data-testid="button-qr-confirm"
+                >
+                  {qrSubmitting ? (
+                    <span className="flex items-center justify-center gap-2"><Loader2 className="w-4 h-4 animate-spin" />{t("جاري المعالجة...", "Processing...")}</span>
+                  ) : (
+                    t("تأكيد وسحب الرصيد", "Confirm & Withdraw Balance")
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Sound Unlock Banner */}
       {!soundUnlocked && (
         <button
@@ -2822,6 +3062,17 @@ function OverviewView({
           )}
         </div>
         <div className="flex items-center gap-2">
+          {merchant?.loyalty_config?.is_enabled && (
+            <button
+              onClick={() => { setShowQuickRedeem(true); setQrSuccess(false); }}
+              className="flex items-center gap-1.5 h-7 px-3 rounded-full text-[11px] font-bold transition-all active:scale-[0.95]"
+              style={{ background: "rgba(251,191,36,0.12)", border: "1px solid rgba(251,191,36,0.3)", color: "#fbbf24" }}
+              data-testid="button-quick-redeem-open"
+            >
+              <Wallet className="w-3 h-3" />
+              {t("استرداد مكافأة", "Redeem Reward")}
+            </button>
+          )}
           <Badge
             className={`rounded-full text-[11px] px-2.5 py-0.5 ${storeOpen ? "bg-green-500/15 text-green-400 border-green-500/20" : "bg-red-500/15 text-red-400 border-red-500/20"}`}
             data-testid="badge-store-status"
