@@ -3,8 +3,10 @@ import { useParams } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Store, ShoppingCart, Plus, Minus, X, AlertTriangle, Loader2, Check, ArrowLeft, Clock, Banknote, Tag, CreditCard, Wallet, UtensilsCrossed, ShoppingBag, Globe, Truck, MapPin, Navigation, User, Phone } from "lucide-react";
+import { Store, ShoppingCart, Plus, Minus, X, AlertTriangle, Loader2, Check, ArrowLeft, Clock, Banknote, Tag, CreditCard, Wallet, UtensilsCrossed, ShoppingBag, Globe, Truck, MapPin, Navigation, User, Phone, ShieldCheck } from "lucide-react";
 import { lazy, Suspense } from "react";
+import { doc, onSnapshot } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 const DeliveryMapPicker = lazy(() => import("@/components/delivery-map-picker"));
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
@@ -106,6 +108,7 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
   const [walletApplied, setWalletApplied] = useState(false);
   const [walletVerified, setWalletVerified] = useState(false);
   const [showWalletModal, setShowWalletModal] = useState(false);
+  const [walletVisits, setWalletVisits] = useState(0);
 
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"online" | "cod" | null>(null);
   const [moyasarPaymentCompleted, setMoyasarPaymentCompleted] = useState(false);
@@ -275,6 +278,23 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
     }
   }, [merchant]);
 
+  // Real-time wallet balance listener
+  useEffect(() => {
+    if (!walletVerified || !merchantId || !customerPhone || customerPhone.length < 9) return;
+    const cleanPhone = customerPhone.replace(/\D/g, "");
+    const walletDocId = `${merchantId}_${cleanPhone}`;
+    const unsub = onSnapshot(doc(db, "wallets", walletDocId), (snap) => {
+      if (snap.exists()) {
+        const d = snap.data();
+        const bal = d.balance || 0;
+        setWalletBalance(bal);
+        setWalletVisits(d.visits_count || 0);
+        if (bal <= 0) setWalletApplied(false);
+      }
+    });
+    return () => unsub();
+  }, [walletVerified, merchantId, customerPhone]);
+
   async function fetchWalletBalance(phone: string) {
     if (!merchantId || !phone || phone.length < 9) {
       setWalletBalance(0);
@@ -288,6 +308,7 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
       const res = await fetch(`/api/wallet/${merchantId}/${phone.replace(/\D/g, "")}`);
       const data = await res.json();
       setWalletBalance(data.balance || 0);
+      setWalletVisits(data.visits_count || 0);
       if ((data.balance || 0) <= 0) setWalletApplied(false);
     } catch {
       setWalletBalance(0);
@@ -825,24 +846,44 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
                   {t("استخدم / انضم لمحفظة الولاء 🎁", "Use / Join Loyalty Wallet 🎁")}
                 </button>
               ) : (
-                <div className="flex items-center justify-between p-4 rounded-xl bg-amber-500/5 border border-amber-500/20" data-testid="wallet-verified-section">
-                  <div className="flex items-center gap-2.5">
-                    <Wallet className="w-4 h-4 text-amber-400 shrink-0" />
-                    <div>
-                      <p className="text-sm font-semibold text-white" dir="rtl">{t("محفظة الولاء", "Loyalty Wallet")}</p>
-                      <p className="text-xs text-amber-300/70" dir="rtl">
-                        {walletLoading ? t("جاري التحقق...", "Checking...") : walletBalance > 0 ? t(`رصيد: ${walletBalance.toFixed(2)} ريال`, `Balance: ${walletBalance.toFixed(2)} SAR`) : t("لا يوجد رصيد بعد", "No balance yet")}
-                      </p>
+                <div
+                  className="rounded-2xl p-4 relative overflow-hidden"
+                  style={{ background: "linear-gradient(135deg, #1a0d00 0%, #0a0600 55%, #160800 100%)", border: "1.5px solid rgba(251,191,36,0.22)" }}
+                  data-testid="wallet-verified-section"
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Wallet className="w-4 h-4 text-amber-400" />
+                      <span className="text-xs text-amber-300/70 font-semibold" dir="rtl">{t("محفظة الولاء", "Loyalty Wallet")}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="text-[10px] text-emerald-400">{t("نشط ✅", "Active ✅")}</span>
                     </div>
                   </div>
+                  {walletLoading ? (
+                    <div className="flex items-center gap-2 py-2">
+                      <Loader2 className="w-4 h-4 text-amber-400/50 animate-spin" />
+                      <span className="text-xs text-white/40">{t("جاري التحقق...", "Checking...")}</span>
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="text-2xl font-black text-amber-400 leading-none mb-0.5" data-testid="text-wallet-balance">{walletBalance.toFixed(2)}</p>
+                      <p className="text-[10px] text-white/35 mb-3">{t("ريال سعودي — رصيدك الحالي", "SAR — Your Current Balance")}</p>
+                      <p className="text-[10px] font-mono text-white/25" dir="ltr">{customerPhone}</p>
+                    </div>
+                  )}
                   {walletBalance > 0 && (
                     <button
                       onClick={() => setWalletApplied(prev => !prev)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${walletApplied ? "bg-amber-500 text-black border-amber-500" : "bg-transparent text-amber-400 border-amber-500/40 hover:border-amber-500"}`}
+                      className={`mt-3 w-full py-2 rounded-xl text-xs font-bold border transition-all active:scale-[0.97] ${walletApplied ? "bg-amber-500 text-black border-amber-500" : "bg-amber-500/10 text-amber-400 border-amber-500/30 hover:border-amber-500/60"}`}
                       data-testid="button-toggle-wallet"
                     >
-                      {walletApplied ? t("مطبق ✓", "Applied ✓") : t("استخدم", "Use")}
+                      {walletApplied ? t(`✓ مطبق — خصم ${Math.min(walletBalance, Math.max(0, cartTotal - (couponValid ? couponDiscount : 0))).toFixed(2)} ريال`, `✓ Applied — ${Math.min(walletBalance, Math.max(0, cartTotal - (couponValid ? couponDiscount : 0))).toFixed(2)} SAR off`) : t("استخدم رصيدك", "Use Your Balance")}
                     </button>
+                  )}
+                  {walletBalance <= 0 && !walletLoading && (
+                    <p className="text-xs text-white/30 mt-2" dir="rtl">{t("لا يوجد رصيد — ستكسب مكافآت عند اكتمال طلبك", "No balance yet — earn rewards when your order is received")}</p>
                   )}
                 </div>
               )}

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useLocation } from "wouter";
 import { doc, onSnapshot, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Bell, Share2 } from "lucide-react";
+import { Bell, Share2, Wallet, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 type OrderStatus = "processing" | "preparing" | "ready" | "done" | "cancelled";
@@ -199,6 +199,9 @@ export default function DigitalPagerPage() {
   const [curbsideDone, setCurbsideDone] = useState(false);
   const [isStoreActive, setIsStoreActive] = useState<boolean | null>(null);
   const [supportWhatsapp, setSupportWhatsapp] = useState<string>("");
+  const [customerPhone, setCustomerPhone] = useState<string>("");
+  const [walletBalance, setWalletBalance] = useState<number | null>(null);
+  const [loyaltyEnabled, setLoyaltyEnabled] = useState(false);
   const orderNumberToastedRef = useRef(false);
 
   const prevStatusRef = useRef<OrderStatus>("processing");
@@ -241,6 +244,7 @@ export default function DigitalPagerPage() {
         if (data?.logoUrl) setMerchantLogo(data.logoUrl);
         if (data?.curbsideEnabled) setCurbsideEnabled(true);
         if (data?.support_whatsapp) setSupportWhatsapp(data.support_whatsapp);
+        if (data?.loyalty_config?.is_enabled) setLoyaltyEnabled(true);
         // null means still loading; false means store is paused
         setIsStoreActive(data?.isStoreActive !== false);
       })
@@ -394,6 +398,7 @@ export default function DigitalPagerPage() {
         setDiningType(data.diningType || "");
         setIsWaitingOutside(data.is_waiting_outside === true);
         if (data.is_waiting_outside === true && data.car_plate_number) setCurbsideDone(true);
+        if (data.customerPhone) setCustomerPhone(data.customerPhone);
         const newStatus = getStatusFromWhatsapp(data.status || "pending_verification");
         prevStatusRef.current = status;
         setStatus(newStatus);
@@ -401,6 +406,22 @@ export default function DigitalPagerPage() {
       return () => unsub();
     }
   }, [orderId, merchantId, isManual]);
+
+  // Real-time wallet balance listener for digital pager
+  useEffect(() => {
+    if (!loyaltyEnabled || !merchantId || !customerPhone || customerPhone.length < 9 || isManual) return;
+    const cleanPhone = customerPhone.replace(/\D/g, "");
+    if (!cleanPhone) return;
+    const walletDocId = `${merchantId}_${cleanPhone}`;
+    const unsub = onSnapshot(doc(db, "wallets", walletDocId), (snap) => {
+      if (snap.exists()) {
+        setWalletBalance(snap.data().balance || 0);
+      } else {
+        setWalletBalance(0);
+      }
+    });
+    return () => unsub();
+  }, [loyaltyEnabled, merchantId, customerPhone, isManual]);
 
   function handleActivateAlerts() {
     // Play bell.mp3 on button press — this unlocks the browser audio session
@@ -707,6 +728,30 @@ export default function DigitalPagerPage() {
         </p>
       </div>
 
+
+      {/* Wallet balance card — shown for whatsapp orders with loyalty enabled */}
+      {loyaltyEnabled && !isManual && customerPhone && walletBalance !== null && (
+        <div className="w-full max-w-xs px-4 mt-4">
+          <div
+            className="rounded-2xl p-4 relative overflow-hidden"
+            style={{ background: "linear-gradient(135deg, #1a0d00 0%, #0a0600 55%, #160800 100%)", border: "1.5px solid rgba(251,191,36,0.22)" }}
+            data-testid="wallet-balance-card"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Wallet className="w-3.5 h-3.5 text-amber-400" />
+                <span className="text-[11px] text-amber-300/70 font-semibold">محفظة الولاء</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                <span className="text-[10px] text-emerald-400">نشط</span>
+              </div>
+            </div>
+            <p className="text-xl font-black text-amber-400 leading-none mb-0.5" data-testid="text-pager-wallet-balance">{walletBalance.toFixed(2)}</p>
+            <p className="text-[10px] text-white/30">ريال سعودي — رصيدك الحالي</p>
+          </div>
+        </div>
+      )}
 
       {/* Curbside Pickup button — only when order is ready, curbside enabled, not delivery, not manual pager */}
       {isReady && curbsideEnabled && diningType !== "delivery" && !isManual && (

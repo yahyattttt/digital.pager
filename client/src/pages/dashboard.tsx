@@ -2416,6 +2416,7 @@ function OverviewView({
   const loyaltyVisitRewardAmt = parseFloat((merchant as any)?.loyalty_config?.manual_visit_reward || 2);
   const [compensateModal, setCompensateModal] = useState<{ open: boolean; phone: string; amount: string; saving: boolean }>({ open: false, phone: "", amount: "", saving: false });
   const [visitRewardModal, setVisitRewardModal] = useState<{ open: boolean; phone: string; saving: boolean }>({ open: false, phone: "", saving: false });
+  const [phoneEditModal, setPhoneEditModal] = useState<{ open: boolean; orderId: string; collectionName: string; currentPhone: string; newPhone: string; step: "edit" | "confirm"; saving: boolean }>({ open: false, orderId: "", collectionName: "whatsappOrders", currentPhone: "", newPhone: "", step: "edit", saving: false });
 
   async function handleCompensate() {
     const mid = merchant?.uid;
@@ -2457,6 +2458,33 @@ function OverviewView({
     } catch {
       toast({ title: t("خطأ", "Error"), description: t("فشل منح المكافأة", "Reward failed"), variant: "destructive" });
       setVisitRewardModal(prev => ({ ...prev, saving: false }));
+    }
+  }
+
+  async function handlePhoneEdit() {
+    const mid = merchant?.uid;
+    if (!mid || !phoneEditModal.newPhone || phoneEditModal.newPhone.length < 9) return;
+    setPhoneEditModal(prev => ({ ...prev, saving: true }));
+    try {
+      const newSanitized = phoneEditModal.newPhone.replace(/\D/g, "");
+      const oldSanitized = phoneEditModal.currentPhone.replace(/\D/g, "");
+      await fetch(`/api/orders/${mid}/${phoneEditModal.orderId}/phone`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newPhone: newSanitized, collection: phoneEditModal.collectionName }),
+      });
+      if (oldSanitized && oldSanitized !== newSanitized) {
+        await fetch(`/api/wallet/${mid}/migrate-phone`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ oldPhone: oldSanitized, newPhone: newSanitized, changedBy: merchant?.email || "merchant", orderId: phoneEditModal.orderId }),
+        });
+      }
+      toast({ title: t("تم تحديث رقم العميل ونقل المحفظة بنجاح ✅", "Phone updated & wallet transferred ✅") });
+      setPhoneEditModal({ open: false, orderId: "", collectionName: "whatsappOrders", currentPhone: "", newPhone: "", step: "edit", saving: false });
+    } catch {
+      toast({ title: t("خطأ", "Error"), description: t("فشل في التحديث", "Update failed"), variant: "destructive" });
+      setPhoneEditModal(prev => ({ ...prev, saving: false }));
     }
   }
 
@@ -3052,6 +3080,14 @@ function OverviewView({
                           <span className="font-semibold text-white/55" data-testid={`text-customer-name-${item.id}`}>{order.customerName}</span>
                           <span className="text-white/20">|</span>
                           <span className="font-mono text-white/50" dir="ltr" data-testid={`text-customer-phone-${item.id}`}>{order.customerPhone}</span>
+                          <button
+                            onClick={() => setPhoneEditModal({ open: true, orderId: item.id, collectionName: "whatsappOrders", currentPhone: order.customerPhone || "", newPhone: "", step: "edit", saving: false })}
+                            className="w-5 h-5 flex items-center justify-center rounded text-white/25 hover:text-amber-400 transition-colors"
+                            title={t("تعديل رقم الجوال", "Edit phone")}
+                            data-testid={`button-edit-phone-${item.id}`}
+                          >
+                            <Pencil className="w-3 h-3" />
+                          </button>
                           {(() => {
                             const cnt = customerOrderCounts[order.customerPhone] || 0;
                             return cnt <= 1 ? (
@@ -3365,6 +3401,14 @@ function OverviewView({
                         <span className="font-semibold text-white/55">{waOrder.customerName}</span>
                         <span className="text-white/20">|</span>
                         <span className="font-mono text-white/50" dir="ltr">{waOrder.customerPhone}</span>
+                        <button
+                          onClick={() => setPhoneEditModal({ open: true, orderId: item.id, collectionName: "whatsappOrders", currentPhone: waOrder.customerPhone || "", newPhone: "", step: "edit", saving: false })}
+                          className="w-5 h-5 flex items-center justify-center rounded text-white/25 hover:text-amber-400 transition-colors"
+                          title={t("تعديل رقم الجوال", "Edit phone")}
+                          data-testid={`button-edit-phone-active-${item.id}`}
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </button>
                         {(() => {
                           const cnt = customerOrderCounts[waOrder.customerPhone] || 0;
                           return cnt <= 1 ? (
@@ -3819,6 +3863,76 @@ function OverviewView({
               {t("منح المكافأة", "Give Reward")}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Phone Edit & Wallet Migration Modal ── */}
+      <Dialog open={phoneEditModal.open} onOpenChange={(open) => !open && setPhoneEditModal({ open: false, orderId: "", collectionName: "whatsappOrders", currentPhone: "", newPhone: "", step: "edit", saving: false })}>
+        <DialogContent className="bg-[#111] border-white/10 max-w-sm rounded-2xl" data-testid="dialog-phone-edit">
+          <DialogHeader>
+            <DialogTitle dir="rtl" className="text-base font-bold flex items-center gap-2">
+              <Pencil className="w-4 h-4 text-amber-400" />
+              {phoneEditModal.step === "edit" ? t("تعديل رقم الجوال", "Edit Phone Number") : t("تأكيد نقل المحفظة", "Confirm Wallet Transfer")}
+            </DialogTitle>
+          </DialogHeader>
+          {phoneEditModal.step === "edit" ? (
+            <div className="space-y-4 pt-2" dir="rtl">
+              <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-3">
+                <p className="text-xs text-muted-foreground">{t("الرقم الحالي", "Current Number")}</p>
+                <p className="text-sm font-mono text-white/70 mt-0.5" dir="ltr">{phoneEditModal.currentPhone}</p>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">{t("الرقم الجديد", "New Number")}</label>
+                <input
+                  type="tel"
+                  value={phoneEditModal.newPhone}
+                  onChange={(e) => setPhoneEditModal(prev => ({ ...prev, newPhone: e.target.value.replace(/\D/g, "").slice(0, 10) }))}
+                  placeholder="05XXXXXXXX"
+                  dir="ltr"
+                  maxLength={10}
+                  className="w-full h-10 px-3 rounded-xl bg-white/[0.04] border border-white/10 text-white text-sm focus:outline-none focus:border-amber-500/50"
+                  data-testid="input-phone-edit-new"
+                />
+              </div>
+              <DialogFooter>
+                <Button
+                  onClick={() => setPhoneEditModal(prev => ({ ...prev, step: "confirm" }))}
+                  disabled={!phoneEditModal.newPhone || phoneEditModal.newPhone.length < 9}
+                  className="w-full h-10 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl"
+                  data-testid="button-phone-edit-next"
+                >
+                  {t("متابعة", "Continue")}
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : (
+            <div className="space-y-4 pt-2" dir="rtl">
+              <div className="rounded-xl bg-amber-500/5 border border-amber-500/20 p-4">
+                <p className="text-sm text-amber-300/90 leading-relaxed">
+                  ⚠️ {t("هل أنت متأكد؟ سيتم نقل كافة الأرصدة والتعويضات إلى الرقم الجديد", "Are you sure? All balances and compensations will be transferred to the new number")}
+                </p>
+                <div className="mt-3 space-y-1">
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="text-white/40">{t("من", "From")}:</span>
+                    <span className="font-mono text-white/60" dir="ltr">{phoneEditModal.currentPhone}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="text-white/40">{t("إلى", "To")}:</span>
+                    <span className="font-mono text-amber-400" dir="ltr">{phoneEditModal.newPhone}</span>
+                  </div>
+                </div>
+              </div>
+              <DialogFooter className="gap-2">
+                <Button onClick={() => setPhoneEditModal(prev => ({ ...prev, step: "edit" }))} variant="outline" className="flex-1 h-10 rounded-xl border-white/10 text-white/50" data-testid="button-phone-edit-back">
+                  {t("رجوع", "Back")}
+                </Button>
+                <Button onClick={handlePhoneEdit} disabled={phoneEditModal.saving} className="flex-1 h-10 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl" data-testid="button-phone-edit-confirm">
+                  {phoneEditModal.saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4 me-1" />}
+                  {t("تأكيد النقل", "Confirm Transfer")}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
@@ -7303,8 +7417,9 @@ function LoyaltyView({
   const [compLoading, setCompLoading] = useState(false);
 
   const [walletPhone, setWalletPhone] = useState("");
-  const [walletData, setWalletData] = useState<{ balance: number; history: any[] } | null>(null);
+  const [walletData, setWalletData] = useState<{ balance: number; visits_count: number; history: any[] } | null>(null);
   const [walletLoading, setWalletLoading] = useState(false);
+  const [customerProfile, setCustomerProfile] = useState<{ ordersCount: number; favoriteItems: { name: string; count: number }[] } | null>(null);
 
   const [topItems, setTopItems] = useState<{ name: string; count: number }[]>([]);
   const [activeCustomers, setActiveCustomers] = useState(0);
@@ -7380,12 +7495,36 @@ function LoyaltyView({
   async function handleWalletSearch() {
     if (!merchant?.uid || !walletPhone.trim()) return;
     setWalletLoading(true);
+    setCustomerProfile(null);
     try {
-      const res = await fetch(`/api/wallet/${merchant.uid}/${walletPhone.replace(/\D/g, "")}`);
-      const data = await res.json();
-      setWalletData({ balance: data.balance || 0, history: data.history || [] });
+      const cleanPhone = walletPhone.replace(/\D/g, "");
+      const [walletRes] = await Promise.all([
+        fetch(`/api/wallet/${merchant.uid}/${cleanPhone}`),
+      ]);
+      const data = await walletRes.json();
+      setWalletData({ balance: data.balance || 0, visits_count: data.visits_count || 0, history: data.history || [] });
+      // Build customer profile from Firestore orders
+      const ordersRef = collection(db, "merchants", merchant.uid, "whatsappOrders");
+      const snap = await getDocs(query(ordersRef, where("customerPhone", ">=", cleanPhone), where("customerPhone", "<=", cleanPhone + "\uf8ff")));
+      const itemCounts: Record<string, number> = {};
+      let ordersCount = 0;
+      snap.forEach((d) => {
+        const od = d.data();
+        if (od.customerPhone?.replace(/\D/g, "") === cleanPhone) {
+          ordersCount++;
+          (od.items || []).forEach((itm: any) => {
+            const name = itm.name || "بند";
+            itemCounts[name] = (itemCounts[name] || 0) + (itm.quantity || 1);
+          });
+        }
+      });
+      const favoriteItems = Object.entries(itemCounts)
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 4);
+      setCustomerProfile({ ordersCount, favoriteItems });
     } catch {
-      setWalletData({ balance: 0, history: [] });
+      setWalletData({ balance: 0, visits_count: 0, history: [] });
     }
     setWalletLoading(false);
   }
@@ -7520,7 +7659,7 @@ function LoyaltyView({
         </CardContent>
       </Card>
 
-      {/* ── Wallet Search / Customer Balance ── */}
+      {/* ── Customer Profile & Wallet Lookup ── */}
       <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
         <CardContent className="p-6 space-y-4">
           <div className="flex items-center gap-3 mb-1">
@@ -7528,14 +7667,14 @@ function LoyaltyView({
               <Search className="w-4 h-4 text-blue-400" />
             </div>
             <div>
-              <h3 className="font-semibold text-sm">{t("استعلام رصيد المحفظة", "Wallet Balance Lookup")}</h3>
-              <p className="text-xs text-muted-foreground">{t("ابحث عن رصيد عميل بالجوال", "Search customer balance by phone")}</p>
+              <h3 className="font-semibold text-sm">{t("ملف العميل — بحث بالجوال", "Customer Profile — Phone Search")}</h3>
+              <p className="text-xs text-muted-foreground">{t("الزيارات والأصناف المفضلة ورصيد المحفظة", "Visits, favorite items & wallet balance")}</p>
             </div>
           </div>
           <div className="flex gap-2">
             <input
               type="tel" value={walletPhone}
-              onChange={(e) => { setWalletPhone(e.target.value.replace(/\D/g, "").slice(0, 10)); setWalletData(null); }}
+              onChange={(e) => { setWalletPhone(e.target.value.replace(/\D/g, "").slice(0, 10)); setWalletData(null); setCustomerProfile(null); }}
               placeholder="05XXXXXXXX"
               dir="ltr" maxLength={10}
               className="flex-1 h-10 px-3 rounded-xl bg-white/[0.04] border border-white/10 text-white text-sm focus:outline-none focus:border-blue-500/50"
@@ -7546,22 +7685,79 @@ function LoyaltyView({
             </Button>
           </div>
           {walletData && (
-            <div className="rounded-xl bg-white/[0.02] border border-white/[0.06] p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">{t("الرصيد الحالي", "Current Balance")}</span>
-                <span className="text-xl font-black text-amber-400" data-testid="wallet-balance-result">{walletData.balance.toFixed(2)} {t("ريال", "SAR")}</span>
+            <div className="space-y-3">
+              {/* Wallet Card */}
+              <div
+                className="rounded-2xl p-4 relative overflow-hidden"
+                style={{ background: "linear-gradient(135deg, #1a0a00 0%, #0d0500 50%, #1a0800 100%)", border: "1.5px solid rgba(251,191,36,0.2)" }}
+                data-testid="customer-wallet-card"
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Wallet className="w-4 h-4 text-amber-400" />
+                    <span className="text-xs text-amber-300/70">{t("محفظة الولاء", "Loyalty Wallet")}</span>
+                  </div>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">نشط ✅</span>
+                </div>
+                <p className="text-3xl font-black text-amber-400 mb-1" data-testid="wallet-balance-result">{walletData.balance.toFixed(2)}</p>
+                <p className="text-xs text-white/40">{t("ريال سعودي — رصيد المحفظة", "SAR — Wallet Balance")}</p>
+                <p className="text-xs text-white/30 mt-2 font-mono" dir="ltr">{walletPhone}</p>
               </div>
-              {walletData.history.length > 0 && (
-                <div className="space-y-1.5">
-                  <p className="text-xs text-muted-foreground">{t("آخر المعاملات", "Recent Transactions")}</p>
-                  {walletData.history.slice(0, 5).map((h: any, i: number) => (
-                    <div key={i} className="flex items-center justify-between text-xs">
-                      <span className="text-white/60 truncate max-w-[160px]">{h.note || h.type}</span>
-                      <span className={`font-bold ${h.amount > 0 ? "text-emerald-400" : "text-red-400"}`}>{h.amount > 0 ? "+" : ""}{h.amount.toFixed(2)}</span>
-                    </div>
-                  ))}
+
+              {/* Customer Stats */}
+              {customerProfile && (
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-xl bg-white/[0.02] border border-white/[0.05] p-3 text-center">
+                    <p className="text-xl font-black text-blue-400" data-testid="stat-customer-orders">{customerProfile.ordersCount}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{t("إجمالي الطلبات", "Total Orders")}</p>
+                  </div>
+                  <div className="rounded-xl bg-white/[0.02] border border-white/[0.05] p-3 text-center">
+                    <p className="text-xl font-black text-violet-400" data-testid="stat-customer-visits">{walletData.visits_count}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{t("زيارات حضورية", "In-person Visits")}</p>
+                  </div>
                 </div>
               )}
+
+              {/* Favorite Items */}
+              {customerProfile && customerProfile.favoriteItems.length > 0 && (
+                <div className="rounded-xl bg-white/[0.02] border border-white/[0.04] p-3">
+                  <p className="text-xs text-muted-foreground mb-2">{t("الأصناف المفضلة", "Favorite Items")}</p>
+                  <div className="space-y-1.5">
+                    {customerProfile.favoriteItems.map((itm, i) => (
+                      <div key={i} className="flex items-center justify-between text-xs">
+                        <span className="text-white/70 truncate max-w-[160px]">{itm.name}</span>
+                        <span className="text-amber-400 font-bold">{itm.count}x</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Transaction History */}
+              {walletData.history.length > 0 && (
+                <div className="rounded-xl bg-white/[0.02] border border-white/[0.04] p-3">
+                  <p className="text-xs text-muted-foreground mb-2">{t("آخر المعاملات", "Recent Transactions")}</p>
+                  <div className="space-y-1.5">
+                    {walletData.history.slice(-5).reverse().map((h: any, i: number) => (
+                      <div key={i} className="flex items-center justify-between text-xs">
+                        <span className="text-white/60 truncate max-w-[160px]">{h.note || h.type}</span>
+                        <span className={`font-bold ${h.amount >= 0 ? "text-emerald-400" : "text-red-400"}`}>{h.amount >= 0 ? "+" : ""}{h.amount.toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Quick Compensation from Profile */}
+              <Button
+                onClick={() => setCompPhone(walletPhone)}
+                variant="outline"
+                className="w-full h-9 rounded-xl border-purple-500/20 text-purple-400 hover:bg-purple-500/10 text-xs font-bold"
+                data-testid="button-compensate-from-profile"
+              >
+                <Gift className="w-3.5 h-3.5 me-1.5" />
+                {t("أضف تعويضاً لهذا العميل", "Add Compensation to this Customer")}
+              </Button>
             </div>
           )}
         </CardContent>

@@ -1925,6 +1925,131 @@ export async function registerRoutes(
     }
   });
 
+  /* ── Wallet: Phone Migration (merge balance from old → new phone) ── */
+  app.post("/api/wallet/:merchantId/migrate-phone", async (req, res) => {
+    try {
+      const { merchantId } = req.params;
+      const { oldPhone, newPhone, changedBy, orderId } = req.body;
+      if (!oldPhone || !newPhone) return res.status(400).json({ message: "oldPhone and newPhone required" });
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Config error" });
+
+      const oldSanitized = String(oldPhone).replace(/\D/g, "");
+      const newSanitized = String(newPhone).replace(/\D/g, "");
+      if (oldSanitized === newSanitized) return res.json({ success: true, message: "Same phone" });
+
+      const oldDocId = `${merchantId}_${oldSanitized}`;
+      const newDocId = `${merchantId}_${newSanitized}`;
+
+      // Read old wallet
+      let oldBalance = 0, oldVisits = 0, oldHistory: any[] = [];
+      const oldRes = await apikeyFetch(`${baseUrl}/wallets/${oldDocId}`, { headers: {} });
+      if (oldRes.ok) {
+        const oldDoc = await oldRes.json();
+        const f = oldDoc.fields || {};
+        oldBalance = parseFloat((f.balance?.doubleValue ?? f.balance?.integerValue) || "0") || 0;
+        oldVisits = parseInt(f.visits_count?.integerValue || "0") || 0;
+        oldHistory = f.history?.arrayValue?.values || [];
+      }
+
+      // Read new wallet (may already exist)
+      let newBalance = 0, newVisits = 0, newHistory: any[] = [];
+      const newRes = await apikeyFetch(`${baseUrl}/wallets/${newDocId}`, { headers: {} });
+      if (newRes.ok) {
+        const newDoc = await newRes.json();
+        const f = newDoc.fields || {};
+        newBalance = parseFloat((f.balance?.doubleValue ?? f.balance?.integerValue) || "0") || 0;
+        newVisits = parseInt(f.visits_count?.integerValue || "0") || 0;
+        newHistory = f.history?.arrayValue?.values || [];
+      }
+
+      // Merge
+      const mergedBalance = Math.round((oldBalance + newBalance) * 100) / 100;
+      const mergedVisits = oldVisits + newVisits;
+      const migrateEntry = {
+        mapValue: {
+          fields: {
+            type: { stringValue: "migrate" },
+            amount: { doubleValue: oldBalance },
+            note: { stringValue: `نقل من ${oldSanitized} → ${newSanitized}` },
+            timestamp: { stringValue: new Date().toISOString() },
+          },
+        },
+      };
+      const mergedHistory = [...oldHistory, ...newHistory, migrateEntry].slice(-50);
+
+      // Write new wallet
+      const fp = ["phone","merchantId","balance","visits_count","history"];
+      const mask = fp.map(f => `updateMask.fieldPaths=${f}`).join("&");
+      await apikeyFetch(`${baseUrl}/wallets/${newDocId}?${mask}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fields: {
+            phone: { stringValue: newSanitized },
+            merchantId: { stringValue: merchantId },
+            balance: { doubleValue: mergedBalance },
+            visits_count: { integerValue: String(mergedVisits) },
+            history: { arrayValue: { values: mergedHistory } },
+          },
+        }),
+      });
+
+      // Delete old wallet if it existed
+      if (oldRes.ok) {
+        await apikeyFetch(`${baseUrl}/wallets/${oldDocId}`, { method: "DELETE", headers: {} });
+      }
+
+      // Write audit log
+      const auditEntry = {
+        fields: {
+          changedBy: { stringValue: changedBy || "merchant" },
+          merchantId: { stringValue: merchantId },
+          oldPhone: { stringValue: oldSanitized },
+          newPhone: { stringValue: newSanitized },
+          orderId: { stringValue: orderId || "" },
+          movedBalance: { doubleValue: oldBalance },
+          timestamp: { stringValue: new Date().toISOString() },
+        },
+      };
+      await apikeyFetch(`${baseUrl}/audit_logs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(auditEntry),
+      });
+
+      return res.json({ success: true, mergedBalance });
+    } catch (err) {
+      console.error("[Wallet] migrate-phone error:", err);
+      return res.status(500).json({ message: "Internal error" });
+    }
+  });
+
+  /* ── Wallet: Update order customerPhone in Firestore ── */
+  app.patch("/api/orders/:merchantId/:orderId/phone", async (req, res) => {
+    try {
+      const { merchantId, orderId } = req.params;
+      const { newPhone, collection: col } = req.body;
+      if (!newPhone) return res.status(400).json({ message: "newPhone required" });
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Config error" });
+      const collectionName = col === "pagers" ? "pagers" : "whatsappOrders";
+      const sanitized = String(newPhone).replace(/\D/g, "");
+      const patchRes = await apikeyFetch(
+        `${baseUrl}/merchants/${merchantId}/${collectionName}/${orderId}?updateMask.fieldPaths=customerPhone`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fields: { customerPhone: { stringValue: sanitized } } }),
+        }
+      );
+      if (!patchRes.ok) return res.status(500).json({ message: "Failed to update order" });
+      return res.json({ success: true });
+    } catch (err) {
+      return res.status(500).json({ message: "Internal error" });
+    }
+  });
+
   app.get("/api/admin/stats", async (req, res) => {
     try {
       if (!(await isAdminRequest(req))) {
