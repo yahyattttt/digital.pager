@@ -868,37 +868,34 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
                 />
               </div>
             </div>
-            {/* Phone input shown here only when loyalty is NOT enabled */}
-            {!merchant?.loyalty_config?.is_enabled && (
-              <div>
-                <label className="text-white/70 text-xs font-medium mb-1.5 flex items-center gap-1.5 block">
-                  <Phone className="w-3.5 h-3.5 text-white/40" />
-                  {t("رقم الجوال", "Phone Number")}
-                </label>
-                <div className="relative">
-                  <Phone className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/25 pointer-events-none" />
-                  <Input
-                    value={customerPhone}
-                    onChange={(e) => {
-                      const val = normalizePhone(e.target.value);
-                      setCustomerPhone(val);
-                    }}
-                    placeholder={t("رقم الجوال (05xxxxxxxx)", "Phone (05xxxxxxxx)")}
-                    type="tel"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={10}
-                    autoComplete="tel"
-                    className="h-12 bg-zinc-900/80 border-zinc-700 text-white placeholder:text-white/25 focus:border-red-500 rounded-xl pr-10"
-                    dir="ltr"
-                    data-testid="input-customer-phone"
-                  />
-                </div>
-                {customerPhone.length > 0 && customerPhone.length < 10 && (
-                  <p className="text-red-400/60 text-[10px] mt-1">{t("يجب إدخال 10 أرقام", "Must be 10 digits")}</p>
-                )}
+            <div>
+              <label className="text-white/70 text-xs font-medium mb-1.5 flex items-center gap-1.5 block">
+                <Phone className="w-3.5 h-3.5 text-white/40" />
+                {t("رقم الجوال", "Phone Number")}
+              </label>
+              <div className="relative">
+                <Phone className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/25 pointer-events-none" />
+                <Input
+                  value={customerPhone}
+                  onChange={(e) => {
+                    const val = normalizePhone(e.target.value);
+                    setCustomerPhone(val);
+                  }}
+                  placeholder={t("رقم الجوال (05xxxxxxxx)", "Phone (05xxxxxxxx)")}
+                  type="tel"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={10}
+                  autoComplete="tel"
+                  className="h-12 bg-zinc-900/80 border-zinc-700 text-white placeholder:text-white/25 focus:border-red-500 rounded-xl pr-10"
+                  dir="ltr"
+                  data-testid="input-customer-phone"
+                />
               </div>
-            )}
+              {customerPhone.length > 0 && customerPhone.length < 10 && (
+                <p className="text-red-400/60 text-[10px] mt-1">{t("يجب إدخال 10 أرقام", "Must be 10 digits")}</p>
+              )}
+            </div>
 
             {/* ── Loyalty Opt-In — shown only when merchant has loyalty enabled ── */}
             {merchant?.loyalty_config?.is_enabled && (
@@ -924,43 +921,12 @@ export default function PublicMenuPage({ merchantIdOverride }: { merchantIdOverr
                   <span className="text-[10px]">🏆</span>
                 </div>
 
-                {/* Phone input — primary phone for both order + loyalty wallet */}
-                <div className="mb-4" dir="rtl">
-                  <label className="block text-xs font-bold mb-2" style={{ color: "rgba(251,191,36,0.8)" }}>
-                    📱 أدخل رقم الجوال للانضمام للولاء وإتمام الطلب
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="tel"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      maxLength={10}
-                      autoComplete="tel"
-                      value={customerPhone}
-                      onChange={(e) => setCustomerPhone(normalizePhone(e.target.value))}
-                      placeholder="05XXXXXXXX"
-                      dir="ltr"
-                      data-testid="input-customer-phone"
-                      className="w-full h-12 px-4 rounded-xl text-white text-base font-mono tracking-widest transition-all"
-                      style={{
-                        background: customerPhone.length === 10
-                          ? "rgba(251,191,36,0.08)"
-                          : "rgba(255,255,255,0.04)",
-                        border: customerPhone.length === 10
-                          ? "1.5px solid rgba(251,191,36,0.5)"
-                          : "1.5px solid rgba(255,255,255,0.1)",
-                        outline: "none",
-                        caretColor: "#fbbf24",
-                      }}
-                    />
-                    {customerPhone.length === 10 && (
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-400 text-sm">✓</span>
-                    )}
-                  </div>
-                  {customerPhone.length > 0 && customerPhone.length < 10 && (
-                    <p className="text-red-400/60 text-[10px] mt-1.5 text-right">{t("يجب إدخال 10 أرقام", "Must be 10 digits")}</p>
-                  )}
-                </div>
+                {/* Phone-not-ready hint */}
+                {customerPhone.length < 10 && (
+                  <p className="text-[11px] text-amber-400/50 mb-2 font-medium text-center" data-testid="text-loyalty-phone-hint">
+                    أدخل رقم جوالك أولاً لتفعيل برنامج الولاء
+                  </p>
+                )}
 
                 {/* Checkbox row */}
                 <button
