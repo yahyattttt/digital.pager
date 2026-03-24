@@ -452,7 +452,7 @@ export default function DigitalPagerPage() {
     const typeParam = isManual ? "&type=manual" : "";
     const cleanUrl = `${window.location.origin}${window.location.pathname}?m=${merchantId}${typeParam}&source=share_moment`;
     const storeName = merchantName || "المتجر";
-    const shareText = `تابع طلبي معك ولا تنسى تذكرني 🍔✨\n${storeName}`;
+    const shareText = `شارك أصدقاءك وأحبابك وخليهم يتتبعون معك الطلب بحماس\n${storeName}`;
     if (navigator.share) {
       try {
         await navigator.share({ title: storeName, text: shareText, url: cleanUrl });

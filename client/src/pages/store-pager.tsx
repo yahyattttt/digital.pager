@@ -334,7 +334,7 @@ export default function StorePagerPage() {
 
   const handleShare = useCallback(async () => {
     const label = merchant?.storeName || "";
-    const text = `خلك معي في اللحظة! 🍔 شوف طلبي في ${label} وهو يجهز الآن على الطاولة.. عقبالك!`;
+    const text = `شارك أصدقاءك وأحبابك وخليهم يتتبعون معك الطلب بحماس\n${label}`;
     const url = window.location.href;
     if (navigator.share) {
       try { await navigator.share({ title: text, text, url }); } catch {}
