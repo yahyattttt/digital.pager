@@ -48,7 +48,7 @@ function DeliveryTrackingView({
     const params = new URLSearchParams(window.location.search);
     params.set("source", "share_moment");
     const shareUrl = `${baseUrl}?${params.toString()}`;
-    const text = `شوف طلبي من ${storeName} جالس يتجهز.. خلنا نتابعه سوا! 😍👇\n${shareUrl}`;
+    const text = `أهلاً، هذا رابط تتبع طلبي من ${storeName}: ${shareUrl}`;
     if (navigator.share) {
       try { await navigator.share({ text }); } catch (_) {}
     } else {
@@ -173,33 +173,38 @@ function DeliveryTrackingView({
         )}
 
         {isPreparing && !isDelivery && (
-          <button
-            id="viral-share-btn-global"
-            onClick={handleShareTracking}
-            data-testid="button-share-tracking-delivery"
-            className="w-full relative overflow-hidden flex items-center justify-center gap-2.5 rounded-xl px-5 py-3.5 transition-all active:scale-[0.97]"
-            style={{ background: "rgba(249,115,22,0.07)", border: "1px solid rgba(249,115,22,0.22)" }}
-          >
-            <span
-              className="absolute inset-0 rounded-xl pointer-events-none"
-              style={{ background: "radial-gradient(ellipse at 50% 0%, rgba(249,115,22,0.12) 0%, transparent 65%)", animation: "sharePulse 2.2s ease-in-out infinite" }}
-            />
-            <span className="relative flex items-center gap-2.5">
-              {shareCopied ? (
-                <>
-                  <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <span className="font-bold text-sm text-emerald-400" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}>تم نسخ الرابط ✓</span>
-                </>
-              ) : (
-                <>
-                  <Link2 className="w-4 h-4 shrink-0" style={{ color: "rgba(249,115,22,0.85)" }} />
-                  <span className="font-bold text-sm" style={{ color: "rgba(249,115,22,0.85)", fontFamily: "'Tajawal','Cairo',sans-serif" }}>
-                    شاركهم اللحظة 🔗
-                  </span>
-                </>
-              )}
-            </span>
-          </button>
+          <>
+            <button
+              id="viral-share-btn-global"
+              onClick={handleShareTracking}
+              data-testid="button-share-tracking-delivery"
+              className="w-full relative overflow-hidden flex items-center justify-center gap-2.5 rounded-xl px-5 py-3.5 transition-all active:scale-[0.97]"
+              style={{ background: "rgba(249,115,22,0.07)", border: "1px solid rgba(249,115,22,0.22)" }}
+            >
+              <span
+                className="absolute inset-0 rounded-xl pointer-events-none"
+                style={{ background: "radial-gradient(ellipse at 50% 0%, rgba(249,115,22,0.12) 0%, transparent 65%)", animation: "sharePulse 2.2s ease-in-out infinite" }}
+              />
+              <span className="relative flex items-center gap-2.5">
+                {shareCopied ? (
+                  <>
+                    <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span className="font-bold text-sm text-emerald-400" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}>تم نسخ الرابط ✓</span>
+                  </>
+                ) : (
+                  <>
+                    <Link2 className="w-4 h-4 shrink-0" style={{ color: "rgba(249,115,22,0.85)" }} />
+                    <span className="font-bold text-sm" style={{ color: "rgba(249,115,22,0.85)", fontFamily: "'Tajawal','Cairo',sans-serif" }}>
+                      حفظ رابط التتبع
+                    </span>
+                  </>
+                )}
+              </span>
+            </button>
+            <p className="text-[10px] text-white/25 text-center -mt-1" dir="rtl" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }} data-testid="text-save-link-hint-delivery">
+              تحسبا لفقدان رابط التتبع
+            </p>
+          </>
         )}
 
         {!isRejected && !isCompleted && (
@@ -565,7 +570,7 @@ export default function OrderTrackingPage() {
     const urlParams = new URLSearchParams(window.location.search);
     urlParams.set("source", "share_moment");
     const shareUrl = `${baseUrl}?${urlParams.toString()}`;
-    const text = `شوف طلبي من ${storeName} جالس يتجهز.. خلنا نتابعه سوا! 😍👇\n${shareUrl}`;
+    const text = `أهلاً، هذا رابط تتبع طلبي من ${storeName}: ${shareUrl}`;
     if (navigator.share) {
       try { await navigator.share({ text }); } catch (_) {}
     } else {
@@ -893,33 +898,38 @@ export default function OrderTrackingPage() {
         )}
 
         {!isDelivery && (
-        <button
-          id="viral-share-btn-global"
-          onClick={handleShareTracking}
-          data-testid="button-share-tracking"
-          className="w-full relative overflow-hidden flex items-center justify-center gap-2.5 rounded-2xl px-5 py-4 transition-all active:scale-[0.97]"
-          style={{ background: "rgba(249,115,22,0.07)", border: "1px solid rgba(249,115,22,0.22)" }}
-        >
-          <span
-            className="absolute inset-0 rounded-2xl pointer-events-none"
-            style={{ background: "radial-gradient(ellipse at 50% 0%, rgba(249,115,22,0.12) 0%, transparent 65%)", animation: "sharePulse 2.2s ease-in-out infinite" }}
-          />
-          <span className="relative flex items-center gap-2.5">
-            {shareCopied ? (
-              <>
-                <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span className="font-bold text-sm text-emerald-400" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}>تم نسخ الرابط ✓</span>
-              </>
-            ) : (
-              <>
-                <Link2 className="w-4 h-4 shrink-0" style={{ color: "rgba(249,115,22,0.85)" }} />
-                <span className="font-bold text-base" style={{ color: "rgba(249,115,22,0.85)", fontFamily: "'Tajawal','Cairo',sans-serif" }}>
-                  شاركهم اللحظة 🔗
-                </span>
-              </>
-            )}
-          </span>
-        </button>
+          <>
+            <button
+              id="viral-share-btn-global"
+              onClick={handleShareTracking}
+              data-testid="button-share-tracking"
+              className="w-full relative overflow-hidden flex items-center justify-center gap-2.5 rounded-2xl px-5 py-4 transition-all active:scale-[0.97]"
+              style={{ background: "rgba(249,115,22,0.07)", border: "1px solid rgba(249,115,22,0.22)" }}
+            >
+              <span
+                className="absolute inset-0 rounded-2xl pointer-events-none"
+                style={{ background: "radial-gradient(ellipse at 50% 0%, rgba(249,115,22,0.12) 0%, transparent 65%)", animation: "sharePulse 2.2s ease-in-out infinite" }}
+              />
+              <span className="relative flex items-center gap-2.5">
+                {shareCopied ? (
+                  <>
+                    <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span className="font-bold text-sm text-emerald-400" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}>تم نسخ الرابط ✓</span>
+                  </>
+                ) : (
+                  <>
+                    <Link2 className="w-4 h-4 shrink-0" style={{ color: "rgba(249,115,22,0.85)" }} />
+                    <span className="font-bold text-base" style={{ color: "rgba(249,115,22,0.85)", fontFamily: "'Tajawal','Cairo',sans-serif" }}>
+                      حفظ رابط التتبع
+                    </span>
+                  </>
+                )}
+              </span>
+            </button>
+            <p className="text-[10px] text-white/25 text-center -mt-1" dir="rtl" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }} data-testid="text-save-link-hint">
+              تحسبا لفقدان رابط التتبع
+            </p>
+          </>
         )}
 
         {!bellPrimed ? (
