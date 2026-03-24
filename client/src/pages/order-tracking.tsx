@@ -173,38 +173,38 @@ function DeliveryTrackingView({
         )}
 
         {isPreparing && !isDelivery && (
-          <div className="w-full flex flex-col items-center gap-2">
-            <button
-              id="viral-share-btn-global"
-              onClick={handleShareTracking}
-              data-testid="button-share-tracking-delivery"
-              className="w-full relative overflow-hidden flex items-center justify-center gap-2.5 rounded-xl px-5 py-3.5 transition-all active:scale-[0.97]"
-              style={{ background: "rgba(249,115,22,0.07)", border: "1px solid rgba(249,115,22,0.22)" }}
-            >
-              <span
-                className="absolute inset-0 rounded-xl pointer-events-none"
-                style={{ background: "radial-gradient(ellipse at 50% 0%, rgba(249,115,22,0.12) 0%, transparent 65%)", animation: "sharePulse 2.2s ease-in-out infinite" }}
-              />
-              <span className="relative flex items-center gap-2.5">
-                {shareCopied ? (
-                  <>
-                    <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span className="font-bold text-sm text-emerald-400" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}>تم نسخ الرابط ✓</span>
-                  </>
-                ) : (
-                  <>
-                    <Bookmark className="w-4 h-4 shrink-0" style={{ color: "rgba(249,115,22,0.85)" }} />
+          <button
+            id="viral-share-btn-global"
+            onClick={handleShareTracking}
+            data-testid="button-share-tracking-delivery"
+            className="w-full relative overflow-hidden flex items-center justify-center gap-2.5 rounded-xl px-5 py-2.5 transition-all active:scale-[0.97]"
+            style={{ background: "rgba(249,115,22,0.07)", border: "1px solid rgba(249,115,22,0.22)" }}
+          >
+            <span
+              className="absolute inset-0 rounded-xl pointer-events-none"
+              style={{ background: "radial-gradient(ellipse at 50% 0%, rgba(249,115,22,0.12) 0%, transparent 65%)", animation: "sharePulse 2.2s ease-in-out infinite" }}
+            />
+            <span className="relative flex items-center gap-2.5">
+              {shareCopied ? (
+                <>
+                  <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span className="font-bold text-sm text-emerald-400" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}>تم نسخ الرابط ✓</span>
+                </>
+              ) : (
+                <>
+                  <Bookmark className="w-4 h-4 shrink-0" style={{ color: "rgba(249,115,22,0.85)" }} />
+                  <span className="flex flex-col items-center">
                     <span className="font-bold text-sm" style={{ color: "rgba(249,115,22,0.85)", fontFamily: "'Tajawal','Cairo',sans-serif" }}>
                       حفظ رابط التتبع
                     </span>
-                  </>
-                )}
-              </span>
-            </button>
-            <p className="text-[10px] text-gray-400 text-center" dir="rtl" style={{ fontFamily: "'Tajawal','Cairo',sans-serif", marginTop: "4px" }} data-testid="text-save-link-hint-delivery">
-              تحسبا لفقدان صفحة الويب
-            </p>
-          </div>
+                    <span style={{ fontSize: "10px", color: "rgba(249,115,22,0.65)", fontFamily: "'Tajawal','Cairo',sans-serif" }}>
+                      تحسبا لفقدان صفحة الويب
+                    </span>
+                  </span>
+                </>
+              )}
+            </span>
+          </button>
         )}
 
         {!isRejected && !isCompleted && (
@@ -898,38 +898,38 @@ export default function OrderTrackingPage() {
         )}
 
         {!isDelivery && (
-          <div className="w-full flex flex-col items-center gap-2">
-            <button
-              id="viral-share-btn-global"
-              onClick={handleShareTracking}
-              data-testid="button-share-tracking"
-              className="w-full relative overflow-hidden flex items-center justify-center gap-2.5 rounded-2xl px-5 py-4 transition-all active:scale-[0.97]"
-              style={{ background: "rgba(249,115,22,0.07)", border: "1px solid rgba(249,115,22,0.22)" }}
-            >
-              <span
-                className="absolute inset-0 rounded-2xl pointer-events-none"
-                style={{ background: "radial-gradient(ellipse at 50% 0%, rgba(249,115,22,0.12) 0%, transparent 65%)", animation: "sharePulse 2.2s ease-in-out infinite" }}
-              />
-              <span className="relative flex items-center gap-2.5">
-                {shareCopied ? (
-                  <>
-                    <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span className="font-bold text-sm text-emerald-400" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}>تم نسخ الرابط ✓</span>
-                  </>
-                ) : (
-                  <>
-                    <Bookmark className="w-4 h-4 shrink-0" style={{ color: "rgba(249,115,22,0.85)" }} />
+          <button
+            id="viral-share-btn-global"
+            onClick={handleShareTracking}
+            data-testid="button-share-tracking"
+            className="w-full relative overflow-hidden flex items-center justify-center gap-2.5 rounded-2xl px-5 py-2.5 transition-all active:scale-[0.97]"
+            style={{ background: "rgba(249,115,22,0.07)", border: "1px solid rgba(249,115,22,0.22)" }}
+          >
+            <span
+              className="absolute inset-0 rounded-2xl pointer-events-none"
+              style={{ background: "radial-gradient(ellipse at 50% 0%, rgba(249,115,22,0.12) 0%, transparent 65%)", animation: "sharePulse 2.2s ease-in-out infinite" }}
+            />
+            <span className="relative flex items-center gap-2.5">
+              {shareCopied ? (
+                <>
+                  <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span className="font-bold text-sm text-emerald-400" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}>تم نسخ الرابط ✓</span>
+                </>
+              ) : (
+                <>
+                  <Bookmark className="w-4 h-4 shrink-0" style={{ color: "rgba(249,115,22,0.85)" }} />
+                  <span className="flex flex-col items-center">
                     <span className="font-bold text-base" style={{ color: "rgba(249,115,22,0.85)", fontFamily: "'Tajawal','Cairo',sans-serif" }}>
                       حفظ رابط التتبع
                     </span>
-                  </>
-                )}
-              </span>
-            </button>
-            <p className="text-[10px] text-gray-400 text-center" dir="rtl" style={{ fontFamily: "'Tajawal','Cairo',sans-serif", marginTop: "4px" }} data-testid="text-save-link-hint">
-              تحسبا لفقدان صفحة الويب
-            </p>
-          </div>
+                    <span style={{ fontSize: "10px", color: "rgba(249,115,22,0.65)", fontFamily: "'Tajawal','Cairo',sans-serif" }}>
+                      تحسبا لفقدان صفحة الويب
+                    </span>
+                  </span>
+                </>
+              )}
+            </span>
+          </button>
         )}
 
         {!bellPrimed ? (
