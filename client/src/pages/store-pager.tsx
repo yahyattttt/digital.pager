@@ -600,8 +600,8 @@ export default function StorePagerPage() {
                 حفظ رابط التتبع
               </span>
             </button>
-            <p className="text-[11px] text-gray-400 text-center" dir="rtl" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }} data-testid="text-save-link-hint-store">
-              تحسبا لفقدان رابط التتبع
+            <p className="text-[10px] text-gray-400 text-center" dir="rtl" style={{ fontFamily: "'Tajawal','Cairo',sans-serif", marginTop: "4px" }} data-testid="text-save-link-hint-store">
+              تحسبا لفقدان صفحة الويب
             </p>
           </div>
         </div>

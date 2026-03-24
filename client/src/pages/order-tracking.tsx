@@ -201,7 +201,7 @@ function DeliveryTrackingView({
                 )}
               </span>
             </button>
-            <p className="text-[11px] text-gray-400 text-center mt-0.5" dir="rtl" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }} data-testid="text-save-link-hint-delivery">
+            <p className="text-[10px] text-gray-400 text-center" dir="rtl" style={{ fontFamily: "'Tajawal','Cairo',sans-serif", marginTop: "4px" }} data-testid="text-save-link-hint-delivery">
               تحسبا لفقدان صفحة الويب
             </p>
           </div>
@@ -926,7 +926,7 @@ export default function OrderTrackingPage() {
                 )}
               </span>
             </button>
-            <p className="text-[11px] text-gray-400 text-center mt-0.5" dir="rtl" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }} data-testid="text-save-link-hint">
+            <p className="text-[10px] text-gray-400 text-center" dir="rtl" style={{ fontFamily: "'Tajawal','Cairo',sans-serif", marginTop: "4px" }} data-testid="text-save-link-hint">
               تحسبا لفقدان صفحة الويب
             </p>
           </div>

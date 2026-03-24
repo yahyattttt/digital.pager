@@ -990,7 +990,7 @@ export default function DigitalPagerPage() {
 
         {/* Phase 2 — alerts enabled + order still active: share button fades in */}
         {alertsEnabled && !isReady && status !== "done" && status !== "cancelled" && (
-          <>
+          <div className="w-full flex flex-col items-center" style={{ gap: "0.5rem" }}>
             <button
               onClick={handleShare}
               data-testid="btn-share-tracking"
@@ -1007,10 +1007,10 @@ export default function DigitalPagerPage() {
                 حفظ رابط التتبع
               </span>
             </button>
-            <p className="text-[11px] text-gray-400 text-center -mt-1" dir="rtl" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }} data-testid="text-save-link-hint-pager">
-              تحسبا لفقدان رابط التتبع
+            <p className="text-[10px] text-gray-400 text-center" dir="rtl" style={{ fontFamily: "'Tajawal','Cairo',sans-serif", marginTop: "4px" }} data-testid="text-save-link-hint-pager">
+              تحسبا لفقدان صفحة الويب
             </p>
-          </>
+          </div>
         )}
       </div>
 
