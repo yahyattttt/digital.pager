@@ -990,22 +990,27 @@ export default function DigitalPagerPage() {
 
         {/* Phase 2 — alerts enabled + order still active: share button fades in */}
         {alertsEnabled && !isReady && status !== "done" && status !== "cancelled" && (
-          <button
-            onClick={handleShare}
-            data-testid="btn-share-tracking"
-            className="flex items-center justify-center gap-2.5 w-full py-4 rounded-2xl active:scale-95"
-            style={{
-              background: "linear-gradient(135deg, rgba(234,179,8,0.10) 0%, rgba(251,191,36,0.06) 50%, rgba(234,179,8,0.10) 100%)",
-              border: "1.5px solid rgba(251,191,36,0.55)",
-              boxShadow: "0 0 24px rgba(251,191,36,0.22), 0 0 8px rgba(251,191,36,0.12), inset 0 1px 0 rgba(255,255,255,0.05)",
-              animation: "btnFadeIn 0.45s ease-out forwards",
-            }}
-          >
-            <Share2 className="w-5 h-5 shrink-0" style={{ color: "#fbbf24" }} />
-            <span className="text-base font-black" dir="rtl" style={{ fontFamily: "'Tajawal','Cairo',sans-serif", color: "#fde68a" }}>
-              شاركهم اللحظة ✨
-            </span>
-          </button>
+          <>
+            <button
+              onClick={handleShare}
+              data-testid="btn-share-tracking"
+              className="flex items-center justify-center gap-2.5 w-full py-4 rounded-2xl active:scale-95"
+              style={{
+                background: "linear-gradient(135deg, rgba(234,179,8,0.10) 0%, rgba(251,191,36,0.06) 50%, rgba(234,179,8,0.10) 100%)",
+                border: "1.5px solid rgba(251,191,36,0.55)",
+                boxShadow: "0 0 24px rgba(251,191,36,0.22), 0 0 8px rgba(251,191,36,0.12), inset 0 1px 0 rgba(255,255,255,0.05)",
+                animation: "btnFadeIn 0.45s ease-out forwards",
+              }}
+            >
+              <Share2 className="w-5 h-5 shrink-0" style={{ color: "#fbbf24" }} />
+              <span className="text-base font-black" dir="rtl" style={{ fontFamily: "'Tajawal','Cairo',sans-serif", color: "#fde68a" }}>
+                حفظ رابط التتبع
+              </span>
+            </button>
+            <p className="text-[11px] text-gray-400 text-center -mt-1" dir="rtl" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }} data-testid="text-save-link-hint-pager">
+              تحسبا لفقدان رابط التتبع
+            </p>
+          </>
         )}
       </div>
 

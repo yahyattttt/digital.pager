@@ -581,25 +581,29 @@ export default function StorePagerPage() {
             <span className="text-white/20 text-[10px]">Live</span>
           </div>
 
-          <button
-            id="share-moment-btn"
-            onClick={handleShare}
-            className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl active:scale-[0.97] transition-all duration-200"
-            style={{
-              position: "relative",
-              zIndex: 10,
-              marginBottom: "20px",
-              background: "linear-gradient(135deg, rgba(234,179,8,0.10) 0%, rgba(251,191,36,0.06) 50%, rgba(234,179,8,0.10) 100%)",
-              border: "1.5px solid rgba(251,191,36,0.55)",
-              boxShadow: "0 0 24px rgba(251,191,36,0.22), 0 0 8px rgba(251,191,36,0.12), inset 0 1px 0 rgba(255,255,255,0.05)",
-            }}
-            data-testid="button-share"
-          >
-            <Share2 className="w-5 h-5" style={{ color: "#fbbf24" }} />
-            <span className="text-base font-black" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif", color: "#fde68a" }}>
-              شاركهم اللحظة ✨
-            </span>
-          </button>
+          <div className="w-full flex flex-col items-center gap-1" style={{ marginBottom: "20px" }}>
+            <button
+              id="share-moment-btn"
+              onClick={handleShare}
+              className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl active:scale-[0.97] transition-all duration-200"
+              style={{
+                position: "relative",
+                zIndex: 10,
+                background: "linear-gradient(135deg, rgba(234,179,8,0.10) 0%, rgba(251,191,36,0.06) 50%, rgba(234,179,8,0.10) 100%)",
+                border: "1.5px solid rgba(251,191,36,0.55)",
+                boxShadow: "0 0 24px rgba(251,191,36,0.22), 0 0 8px rgba(251,191,36,0.12), inset 0 1px 0 rgba(255,255,255,0.05)",
+              }}
+              data-testid="button-share"
+            >
+              <Share2 className="w-5 h-5" style={{ color: "#fbbf24" }} />
+              <span className="text-base font-black" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif", color: "#fde68a" }}>
+                حفظ رابط التتبع
+              </span>
+            </button>
+            <p className="text-[11px] text-gray-400 text-center" dir="rtl" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }} data-testid="text-save-link-hint-store">
+              تحسبا لفقدان رابط التتبع
+            </p>
+          </div>
         </div>
 
         <div className="w-full max-w-xs space-y-3">

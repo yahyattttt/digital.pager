@@ -559,7 +559,7 @@ export default function DeliveryTrackerPage() {
                         fontFamily: "'Tajawal','Cairo',sans-serif",
                       }}
                     >
-                      شاركهم اللحظة 🔗
+                      حفظ رابط التتبع
                     </span>
                   </>
                 )}
