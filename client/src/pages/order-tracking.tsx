@@ -4,7 +4,7 @@ import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { AlertTriangle, CheckCircle, Loader2, Banknote, Phone, MessageCircle, XCircle, Truck, MapPin, Package, Clock, Link2 } from "lucide-react";
+import { AlertTriangle, CheckCircle, Loader2, Banknote, Phone, MessageCircle, XCircle, Truck, MapPin, Package, Clock, Bookmark } from "lucide-react";
 import { StarRatingPopup } from "@/components/star-rating-popup";
 import { SiWhatsapp } from "react-icons/si";
 import { useToast } from "@/hooks/use-toast";
@@ -173,7 +173,7 @@ function DeliveryTrackingView({
         )}
 
         {isPreparing && !isDelivery && (
-          <>
+          <div className="w-full flex flex-col items-center gap-2">
             <button
               id="viral-share-btn-global"
               onClick={handleShareTracking}
@@ -193,7 +193,7 @@ function DeliveryTrackingView({
                   </>
                 ) : (
                   <>
-                    <Link2 className="w-4 h-4 shrink-0" style={{ color: "rgba(249,115,22,0.85)" }} />
+                    <Bookmark className="w-4 h-4 shrink-0" style={{ color: "rgba(249,115,22,0.85)" }} />
                     <span className="font-bold text-sm" style={{ color: "rgba(249,115,22,0.85)", fontFamily: "'Tajawal','Cairo',sans-serif" }}>
                       حفظ رابط التتبع
                     </span>
@@ -201,10 +201,10 @@ function DeliveryTrackingView({
                 )}
               </span>
             </button>
-            <p className="text-[10px] text-white/25 text-center -mt-1" dir="rtl" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }} data-testid="text-save-link-hint-delivery">
-              تحسبا لفقدان رابط التتبع
+            <p className="text-[11px] text-gray-400 text-center mt-0.5" dir="rtl" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }} data-testid="text-save-link-hint-delivery">
+              تحسبا لفقدان صفحة الويب
             </p>
-          </>
+          </div>
         )}
 
         {!isRejected && !isCompleted && (
@@ -898,7 +898,7 @@ export default function OrderTrackingPage() {
         )}
 
         {!isDelivery && (
-          <>
+          <div className="w-full flex flex-col items-center gap-2">
             <button
               id="viral-share-btn-global"
               onClick={handleShareTracking}
@@ -918,7 +918,7 @@ export default function OrderTrackingPage() {
                   </>
                 ) : (
                   <>
-                    <Link2 className="w-4 h-4 shrink-0" style={{ color: "rgba(249,115,22,0.85)" }} />
+                    <Bookmark className="w-4 h-4 shrink-0" style={{ color: "rgba(249,115,22,0.85)" }} />
                     <span className="font-bold text-base" style={{ color: "rgba(249,115,22,0.85)", fontFamily: "'Tajawal','Cairo',sans-serif" }}>
                       حفظ رابط التتبع
                     </span>
@@ -926,10 +926,10 @@ export default function OrderTrackingPage() {
                 )}
               </span>
             </button>
-            <p className="text-[10px] text-white/25 text-center -mt-1" dir="rtl" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }} data-testid="text-save-link-hint">
-              تحسبا لفقدان رابط التتبع
+            <p className="text-[11px] text-gray-400 text-center mt-0.5" dir="rtl" style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }} data-testid="text-save-link-hint">
+              تحسبا لفقدان صفحة الويب
             </p>
-          </>
+          </div>
         )}
 
         {!bellPrimed ? (
