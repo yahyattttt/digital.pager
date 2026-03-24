@@ -2767,6 +2767,14 @@ export async function registerRoutes(
     crmEnabled: true,
     smartRatingEnabled: true,
     printReceiptsEnabled: true,
+    onlineOrdersEnabled: true,
+    trackingEnabled: true,
+    couponsEnabled: true,
+    financialEnabled: true,
+    reviewsEnabled: true,
+    loyaltyModuleEnabled: true,
+    loyaltyCrmEnabled: true,
+    archiveEnabled: true,
   };
 
   function parseFeatures(fields: any) {
@@ -2775,6 +2783,14 @@ export async function registerRoutes(
       crmEnabled: fields?.crmEnabled?.booleanValue ?? DEFAULT_FEATURES.crmEnabled,
       smartRatingEnabled: fields?.smartRatingEnabled?.booleanValue ?? DEFAULT_FEATURES.smartRatingEnabled,
       printReceiptsEnabled: fields?.printReceiptsEnabled?.booleanValue ?? DEFAULT_FEATURES.printReceiptsEnabled,
+      onlineOrdersEnabled: fields?.onlineOrdersEnabled?.booleanValue ?? DEFAULT_FEATURES.onlineOrdersEnabled,
+      trackingEnabled: fields?.trackingEnabled?.booleanValue ?? DEFAULT_FEATURES.trackingEnabled,
+      couponsEnabled: fields?.couponsEnabled?.booleanValue ?? DEFAULT_FEATURES.couponsEnabled,
+      financialEnabled: fields?.financialEnabled?.booleanValue ?? DEFAULT_FEATURES.financialEnabled,
+      reviewsEnabled: fields?.reviewsEnabled?.booleanValue ?? DEFAULT_FEATURES.reviewsEnabled,
+      loyaltyModuleEnabled: fields?.loyaltyModuleEnabled?.booleanValue ?? DEFAULT_FEATURES.loyaltyModuleEnabled,
+      loyaltyCrmEnabled: fields?.loyaltyCrmEnabled?.booleanValue ?? DEFAULT_FEATURES.loyaltyCrmEnabled,
+      archiveEnabled: fields?.archiveEnabled?.booleanValue ?? DEFAULT_FEATURES.archiveEnabled,
     };
   }
 
@@ -2823,7 +2839,7 @@ export async function registerRoutes(
     try {
       if (!(await isAdminRequest(req))) return res.status(403).json({ message: "Unauthorized" });
       const { merchantId } = req.params;
-      const { analyticsEnabled, crmEnabled, smartRatingEnabled, printReceiptsEnabled } = req.body;
+      const { analyticsEnabled, crmEnabled, smartRatingEnabled, printReceiptsEnabled, onlineOrdersEnabled, trackingEnabled, couponsEnabled, financialEnabled, reviewsEnabled, loyaltyModuleEnabled, loyaltyCrmEnabled, archiveEnabled } = req.body;
       const baseUrl = getApiKeyBaseUrl();
       if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
 
@@ -2853,6 +2869,38 @@ export async function registerRoutes(
       if (typeof printReceiptsEnabled === "boolean") {
         updatedFields.printReceiptsEnabled = { booleanValue: printReceiptsEnabled };
         fieldPaths.push("printReceiptsEnabled");
+      }
+      if (typeof onlineOrdersEnabled === "boolean") {
+        updatedFields.onlineOrdersEnabled = { booleanValue: onlineOrdersEnabled };
+        fieldPaths.push("onlineOrdersEnabled");
+      }
+      if (typeof trackingEnabled === "boolean") {
+        updatedFields.trackingEnabled = { booleanValue: trackingEnabled };
+        fieldPaths.push("trackingEnabled");
+      }
+      if (typeof couponsEnabled === "boolean") {
+        updatedFields.couponsEnabled = { booleanValue: couponsEnabled };
+        fieldPaths.push("couponsEnabled");
+      }
+      if (typeof financialEnabled === "boolean") {
+        updatedFields.financialEnabled = { booleanValue: financialEnabled };
+        fieldPaths.push("financialEnabled");
+      }
+      if (typeof reviewsEnabled === "boolean") {
+        updatedFields.reviewsEnabled = { booleanValue: reviewsEnabled };
+        fieldPaths.push("reviewsEnabled");
+      }
+      if (typeof loyaltyModuleEnabled === "boolean") {
+        updatedFields.loyaltyModuleEnabled = { booleanValue: loyaltyModuleEnabled };
+        fieldPaths.push("loyaltyModuleEnabled");
+      }
+      if (typeof loyaltyCrmEnabled === "boolean") {
+        updatedFields.loyaltyCrmEnabled = { booleanValue: loyaltyCrmEnabled };
+        fieldPaths.push("loyaltyCrmEnabled");
+      }
+      if (typeof archiveEnabled === "boolean") {
+        updatedFields.archiveEnabled = { booleanValue: archiveEnabled };
+        fieldPaths.push("archiveEnabled");
       }
 
       if (fieldPaths.length === 0) return res.status(400).json({ message: "No valid feature flags provided" });

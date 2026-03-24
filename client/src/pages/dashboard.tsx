@@ -700,7 +700,20 @@ export default function DashboardPage() {
   const [businessCloseTime, setBusinessCloseTime] = useState<string>((merchant as any)?.businessCloseTime || "");
   const [completedToday, setCompletedToday] = useState(0);
   const [flyingOrderId, setFlyingOrderId] = useState<string | null>(null);
-  const [merchantFeatures, setMerchantFeatures] = useState({ analyticsEnabled: true, crmEnabled: true, printReceiptsEnabled: true });
+  const [merchantFeatures, setMerchantFeatures] = useState({
+    analyticsEnabled: true,
+    crmEnabled: true,
+    smartRatingEnabled: true,
+    printReceiptsEnabled: true,
+    onlineOrdersEnabled: true,
+    trackingEnabled: true,
+    couponsEnabled: true,
+    financialEnabled: true,
+    reviewsEnabled: true,
+    loyaltyModuleEnabled: true,
+    loyaltyCrmEnabled: true,
+    archiveEnabled: true,
+  });
   const [manualDigitInput, setManualDigitInput] = useState("");
   const [manualAddLoading, setManualAddLoading] = useState(false);
   const [lastShiftNumber, setLastShiftNumber] = useState<number>(0);
@@ -1781,11 +1794,37 @@ export default function DashboardPage() {
     ...(isSuperAdmin ? [{ id: "syshealth" as const, icon: HeartPulse, label: t("صحة النظام", "System Health") }] : []),
   ];
 
-  const navItems = allNavItems.filter(item => {
-    if (item.id === "analytics" && !merchantFeatures.analyticsEnabled) return false;
-    if (item.id === "customers" && !merchantFeatures.crmEnabled) return false;
-    return true;
-  });
+  const navItems = allNavItems;
+
+  const FeatureDisabled = () => (
+    <div className="flex flex-col items-center justify-center py-24 gap-6 text-center px-6">
+      <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
+        <ShieldAlert className="w-7 h-7 text-amber-400" />
+      </div>
+      <div>
+        <p className="text-base font-bold text-white/80" data-testid="text-feature-disabled-title">
+          {t("هذه الميزة غير مفعّلة", "This Feature Is Disabled")}
+        </p>
+        <p className="text-sm text-white/45 mt-2 max-w-sm mx-auto leading-relaxed" data-testid="text-feature-disabled-msg">
+          {t(
+            "عذراً، هذه الميزة غير مفعّلة حالياً في حسابك. يرجى التواصل مع الإدارة للتفعيل.",
+            "Sorry, this feature is not currently active in your account. Please contact support to enable it."
+          )}
+        </p>
+      </div>
+      <a
+        href={`https://wa.me/966500000000`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all hover:opacity-90 active:scale-[0.97]"
+        style={{ background: "rgba(251,191,36,0.12)", border: "1px solid rgba(251,191,36,0.3)", color: "#fbbf24" }}
+        data-testid="link-feature-contact-support"
+      >
+        <MessageCircle className="w-4 h-4" />
+        {t("التواصل مع الدعم", "Contact Support")}
+      </a>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] flex flex-col" dir={isRTL ? "rtl" : "ltr"}>
@@ -2171,48 +2210,52 @@ export default function DashboardPage() {
             )}
 
             {!isContentLocked && currentView === "menu" && (
-              <MenuView merchant={merchant} t={t} lang={lang} />
+              merchantFeatures.onlineOrdersEnabled ? <MenuView merchant={merchant} t={t} lang={lang} /> : <FeatureDisabled />
             )}
 
             {!isContentLocked && currentView === "analytics" && (
-              <AnalyticsView
-                merchant={merchant}
-                waitingPagers={waitingPagers}
-                notifiedPagers={notifiedPagers}
-                activeWhatsappOrders={activeWhatsappOrders}
-                whatsappOrders={whatsappOrders}
-                completedToday={completedToday}
-                t={t}
-                lang={lang}
-              />
+              merchantFeatures.analyticsEnabled ? (
+                <AnalyticsView
+                  merchant={merchant}
+                  waitingPagers={waitingPagers}
+                  notifiedPagers={notifiedPagers}
+                  activeWhatsappOrders={activeWhatsappOrders}
+                  whatsappOrders={whatsappOrders}
+                  completedToday={completedToday}
+                  t={t}
+                  lang={lang}
+                />
+              ) : <FeatureDisabled />
             )}
 
             {!isContentLocked && currentView === "tracking" && (
-              <TrackingView merchant={merchant} t={t} lang={lang} />
+              merchantFeatures.trackingEnabled ? <TrackingView merchant={merchant} t={t} lang={lang} /> : <FeatureDisabled />
             )}
 
             {!isContentLocked && currentView === "customers" && (
-              <CustomersView merchant={merchant} t={t} lang={lang} />
+              merchantFeatures.crmEnabled ? <CustomersView merchant={merchant} t={t} lang={lang} /> : <FeatureDisabled />
             )}
 
             {!isContentLocked && currentView === "coupons" && (
-              <CouponsView merchant={merchant} t={t} lang={lang} />
+              merchantFeatures.couponsEnabled ? <CouponsView merchant={merchant} t={t} lang={lang} /> : <FeatureDisabled />
             )}
 
             {!isContentLocked && currentView === "financial" && (
-              <FinancialView merchant={merchant} t={t} lang={lang} />
+              merchantFeatures.financialEnabled ? <FinancialView merchant={merchant} t={t} lang={lang} /> : <FeatureDisabled />
             )}
 
             {!isContentLocked && currentView === "archive" && (
-              <ArchiveView
-                merchant={merchant}
-                t={t}
-                lang={lang}
-                onViewReceipt={(orderId) => {
-                  window.open(`/receipt/${orderId}?m=${merchant.uid}`, "_blank");
-                }}
-                onNavigateToActive={() => setCurrentView("overview")}
-              />
+              merchantFeatures.archiveEnabled ? (
+                <ArchiveView
+                  merchant={merchant}
+                  t={t}
+                  lang={lang}
+                  onViewReceipt={(orderId) => {
+                    window.open(`/receipt/${orderId}?m=${merchant.uid}`, "_blank");
+                  }}
+                  onNavigateToActive={() => setCurrentView("overview")}
+                />
+              ) : <FeatureDisabled />
             )}
 
             {currentView === "subscription" && (
@@ -2224,15 +2267,15 @@ export default function DashboardPage() {
             )}
 
             {!isContentLocked && currentView === "reviews" && (
-              <ReviewsView merchant={merchant} t={t} lang={lang} />
+              merchantFeatures.reviewsEnabled ? <ReviewsView merchant={merchant} t={t} lang={lang} /> : <FeatureDisabled />
             )}
 
             {!isContentLocked && currentView === "loyalty" && (
-              <LoyaltyView merchant={merchant} t={t} lang={lang} />
+              merchantFeatures.loyaltyModuleEnabled ? <LoyaltyView merchant={merchant} t={t} lang={lang} /> : <FeatureDisabled />
             )}
 
             {!isContentLocked && currentView === "crm" && (
-              <CRMLoyaltyView merchant={merchant} t={t} lang={lang} />
+              merchantFeatures.loyaltyCrmEnabled ? <CRMLoyaltyView merchant={merchant} t={t} lang={lang} /> : <FeatureDisabled />
             )}
 
             {currentView === "settings" && (

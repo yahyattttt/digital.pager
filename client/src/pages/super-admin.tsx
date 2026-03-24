@@ -371,7 +371,20 @@ export default function SuperAdminPage() {
 
   const [featureDialogOpen, setFeatureDialogOpen] = useState(false);
   const [featureDialogMerchant, setFeatureDialogMerchant] = useState<Merchant | null>(null);
-  const [featureFlags, setFeatureFlags] = useState({ analyticsEnabled: true, crmEnabled: true, printReceiptsEnabled: true });
+  const [featureFlags, setFeatureFlags] = useState({
+    analyticsEnabled: true,
+    crmEnabled: true,
+    smartRatingEnabled: true,
+    printReceiptsEnabled: true,
+    onlineOrdersEnabled: true,
+    trackingEnabled: true,
+    couponsEnabled: true,
+    financialEnabled: true,
+    reviewsEnabled: true,
+    loyaltyModuleEnabled: true,
+    loyaltyCrmEnabled: true,
+    archiveEnabled: true,
+  });
   const [featureLoading, setFeatureLoading] = useState(false);
   const [featureSaving, setFeatureSaving] = useState(false);
 
@@ -3846,7 +3859,7 @@ export default function SuperAdminPage() {
       </AlertDialog>
 
       <Dialog open={featureDialogOpen} onOpenChange={setFeatureDialogOpen}>
-        <DialogContent className="max-w-md" data-testid="dialog-feature-toggles">
+        <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto" data-testid="dialog-feature-toggles">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Settings className="w-5 h-5 text-primary" />
@@ -3856,32 +3869,42 @@ export default function SuperAdminPage() {
           {featureLoading ? (
             <div className="flex items-center justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
           ) : (
-            <div className="space-y-5">
-              <div className="flex items-center justify-between" data-testid="toggle-analytics">
-                <div>
-                  <p className="font-medium text-sm">{t("التحليلات", "Analytics")}</p>
-                  <p className="text-xs text-muted-foreground">{t("عرض صفحة التحليلات", "Show Analytics page")}</p>
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground pb-2">{t("فعّل أو عطّل الأقسام التي يمكن للتاجر الوصول إليها.", "Enable or disable which sections the merchant can access.")}</p>
+
+              {([
+                { key: "onlineOrdersEnabled", ar: "قسم الأونلاين", en: "Online Orders", desc_ar: "القائمة والطلبات الرقمية", desc_en: "Digital menu & online ordering" },
+                { key: "analyticsEnabled", ar: "التحليلات", en: "Analytics", desc_ar: "إحصاءات الأداء والمبيعات", desc_en: "Performance & sales statistics" },
+                { key: "trackingEnabled", ar: "تتبع عملاءك", en: "Customer Tracking", desc_ar: "تتبع حركة العملاء والزيارات", desc_en: "Track customer visits & behavior" },
+                { key: "crmEnabled", ar: "عملائي", en: "My Customers (CRM)", desc_ar: "إدارة بيانات العملاء", desc_en: "Manage customer database" },
+                { key: "couponsEnabled", ar: "الكوبونات", en: "Coupons", desc_ar: "إنشاء وإدارة أكواد الخصم", desc_en: "Create & manage discount codes" },
+                { key: "financialEnabled", ar: "الإدارة المالية", en: "Financial", desc_ar: "التقارير والبيانات المالية", desc_en: "Financial reports & data" },
+                { key: "reviewsEnabled", ar: "تقييمات العملاء", en: "Customer Reviews", desc_ar: "عرض وإدارة التقييمات", desc_en: "View & manage ratings" },
+                { key: "loyaltyModuleEnabled", ar: "نظام الولاء والمحفظة", en: "Loyalty & Wallet", desc_ar: "برنامج الولاء ونقاط المكافآت", desc_en: "Loyalty program & reward points" },
+                { key: "loyaltyCrmEnabled", ar: "عملاء الولاء", en: "Loyalty CRM", desc_ar: "CRM لعملاء برنامج الولاء", desc_en: "CRM for loyalty program members" },
+                { key: "archiveEnabled", ar: "أرشيف الطلبات", en: "Order Archive", desc_ar: "سجل الطلبات المكتملة والملغاة", desc_en: "Completed & cancelled orders history" },
+                { key: "printReceiptsEnabled", ar: "طباعة الإيصالات", en: "Print Receipts", desc_ar: "زر الطباعة داخل الطلبات", desc_en: "Print button inside orders" },
+              ] as { key: keyof typeof featureFlags; ar: string; en: string; desc_ar: string; desc_en: string }[]).map(({ key, ar, en, desc_ar, desc_en }) => (
+                <div key={key} className="flex items-center justify-between py-3 border-b border-white/[0.06] last:border-0" data-testid={`toggle-${key}`}>
+                  <div className="flex-1 min-w-0 me-3">
+                    <p className="font-medium text-sm">{t(ar, en)}</p>
+                    <p className="text-xs text-muted-foreground">{t(desc_ar, desc_en)}</p>
+                  </div>
+                  <Switch
+                    checked={featureFlags[key]}
+                    onCheckedChange={(v) => setFeatureFlags(f => ({ ...f, [key]: v }))}
+                    data-testid={`switch-${key}`}
+                    className="data-[state=checked]:bg-emerald-600 shrink-0"
+                  />
                 </div>
-                <Switch checked={featureFlags.analyticsEnabled} onCheckedChange={(v) => setFeatureFlags(f => ({ ...f, analyticsEnabled: v }))} data-testid="switch-analytics" />
+              ))}
+
+              <div className="pt-3">
+                <Button onClick={handleSaveFeatures} disabled={featureSaving} className="w-full" data-testid="button-save-features">
+                  {featureSaving ? <Loader2 className="w-4 h-4 animate-spin me-1.5" /> : <Save className="w-4 h-4 me-1.5" />}
+                  {t("حفظ التعديلات", "Save Changes")}
+                </Button>
               </div>
-              <div className="flex items-center justify-between" data-testid="toggle-crm">
-                <div>
-                  <p className="font-medium text-sm">{t("إدارة العملاء", "CRM / Customers")}</p>
-                  <p className="text-xs text-muted-foreground">{t("عرض صفحة العملاء", "Show Customers page")}</p>
-                </div>
-                <Switch checked={featureFlags.crmEnabled} onCheckedChange={(v) => setFeatureFlags(f => ({ ...f, crmEnabled: v }))} data-testid="switch-crm" />
-              </div>
-              <div className="flex items-center justify-between" data-testid="toggle-print">
-                <div>
-                  <p className="font-medium text-sm">{t("طباعة الإيصالات", "Print Receipts")}</p>
-                  <p className="text-xs text-muted-foreground">{t("عرض زر الطباعة في الطلبات", "Show print button on orders")}</p>
-                </div>
-                <Switch checked={featureFlags.printReceiptsEnabled} onCheckedChange={(v) => setFeatureFlags(f => ({ ...f, printReceiptsEnabled: v }))} data-testid="switch-print" />
-              </div>
-              <Button onClick={handleSaveFeatures} disabled={featureSaving} className="w-full" data-testid="button-save-features">
-                {featureSaving ? <Loader2 className="w-4 h-4 animate-spin me-1.5" /> : <Save className="w-4 h-4 me-1.5" />}
-                {t("حفظ", "Save")}
-              </Button>
             </div>
           )}
         </DialogContent>
