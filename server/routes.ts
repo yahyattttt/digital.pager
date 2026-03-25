@@ -149,6 +149,42 @@ function getFCMAuth(): GoogleAuth | null {
   }
 }
 
+// Cached GoogleAuth for Firestore admin operations (bypasses security rules)
+let firestoreAdminAuth: GoogleAuth | null = null;
+
+function getFirestoreAdminAuth(): GoogleAuth | null {
+  if (firestoreAdminAuth) return firestoreAdminAuth;
+  const saJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  if (!saJson) return null;
+  try {
+    const credentials = JSON.parse(saJson);
+    firestoreAdminAuth = new GoogleAuth({
+      credentials,
+      scopes: ["https://www.googleapis.com/auth/datastore"],
+    });
+    return firestoreAdminAuth;
+  } catch (e) {
+    console.error("[SA] Failed to parse service account JSON:", e);
+    return null;
+  }
+}
+
+async function saFirestoreFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  const auth = getFirestoreAdminAuth();
+  if (!auth) throw new Error("Firestore service account not configured");
+  const client = await auth.getClient();
+  const tokenRes = await client.getAccessToken();
+  const token = tokenRes?.token;
+  if (!token) throw new Error("Failed to get service account access token");
+  return fetch(url, {
+    ...options,
+    headers: {
+      ...(options.headers as Record<string, string> || {}),
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
 async function getFirestoreAccessToken(): Promise<string | null> {
   const saJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
   if (!saJson) return null;
@@ -260,8 +296,8 @@ function sanitizeEmailKey(email: string): string {
 }
 
 async function saveOtpToFirestore(email: string, code: string): Promise<boolean> {
-  const baseUrl = getApiKeyBaseUrl();
-  if (!baseUrl || !getApiKey()) return false;
+  const baseUrl = getFirestoreBaseUrl();
+  if (!baseUrl) return false;
 
   const docId = sanitizeEmailKey(email);
   const now = Date.now();
@@ -276,7 +312,7 @@ async function saveOtpToFirestore(email: string, code: string): Promise<boolean>
   };
 
   try {
-    const res = await apikeyFetch(`${baseUrl}/otps/${docId}`, {
+    const res = await saFirestoreFetch(`${baseUrl}/otps/${docId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
@@ -294,13 +330,13 @@ async function saveOtpToFirestore(email: string, code: string): Promise<boolean>
 }
 
 async function getOtpFromFirestore(email: string): Promise<{ code: string; expiresAt: number; attempts: number; sentAt: number } | null> {
-  const baseUrl = getApiKeyBaseUrl();
-  if (!baseUrl || !getApiKey()) return null;
+  const baseUrl = getFirestoreBaseUrl();
+  if (!baseUrl) return null;
 
   const docId = sanitizeEmailKey(email);
 
   try {
-    const res = await apikeyFetch(`${baseUrl}/otps/${docId}`);
+    const res = await saFirestoreFetch(`${baseUrl}/otps/${docId}`);
     if (!res.ok) {
       console.log(`[OTP] Firestore lookup: no OTP doc found in 'otps' for ${email} (status ${res.status})`);
       return null;
@@ -320,12 +356,12 @@ async function getOtpFromFirestore(email: string): Promise<{ code: string; expir
 }
 
 async function updateOtpAttempts(email: string, attempts: number): Promise<void> {
-  const baseUrl = getApiKeyBaseUrl();
-  if (!baseUrl || !getApiKey()) return;
+  const baseUrl = getFirestoreBaseUrl();
+  if (!baseUrl) return;
 
   const docId = sanitizeEmailKey(email);
   try {
-    await apikeyFetch(`${baseUrl}/otps/${docId}?updateMask.fieldPaths=attempts`, {
+    await saFirestoreFetch(`${baseUrl}/otps/${docId}?updateMask.fieldPaths=attempts`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ fields: { attempts: { integerValue: String(attempts) } } }),
@@ -334,12 +370,12 @@ async function updateOtpAttempts(email: string, attempts: number): Promise<void>
 }
 
 async function deleteOtpFromFirestore(email: string): Promise<void> {
-  const baseUrl = getApiKeyBaseUrl();
-  if (!baseUrl || !getApiKey()) return;
+  const baseUrl = getFirestoreBaseUrl();
+  if (!baseUrl) return;
 
   const docId = sanitizeEmailKey(email);
   try {
-    await apikeyFetch(`${baseUrl}/otps/${docId}`, { method: "DELETE" });
+    await saFirestoreFetch(`${baseUrl}/otps/${docId}`, { method: "DELETE" });
     console.log(`[OTP] Deleted OTP from Firestore (otps) for ${email}`);
   } catch {}
 }
