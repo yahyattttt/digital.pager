@@ -4,23 +4,18 @@ import { db } from "@/lib/firebase";
 import type { Merchant } from "@shared/schema";
 
 const SESSION_KEY = "dp-session";
-const PRIMARY_ADMIN_EMAIL = import.meta.env.VITE_SUPER_ADMIN_EMAIL || "yahiatohary@hotmail.com";
-const ADMIN_EMAILS = [PRIMARY_ADMIN_EMAIL.toLowerCase()];
-function isAdminEmail(email: string) {
-  return ADMIN_EMAILS.includes(email.toLowerCase());
-}
-
 
 interface SessionData {
   uid: string;
   email: string;
+  isAdmin?: boolean;
 }
 
 interface AuthContextType {
   user: SessionData | null;
   merchant: Merchant | null;
   loading: boolean;
-  login: (uid: string, email: string) => void;
+  login: (uid: string, email: string, isAdmin?: boolean) => void;
   logout: () => void;
   refreshMerchant: () => void;
 }
@@ -63,7 +58,7 @@ export function useAuthProvider() {
       return;
     }
 
-    if (isAdminEmail(user.email)) {
+    if (user.isAdmin) {
       setMerchant(null);
       setLoading(false);
       return;
@@ -109,8 +104,8 @@ export function useAuthProvider() {
     return () => unsub();
   }, [user?.uid, user?.email]);
 
-  const login = useCallback((uid: string, email: string) => {
-    const session: SessionData = { uid, email };
+  const login = useCallback((uid: string, email: string, isAdmin?: boolean) => {
+    const session: SessionData = { uid, email, ...(isAdmin ? { isAdmin: true } : {}) };
     localStorage.setItem(SESSION_KEY, JSON.stringify(session));
     setLoading(true);
     setUser(session);

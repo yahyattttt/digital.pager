@@ -24,12 +24,6 @@ import CheckOrderPage from "@/pages/check-order";
 import OrderCompletedPage from "@/pages/order-completed";
 import OnlineOrderPage from "@/pages/online-order";
 
-const PRIMARY_ADMIN_EMAIL = import.meta.env.VITE_SUPER_ADMIN_EMAIL || "yahiatohary@hotmail.com";
-const ADMIN_EMAILS = [PRIMARY_ADMIN_EMAIL.toLowerCase()];
-function isAdminEmail(email: string) {
-  return ADMIN_EMAILS.includes(email.toLowerCase());
-}
-
 function SuperAdminRoute() {
   const { user, loading } = useAuth();
 
@@ -41,7 +35,7 @@ function SuperAdminRoute() {
     );
   }
 
-  if (!user || !isAdminEmail(user.email)) {
+  if (!user || !user.isAdmin) {
     return <Redirect to="/" />;
   }
 
@@ -151,7 +145,7 @@ function GuestRoute({ component: Component }: { component: () => JSX.Element | n
   }
 
   if (user) {
-    if (isAdminEmail(user.email)) {
+    if (user.isAdmin) {
       return <Redirect to="/super-admin" />;
     }
     if (!merchant && !guestTimeout) {

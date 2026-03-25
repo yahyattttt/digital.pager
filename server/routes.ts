@@ -1333,22 +1333,22 @@ export async function registerRoutes(
         `,
       });
 
-      console.log(`[OTP] Resend API response:`, JSON.stringify(sendResult));
+      console.log(`[Resend] Response:`, JSON.stringify(sendResult));
 
       if (sendResult.error) {
         const errDetails = JSON.stringify(sendResult.error);
         console.error(`[Resend] ❌ Email delivery FAILED for ${emailLower}`);
-        console.error(`[Resend] Error code: ${(sendResult.error as any).name || "unknown"}`);
+        console.error(`[Resend] Error name: ${(sendResult.error as any).name || "unknown"}`);
         console.error(`[Resend] Error message: ${(sendResult.error as any).message || errDetails}`);
-        console.error(`[Resend] Full error object:`, errDetails);
-        return res.json({ success: true, message: "OTP sent", warning: "Email delivery may be delayed" });
+        console.error(`[Resend] Full error:`, errDetails);
+        return res.status(400).json({ success: false, message: "فشل إرسال البريد الإلكتروني. يرجى التحقق من عنوانك أو المحاولة مرة أخرى.", error: "Email delivery failed" });
       }
 
-      console.log(`[Resend] ✅ Email sent successfully to ${emailLower}, id: ${sendResult.data?.id}`);
+      console.log(`[Resend] ✅ Email sent to ${emailLower}, id: ${sendResult.data?.id}`);
       return res.json({ success: true, message: "OTP sent" });
     } catch (error) {
-      console.error("Send OTP error:", error);
-      return res.status(500).json({ message: "Failed to send OTP" });
+      console.error("[Resend] Unexpected send error:", error instanceof Error ? error.message : String(error));
+      return res.status(400).json({ success: false, message: "فشل إرسال البريد الإلكتروني. يرجى المحاولة مرة أخرى.", error: "Send error" });
     }
   });
 
@@ -1393,14 +1393,29 @@ export async function registerRoutes(
       await deleteOtpFromFirestore(emailLower);
 
       const SUPER_ADMIN_EMAIL = (process.env.SUPER_ADMIN_EMAIL || "yahiatohary@hotmail.com").toLowerCase();
+      const EXTRA_ADMIN_EMAILS = (process.env.EXTRA_ADMIN_EMAILS || "jarasapp@hotmail.com")
+        .split(",").map(e => e.trim().toLowerCase()).filter(Boolean);
+      const ALL_ADMIN_EMAILS = [SUPER_ADMIN_EMAIL, ...EXTRA_ADMIN_EMAILS];
 
-      if (emailLower === SUPER_ADMIN_EMAIL) {
+      const isAdminUser = ALL_ADMIN_EMAILS.includes(emailLower) || await (async () => {
+        // Also check Firestore 'admins' collection (email as doc ID)
+        try {
+          const baseUrl = getApiKeyBaseUrl();
+          if (!baseUrl || !getApiKey()) return false;
+          const docId = emailLower.replace(/\./g, "_").replace("@", "_at_");
+          const res = await apikeyFetch(`${baseUrl}/admins/${docId}`);
+          if (res.ok) { const doc = await res.json(); return !!doc.fields; }
+        } catch {}
+        return false;
+      })();
+
+      if (isAdminUser) {
         const uid = generateUidFromEmail(emailLower);
         const customToken = createFirebaseCustomToken(uid);
         if (!customToken) {
           return res.status(500).json({ message: "Failed to generate authentication token." });
         }
-        console.log(`[AUTH] Super admin login for ${emailLower}, uid: ${uid}`);
+        console.log(`[AUTH] Admin login for ${emailLower}, uid: ${uid}`);
         return res.json({ success: true, verified: true, customToken, uid, isNewUser: false, isAdmin: true });
       }
 
@@ -1432,12 +1447,15 @@ export async function registerRoutes(
   });
 
   const SUPER_ADMIN_EMAIL_GLOBAL = (process.env.SUPER_ADMIN_EMAIL || "yahiatohary@hotmail.com").toLowerCase();
+  const EXTRA_ADMIN_EMAILS_GLOBAL = (process.env.EXTRA_ADMIN_EMAILS || "jarasapp@hotmail.com")
+    .split(",").map(e => e.trim().toLowerCase()).filter(Boolean);
+  const ALL_ADMIN_EMAILS_GLOBAL = [SUPER_ADMIN_EMAIL_GLOBAL, ...EXTRA_ADMIN_EMAILS_GLOBAL];
 
   async function isAdminRequest(req: any): Promise<boolean> {
     const adminEmail = req.headers["x-admin-email"];
     if (!adminEmail || typeof adminEmail !== "string") return false;
     const emailLower = adminEmail.toLowerCase().trim();
-    return emailLower === SUPER_ADMIN_EMAIL_GLOBAL;
+    return ALL_ADMIN_EMAILS_GLOBAL.includes(emailLower);
   }
 
   app.post("/api/admin/impersonate/:merchantId", async (req, res) => {

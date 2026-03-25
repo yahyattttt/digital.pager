@@ -150,7 +150,7 @@ export default function LoginPage() {
           await signInWithCustomToken(auth, data.customToken);
         } catch (authErr: any) {
         }
-        login(data.uid, emailLower);
+        login(data.uid, emailLower, true);
         window.location.href = "/super-admin";
         return;
       }

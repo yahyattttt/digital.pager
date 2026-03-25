@@ -114,11 +114,6 @@ import {
   UserCheck,
 } from "lucide-react";
 
-const PRIMARY_ADMIN_EMAIL = import.meta.env.VITE_SUPER_ADMIN_EMAIL || "yahiatohary@hotmail.com";
-const ADMIN_EMAILS = [PRIMARY_ADMIN_EMAIL.toLowerCase()];
-function isAdminEmail(email?: string | null) {
-  return !!email && ADMIN_EMAILS.includes(email.toLowerCase());
-}
 
 class AdminErrorBoundary extends React.Component<
   { children: React.ReactNode; fallbackLabel?: string },
@@ -1001,7 +996,7 @@ export default function SuperAdminPage() {
   }
 
   useEffect(() => {
-    if (!authLoading && isAdminEmail(user?.email)) {
+    if (!authLoading && user?.isAdmin) {
       fetchMerchants();
       fetchTotalAlertsToday();
       fetchSettings();
@@ -1011,7 +1006,7 @@ export default function SuperAdminPage() {
 
   // Real-time listener for pending subscription requests → audio alert
   useEffect(() => {
-    if (authLoading || !isAdminEmail(user?.email)) return;
+    if (authLoading || !user?.isAdmin) return;
     const q = query(collection(db, "merchants"), where("subscriptionRequestStatus", "==", "pending"));
     const unsub = onSnapshot(q, (snap) => {
       const requests = snap.docs.map((d) => ({ uid: d.id, ...d.data() }));
@@ -1418,7 +1413,7 @@ export default function SuperAdminPage() {
     );
   }
 
-  if (!user || !isAdminEmail(user.email)) {
+  if (!user || !user.isAdmin) {
     setLocation("/");
     return null;
   }
