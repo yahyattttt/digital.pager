@@ -3055,43 +3055,6 @@ function OverviewView({
   return (
     <div className="flex flex-col h-full min-h-[calc(100dvh-3.5rem)]">
 
-      {/* Live Pulse Stats Bar */}
-      <div className="grid grid-cols-3 gap-2 mb-4" data-testid="live-pulse-stats-bar">
-        <div className="rounded-xl bg-[#0d1117] border border-white/[0.06] px-3 py-2.5 flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/15 flex items-center justify-center shrink-0">
-            <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[10px] text-white/35 uppercase tracking-wider leading-none mb-0.5">{t("صافي اليوم", "Net Today")}</p>
-            <p className="text-base font-bold text-white leading-none" data-testid="text-daily-net">
-              {overviewStats ? overviewStats.totalRevenueToday.toLocaleString() : "—"} <span className="text-[10px] text-white/30">SAR</span>
-            </p>
-          </div>
-        </div>
-        <div className="rounded-xl bg-[#0d1117] border border-white/[0.06] px-3 py-2.5 flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-sky-500/10 border border-sky-500/15 flex items-center justify-center shrink-0">
-            <CheckCircle className="w-3.5 h-3.5 text-sky-400" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[10px] text-white/35 uppercase tracking-wider leading-none mb-0.5">{t("مكتملة", "Completed")}</p>
-            <p className="text-base font-bold text-white leading-none" data-testid="text-completed-today">
-              {overviewStats ? overviewStats.completedTodayCount : "—"} <span className="text-[10px] text-white/30">{t("طلب", "orders")}</span>
-            </p>
-          </div>
-        </div>
-        <div className="rounded-xl bg-[#0d1117] border border-white/[0.06] px-3 py-2.5 flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-red-500/10 border border-red-500/15 flex items-center justify-center shrink-0">
-            <X className="w-3.5 h-3.5 text-red-400" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[10px] text-white/35 uppercase tracking-wider leading-none mb-0.5">{t("ملغاة", "Cancelled")}</p>
-            <p className="text-base font-bold text-white leading-none" data-testid="text-cancelled-today">
-              {overviewStats ? overviewStats.cancelledToday : "—"} <span className="text-[10px] text-white/30">{t("طلب", "orders")}</span>
-            </p>
-          </div>
-        </div>
-      </div>
-
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
