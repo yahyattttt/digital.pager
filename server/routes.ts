@@ -185,26 +185,91 @@ function getFirestoreAdminAuth(): GoogleAuth | null {
   }
 }
 
-async function saFirestoreFetch(url: string, options: RequestInit = {}): Promise<Response> {
-  const auth = getFirestoreAdminAuth();
-  if (!auth) throw new Error("Firestore service account not configured");
-  try {
-    const client = await auth.getClient();
-    const tokenRes = await client.getAccessToken();
-    const token = tokenRes?.token;
-    if (!token) throw new Error("Failed to get service account access token");
-    return fetch(url, {
-      ...options,
-      headers: {
-        ...(options.headers as Record<string, string> || {}),
-        Authorization: `Bearer ${token}`,
-      },
-    });
-  } catch (err) {
-    // Reset cache so next call creates a fresh auth client with a clean state
-    firestoreAdminAuth = null;
-    throw err;
+// Manual OAuth2 token cache — avoids google-auth-library JWT signature issues
+let _firestoreOAuthCache: { token: string; expiresAt: number } | null = null;
+
+async function getFirestoreOAuthToken(): Promise<string | null> {
+  // Return cached token if still valid (keep 5 min buffer before expiry)
+  if (_firestoreOAuthCache && _firestoreOAuthCache.expiresAt > Date.now() + 5 * 60 * 1000) {
+    return _firestoreOAuthCache.token;
   }
+
+  const creds = getServiceAccountCredentials();
+  if (!creds?.private_key || !creds?.client_email) {
+    console.error("[SA] Service account credentials missing");
+    return null;
+  }
+
+  try {
+    const now = Math.floor(Date.now() / 1000);
+    const header = Buffer.from(JSON.stringify({ alg: "RS256", typ: "JWT" })).toString("base64url");
+    const payload = Buffer.from(JSON.stringify({
+      iss: creds.client_email,
+      scope: "https://www.googleapis.com/auth/datastore",
+      aud: "https://oauth2.googleapis.com/token",
+      iat: now,
+      exp: now + 3600,
+    })).toString("base64url");
+
+    // Normalize escaped newlines — env vars often double-escape \n as \\n
+    const privateKey = creds.private_key.includes("\\n")
+      ? creds.private_key.replace(/\\n/g, "\n")
+      : creds.private_key;
+
+    const sign = createSign("RSA-SHA256");
+    sign.update(`${header}.${payload}`);
+    const signature = sign.sign(privateKey, "base64url");
+    const jwt = `${header}.${payload}.${signature}`;
+
+    const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+        assertion: jwt,
+      }),
+    });
+
+    if (!tokenRes.ok) {
+      const errText = await tokenRes.text();
+      console.error("[SA] OAuth2 token exchange failed:", tokenRes.status, errText);
+      return null;
+    }
+
+    const tokenData = await tokenRes.json();
+    const accessToken: string = tokenData.access_token;
+    if (!accessToken) {
+      console.error("[SA] No access_token in OAuth2 response");
+      return null;
+    }
+
+    _firestoreOAuthCache = {
+      token: accessToken,
+      expiresAt: Date.now() + ((tokenData.expires_in as number) || 3600) * 1000,
+    };
+    console.log("[SA] Got fresh Firestore OAuth2 token via manual JWT exchange");
+    return accessToken;
+  } catch (err) {
+    console.error("[SA] getFirestoreOAuthToken error:", (err as Error).message);
+    return null;
+  }
+}
+
+async function saFirestoreFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  const token = await getFirestoreOAuthToken();
+  if (!token) throw new Error("Firestore service account OAuth token unavailable");
+  const res = await fetch(url, {
+    ...options,
+    headers: {
+      ...(options.headers as Record<string, string> || {}),
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  // Invalidate cache on auth failure so next call refreshes the token
+  if (res.status === 401 || res.status === 403) {
+    _firestoreOAuthCache = null;
+  }
+  return res;
 }
 
 async function getFirestoreAccessToken(): Promise<string | null> {

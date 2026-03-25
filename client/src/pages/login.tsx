@@ -64,11 +64,20 @@ export default function LoginPage() {
 
     setIsSendingOtp(true);
     try {
-      const res = await fetch("/api/send-otp", {
+      const sendOtpRequest = () => fetch("/api/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: trimmed }),
       });
+
+      let res = await sendOtpRequest();
+
+      // Auto-retry once after 2 seconds on server error
+      if (res.status >= 500) {
+        await new Promise(r => setTimeout(r, 2000));
+        res = await sendOtpRequest();
+      }
+
       const data = await res.json();
       if (res.ok) {
         setOtpSent(true);
