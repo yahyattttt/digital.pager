@@ -269,7 +269,7 @@ async function saveOtpToFirestore(email: string, code: string): Promise<boolean>
     fields: {
       email: { stringValue: email.toLowerCase().trim() },
       code: { stringValue: code },
-      expiresAt: { integerValue: String(now + 10 * 60 * 1000) },
+      expiresAt: { integerValue: String(now + 5 * 60 * 1000) },
       attempts: { integerValue: "0" },
       sentAt: { integerValue: String(now) },
     },
@@ -1148,12 +1148,6 @@ export async function registerRoutes(
 
       const emailLower = email.toLowerCase().trim();
 
-      const primaryAdmin = (process.env.SUPER_ADMIN_EMAIL || "yahiatohary@hotmail.com").toLowerCase();
-      const SANDBOX_EMAILS = ["admin@test.com", "merchant@test.com", primaryAdmin];
-      if (SANDBOX_EMAILS.includes(emailLower)) {
-        return res.json({ success: true, message: "OTP sent" });
-      }
-
       const existing = await getOtpFromFirestore(emailLower);
       const OTP_COOLDOWN_MS = 60 * 1000;
       if (existing && existing.sentAt && (Date.now() - existing.sentAt) < OTP_COOLDOWN_MS) {
@@ -1184,21 +1178,22 @@ export async function registerRoutes(
     const sendResult = await resend.emails.send({
       from: "Digital Pager <onboarding@digitalpager.net>",
         to: emailLower,
-        subject: "رمز التحقق - Digital Pager Verification Code",
+        subject: "دخول آمن - منصة البيجر الرقمي",
         html: `
           <div dir="rtl" style="font-family: 'Tajawal', Arial, sans-serif; max-width: 480px; margin: 0 auto; background: #000; color: #fff; padding: 40px 30px; border-radius: 12px;">
-            <div style="text-align: center; margin-bottom: 30px;">
-              <h1 style="color: #FF0000; font-size: 24px; margin: 0;">Digital Pager</h1>
-              <p style="color: #999; font-size: 14px; margin-top: 8px;">رمز التحقق من البريد الإلكتروني</p>
+            <div style="text-align: center; margin-bottom: 32px;">
+              <h1 style="color: #FF0000; font-size: 26px; margin: 0; letter-spacing: -0.5px;">البيجر الرقمي</h1>
+              <p style="color: #666; font-size: 13px; margin-top: 6px;">Digital Pager Platform</p>
             </div>
-            <div style="background: #111; border: 1px solid #333; border-radius: 8px; padding: 24px; text-align: center; margin-bottom: 24px;">
-              <p style="color: #999; font-size: 14px; margin: 0 0 12px 0;">رمز التحقق الخاص بك</p>
-              <div style="font-size: 36px; font-weight: bold; letter-spacing: 8px; color: #FF0000; font-family: monospace;">${code}</div>
-              <p style="color: #666; font-size: 12px; margin: 12px 0 0 0;">صالح لمدة 10 دقائق / Valid for 10 minutes</p>
+            <p style="color: #ccc; font-size: 16px; margin: 0 0 24px 0; text-align: center;">أهلاً بك،</p>
+            <div style="background: #111; border: 1px solid #222; border-radius: 10px; padding: 28px; text-align: center; margin-bottom: 28px;">
+              <p style="color: #888; font-size: 14px; margin: 0 0 16px 0;">رمز الدخول الخاص بك هو</p>
+              <div style="font-size: 40px; font-weight: bold; letter-spacing: 10px; color: #FF0000; font-family: monospace; direction: ltr;">${code}</div>
+              <p style="color: #555; font-size: 13px; margin: 16px 0 0 0;">هذا الرمز صالح لمدة <strong style="color: #aaa;">5 دقائق</strong> فقط.</p>
             </div>
-            <p style="color: #666; font-size: 12px; text-align: center;">
-              إذا لم تطلب هذا الرمز، تجاهل هذه الرسالة.
-              <br />If you didn't request this code, please ignore this email.
+            <p style="color: #555; font-size: 12px; text-align: center; line-height: 1.7;">
+              إذا لم تطلب هذا الرمز، تجاهل هذه الرسالة بشكل آمن.
+              <br /><span style="color: #444;">لا تشارك هذا الرمز مع أي شخص آخر.</span>
             </p>
           </div>
         `,
@@ -1234,68 +1229,31 @@ export async function registerRoutes(
 
       const emailLower = email.toLowerCase().trim();
 
-      const primaryAdminEmail = (process.env.SUPER_ADMIN_EMAIL || "yahiatohary@hotmail.com").toLowerCase();
-      const SANDBOX_ACCOUNTS: Record<string, "admin" | "merchant"> = {
-        "admin@test.com": "admin",
-        "merchant@test.com": "merchant",
-        [primaryAdminEmail]: "admin",
-      };
-      const sandboxRole = SANDBOX_ACCOUNTS[emailLower];
-      const SANDBOX_OTP = "123456";
+      const entry = await getOtpFromFirestore(emailLower);
+      console.log(`[OTP-VERIFY] Email: ${emailLower}, OTP found: ${!!entry}, Expired: ${entry ? entry.expiresAt < Date.now() : "N/A"}, Attempts: ${entry?.attempts ?? "N/A"}`);
 
-      if (sandboxRole && codeStr === SANDBOX_OTP) {
-        if (sandboxRole === "admin") {
-          const uid = generateUidFromEmail(emailLower);
-          const customToken = createFirebaseCustomToken(uid);
-          if (!customToken) return res.status(500).json({ message: "Failed to generate authentication token." });
-          return res.json({ success: true, verified: true, customToken, uid, isNewUser: false, isAdmin: true });
-        }
-        const existingMerchant = await findMerchantByEmail(emailLower);
-        const uid = existingMerchant?.uid || generateUidFromEmail(emailLower);
-        const customToken = createFirebaseCustomToken(uid);
-        if (!customToken) return res.status(500).json({ message: "Failed to generate authentication token." });
-        return res.json({
-          success: true,
-          verified: true,
-          customToken,
-          uid,
-          isNewUser: !existingMerchant,
-          isAdmin: false,
-        });
+      if (!entry) {
+        return res.status(400).json({ message: "No OTP found. Please request a new one.", errorCode: "NO_OTP" });
       }
 
-      const DEV_MASTER_OTP = "123456";
-      const isMasterOtp = process.env.NODE_ENV !== "production" && codeStr === DEV_MASTER_OTP;
-
-      if (isMasterOtp) {
-        console.log(`[OTP] Master OTP used for ${emailLower} — skipping Firestore check entirely`);
-      } else {
-        const entry = await getOtpFromFirestore(emailLower);
-        console.log(`[OTP-VERIFY] Email: ${emailLower}, OTP found: ${!!entry}, Expired: ${entry ? entry.expiresAt < Date.now() : "N/A"}, Attempts: ${entry?.attempts ?? "N/A"}`);
-
-        if (!entry) {
-          return res.status(400).json({ message: "No OTP found. Please request a new one.", errorCode: "NO_OTP" });
-        }
-
-        if (entry.expiresAt < Date.now()) {
-          await deleteOtpFromFirestore(emailLower);
-          return res.status(400).json({ message: "OTP expired. Please request a new one.", errorCode: "OTP_EXPIRED" });
-        }
-
-        if (entry.attempts >= 5) {
-          await deleteOtpFromFirestore(emailLower);
-          return res.status(429).json({ message: "Too many attempts. Please request a new OTP.", errorCode: "TOO_MANY_ATTEMPTS" });
-        }
-
-        await updateOtpAttempts(emailLower, entry.attempts + 1);
-
-        if (entry.code !== codeStr) {
-          console.log(`[OTP-VERIFY] Code mismatch for ${emailLower}`);
-          return res.status(400).json({ message: "Invalid OTP code.", errorCode: "INVALID_CODE" });
-        }
-
+      if (entry.expiresAt < Date.now()) {
         await deleteOtpFromFirestore(emailLower);
+        return res.status(400).json({ message: "OTP expired. Please request a new one.", errorCode: "OTP_EXPIRED" });
       }
+
+      if (entry.attempts >= 5) {
+        await deleteOtpFromFirestore(emailLower);
+        return res.status(429).json({ message: "Too many attempts. Please request a new OTP.", errorCode: "TOO_MANY_ATTEMPTS" });
+      }
+
+      await updateOtpAttempts(emailLower, entry.attempts + 1);
+
+      if (entry.code !== codeStr) {
+        console.log(`[OTP-VERIFY] Code mismatch for ${emailLower}`);
+        return res.status(400).json({ message: "Invalid OTP code.", errorCode: "INVALID_CODE" });
+      }
+
+      await deleteOtpFromFirestore(emailLower);
 
       const SUPER_ADMIN_EMAIL = (process.env.SUPER_ADMIN_EMAIL || "yahiatohary@hotmail.com").toLowerCase();
 
