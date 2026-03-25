@@ -5,7 +5,7 @@ import type { Merchant } from "@shared/schema";
 
 const SESSION_KEY = "dp-session";
 const PRIMARY_ADMIN_EMAIL = import.meta.env.VITE_SUPER_ADMIN_EMAIL || "yahiatohary@hotmail.com";
-const ADMIN_EMAILS = [PRIMARY_ADMIN_EMAIL.toLowerCase(), "admin@test.com"];
+const ADMIN_EMAILS = [PRIMARY_ADMIN_EMAIL.toLowerCase()];
 function isAdminEmail(email: string) {
   return ADMIN_EMAILS.includes(email.toLowerCase());
 }

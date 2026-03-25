@@ -25,7 +25,7 @@ import OrderCompletedPage from "@/pages/order-completed";
 import OnlineOrderPage from "@/pages/online-order";
 
 const PRIMARY_ADMIN_EMAIL = import.meta.env.VITE_SUPER_ADMIN_EMAIL || "yahiatohary@hotmail.com";
-const ADMIN_EMAILS = [PRIMARY_ADMIN_EMAIL.toLowerCase(), "admin@test.com"];
+const ADMIN_EMAILS = [PRIMARY_ADMIN_EMAIL.toLowerCase()];
 function isAdminEmail(email: string) {
   return ADMIN_EMAILS.includes(email.toLowerCase());
 }

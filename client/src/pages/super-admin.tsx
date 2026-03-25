@@ -115,7 +115,7 @@ import {
 } from "lucide-react";
 
 const PRIMARY_ADMIN_EMAIL = import.meta.env.VITE_SUPER_ADMIN_EMAIL || "yahiatohary@hotmail.com";
-const ADMIN_EMAILS = [PRIMARY_ADMIN_EMAIL.toLowerCase(), "admin@test.com"];
+const ADMIN_EMAILS = [PRIMARY_ADMIN_EMAIL.toLowerCase()];
 function isAdminEmail(email?: string | null) {
   return !!email && ADMIN_EMAILS.includes(email.toLowerCase());
 }

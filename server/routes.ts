@@ -382,10 +382,11 @@ function sanitizeEmailKey(email: string): string {
   return createHash("sha256").update(email.toLowerCase().trim()).digest("hex").slice(0, 40);
 }
 
+// OTP Firestore functions use apikeyFetch — Firestore rules allow public access to 'otps' collection
 async function saveOtpToFirestore(email: string, code: string, attempt = 1): Promise<boolean> {
   const MAX_ATTEMPTS = 3;
-  const baseUrl = getFirestoreBaseUrl();
-  if (!baseUrl) return false;
+  const baseUrl = getApiKeyBaseUrl();
+  if (!baseUrl || !getApiKey()) return false;
 
   const docId = sanitizeEmailKey(email);
   const now = Date.now();
@@ -400,21 +401,21 @@ async function saveOtpToFirestore(email: string, code: string, attempt = 1): Pro
   };
 
   try {
-    const res = await saFirestoreFetch(`${baseUrl}/otps/${docId}`, {
+    const res = await apikeyFetch(`${baseUrl}/otps/${docId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
     if (!res.ok) {
       const errText = await res.text();
-      console.error(`[OTP] Firestore save failed (attempt ${attempt}/${MAX_ATTEMPTS}):`, res.status, errText);
+      console.error(`[OTP] Firestore save failed (attempt ${attempt}/${MAX_ATTEMPTS}): HTTP ${res.status} — ${errText}`);
       if (attempt < MAX_ATTEMPTS) {
         await new Promise(r => setTimeout(r, 500 * attempt));
         return saveOtpToFirestore(email, code, attempt + 1);
       }
       return false;
     }
-    console.log(`[OTP] Saved OTP to Firestore (otps collection) for ${email}, docId: ${docId}`);
+    console.log(`[OTP] Saved to Firestore 'otps' for ${email}`);
     return true;
   } catch (err) {
     console.error(`[OTP] Firestore save error (attempt ${attempt}/${MAX_ATTEMPTS}):`, (err as Error).message);
@@ -427,15 +428,15 @@ async function saveOtpToFirestore(email: string, code: string, attempt = 1): Pro
 }
 
 async function getOtpFromFirestore(email: string): Promise<{ code: string; expiresAt: number; attempts: number; sentAt: number } | null> {
-  const baseUrl = getFirestoreBaseUrl();
-  if (!baseUrl) return null;
+  const baseUrl = getApiKeyBaseUrl();
+  if (!baseUrl || !getApiKey()) return null;
 
   const docId = sanitizeEmailKey(email);
 
   try {
-    const res = await saFirestoreFetch(`${baseUrl}/otps/${docId}`);
+    const res = await apikeyFetch(`${baseUrl}/otps/${docId}`);
     if (!res.ok) {
-      console.log(`[OTP] Firestore lookup: no OTP doc found in 'otps' for ${email} (status ${res.status})`);
+      console.log(`[OTP] Firestore lookup: no doc in 'otps' for ${email} (HTTP ${res.status})`);
       return null;
     }
     const doc = await res.json();
@@ -447,18 +448,18 @@ async function getOtpFromFirestore(email: string): Promise<{ code: string; expir
       sentAt: parseInt(doc.fields.sentAt?.integerValue || "0"),
     };
   } catch (err) {
-    console.error(`[OTP] Firestore lookup error:`, err);
+    console.error(`[OTP] Firestore lookup error:`, (err as Error).message);
     return null;
   }
 }
 
 async function updateOtpAttempts(email: string, attempts: number): Promise<void> {
-  const baseUrl = getFirestoreBaseUrl();
-  if (!baseUrl) return;
+  const baseUrl = getApiKeyBaseUrl();
+  if (!baseUrl || !getApiKey()) return;
 
   const docId = sanitizeEmailKey(email);
   try {
-    await saFirestoreFetch(`${baseUrl}/otps/${docId}?updateMask.fieldPaths=attempts`, {
+    await apikeyFetch(`${baseUrl}/otps/${docId}?updateMask.fieldPaths=attempts`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ fields: { attempts: { integerValue: String(attempts) } } }),
@@ -467,13 +468,13 @@ async function updateOtpAttempts(email: string, attempts: number): Promise<void>
 }
 
 async function deleteOtpFromFirestore(email: string): Promise<void> {
-  const baseUrl = getFirestoreBaseUrl();
-  if (!baseUrl) return;
+  const baseUrl = getApiKeyBaseUrl();
+  if (!baseUrl || !getApiKey()) return;
 
   const docId = sanitizeEmailKey(email);
   try {
-    await saFirestoreFetch(`${baseUrl}/otps/${docId}`, { method: "DELETE" });
-    console.log(`[OTP] Deleted OTP from Firestore (otps) for ${email}`);
+    await apikeyFetch(`${baseUrl}/otps/${docId}`, { method: "DELETE" });
+    console.log(`[OTP] Deleted from Firestore 'otps' for ${email}`);
   } catch {}
 }
 
@@ -1335,12 +1336,15 @@ export async function registerRoutes(
       console.log(`[OTP] Resend API response:`, JSON.stringify(sendResult));
 
       if (sendResult.error) {
-        console.error(`[OTP] Resend error:`, JSON.stringify(sendResult.error));
-        console.log(`[OTP] Email delivery failed but OTP is stored. Use master OTP or check console for code.`);
+        const errDetails = JSON.stringify(sendResult.error);
+        console.error(`[Resend] ❌ Email delivery FAILED for ${emailLower}`);
+        console.error(`[Resend] Error code: ${(sendResult.error as any).name || "unknown"}`);
+        console.error(`[Resend] Error message: ${(sendResult.error as any).message || errDetails}`);
+        console.error(`[Resend] Full error object:`, errDetails);
         return res.json({ success: true, message: "OTP sent", warning: "Email delivery may be delayed" });
       }
 
-      console.log(`[OTP] Email sent successfully, id: ${sendResult.data?.id}`);
+      console.log(`[Resend] ✅ Email sent successfully to ${emailLower}, id: ${sendResult.data?.id}`);
       return res.json({ success: true, message: "OTP sent" });
     } catch (error) {
       console.error("Send OTP error:", error);
@@ -1433,7 +1437,7 @@ export async function registerRoutes(
     const adminEmail = req.headers["x-admin-email"];
     if (!adminEmail || typeof adminEmail !== "string") return false;
     const emailLower = adminEmail.toLowerCase().trim();
-    return emailLower === SUPER_ADMIN_EMAIL_GLOBAL || emailLower === "admin@test.com";
+    return emailLower === SUPER_ADMIN_EMAIL_GLOBAL;
   }
 
   app.post("/api/admin/impersonate/:merchantId", async (req, res) => {

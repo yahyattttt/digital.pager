@@ -155,12 +155,6 @@ export default function LoginPage() {
         return;
       }
 
-      if (emailLower === "merchant@test.com") {
-        login(data.uid, emailLower);
-        setLocation("/dashboard");
-        return;
-      }
-
       if (data.isNewUser) {
         toast({
           title: t("حساب جديد", "New Account"),

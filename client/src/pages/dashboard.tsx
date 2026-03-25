@@ -2690,7 +2690,6 @@ function OverviewView({
   const [uncollectedConfirmOrder, setUncollectedConfirmOrder] = useState<WhatsAppOrder | null>(null);
   const [customerNoShowMap, setCustomerNoShowMap] = useState<Record<string, number>>({});
   const [customerOrderCounts, setCustomerOrderCounts] = useState<Record<string, number>>({});
-  const [overviewStats, setOverviewStats] = useState<{ totalRevenueToday: number; completedTodayCount: number; cancelledToday: number } | null>(null);
   const loyaltyVisitRewardAmt = parseFloat((merchant as any)?.loyalty_config?.manual_visit_reward || 2);
   const [compensateModal, setCompensateModal] = useState<{ open: boolean; phone: string; amount: string; saving: boolean }>({ open: false, phone: "", amount: "", saving: false });
   const [visitRewardModal, setVisitRewardModal] = useState<{ open: boolean; phone: string; saving: boolean }>({ open: false, phone: "", saving: false });
@@ -2783,18 +2782,6 @@ function OverviewView({
       .catch(() => {});
   }, [merchant?.uid]);
 
-  useEffect(() => {
-    if (!merchant?.uid) return;
-    const fetchStats = () => {
-      fetch(`/api/merchant-analytics/${merchant.uid}`, { headers: { "x-merchant-email": merchant.email || "" } })
-        .then(r => r.ok ? r.json() : null)
-        .then(d => { if (d) setOverviewStats({ totalRevenueToday: d.totalRevenueToday || 0, completedTodayCount: d.completedTodayCount || 0, cancelledToday: d.cancelledToday || 0 }); })
-        .catch(() => {});
-    };
-    fetchStats();
-    const iv = setInterval(fetchStats, 60000);
-    return () => clearInterval(iv);
-  }, [merchant?.uid]);
 
   const handlePrint = async (order: WhatsAppOrder) => {
     // Fetch QR code before printing
