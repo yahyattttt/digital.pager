@@ -82,18 +82,21 @@ export default function LoginPage() {
       if (res.ok) {
         setOtpSent(true);
         startCooldown();
+        console.log("[OTP] Code sent successfully to:", trimmed);
         toast({
           title: t("تم إرسال رمز التحقق", "OTP Sent"),
           description: t("تحقق من بريدك الإلكتروني للحصول على الرمز المكون من 6 أرقام.", "Check your email for the 6-digit code."),
         });
       } else {
+        console.error("[OTP] send-otp failed — status:", res.status, "| server message:", data?.message, "| full response:", data);
         toast({
           title: t("خطأ", "Error"),
           description: data.message || t("فشل إرسال رمز التحقق.", "Failed to send OTP."),
           variant: "destructive",
         });
       }
-    } catch {
+    } catch (err) {
+      console.error("[OTP] send-otp network error:", err);
       toast({
         title: t("خطأ", "Error"),
         description: t("فشل إرسال رمز التحقق.", "Failed to send OTP."),
