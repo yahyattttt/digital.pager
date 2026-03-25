@@ -1458,6 +1458,68 @@ export async function registerRoutes(
     return ALL_ADMIN_EMAILS_GLOBAL.includes(emailLower);
   }
 
+  app.get("/api/admin/merchants", async (req, res) => {
+    try {
+      if (!(await isAdminRequest(req))) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) {
+        return res.status(500).json({ message: "Firestore not configured" });
+      }
+
+      const merchants: any[] = [];
+      let pageToken: string | null = null;
+
+      do {
+        const url = `${baseUrl}/merchants?pageSize=200${pageToken ? `&pageToken=${pageToken}` : ""}`;
+        const r = await apikeyFetch(url);
+        if (!r.ok) break;
+        const body = await r.json();
+        const docs: any[] = body.documents || [];
+        for (const doc of docs) {
+          const f = doc.fields || {};
+          const uid = doc.name.split("/").pop() || "";
+          merchants.push({
+            uid,
+            id: uid,
+            storeName: f.storeName?.stringValue || f.name?.stringValue || "",
+            email: f.email?.stringValue || "",
+            phone: f.phone?.stringValue || "",
+            status: f.status?.stringValue || "pending",
+            subscriptionStatus: f.subscriptionStatus?.stringValue || "inactive",
+            subscriptionExpiry: f.subscriptionExpiry?.stringValue || null,
+            subscriptionPlan: f.subscriptionPlan?.stringValue || null,
+            subscriptionRequestStatus: f.subscriptionRequestStatus?.stringValue || null,
+            category: f.category?.stringValue || "",
+            city: f.city?.stringValue || "",
+            createdAt: f.createdAt?.stringValue || f.createdAt?.timestampValue || "",
+            sharesCount: parseInt(f.sharesCount?.integerValue || "0"),
+            googleMapsClicks: parseInt(f.googleMapsClicks?.integerValue || "0"),
+            notificationsCount: parseInt(f.notificationsCount?.integerValue || "0"),
+            qrScans: parseInt(f.qrScans?.integerValue || "0"),
+            totalRatingsCount: parseInt(f.totalRatingsCount?.integerValue || "0"),
+            averageRating: parseFloat(f.averageRating?.doubleValue || f.averageRating?.integerValue || "0"),
+            logoUrl: f.logoUrl?.stringValue || null,
+            whatsapp: f.whatsapp?.stringValue || "",
+            tableCount: parseInt(f.tableCount?.integerValue || "0"),
+            suspendedAt: f.suspendedAt?.stringValue || null,
+            features: f.features?.mapValue?.fields
+              ? Object.fromEntries(Object.entries(f.features.mapValue.fields).map(([k, v]: any) => [k, v?.booleanValue ?? false]))
+              : {},
+          });
+        }
+        pageToken = body.nextPageToken || null;
+      } while (pageToken);
+
+      merchants.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+      return res.json({ merchants });
+    } catch (error) {
+      console.error("Admin merchants fetch error:", error);
+      return res.status(500).json({ message: "Failed to fetch merchants" });
+    }
+  });
+
   app.post("/api/admin/impersonate/:merchantId", async (req, res) => {
     try {
       if (!(await isAdminRequest(req))) {

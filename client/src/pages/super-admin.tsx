@@ -571,14 +571,14 @@ export default function SuperAdminPage() {
   async function fetchMerchants() {
     setLoadingData(true);
     try {
-      const querySnapshot = await getDocs(collection(db, "merchants"));
-      const docs: Merchant[] = [];
-      querySnapshot.forEach((docSnap) => {
-        docs.push(docSnap.data() as Merchant);
+      const res = await fetch("/api/admin/merchants", {
+        headers: { "x-admin-email": user?.email || "" },
       });
-      docs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      setMerchants(docs);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setMerchants(data.merchants || []);
     } catch (error) {
+      console.error("[Admin] fetchMerchants error:", error);
       toast({
         title: t("خطأ", "Error"),
         description: t("فشل في تحميل البيانات", "Failed to load data"),
@@ -1499,7 +1499,7 @@ export default function SuperAdminPage() {
             { key: "finance",       icon: DollarSign,  labelAr: "المالية",        action: () => { setActiveSection("finance"); if (!platformFinanceData) fetchPlatformFinance(); } },
             { key: "tracking",      icon: TrendingUp,  labelAr: "تتبع العملاء",   action: () => setActiveSection("tracking") },
             { key: "counters",      icon: Hash,        labelAr: "إدارة العدادات", action: () => { setActiveSection("counters"); fetchCounterData(); fetchMerchantCounters(); } },
-            ...(user?.email?.toLowerCase() === PRIMARY_ADMIN_EMAIL.toLowerCase() ? [{ key: "sysmonitor" as const, icon: Gauge, labelAr: "مراقب الأداء", action: () => setActiveSection("sysmonitor" as any) }] : []),
+            { key: "sysmonitor" as const, icon: Gauge, labelAr: "مراقب الأداء", action: () => setActiveSection("sysmonitor" as any) },
             { key: "settings",      icon: Settings,    labelAr: "الإعدادات",      action: () => setActiveSection("settings") },
           ] as const).map(({ key, icon: Icon, labelAr, action }) => (
             <button
