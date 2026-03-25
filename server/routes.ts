@@ -136,15 +136,16 @@ function getFCMAuth(): GoogleAuth | null {
   if (fcmAuth) return fcmAuth;
   const saJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
   if (!saJson) return null;
+  const credentials = normalizeSaCredentials(saJson);
+  if (!credentials) return null;
   try {
-    const credentials = JSON.parse(saJson);
     fcmAuth = new GoogleAuth({
       credentials,
       scopes: ["https://www.googleapis.com/auth/firebase.messaging"],
     });
     return fcmAuth;
   } catch (e) {
-    console.error("Failed to parse service account JSON:", e);
+    console.error("Failed to create FCM GoogleAuth:", e);
     return null;
   }
 }
@@ -152,19 +153,34 @@ function getFCMAuth(): GoogleAuth | null {
 // Cached GoogleAuth for Firestore admin operations (bypasses security rules)
 let firestoreAdminAuth: GoogleAuth | null = null;
 
+function normalizeSaCredentials(saJson: string): any | null {
+  try {
+    const credentials = JSON.parse(saJson);
+    // Env variables often store \n as literal two-char sequence \\n — fix it
+    if (credentials.private_key && typeof credentials.private_key === "string") {
+      credentials.private_key = credentials.private_key.replace(/\\n/g, "\n");
+    }
+    return credentials;
+  } catch (e) {
+    console.error("[SA] Failed to parse service account JSON:", e);
+    return null;
+  }
+}
+
 function getFirestoreAdminAuth(): GoogleAuth | null {
   if (firestoreAdminAuth) return firestoreAdminAuth;
   const saJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
   if (!saJson) return null;
+  const credentials = normalizeSaCredentials(saJson);
+  if (!credentials) return null;
   try {
-    const credentials = JSON.parse(saJson);
     firestoreAdminAuth = new GoogleAuth({
       credentials,
       scopes: ["https://www.googleapis.com/auth/datastore"],
     });
     return firestoreAdminAuth;
   } catch (e) {
-    console.error("[SA] Failed to parse service account JSON:", e);
+    console.error("[SA] Failed to create GoogleAuth:", e);
     return null;
   }
 }
@@ -172,17 +188,23 @@ function getFirestoreAdminAuth(): GoogleAuth | null {
 async function saFirestoreFetch(url: string, options: RequestInit = {}): Promise<Response> {
   const auth = getFirestoreAdminAuth();
   if (!auth) throw new Error("Firestore service account not configured");
-  const client = await auth.getClient();
-  const tokenRes = await client.getAccessToken();
-  const token = tokenRes?.token;
-  if (!token) throw new Error("Failed to get service account access token");
-  return fetch(url, {
-    ...options,
-    headers: {
-      ...(options.headers as Record<string, string> || {}),
-      Authorization: `Bearer ${token}`,
-    },
-  });
+  try {
+    const client = await auth.getClient();
+    const tokenRes = await client.getAccessToken();
+    const token = tokenRes?.token;
+    if (!token) throw new Error("Failed to get service account access token");
+    return fetch(url, {
+      ...options,
+      headers: {
+        ...(options.headers as Record<string, string> || {}),
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  } catch (err) {
+    // Reset cache so next call creates a fresh auth client with a clean state
+    firestoreAdminAuth = null;
+    throw err;
+  }
 }
 
 async function getFirestoreAccessToken(): Promise<string | null> {
@@ -295,7 +317,8 @@ function sanitizeEmailKey(email: string): string {
   return createHash("sha256").update(email.toLowerCase().trim()).digest("hex").slice(0, 40);
 }
 
-async function saveOtpToFirestore(email: string, code: string): Promise<boolean> {
+async function saveOtpToFirestore(email: string, code: string, attempt = 1): Promise<boolean> {
+  const MAX_ATTEMPTS = 3;
   const baseUrl = getFirestoreBaseUrl();
   if (!baseUrl) return false;
 
@@ -318,13 +341,22 @@ async function saveOtpToFirestore(email: string, code: string): Promise<boolean>
       body: JSON.stringify(data),
     });
     if (!res.ok) {
-      console.error(`[OTP] Firestore save failed:`, res.status, await res.text());
+      const errText = await res.text();
+      console.error(`[OTP] Firestore save failed (attempt ${attempt}/${MAX_ATTEMPTS}):`, res.status, errText);
+      if (attempt < MAX_ATTEMPTS) {
+        await new Promise(r => setTimeout(r, 500 * attempt));
+        return saveOtpToFirestore(email, code, attempt + 1);
+      }
       return false;
     }
     console.log(`[OTP] Saved OTP to Firestore (otps collection) for ${email}, docId: ${docId}`);
     return true;
   } catch (err) {
-    console.error(`[OTP] Firestore save error:`, err);
+    console.error(`[OTP] Firestore save error (attempt ${attempt}/${MAX_ATTEMPTS}):`, (err as Error).message);
+    if (attempt < MAX_ATTEMPTS) {
+      await new Promise(r => setTimeout(r, 500 * attempt));
+      return saveOtpToFirestore(email, code, attempt + 1);
+    }
     return false;
   }
 }
@@ -1195,8 +1227,8 @@ export async function registerRoutes(
 
       const saved = await saveOtpToFirestore(emailLower, code);
       if (!saved) {
-        console.error(`[OTP] Failed to save OTP to Firestore for ${emailLower}`);
-        return res.status(500).json({ message: "Failed to store OTP. Please try again." });
+        console.error(`[OTP] Failed to save OTP to Firestore for ${emailLower} after all retry attempts`);
+        return res.status(500).json({ message: "عذراً، نواجه ضغطاً في السيرفر حالياً، يرجى المحاولة بعد دقيقة" });
       }
 
       console.log(`[OTP] Generated OTP for ${emailLower}: ${code} (stored in Firestore)`);
