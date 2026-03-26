@@ -441,22 +441,28 @@ export default function OrderTrackingPage() {
 
     async function fetchInitial() {
       try {
-        const res = await fetch(`/api/track/${orderId}?merchantId=${merchantId}${trackingType ? `&type=${trackingType}` : ""}`);
+        // Cache-buster: force fresh fetch every time — never use a cached response
+        // (PIN state can change server-side; stale cache causes old PIN=true to persist)
+        const cacheBust = `&_v=${Date.now()}`;
+        const res = await fetch(
+          `/api/track/${orderId}?merchantId=${merchantId}${trackingType ? `&type=${trackingType}` : ""}${cacheBust}`,
+          { cache: "no-store" }
+        );
         if (!res.ok) { setNotFound(true); return; }
         const data = await res.json();
         setOrder(data.order);
 
-        // Build merchant from API response first
-        let merchantData = data.merchant || null;
+        const merchantData = data.merchant || null;
+        const pinOff = merchantData && merchantData.isOrderPinRequired === false;
 
-        // isOrderPinRequired comes from the server (service account bypasses all Firestore rules)
-        // This is the single authoritative source — no client-side Firestore read needed
+        console.log(`[Tracking] Merchant ${merchantId} — isOrderPinRequired=${merchantData?.isOrderPinRequired} pinOff=${pinOff}`);
+
         setMerchant(merchantData);
         setMerchantLoaded(true);
 
-        // If PIN is disabled, auto-verify immediately — customer lands on order status with zero interaction
-        if (merchantData && merchantData.isOrderPinRequired === false) {
-          console.log(`%c[Tracking] ✅ SUCCESS: PIN disabled for ${merchantId} — auto-verifying`, "color:#22c55e;font-weight:bold");
+        // Hard bypass: if PIN is off, set verified immediately in same batch
+        if (pinOff) {
+          console.log(`%c[Tracking] ✅ PIN DISABLED — auto-verifying immediately`, "color:#22c55e;font-weight:bold;font-size:14px");
           setIsVerified(true);
         }
       } catch {
@@ -651,8 +657,7 @@ export default function OrderTrackingPage() {
   }
 
   if (order.status === "pending_verification" || order.status === "awaiting_confirmation") {
-    // Wait until merchant config is confirmed before deciding PIN requirement
-    // This prevents defaulting to PIN-required while data is still loading
+    // STEP 1: Wait for merchant config to load — spinner until ready
     if (!merchantLoaded) {
       return (
         <div className="h-[100dvh] flex flex-col items-center justify-center gap-3" style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }}>
@@ -662,205 +667,132 @@ export default function OrderTrackingPage() {
       );
     }
 
-    // Both merchant and order are loaded — decide PIN path
     const pinRequired = merchant?.isOrderPinRequired !== false;
 
-    if (pinRequired) {
+    // STEP 2 — VISUAL KILL:
+    // If PIN is NOT required → jump straight to the preparing screen.
+    // The confirm-button / identity-check block is NEVER added to the DOM.
+    if (!pinRequired) {
+      console.log(`%c[Tracking] ✅ PIN DISABLED — showing preparing screen directly (no PIN DOM)`, "color:#22c55e;font-weight:bold;font-size:13px");
+      const shortNum = getShort3Digit(order);
       return (
-        <div className="h-[100dvh] flex flex-col items-center justify-center px-5 text-center" style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }} data-testid="tracking-awaiting-screen">
-          <div className="w-full flex-shrink-0 mb-6 flex flex-col items-center gap-1">
-            <p className="text-white/40 text-[14px] font-medium tracking-[0.3em] uppercase">DIGITAL PAGER</p>
+        <div
+          className="h-[100dvh] flex flex-col items-center justify-between py-10 px-5 text-center"
+          style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }}
+          data-testid="tracking-preparing-screen"
+        >
+          <div className="w-full flex flex-col items-center gap-1">
+            <p className="text-white/40 text-[13px] font-medium tracking-[0.3em] uppercase">DIGITAL PAGER</p>
             {merchant && (
-              <div className="flex items-center justify-center gap-2.5">
+              <div className="flex items-center justify-center gap-2">
                 {merchant.logoUrl && (
-                  <img src={merchant.logoUrl} alt={merchant.storeName} className="w-10 h-10 rounded-full object-cover border border-white/10" />
+                  <img src={merchant.logoUrl} alt={merchant.storeName} className="w-8 h-8 rounded-full object-cover border border-white/10" />
                 )}
-                <h2 className="text-white text-[26px] font-bold" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>{merchant.storeName}</h2>
+                <h2 className="text-white text-xl font-bold" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>{merchant.storeName}</h2>
               </div>
             )}
           </div>
-
-          <div className="flex flex-col items-center gap-5 w-full max-w-sm">
-            <div className="w-20 h-20 rounded-full border-2 border-emerald-500/30 bg-emerald-500/5 flex items-center justify-center" style={{ boxShadow: "0 0 30px rgba(16,185,129,0.08)" }}>
-              <CheckCircle className="w-10 h-10 text-emerald-500/70 animate-pulse" />
-            </div>
+          <div className="flex-1 flex flex-col items-center justify-center min-h-0 gap-5">
+            <BuzzerCircle orderNumber={shortNum} active={false} />
             <div>
-              <p className="text-emerald-400 text-lg font-bold" dir="rtl" data-testid="text-awaiting-message">تم إرسال طلبك..</p>
-              <p className="text-white/50 text-sm mt-1.5" data-testid="text-awaiting-hint">Your order has been submitted!</p>
-            </div>
-            <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/15 w-full" data-testid="verification-message">
-              <div className="flex items-center justify-center gap-2 mb-2">
-                <Phone className="w-4 h-4 text-amber-400" />
-                <MessageCircle className="w-4 h-4 text-amber-400" />
-              </div>
-              <p className="text-amber-400/90 text-sm leading-relaxed font-bold" dir="rtl">
-                بانتظار اتصال المتجر للتحقق
+              <p className="text-red-400 text-2xl font-black" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }} data-testid="text-preparing-message">
+                جاري التحضير 👨‍🍳
               </p>
-              <p className="text-white/40 text-[11px] mt-2">
-                Waiting for the store to call and verify your order.
-              </p>
+              <p className="text-white/40 text-sm mt-1 text-center">Your order is being prepared</p>
             </div>
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
-              <Banknote className="w-4 h-4 text-emerald-400" />
-              <span className="text-emerald-400 text-xs font-medium" dir="rtl">الدفع عند الاستلام</span>
-            </div>
-            <div className="p-4 rounded-xl bg-zinc-900/40 border border-zinc-800/30 w-full text-left">
-              <p className="text-white/50 text-xs mb-2" dir="rtl">تفاصيل الطلب:</p>
-              {order.items.map((item, i) => (
-                <div key={i} className="flex justify-between text-white/40 text-xs py-0.5">
-                  <span>{item.name} × {item.quantity}</span>
-                  <span>{(item.price * item.quantity).toFixed(2)}</span>
-                </div>
-              ))}
-              <div className="flex justify-between text-white/70 text-sm font-bold mt-2 pt-2 border-t border-zinc-800/30">
-                <span dir="rtl">المجموع</span>
-                <span>{order.total.toFixed(2)} SAR</span>
-              </div>
-            </div>
-            {isOnlineOrder && (
-              <button
-                onClick={() => { window.location.href = `/receipt/${orderId}?m=${merchantId}`; }}
-                className="w-full flex items-center justify-center gap-3 rounded-2xl border border-emerald-500/20 bg-gradient-to-r from-emerald-950/30 via-emerald-900/15 to-emerald-950/30 active:scale-[0.97] transition-all duration-200"
-                style={{ padding: "16px 20px", boxShadow: "0 0 15px rgba(16,185,129,0.05), inset 0 1px 0 rgba(255,255,255,0.03)" }}
-                data-testid="button-view-receipt"
-              >
-                <span className="text-2xl flex-shrink-0">📄</span>
-                <span className="text-emerald-400/90 text-[17px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>عرض إيصال الطلب</span>
-              </button>
-            )}
-            <div className="flex items-center justify-center gap-2 mt-1">
-              <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
               <span className="text-white/20 text-[10px]" data-testid="text-live-status">Live</span>
             </div>
           </div>
-          {WaFloatBtn}
-        </div>
-      );
-    }
-
-    if (!isVerified) {
-      return (
-        <div className="h-[100dvh] flex flex-col items-center justify-center px-5 text-center" style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }} data-testid="tracking-identity-screen">
-          <div className="w-full flex-shrink-0 mb-6 flex flex-col items-center gap-1">
-            <p className="text-white/40 text-[14px] font-medium tracking-[0.3em] uppercase">DIGITAL PAGER</p>
-            {merchant && (
-              <div className="flex items-center justify-center gap-2.5">
-                {merchant.logoUrl && (
-                  <img src={merchant.logoUrl} alt={merchant.storeName} className="w-10 h-10 rounded-full object-cover border border-white/10" />
-                )}
-                <h2 className="text-white text-[26px] font-bold" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>{merchant.storeName}</h2>
-              </div>
+          <div className="w-full max-w-xs space-y-3">
+            {isOnlineOrder && (
+              <button
+                onClick={() => { window.location.href = `/receipt/${orderId}?m=${merchantId}`; }}
+                className="w-full flex items-center justify-center gap-2.5 py-4 rounded-2xl border border-red-500/20 bg-gradient-to-r from-red-950/30 via-red-900/15 to-red-950/30 active:scale-[0.97] transition-all duration-200"
+                style={{ boxShadow: "0 0 15px rgba(255,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.03)" }}
+                data-testid="button-view-receipt-pinoff"
+              >
+                <span className="text-lg flex-shrink-0">📄</span>
+                <span className="text-red-400/90 text-base font-bold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>عرض إيصال الطلب</span>
+              </button>
             )}
           </div>
-
-          <div className="flex flex-col items-center gap-6 w-full max-w-sm">
-            <div className="w-20 h-20 rounded-full border-2 border-emerald-500/30 bg-emerald-500/5 flex items-center justify-center" style={{ boxShadow: "0 0 30px rgba(16,185,129,0.08)" }}>
-              <CheckCircle className="w-10 h-10 text-emerald-500/70 animate-pulse" />
-            </div>
-            <div>
-              <p className="text-emerald-400 text-lg font-bold" dir="rtl" data-testid="text-awaiting-message">تم إرسال طلبك..</p>
-              <p className="text-white/50 text-sm mt-1.5">Your order has been submitted!</p>
-            </div>
-
-            <div className="p-5 rounded-2xl w-full space-y-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }} data-testid="identity-confirm-card">
-              <div>
-                <p className="text-white/80 text-base font-bold" dir="rtl" data-testid="text-confirm-question">
-                  هل هذا هو طلبك؟
-                </p>
-                <p className="text-white/40 text-sm mt-1" dir="rtl">
-                  رقم الطلب:{" "}
-                  <span className="text-red-400 font-extrabold">
-                    #{order.displayOrderId || order.orderNumber || orderId?.slice(-4)}
-                  </span>
-                </p>
-              </div>
-              <div className="py-2 px-3 rounded-xl bg-zinc-900/50 border border-zinc-800/40 text-left">
-                {order.items.slice(0, 3).map((item, i) => (
-                  <div key={i} className="flex justify-between text-white/40 text-xs py-0.5">
-                    <span>{item.name} × {item.quantity}</span>
-                    <span>{(item.price * item.quantity).toFixed(2)}</span>
-                  </div>
-                ))}
-                {order.items.length > 3 && (
-                  <p className="text-white/25 text-[10px] mt-1" dir="rtl">+{order.items.length - 3} عناصر أخرى</p>
-                )}
-                <div className="flex justify-between text-white/70 text-sm font-bold mt-2 pt-2 border-t border-zinc-800/30">
-                  <span dir="rtl">المجموع</span>
-                  <span>{order.total.toFixed(2)} SAR</span>
-                </div>
-              </div>
-            </div>
-
-            <button
-              onClick={() => setIsVerified(true)}
-              className="w-full flex items-center justify-center gap-3 rounded-2xl font-bold text-[17px] transition-all active:scale-[0.97]"
-              style={{
-                padding: "18px 20px",
-                background: "linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)",
-                color: "#fff",
-                boxShadow: "0 0 28px rgba(220,38,38,0.35), 0 4px 14px rgba(0,0,0,0.5)",
-                fontFamily: "'Tajawal','Cairo',sans-serif",
-              }}
-              data-testid="button-confirm-identity"
-            >
-              <CheckCircle className="w-5 h-5" />
-              تأكيد الهوية والدخول للطلب
-            </button>
-          </div>
           {WaFloatBtn}
         </div>
       );
     }
 
-    // PIN is disabled AND verified — show preparing screen DIRECTLY, no fall-through ambiguity
-    console.log(`%c[Tracking] ✅ SUCCESS: PIN bypassed for merchant ${merchantId} — order status shown directly`, "color:#22c55e;font-weight:bold");
-    const _shortNum = getShort3Digit(order);
+    // STEP 3: PIN IS required — show awaiting-call screen
+    // The <BuzzerCircle> and preparing screen are NOT in the DOM here.
     return (
-      <>
-      <div className="h-[100dvh] flex flex-col items-center justify-between py-10 px-5 text-center"
-        style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }}
-        data-testid="tracking-preparing-screen"
-      >
-        <div className="w-full flex flex-col items-center gap-1">
-          <p className="text-white/40 text-[13px] font-medium tracking-[0.3em] uppercase">DIGITAL PAGER</p>
+      <div className="h-[100dvh] flex flex-col items-center justify-center px-5 text-center" style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }} data-testid="tracking-awaiting-screen">
+        <div className="w-full flex-shrink-0 mb-6 flex flex-col items-center gap-1">
+          <p className="text-white/40 text-[14px] font-medium tracking-[0.3em] uppercase">DIGITAL PAGER</p>
           {merchant && (
-            <div className="flex items-center justify-center gap-2">
+            <div className="flex items-center justify-center gap-2.5">
               {merchant.logoUrl && (
-                <img src={merchant.logoUrl} alt={merchant.storeName} className="w-8 h-8 rounded-full object-cover border border-white/10" />
+                <img src={merchant.logoUrl} alt={merchant.storeName} className="w-10 h-10 rounded-full object-cover border border-white/10" />
               )}
-              <h2 className="text-white text-xl font-bold" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>{merchant.storeName}</h2>
+              <h2 className="text-white text-[26px] font-bold" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>{merchant.storeName}</h2>
             </div>
           )}
         </div>
-        <div className="flex-1 flex flex-col items-center justify-center min-h-0 gap-5">
-          <BuzzerCircle orderNumber={_shortNum} active={false} />
+        <div className="flex flex-col items-center gap-5 w-full max-w-sm">
+          <div className="w-20 h-20 rounded-full border-2 border-emerald-500/30 bg-emerald-500/5 flex items-center justify-center" style={{ boxShadow: "0 0 30px rgba(16,185,129,0.08)" }}>
+            <CheckCircle className="w-10 h-10 text-emerald-500/70 animate-pulse" />
+          </div>
           <div>
-            <p className="text-red-400 text-2xl font-black" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }} data-testid="text-preparing-message">
-              جاري التحضير 👨‍🍳
+            <p className="text-emerald-400 text-lg font-bold" dir="rtl" data-testid="text-awaiting-message">تم إرسال طلبك..</p>
+            <p className="text-white/50 text-sm mt-1.5" data-testid="text-awaiting-hint">Your order has been submitted!</p>
+          </div>
+          <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/15 w-full" data-testid="verification-message">
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <Phone className="w-4 h-4 text-amber-400" />
+              <MessageCircle className="w-4 h-4 text-amber-400" />
+            </div>
+            <p className="text-amber-400/90 text-sm leading-relaxed font-bold" dir="rtl">
+              بانتظار اتصال المتجر للتحقق
             </p>
-            <p className="text-white/40 text-sm mt-1 text-center">Your order is being prepared</p>
+            <p className="text-white/40 text-[11px] mt-2">
+              Waiting for the store to call and verify your order.
+            </p>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-            <span className="text-white/20 text-[10px]" data-testid="text-live-status">Live</span>
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
+            <Banknote className="w-4 h-4 text-emerald-400" />
+            <span className="text-emerald-400 text-xs font-medium" dir="rtl">الدفع عند الاستلام</span>
           </div>
-        </div>
-        <div className="w-full max-w-xs space-y-3">
+          <div className="p-4 rounded-xl bg-zinc-900/40 border border-zinc-800/30 w-full text-left">
+            <p className="text-white/50 text-xs mb-2" dir="rtl">تفاصيل الطلب:</p>
+            {order.items.map((item, i) => (
+              <div key={i} className="flex justify-between text-white/40 text-xs py-0.5">
+                <span>{item.name} × {item.quantity}</span>
+                <span>{(item.price * item.quantity).toFixed(2)}</span>
+              </div>
+            ))}
+            <div className="flex justify-between text-white/70 text-sm font-bold mt-2 pt-2 border-t border-zinc-800/30">
+              <span dir="rtl">المجموع</span>
+              <span>{order.total.toFixed(2)} SAR</span>
+            </div>
+          </div>
           {isOnlineOrder && (
             <button
               onClick={() => { window.location.href = `/receipt/${orderId}?m=${merchantId}`; }}
-              className="w-full flex items-center justify-center gap-2.5 py-4 rounded-2xl border border-red-500/20 bg-gradient-to-r from-red-950/30 via-red-900/15 to-red-950/30 active:scale-[0.97] transition-all duration-200"
-              style={{ boxShadow: "0 0 15px rgba(255,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.03)" }}
-              data-testid="button-view-receipt-pinbypassed"
+              className="w-full flex items-center justify-center gap-3 rounded-2xl border border-emerald-500/20 bg-gradient-to-r from-emerald-950/30 via-emerald-900/15 to-emerald-950/30 active:scale-[0.97] transition-all duration-200"
+              style={{ padding: "16px 20px", boxShadow: "0 0 15px rgba(16,185,129,0.05), inset 0 1px 0 rgba(255,255,255,0.03)" }}
+              data-testid="button-view-receipt"
             >
-              <span className="text-lg flex-shrink-0">📄</span>
-              <span className="text-red-400/90 text-base font-bold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>عرض إيصال الطلب</span>
+              <span className="text-2xl flex-shrink-0">📄</span>
+              <span className="text-emerald-400/90 text-[17px] font-semibold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>عرض إيصال الطلب</span>
             </button>
           )}
+          <div className="flex items-center justify-center gap-2 mt-1">
+            <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+            <span className="text-white/20 text-[10px]" data-testid="text-live-status">Live</span>
+          </div>
         </div>
         {WaFloatBtn}
       </div>
-      </>
     );
   }
 

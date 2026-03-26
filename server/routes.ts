@@ -4900,6 +4900,9 @@ export async function registerRoutes(
         };
       }
 
+      // Never cache tracking responses — PIN state must always be fresh
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
       return res.json({ order, merchant });
     } catch (error) {
       console.error("Track order error:", error);

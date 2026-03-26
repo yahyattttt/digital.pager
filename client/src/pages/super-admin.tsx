@@ -114,6 +114,8 @@ import {
   UserCheck,
 } from "lucide-react";
 
+// ── MUST be at module level, before any component code ────────────────────────
+const PRIMARY_ADMIN_EMAIL = "yahiatohary@hotmail.com";
 
 class AdminErrorBoundary extends React.Component<
   { children: React.ReactNode; fallbackLabel?: string },
@@ -322,8 +324,6 @@ function getSubBadge(subStatus: string | undefined, t: (ar: string, en: string) 
       );
   }
 }
-
-const PRIMARY_ADMIN_EMAIL = "yahiatohary@hotmail.com";
 
 export default function SuperAdminPage() {
   const [, setLocation] = useLocation();
