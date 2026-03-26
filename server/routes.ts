@@ -516,10 +516,15 @@ function generateUidFromEmail(email: string): string {
 
 async function findMerchantByEmail(email: string): Promise<{ uid: string } | null> {
   const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
-  if (!projectId || !getApiKey()) return null;
+  if (!projectId || !getApiKey()) {
+    throw new Error("Firestore not configured — VITE_FIREBASE_PROJECT_ID or API key missing");
+  }
 
-  try {
-    const base = getApiKeyBaseUrl()!;
+  const emailLower = email.toLowerCase().trim();
+  const base = getApiKeyBaseUrl()!;
+
+  // Helper: run a structured query by exact email value
+  async function queryByEmail(emailValue: string): Promise<{ uid: string } | null> {
     const query = {
       structuredQuery: {
         from: [{ collectionId: "merchants" }],
@@ -527,35 +532,59 @@ async function findMerchantByEmail(email: string): Promise<{ uid: string } | nul
           fieldFilter: {
             field: { fieldPath: "email" },
             op: "EQUAL",
-            value: { stringValue: email.toLowerCase().trim() },
+            value: { stringValue: emailValue },
           },
         },
         limit: 1,
       },
     };
 
-    const res = await apikeyFetch(
-      `${base}:runQuery`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(query),
-      }
-    );
+    const res = await apikeyFetch(`${base}:runQuery`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(query),
+    });
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      console.error(`[AUTH] Firestore runQuery failed (${res.status}):`, errText);
+      throw new Error(`Firestore query error: HTTP ${res.status}`);
+    }
+
     const results = await res.json();
     if (Array.isArray(results) && results.length > 0 && results[0].document) {
       const docName: string = results[0].document.name;
-      const docId = docName.split("/").pop()!;
-      // Always use the real Firestore document ID as the canonical UID
-      return { uid: docId };
+      return { uid: docName.split("/").pop()! };
     }
     return null;
-  } catch (e) {
-    console.error("[AUTH] Find merchant by email error:", e);
-    return null;
   }
+
+  // 1. Try lowercase email (primary, canonical)
+  const found = await queryByEmail(emailLower);
+  if (found) return found;
+
+  // 2. Try original casing in case merchant was stored with mixed case
+  if (email.trim() !== emailLower) {
+    const foundOriginal = await queryByEmail(email.trim());
+    if (foundOriginal) return foundOriginal;
+  }
+
+  // 3. Fallback: try direct document GET using UID derived from email
+  const derivedUid = generateUidFromEmail(emailLower);
+  try {
+    const docRes = await apikeyFetch(`${base}/merchants/${derivedUid}`);
+    if (docRes.ok) {
+      const docData = await docRes.json();
+      if (docData.fields) {
+        console.log(`[AUTH] Found merchant via derived UID fallback for ${emailLower}`);
+        return { uid: derivedUid };
+      }
+    }
+  } catch {
+    // Fallback failure is non-fatal
+  }
+
+  return null;
 }
 
 // ── Module-level DB ping cache with background pre-warmer ─────────────────
@@ -1419,7 +1448,17 @@ export async function registerRoutes(
         return res.json({ success: true, verified: true, customToken, uid, isNewUser: false, isAdmin: true });
       }
 
-      const existingMerchant = await findMerchantByEmail(emailLower);
+      let existingMerchant: { uid: string } | null;
+      try {
+        existingMerchant = await findMerchantByEmail(emailLower);
+      } catch (dbErr) {
+        console.error(`[AUTH] Database error looking up merchant for ${emailLower}:`, dbErr);
+        return res.status(503).json({
+          message: "تعذر الاتصال بقاعدة البيانات. يرجى المحاولة مرة أخرى.",
+          errorCode: "DB_ERROR",
+        });
+      }
+
       let uid: string;
       let isNewUser: boolean;
 

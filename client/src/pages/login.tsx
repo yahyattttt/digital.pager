@@ -129,6 +129,7 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (!res.ok || !data.verified) {
+        let title = t("خطأ في التحقق", "Verification Error");
         let description = data.message || t("فشل التحقق.", "Verification failed.");
         if (data.errorCode === "OTP_EXPIRED") {
           description = t("انتهت صلاحية الرمز. يرجى طلب رمز جديد.", "OTP expired. Please request a new one.");
@@ -136,12 +137,11 @@ export default function LoginPage() {
           description = t("الرمز غير صحيح. حاول مرة أخرى.", "Invalid code. Try again.");
         } else if (data.errorCode === "TOO_MANY_ATTEMPTS") {
           description = t("محاولات كثيرة. يرجى طلب رمز جديد.", "Too many attempts. Please request a new OTP.");
+        } else if (data.errorCode === "DB_ERROR") {
+          title = t("خطأ في الاتصال", "Connection Error");
+          description = t("تعذر الاتصال بقاعدة البيانات. يرجى المحاولة مرة أخرى.", "Could not connect. Please try again.");
         }
-        toast({
-          title: t("خطأ في التحقق", "Verification Error"),
-          description,
-          variant: "destructive",
-        });
+        toast({ title, description, variant: "destructive" });
         return;
       }
 
