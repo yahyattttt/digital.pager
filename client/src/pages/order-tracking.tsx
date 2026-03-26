@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "wouter";
-import { doc, onSnapshot } from "firebase/firestore";
+import { doc, onSnapshot, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -339,6 +339,7 @@ export default function OrderTrackingPage() {
   const orderId = params.orderId;
   const [order, setOrder] = useState<WhatsAppOrder | null>(null);
   const [merchant, setMerchant] = useState<{ storeName: string; logoUrl: string; googleMapsReviewUrl?: string; driverPhone?: string; support_whatsapp?: string; isOrderPinRequired?: boolean } | null>(null);
+  const [merchantLoaded, setMerchantLoaded] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
   const [loading, setLoading] = useState(!!orderId);
   const [notFound, setNotFound] = useState(false);
@@ -361,6 +362,7 @@ export default function OrderTrackingPage() {
   useEffect(() => {
     setOrder(null);
     setMerchant(null);
+    setMerchantLoaded(false);
     setNotFound(false);
     setLoading(!!orderId);
     initialFetchDoneRef.current = false;
@@ -443,7 +445,38 @@ export default function OrderTrackingPage() {
         if (!res.ok) { setNotFound(true); return; }
         const data = await res.json();
         setOrder(data.order);
-        setMerchant(data.merchant);
+
+        // Build merchant from API response first
+        let merchantData = data.merchant || null;
+
+        // Always read isOrderPinRequired directly from Firestore to avoid race conditions
+        // and stale API responses when the merchant toggles the setting
+        try {
+          const mSnap = await getDoc(doc(db, "merchants", merchantId));
+          if (mSnap.exists()) {
+            const mData = mSnap.data();
+            const pinFlag = mData.isOrderPinRequired;
+            // pinFlag is a JS boolean from Firebase SDK (no REST API wrapping)
+            const pinRequired = pinFlag !== false; // undefined or true → true; false → false
+            if (merchantData) {
+              merchantData = { ...merchantData, isOrderPinRequired: pinRequired };
+            } else {
+              merchantData = {
+                storeName: mData.storeName || "",
+                logoUrl: mData.logoUrl || "",
+                googleMapsReviewUrl: mData.googleMapsReviewUrl || "",
+                driverPhone: mData.driverPhone || "",
+                support_whatsapp: mData.support_whatsapp || "",
+                isOrderPinRequired: pinRequired,
+              };
+            }
+          }
+        } catch {
+          // Use API-provided merchant data if Firestore direct read fails
+        }
+
+        setMerchant(merchantData);
+        setMerchantLoaded(true);
       } catch {
         setNotFound(true);
       } finally {
@@ -636,6 +669,15 @@ export default function OrderTrackingPage() {
   }
 
   if (order.status === "pending_verification" || order.status === "awaiting_confirmation") {
+    // Wait until merchant config is confirmed before deciding PIN requirement
+    if (!merchantLoaded) {
+      return (
+        <div className="h-[100dvh] flex items-center justify-center" style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }}>
+          <Loader2 className="w-8 h-8 text-white/30 animate-spin" />
+        </div>
+      );
+    }
+
     const pinRequired = merchant?.isOrderPinRequired !== false;
 
     if (pinRequired) {
