@@ -340,7 +340,6 @@ export default function OrderTrackingPage() {
   const [order, setOrder] = useState<WhatsAppOrder | null>(null);
   const [merchant, setMerchant] = useState<{ storeName: string; logoUrl: string; googleMapsReviewUrl?: string; driverPhone?: string; support_whatsapp?: string; isOrderPinRequired?: boolean } | null>(null);
   const [merchantLoaded, setMerchantLoaded] = useState(false);
-  const [isVerified, setIsVerified] = useState(false);
   const [loading, setLoading] = useState(!!orderId);
   const [notFound, setNotFound] = useState(false);
   const [bellPrimed, setBellPrimed] = useState(false);
@@ -460,10 +459,9 @@ export default function OrderTrackingPage() {
         setMerchant(merchantData);
         setMerchantLoaded(true);
 
-        // Hard bypass: if PIN is off, set verified immediately in same batch
+        // Hard bypass logged — actual bypass happens in render (pinRequired check)
         if (pinOff) {
-          console.log(`%c[Tracking] ✅ PIN DISABLED — auto-verifying immediately`, "color:#22c55e;font-weight:bold;font-size:14px");
-          setIsVerified(true);
+          console.log(`%c[Tracking] ✅ PIN DISABLED — will show order screen directly`, "color:#22c55e;font-weight:bold;font-size:14px");
         }
       } catch {
         setNotFound(true);
