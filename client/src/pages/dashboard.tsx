@@ -7210,46 +7210,6 @@ function SettingsView({
         </CardContent>
       </Card>
 
-      {/* ── Order Verification PIN Toggle ── */}
-      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
-        <CardContent className="p-5">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-8 h-8 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0">
-              <KeyRound className="w-4 h-4 text-amber-400" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-sm">{t("التحقق من الطلبات", "Order Verification")}</h3>
-              <p className="text-xs text-muted-foreground">{t("كيف يتم تأكيد طلبات العملاء", "How customer orders are confirmed")}</p>
-            </div>
-          </div>
-          <div className="flex items-center justify-between py-3 px-4 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-            <div className="flex-1 pe-4">
-              <p className="text-sm font-medium text-white/90" dir="rtl">{t("تفعيل كود تأكيد الطلب (PIN)", "Enable Order Confirmation PIN")}</p>
-              <p className="text-xs text-white/40 mt-0.5" dir="rtl">
-                {isOrderPinRequired
-                  ? t("العميل ينتظر اتصال المتجر للتحقق", "Customer waits for store call to verify")
-                  : t("العميل يؤكد هويته مباشرةً دون اتصال", "Customer confirms identity directly without a call")}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              {pinToggleSaving && <Loader2 className="w-3.5 h-3.5 text-white/40 animate-spin" />}
-              <Switch
-                checked={isOrderPinRequired}
-                onCheckedChange={handleToggleOrderPin}
-                disabled={pinToggleSaving}
-                className="data-[state=checked]:bg-amber-500"
-                data-testid="switch-order-pin"
-              />
-            </div>
-          </div>
-          <p className="text-[11px] text-white/25 mt-2 px-1" dir="rtl">
-            {isOrderPinRequired
-              ? t("✅ مفعّل — يتصل المتجر بالعميل ويعطيه رمز التحقق قبل التحضير", "✅ ON — Store calls customer to give them the verification code")
-              : t("⭕ معطّل — العميل يضغط 'تأكيد الهوية' على صفحة التتبع للدخول مباشرةً", "⭕ OFF — Customer taps 'Confirm Identity' on tracking page to proceed")}
-            <span className="block text-white/15 mt-0.5">{t("• يُحفظ فوراً عند التبديل", "• Saved instantly on toggle")}</span>
-          </p>
-        </CardContent>
-      </Card>
 
       {/* ── Alert Sound Settings ── */}
       <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
@@ -7490,6 +7450,51 @@ function SettingsView({
               {supportSaving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Save className="w-4 h-4 me-2" />}
               {t("حفظ إعدادات الدعم", "Save Support Settings")}
             </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── إعدادات الأمان — Security Settings ── */}
+      <Card className="border-red-500/10 bg-[#0f0000] rounded-2xl" style={{ borderColor: "rgba(239,68,68,0.12)" }}>
+        <CardContent className="p-5">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-8 h-8 rounded-xl bg-red-500/10 flex items-center justify-center shrink-0">
+              <KeyRound className="w-4 h-4 text-red-400" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-sm" dir="rtl">{t("إعدادات الأمان", "Security Settings")}</h3>
+              <p className="text-xs text-muted-foreground" dir="rtl">{t("التحكم في التحقق الأمني لطلبات العملاء", "Control security verification for customer orders")}</p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between py-3.5 px-4 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+            <div className="flex-1 pe-4">
+              <p className="text-sm font-semibold text-white/90" dir="rtl">{t("تفعيل كود التحقق للأمان (PIN)", "Enable Security PIN Verification")}</p>
+              <p className="text-xs text-white/40 mt-0.5" dir="rtl">
+                {isOrderPinRequired
+                  ? t("العميل ينتظر اتصال المتجر للتحقق من الطلب", "Customer waits for store call to verify the order")
+                  : t("العميل يرى حالة طلبه مباشرة بدون تحقق", "Customer sees order status immediately without verification")}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              {pinToggleSaving && <Loader2 className="w-3.5 h-3.5 text-white/40 animate-spin" />}
+              <Switch
+                checked={isOrderPinRequired}
+                onCheckedChange={handleToggleOrderPin}
+                disabled={pinToggleSaving}
+                className="data-[state=checked]:bg-red-600"
+                data-testid="switch-order-pin"
+              />
+            </div>
+          </div>
+
+          <div className="mt-3 px-1 space-y-1">
+            <p className="text-[11px] text-white/30" dir="rtl">
+              {isOrderPinRequired
+                ? t("✅ مفعّل — يتصل المتجر بالعميل ويُعطيه رمز التحقق قبل بدء التحضير", "✅ ON — Store calls customer with verification code before preparation begins")
+                : t("⭕ معطّل — صفحة تتبع الطلب تظهر مباشرة دون أي خطوة تحقق", "⭕ OFF — Order tracking page is shown directly with no verification step")}
+            </p>
+            <p className="text-[10px] text-white/15" dir="rtl">{t("• يُحفظ فوراً عند التبديل بدون الحاجة لضغط حفظ", "• Saved instantly when toggled — no save button needed")}</p>
           </div>
         </CardContent>
       </Card>
