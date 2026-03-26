@@ -449,17 +449,17 @@ export default function OrderTrackingPage() {
         // Build merchant from API response first
         let merchantData = data.merchant || null;
 
-        // Always read isOrderPinRequired directly from Firestore to avoid race conditions
-        // and stale API responses when the merchant toggles the setting
+        // Read isOrderPinRequired directly from Firestore (public read, bypasses auth requirement)
+        // This is the authoritative source — overrides API response for this field
         try {
           const mSnap = await getDoc(doc(db, "merchants", merchantId));
           if (mSnap.exists()) {
             const mData = mSnap.data();
+            // Firebase SDK returns native JS boolean — isOrderPinRequired is exactly true/false/undefined
             const pinFlag = mData.isOrderPinRequired;
-            // pinFlag is a JS boolean from Firebase SDK (no REST API wrapping)
-            const pinRequired = pinFlag !== false; // undefined or true → true; false → false
+            const isOrderPinRequired = pinFlag !== false; // undefined→true (default on), false→false (disabled)
             if (merchantData) {
-              merchantData = { ...merchantData, isOrderPinRequired: pinRequired };
+              merchantData = { ...merchantData, isOrderPinRequired };
             } else {
               merchantData = {
                 storeName: mData.storeName || "",
@@ -467,16 +467,22 @@ export default function OrderTrackingPage() {
                 googleMapsReviewUrl: mData.googleMapsReviewUrl || "",
                 driverPhone: mData.driverPhone || "",
                 support_whatsapp: mData.support_whatsapp || "",
-                isOrderPinRequired: pinRequired,
+                isOrderPinRequired,
               };
             }
           }
-        } catch {
-          // Use API-provided merchant data if Firestore direct read fails
+        } catch (fsErr) {
+          console.warn("[Tracking] Could not read merchant from Firestore directly:", fsErr);
+          // Fall back to server API value for isOrderPinRequired
         }
 
         setMerchant(merchantData);
         setMerchantLoaded(true);
+
+        // If merchant has PIN disabled, auto-verify immediately — skip the confirm screen entirely
+        if (merchantData && merchantData.isOrderPinRequired === false) {
+          setIsVerified(true);
+        }
       } catch {
         setNotFound(true);
       } finally {
