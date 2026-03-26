@@ -3500,7 +3500,7 @@ function OverviewView({
                           >
                             {pager.displayOrderId || `#${item.orderNumber}`}
                           </span>
-                          {pager.access_pin && (
+                          {pager.access_pin && (merchant as any)?.isOrderPinRequired !== false && (
                             <span
                               className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-black tracking-widest"
                               style={{ background: "rgba(220,38,38,0.13)", border: "1px solid rgba(220,38,38,0.3)", color: "#f87171", letterSpacing: "0.2em" }}
@@ -6489,11 +6489,23 @@ function SettingsView({
   }, [onlineOrdersEnabled]);
 
 
-  const [isPinRequired, setIsPinRequired] = useState<boolean>((merchant as any)?.isPinRequired !== false);
-  const pinToggleSaving = false;
+  const [isOrderPinRequired, setIsOrderPinRequired] = useState<boolean>((merchant as any)?.isOrderPinRequired !== false);
+  const [pinToggleSaving, setPinToggleSaving] = useState(false);
 
-  function handleToggleOrderPin(val: boolean) {
-    setIsPinRequired(val);
+  async function handleToggleOrderPin(val: boolean) {
+    setIsOrderPinRequired(val);
+    const uid = merchant?.uid;
+    if (!uid) return;
+    setPinToggleSaving(true);
+    try {
+      await setDoc(doc(db, "merchants", uid), { isOrderPinRequired: val }, { merge: true });
+      toast({ title: t("تم الحفظ", "Saved"), description: val ? t("التحقق بالرمز مفعّل", "PIN verification ON") : t("التحقق بالرمز معطّل", "PIN verification OFF") });
+    } catch {
+      setIsOrderPinRequired(!val);
+      toast({ title: t("خطأ", "Error"), description: t("فشل حفظ الإعداد", "Failed to save setting"), variant: "destructive" });
+    } finally {
+      setPinToggleSaving(false);
+    }
   }
 
   const [storeTermsEnabled, setStoreTermsEnabled] = useState<boolean>(merchant?.storeTermsEnabled || false);
@@ -6677,7 +6689,6 @@ function SettingsView({
         googleMapsReviewUrl: googleMapsUrlEdit.trim(),
         commercialRegisterURL: crPdfUrlEdit.trim(),
         support_whatsapp: supportWhatsappEdit.trim(),
-        isPinRequired,
         ...(finalSlug ? { storeSlug: finalSlug } : {}),
       }, { merge: true });
       toast({
@@ -7222,23 +7233,27 @@ function SettingsView({
             <div className="flex-1 pe-4">
               <p className="text-sm font-medium text-white/90" dir="rtl">{t("تفعيل كود تأكيد الطلب (PIN)", "Enable Order Confirmation PIN")}</p>
               <p className="text-xs text-white/40 mt-0.5" dir="rtl">
-                {isPinRequired
+                {isOrderPinRequired
                   ? t("العميل ينتظر اتصال المتجر للتحقق", "Customer waits for store call to verify")
                   : t("العميل يؤكد هويته مباشرةً دون اتصال", "Customer confirms identity directly without a call")}
               </p>
             </div>
-            <Switch
-              checked={isPinRequired}
-              onCheckedChange={handleToggleOrderPin}
-              className="data-[state=checked]:bg-amber-500"
-              data-testid="switch-order-pin"
-            />
+            <div className="flex items-center gap-2">
+              {pinToggleSaving && <Loader2 className="w-3.5 h-3.5 text-white/40 animate-spin" />}
+              <Switch
+                checked={isOrderPinRequired}
+                onCheckedChange={handleToggleOrderPin}
+                disabled={pinToggleSaving}
+                className="data-[state=checked]:bg-amber-500"
+                data-testid="switch-order-pin"
+              />
+            </div>
           </div>
           <p className="text-[11px] text-white/25 mt-2 px-1" dir="rtl">
-            {isPinRequired
-              ? t("✅ مفعّل — يتصل المتجر بالعميل لتأكيد الطلب قبل التحضير", "✅ ON — Store calls customer to confirm before preparing")
+            {isOrderPinRequired
+              ? t("✅ مفعّل — يتصل المتجر بالعميل ويعطيه رمز التحقق قبل التحضير", "✅ ON — Store calls customer to give them the verification code")
               : t("⭕ معطّل — العميل يضغط 'تأكيد الهوية' على صفحة التتبع للدخول مباشرةً", "⭕ OFF — Customer taps 'Confirm Identity' on tracking page to proceed")}
-            <span className="block text-white/15 mt-0.5">{t("• يُحفظ عند الضغط على زر 'حفظ اسم المتجر' أدناه", "• Saved when you tap 'Save Store Name' below")}</span>
+            <span className="block text-white/15 mt-0.5">{t("• يُحفظ فوراً عند التبديل", "• Saved instantly on toggle")}</span>
           </p>
         </CardContent>
       </Card>

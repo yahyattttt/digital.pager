@@ -4757,7 +4757,7 @@ export async function registerRoutes(
           googleMapsReviewUrl: mf.googleMapsReviewUrl?.stringValue || "",
           driverPhone: mf.driverPhone?.stringValue || "",
           support_whatsapp: mf.support_whatsapp?.stringValue || "",
-          isPinRequired: mf.isPinRequired?.booleanValue !== false,
+          isOrderPinRequired: mf.isOrderPinRequired?.booleanValue !== false,
         };
       }
 
@@ -4783,7 +4783,7 @@ export async function registerRoutes(
       const mRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}`);
       if (!mRes.ok) return res.status(404).json({ message: "Merchant not found" });
       const mDoc = await mRes.json();
-      const pinEnabled = mDoc.fields?.isPinRequired?.booleanValue;
+      const pinEnabled = mDoc.fields?.isOrderPinRequired?.booleanValue;
       if (pinEnabled === true) {
         return res.status(403).json({ message: "PIN verification is required for this merchant" });
       }

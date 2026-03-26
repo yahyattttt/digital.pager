@@ -338,7 +338,7 @@ export default function OrderTrackingPage() {
   const params = useParams<{ orderId: string }>();
   const orderId = params.orderId;
   const [order, setOrder] = useState<WhatsAppOrder | null>(null);
-  const [merchant, setMerchant] = useState<{ storeName: string; logoUrl: string; googleMapsReviewUrl?: string; driverPhone?: string; support_whatsapp?: string; isPinRequired?: boolean } | null>(null);
+  const [merchant, setMerchant] = useState<{ storeName: string; logoUrl: string; googleMapsReviewUrl?: string; driverPhone?: string; support_whatsapp?: string; isOrderPinRequired?: boolean } | null>(null);
   const [isVerified, setIsVerified] = useState(false);
   const [loading, setLoading] = useState(!!orderId);
   const [notFound, setNotFound] = useState(false);
@@ -636,7 +636,7 @@ export default function OrderTrackingPage() {
   }
 
   if (order.status === "pending_verification" || order.status === "awaiting_confirmation") {
-    const pinRequired = merchant?.isPinRequired !== false;
+    const pinRequired = merchant?.isOrderPinRequired !== false;
 
     if (pinRequired) {
       return (
@@ -785,7 +785,7 @@ export default function OrderTrackingPage() {
       );
     }
 
-    /* isPinRequired=false AND isVerified=true → fall through to the preparing screen below */
+    /* isOrderPinRequired=false AND isVerified=true → fall through to the preparing screen below */
   }
 
   if (order.status === "ready") {
