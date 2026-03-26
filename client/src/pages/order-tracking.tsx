@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "wouter";
-import { doc, onSnapshot, getDoc } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -449,38 +449,14 @@ export default function OrderTrackingPage() {
         // Build merchant from API response first
         let merchantData = data.merchant || null;
 
-        // Read isOrderPinRequired directly from Firestore (public read — security rules allow it)
-        // This overrides the server API value with a guaranteed fresh native JS boolean
-        try {
-          const mSnap = await getDoc(doc(db, "merchants", merchantId));
-          if (mSnap.exists()) {
-            const mData = mSnap.data();
-            // rawPinFlag is a native JS boolean from the Firebase SDK — no REST wrapping
-            const rawPinFlag = mData.isOrderPinRequired;
-            // undefined/true → PIN required (safe default); explicitly false → PIN disabled
-            const isOrderPinRequired: boolean = rawPinFlag !== false;
-            if (merchantData) {
-              merchantData = { ...merchantData, isOrderPinRequired };
-            } else {
-              merchantData = {
-                storeName: mData.storeName || "",
-                logoUrl: mData.logoUrl || "",
-                googleMapsReviewUrl: mData.googleMapsReviewUrl || "",
-                driverPhone: mData.driverPhone || "",
-                support_whatsapp: mData.support_whatsapp || "",
-                isOrderPinRequired,
-              };
-            }
-          }
-        } catch {
-          // Firestore direct-read failed — use API-provided merchant data as fallback
-        }
-
+        // isOrderPinRequired comes from the server (service account bypasses all Firestore rules)
+        // This is the single authoritative source — no client-side Firestore read needed
         setMerchant(merchantData);
         setMerchantLoaded(true);
 
         // If PIN is disabled, auto-verify immediately — customer lands on order status with zero interaction
         if (merchantData && merchantData.isOrderPinRequired === false) {
+          console.log(`%c[Tracking] ✅ SUCCESS: PIN disabled for ${merchantId} — auto-verifying`, "color:#22c55e;font-weight:bold");
           setIsVerified(true);
         }
       } catch {
@@ -836,7 +812,56 @@ export default function OrderTrackingPage() {
       );
     }
 
-    /* isOrderPinRequired=false AND isVerified=true → fall through to the preparing screen below */
+    // PIN is disabled AND verified — show preparing screen DIRECTLY, no fall-through ambiguity
+    console.log(`%c[Tracking] ✅ SUCCESS: PIN bypassed for merchant ${merchantId} — order status shown directly`, "color:#22c55e;font-weight:bold");
+    const _shortNum = getShort3Digit(order);
+    return (
+      <>
+      <div className="h-[100dvh] flex flex-col items-center justify-between py-10 px-5 text-center"
+        style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }}
+        data-testid="tracking-preparing-screen"
+      >
+        <div className="w-full flex flex-col items-center gap-1">
+          <p className="text-white/40 text-[13px] font-medium tracking-[0.3em] uppercase">DIGITAL PAGER</p>
+          {merchant && (
+            <div className="flex items-center justify-center gap-2">
+              {merchant.logoUrl && (
+                <img src={merchant.logoUrl} alt={merchant.storeName} className="w-8 h-8 rounded-full object-cover border border-white/10" />
+              )}
+              <h2 className="text-white text-xl font-bold" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>{merchant.storeName}</h2>
+            </div>
+          )}
+        </div>
+        <div className="flex-1 flex flex-col items-center justify-center min-h-0 gap-5">
+          <BuzzerCircle orderNumber={_shortNum} active={false} />
+          <div>
+            <p className="text-red-400 text-2xl font-black" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }} data-testid="text-preparing-message">
+              جاري التحضير 👨‍🍳
+            </p>
+            <p className="text-white/40 text-sm mt-1 text-center">Your order is being prepared</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+            <span className="text-white/20 text-[10px]" data-testid="text-live-status">Live</span>
+          </div>
+        </div>
+        <div className="w-full max-w-xs space-y-3">
+          {isOnlineOrder && (
+            <button
+              onClick={() => { window.location.href = `/receipt/${orderId}?m=${merchantId}`; }}
+              className="w-full flex items-center justify-center gap-2.5 py-4 rounded-2xl border border-red-500/20 bg-gradient-to-r from-red-950/30 via-red-900/15 to-red-950/30 active:scale-[0.97] transition-all duration-200"
+              style={{ boxShadow: "0 0 15px rgba(255,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.03)" }}
+              data-testid="button-view-receipt-pinbypassed"
+            >
+              <span className="text-lg flex-shrink-0">📄</span>
+              <span className="text-red-400/90 text-base font-bold" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>عرض إيصال الطلب</span>
+            </button>
+          )}
+        </div>
+        {WaFloatBtn}
+      </div>
+      </>
+    );
   }
 
   if (order.status === "ready") {
