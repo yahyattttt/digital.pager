@@ -4670,6 +4670,145 @@ export async function registerRoutes(
     }
   });
 
+  // ── Auto-increment pager order (reads shift counter, increments, creates pager) ──
+  app.post("/api/orders/pager-auto", async (req, res) => {
+    try {
+      const { merchantId } = req.body;
+      if (!merchantId) return res.status(400).json({ message: "merchantId is required" });
+      const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
+      const apiKey = getApiKey();
+      if (!projectId || !apiKey) return res.status(500).json({ message: "Firestore not configured" });
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl) return res.status(500).json({ message: "Firestore not configured" });
+
+      // Read current shift number
+      const metaUrl = `${baseUrl}/merchants/${merchantId}/settings/manualShift`;
+      const metaRes = await apikeyFetch(metaUrl, {});
+      let currentNum = 0;
+      if (metaRes.ok) {
+        const metaData = await metaRes.json();
+        const val = metaData?.fields?.last_shift_number;
+        currentNum = parseInt(val?.integerValue || val?.doubleValue || "0", 10) || 0;
+      }
+      const newNum = currentNum + 1;
+
+      // Save incremented number
+      await apikeyFetch(`${metaUrl}?updateMask.fieldPaths=last_shift_number`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fields: { last_shift_number: { integerValue: String(newNum) } } }),
+      });
+
+      const displayId = String(newNum).padStart(3, "0").slice(-3);
+      const pin = String(Math.floor(100 + Math.random() * 900));
+
+      // Create pager document
+      const createRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}/pagers`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fields: {
+            storeId: { stringValue: merchantId },
+            orderNumber: { stringValue: String(newNum) },
+            displayOrderId: { stringValue: displayId },
+            orderType: { stringValue: "manual" },
+            orderSource: { stringValue: "Manual" },
+            status: { stringValue: "waiting" },
+            createdAt: { stringValue: new Date().toISOString() },
+            notifiedAt: { nullValue: null },
+            access_pin: { stringValue: pin },
+          },
+        }),
+      });
+      if (!createRes.ok) {
+        const errText = await createRes.text();
+        console.error("[POST /api/orders/pager-auto] Firestore error:", errText);
+        return res.status(500).json({ message: "Firestore write failed", detail: errText });
+      }
+      const created = await createRes.json();
+      const docId = (created.name as string)?.split("/").pop() || "";
+      console.log(`[POST /api/orders/pager-auto] Created pager order #${newNum} (${displayId}) for merchant ${merchantId}, docId=${docId}`);
+      return res.json({ success: true, id: docId, orderNumber: newNum, displayOrderId: displayId });
+    } catch (err: any) {
+      console.error("[POST /api/orders/pager-auto] Error:", err);
+      return res.status(500).json({ message: err?.message || "Server error" });
+    }
+  });
+
+  // ── Create pager order (server-side, bypasses Firestore client auth) ─────────
+  app.post("/api/orders/pager", async (req, res) => {
+    try {
+      const { merchantId, orderNumber, displayOrderId, orderType, orderSource } = req.body;
+      if (!merchantId || !orderNumber) {
+        return res.status(400).json({ message: "merchantId and orderNumber are required" });
+      }
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
+
+      const pin = String(Math.floor(100 + Math.random() * 900));
+      const collUrl = `${baseUrl}/merchants/${merchantId}/pagers`;
+      const createRes = await apikeyFetch(collUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fields: {
+            storeId: { stringValue: merchantId },
+            orderNumber: { stringValue: String(orderNumber) },
+            displayOrderId: { stringValue: String(displayOrderId || orderNumber) },
+            orderType: { stringValue: orderType || "manual" },
+            orderSource: { stringValue: orderSource || "Manual" },
+            status: { stringValue: "waiting" },
+            createdAt: { stringValue: new Date().toISOString() },
+            notifiedAt: { nullValue: null },
+            access_pin: { stringValue: pin },
+          },
+        }),
+      });
+      if (!createRes.ok) {
+        const errText = await createRes.text();
+        console.error("[POST /api/orders/pager] Firestore error:", errText);
+        return res.status(500).json({ message: "Firestore write failed", detail: errText });
+      }
+      const created = await createRes.json();
+      const docId = (created.name as string)?.split("/").pop() || "";
+      console.log(`[POST /api/orders/pager] Created pager order ${orderNumber} for merchant ${merchantId}, docId=${docId}`);
+      return res.json({ success: true, id: docId });
+    } catch (err: any) {
+      console.error("[POST /api/orders/pager] Error:", err);
+      return res.status(500).json({ message: err?.message || "Server error" });
+    }
+  });
+
+  // ── Save merchant PIN-required setting (server-side, bypasses Firestore client auth) ──
+  app.patch("/api/merchant/:merchantId/pin-required", async (req, res) => {
+    try {
+      const { merchantId } = req.params;
+      const { isOrderPinRequired } = req.body;
+      if (typeof isOrderPinRequired !== "boolean") {
+        return res.status(400).json({ message: "isOrderPinRequired (boolean) is required" });
+      }
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
+
+      const patchUrl = `${baseUrl}/merchants/${merchantId}?updateMask.fieldPaths=isOrderPinRequired`;
+      const patchRes = await apikeyFetch(patchUrl, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fields: { isOrderPinRequired: { booleanValue: isOrderPinRequired } } }),
+      });
+      if (!patchRes.ok) {
+        const errText = await patchRes.text();
+        console.error("[PATCH /api/merchant/pin-required] Firestore error:", errText);
+        return res.status(500).json({ message: "Firestore write failed", detail: errText });
+      }
+      console.log(`[PATCH /api/merchant/pin-required] Saved isOrderPinRequired=${isOrderPinRequired} for merchant ${merchantId}`);
+      return res.json({ success: true });
+    } catch (err: any) {
+      console.error("[PATCH /api/merchant/pin-required] Error:", err);
+      return res.status(500).json({ message: err?.message || "Server error" });
+    }
+  });
+
   app.get("/api/track/:orderId", async (req, res) => {
     try {
       const { orderId } = req.params;

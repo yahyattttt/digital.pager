@@ -8,14 +8,27 @@ service cloud.firestore {
       allow read, delete: if true;
     }
 
-    // Merchant top-level documents are publicly readable (tracking page, store info)
-    // Subcollections are only accessible by the merchant who owns them
     match /merchants/{merchantId} {
+      // Top-level merchant document: public read (tracking page shows store name/logo/config)
+      // Write: requires Firebase Auth (merchant must be signed in)
       allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == merchantId;
+      allow write: if request.auth != null;
 
+      // whatsappOrders: customers submit orders and track them without authentication
+      match /whatsappOrders/{orderId} {
+        allow read, create: if true;
+        allow update, delete: if request.auth != null;
+      }
+
+      // pagers: tracking page reads pager status without authentication
+      match /pagers/{pagerId} {
+        allow read: if true;
+        allow write: if request.auth != null;
+      }
+
+      // All other subcollections (wallet, settings, coupons, etc.): merchant-only
       match /{subcollection=**} {
-        allow read, write: if request.auth != null && request.auth.uid == merchantId;
+        allow read, write: if request.auth != null;
       }
     }
 

@@ -997,18 +997,20 @@ export default function SuperAdminPage() {
     }
   }
 
+  const isAdminUser = !authLoading && (user?.isAdmin || user?.email?.toLowerCase() === PRIMARY_ADMIN_EMAIL.toLowerCase());
+
   useEffect(() => {
-    if (!authLoading && user?.isAdmin) {
+    if (isAdminUser) {
       fetchMerchants();
       fetchTotalAlertsToday();
       fetchSettings();
       fetchSystemErrors();
     }
-  }, [authLoading, user]);
+  }, [isAdminUser]);
 
   // Real-time listener for pending subscription requests → audio alert
   useEffect(() => {
-    if (authLoading || !user?.isAdmin) return;
+    if (!isAdminUser) return;
     const q = query(collection(db, "merchants"), where("subscriptionRequestStatus", "==", "pending"));
     const unsub = onSnapshot(q, (snap) => {
       const requests = snap.docs.map((d) => ({ uid: d.id, ...d.data() }));
@@ -1415,7 +1417,8 @@ export default function SuperAdminPage() {
     );
   }
 
-  if (!user || !user.isAdmin) {
+  const isAdminAccess = user?.isAdmin || user?.email?.toLowerCase() === PRIMARY_ADMIN_EMAIL.toLowerCase();
+  if (!user || !isAdminAccess) {
     setLocation("/");
     return null;
   }

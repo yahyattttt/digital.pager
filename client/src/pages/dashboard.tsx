@@ -1064,34 +1064,37 @@ export default function DashboardPage() {
     }
     setManualAddLoading(true);
     try {
-      const pagersRef = collection(db, "merchants", merchant.uid, "pagers");
-      await addDoc(pagersRef, {
-        storeId: merchant.uid,
-        orderNumber: trimmed,
-        displayOrderId: trimmed,
-        orderType: "manual",
-        orderSource: "Manual",
-        status: "waiting",
-        createdAt: new Date().toISOString(),
-        notifiedAt: null,
-        access_pin: String(Math.floor(100 + Math.random() * 900)),
+      console.log(`[Manual Order] Creating pager order ${trimmed} via server for merchant ${merchant.uid}`);
+      const res = await fetch("/api/orders/pager", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          merchantId: merchant.uid,
+          orderNumber: trimmed,
+          displayOrderId: trimmed,
+          orderType: "manual",
+          orderSource: "Manual",
+        }),
       });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ message: res.statusText }));
+        const detail = errData?.detail || errData?.message || `HTTP ${res.status}`;
+        throw new Error(detail);
+      }
+      console.log(`[Manual Order] ✅ Order ${trimmed} created successfully via server`);
       setManualDigitInput("");
       toast({ title: t(`تم إضافة طلب رقم ${trimmed} بنجاح`, `Order #${trimmed} added successfully`) });
       setTimeout(() => manualInputRef.current?.focus(), 50);
     } catch (err: any) {
-      const isQuota = err?.code === "resource-exhausted"
-        || String(err?.message || "").includes("resource-exhausted")
-        || String(err?.message || "").includes("RESOURCE_EXHAUSTED")
-        || String(err?.message || "").includes("quota");
+      console.error("[Manual Order] ❌ Server request failed:", err);
+      const msg = err?.message || String(err);
+      const isQuota = msg.includes("resource-exhausted") || msg.includes("quota");
+      window.alert(`❌ فشل إنشاء الطلب\n\n${msg}`);
       toast({
         title: t("خطأ", "Error"),
         description: isQuota
-          ? t(
-              "تم تجاوز حد الطلبات المجانية، يرجى المحاولة لاحقاً أو ترقية الخطة.",
-              "Free quota exceeded. Please try again later or upgrade your plan."
-            )
-          : t("فشل في إضافة الطلب", "Failed to add order"),
+          ? t("تم تجاوز حد الطلبات المجانية، يرجى المحاولة لاحقاً أو ترقية الخطة.", "Free quota exceeded. Please try again later or upgrade your plan.")
+          : msg,
         variant: "destructive",
       });
     } finally {
@@ -1196,57 +1199,31 @@ export default function DashboardPage() {
     shiftAddLockRef.current = true;
     setManualAddLoading(true);
     try {
-      const metaRef = doc(db, "merchants", merchant.uid, "settings", "manualShift");
-      let newNum = 0;
-      await runTransaction(db, async (txn) => {
-        const snap = await txn.get(metaRef);
-        const current = snap.exists() ? parseInt(String(snap.data().last_shift_number || 0), 10) : 0;
-        newNum = (isNaN(current) ? 0 : current) + 1;
-        txn.set(metaRef, { last_shift_number: newNum }, { merge: true } as any);
+      console.log(`[Shift Order] Auto-creating pager order via server for merchant ${merchant.uid}`);
+      const res = await fetch("/api/orders/pager-auto", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ merchantId: merchant.uid }),
       });
-      const displayId = String(newNum).padStart(3, "0").slice(-3);
-
-      const pagersRef = collection(db, "merchants", merchant.uid, "pagers");
-      await addDoc(pagersRef, {
-        storeId: merchant.uid,
-        orderNumber: String(newNum),
-        displayOrderId: displayId,
-        orderType: "manual",
-        orderSource: "Manual",
-        status: "waiting",
-        createdAt: new Date().toISOString(),
-        notifiedAt: null,
-        access_pin: String(Math.floor(100 + Math.random() * 900)),
-      });
-
-      // Update global platform counter (fire-and-forget, non-blocking)
-      const today = new Date().toISOString().split("T")[0];
-      const globalRef = doc(db, "systemSettings", "orderCounters");
-      runTransaction(db, async (txn) => {
-        const gSnap = await txn.get(globalRef);
-        const gData = gSnap.exists() ? gSnap.data() : {};
-        const isNewDay = (gData.last_reset_date || "") !== today;
-        txn.set(globalRef, {
-          last_global_number: (gData.last_global_number || 0) + 1,
-          last_reset_date: isNewDay ? today : (gData.last_reset_date || today),
-          total_today: isNewDay ? 1 : (gData.total_today || 0) + 1,
-        }, { merge: false });
-      }).catch(() => {}); // silent fail — never block order creation
-
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ message: res.statusText }));
+        const detail = errData?.detail || errData?.message || `HTTP ${res.status}`;
+        throw new Error(detail);
+      }
+      const data = await res.json();
+      const displayId = data.displayOrderId || String(data.orderNumber);
+      console.log(`[Shift Order] ✅ Order #${displayId} created via server`);
       toast({ title: t(`تم إضافة طلب رقم ${displayId} بنجاح`, `Order #${displayId} added successfully`) });
     } catch (err: any) {
-      const isQuota = err?.code === "resource-exhausted"
-        || String(err?.message || "").includes("resource-exhausted")
-        || String(err?.message || "").includes("RESOURCE_EXHAUSTED")
-        || String(err?.message || "").includes("quota");
+      console.error("[Shift Order] ❌ Server request failed:", err);
+      const msg = err?.message || String(err);
+      const isQuota = msg.includes("resource-exhausted") || msg.includes("quota");
+      window.alert(`❌ فشل إنشاء الطلب التلقائي\n\n${msg}`);
       toast({
         title: t("خطأ", "Error"),
         description: isQuota
-          ? t(
-              "تم تجاوز حد الطلبات المجانية، يرجى المحاولة لاحقاً أو ترقية الخطة.",
-              "Free quota exceeded. Please try again later or upgrade your plan."
-            )
-          : t("فشل في إضافة الطلب", "Failed to add order"),
+          ? t("تم تجاوز حد الطلبات المجانية، يرجى المحاولة لاحقاً أو ترقية الخطة.", "Free quota exceeded. Please try again later or upgrade your plan.")
+          : msg,
         variant: "destructive",
       });
     } finally {
@@ -6495,14 +6472,30 @@ function SettingsView({
   async function handleToggleOrderPin(val: boolean) {
     setIsOrderPinRequired(val);
     const uid = merchant?.uid;
-    if (!uid) return;
+    if (!uid) {
+      window.alert("❌ PIN Toggle: merchant uid is missing — cannot save. Please re-login.");
+      return;
+    }
     setPinToggleSaving(true);
     try {
-      await setDoc(doc(db, "merchants", uid), { isOrderPinRequired: val }, { merge: true });
+      console.log(`[PIN Toggle] Saving isOrderPinRequired=${val} via server for merchant ${uid}`);
+      const res = await fetch(`/api/merchant/${uid}/pin-required`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isOrderPinRequired: val }),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ message: res.statusText }));
+        throw new Error(errData?.detail || errData?.message || `HTTP ${res.status}`);
+      }
+      console.log(`[PIN Toggle] ✅ Saved successfully via server: isOrderPinRequired=${val}`);
       toast({ title: t("تم الحفظ", "Saved"), description: val ? t("التحقق بالرمز مفعّل", "PIN verification ON") : t("التحقق بالرمز معطّل", "PIN verification OFF") });
-    } catch {
+    } catch (err: any) {
+      console.error("[PIN Toggle] ❌ Save failed:", err);
+      const msg = err?.message || String(err);
       setIsOrderPinRequired(!val);
-      toast({ title: t("خطأ", "Error"), description: t("فشل حفظ الإعداد", "Failed to save setting"), variant: "destructive" });
+      window.alert(`❌ PIN Toggle Save Failed\n\n${msg}\n\nMerchant UID: ${uid}`);
+      toast({ title: t("خطأ في الحفظ", "Save Failed"), description: msg, variant: "destructive" });
     } finally {
       setPinToggleSaving(false);
     }
