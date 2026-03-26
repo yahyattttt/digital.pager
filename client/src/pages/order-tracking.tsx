@@ -338,7 +338,8 @@ export default function OrderTrackingPage() {
   const params = useParams<{ orderId: string }>();
   const orderId = params.orderId;
   const [order, setOrder] = useState<WhatsAppOrder | null>(null);
-  const [merchant, setMerchant] = useState<{ storeName: string; logoUrl: string; googleMapsReviewUrl?: string; driverPhone?: string; support_whatsapp?: string } | null>(null);
+  const [merchant, setMerchant] = useState<{ storeName: string; logoUrl: string; googleMapsReviewUrl?: string; driverPhone?: string; support_whatsapp?: string; orderVerificationPinEnabled?: boolean } | null>(null);
+  const [selfConfirming, setSelfConfirming] = useState(false);
   const [loading, setLoading] = useState(!!orderId);
   const [notFound, setNotFound] = useState(false);
   const [bellPrimed, setBellPrimed] = useState(false);
@@ -635,6 +636,27 @@ export default function OrderTrackingPage() {
   }
 
   if (order.status === "pending_verification" || order.status === "awaiting_confirmation") {
+    const pinEnabled = merchant?.orderVerificationPinEnabled !== false;
+
+    async function handleSelfConfirm() {
+      if (selfConfirming) return;
+      setSelfConfirming(true);
+      try {
+        const res = await fetch(`/api/confirm-order/${orderId}?merchantId=${merchantId}`, { method: "POST" });
+        if (!res.ok) throw new Error("Failed");
+        const refreshRes = await fetch(`/api/track/${orderId}?merchantId=${merchantId}${trackingType ? `&type=${trackingType}` : ""}`);
+        if (refreshRes.ok) {
+          const data = await refreshRes.json();
+          setOrder(data.order);
+          setMerchant(data.merchant);
+        }
+      } catch {
+        /* silent — page will re-poll */
+      } finally {
+        setSelfConfirming(false);
+      }
+    }
+
     return (
       <div className="h-[100dvh] flex flex-col items-center justify-center px-5 text-center" style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }} data-testid="tracking-awaiting-screen">
         <div className="w-full flex-shrink-0 mb-6 flex flex-col items-center gap-1">
@@ -659,18 +681,57 @@ export default function OrderTrackingPage() {
             <p className="text-white/50 text-sm mt-1.5" data-testid="text-awaiting-hint">Your order has been submitted!</p>
           </div>
 
-          <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/15 w-full" data-testid="verification-message">
-            <div className="flex items-center justify-center gap-2 mb-2">
-              <Phone className="w-4 h-4 text-amber-400" />
-              <MessageCircle className="w-4 h-4 text-amber-400" />
+          {pinEnabled ? (
+            /* ── PIN mode: wait for store call ── */
+            <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/15 w-full" data-testid="verification-message">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <Phone className="w-4 h-4 text-amber-400" />
+                <MessageCircle className="w-4 h-4 text-amber-400" />
+              </div>
+              <p className="text-amber-400/90 text-sm leading-relaxed font-bold" dir="rtl">
+                بانتظار اتصال المتجر للتحقق
+              </p>
+              <p className="text-white/40 text-[11px] mt-2">
+                Waiting for the store to call and verify your order.
+              </p>
             </div>
-            <p className="text-amber-400/90 text-sm leading-relaxed font-bold" dir="rtl">
-              بانتظار اتصال المتجر للتحقق
-            </p>
-            <p className="text-white/40 text-[11px] mt-2">
-              Waiting for the store to call and verify your order.
-            </p>
-          </div>
+          ) : (
+            /* ── No-PIN mode: self-confirmation ── */
+            <div className="w-full space-y-3" data-testid="self-confirm-section">
+              <div className="p-4 rounded-xl bg-white/[0.03] border border-white/[0.08] w-full">
+                <p className="text-white/80 text-sm font-bold leading-relaxed" dir="rtl" data-testid="text-confirm-question">
+                  هل هذا هو طلبك رقم{" "}
+                  <span className="text-red-400 font-extrabold">
+                    #{order.displayOrderId || order.orderNumber || orderId?.slice(-4)}
+                  </span>
+                  ؟
+                </p>
+                <p className="text-white/35 text-[11px] mt-1.5">
+                  Is this your order? Tap confirm to proceed.
+                </p>
+              </div>
+              <button
+                onClick={handleSelfConfirm}
+                disabled={selfConfirming}
+                className="w-full flex items-center justify-center gap-3 rounded-2xl font-bold text-base transition-all active:scale-[0.97] disabled:opacity-50"
+                style={{
+                  padding: "16px 20px",
+                  background: selfConfirming ? "rgba(220,38,38,0.3)" : "linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)",
+                  color: "#fff",
+                  boxShadow: selfConfirming ? "none" : "0 0 24px rgba(220,38,38,0.3), 0 4px 12px rgba(0,0,0,0.4)",
+                  fontFamily: "'Tajawal','Cairo',sans-serif",
+                }}
+                data-testid="button-self-confirm-order"
+              >
+                {selfConfirming ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <CheckCircle className="w-5 h-5" />
+                )}
+                {selfConfirming ? "جاري التأكيد..." : "نعم، هذا طلبي"}
+              </button>
+            </div>
+          )}
 
           <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
             <Banknote className="w-4 h-4 text-emerald-400" />

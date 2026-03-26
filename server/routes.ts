@@ -4718,6 +4718,7 @@ export async function registerRoutes(
           googleMapsReviewUrl: mf.googleMapsReviewUrl?.stringValue || "",
           driverPhone: mf.driverPhone?.stringValue || "",
           support_whatsapp: mf.support_whatsapp?.stringValue || "",
+          orderVerificationPinEnabled: mf.orderVerificationPinEnabled?.booleanValue !== false,
         };
       }
 
@@ -4725,6 +4726,47 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Track order error:", error);
       return res.status(500).json({ message: "Failed to load order" });
+    }
+  });
+
+  // ── Self-confirm order (when PIN verification is disabled) ──
+  app.post("/api/confirm-order/:orderId", async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      const { merchantId } = req.query;
+      if (!merchantId || typeof merchantId !== "string") {
+        return res.status(400).json({ message: "merchantId required" });
+      }
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
+
+      // Verify merchant has PIN disabled
+      const mRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}`);
+      if (!mRes.ok) return res.status(404).json({ message: "Merchant not found" });
+      const mDoc = await mRes.json();
+      const pinEnabled = mDoc.fields?.orderVerificationPinEnabled?.booleanValue;
+      if (pinEnabled === true) {
+        return res.status(403).json({ message: "PIN verification is required for this merchant" });
+      }
+
+      const patchRes = await apikeyFetch(
+        `${baseUrl}/merchants/${merchantId}/whatsappOrders/${orderId}?updateMask.fieldPaths=status`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fields: { status: { stringValue: "preparing" } } }),
+        }
+      );
+      if (!patchRes.ok) {
+        const errText = await patchRes.text();
+        console.error("[confirm-order] Patch failed:", patchRes.status, errText);
+        return res.status(500).json({ message: "Failed to confirm order" });
+      }
+      console.log(`[confirm-order] Order ${orderId} self-confirmed for merchant ${merchantId}`);
+      return res.json({ success: true });
+    } catch (error) {
+      console.error("Confirm order error:", error);
+      return res.status(500).json({ message: "Failed to confirm order" });
     }
   });
 
