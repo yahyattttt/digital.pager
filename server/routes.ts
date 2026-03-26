@@ -4795,14 +4795,20 @@ export async function registerRoutes(
       const pinRaw = mf.isOrderPinRequired;
       const pinBool = pinRaw?.booleanValue;
       const pinStr = pinRaw?.stringValue;
-      const pinResolved = (pinBool === false || pinStr === "false") ? false : true;
+      // Default: false (no PIN) if field is missing — same logic as GET /api/track
+      const pinResolved = (pinBool === true || pinStr === "true") ? true : false;
       return res.json({
         merchantId,
-        isOrderPinRequired_raw: pinRaw,
+        isOrderPinRequired_raw: pinRaw ?? "FIELD NOT FOUND IN FIRESTORE",
         isOrderPinRequired_booleanValue: pinBool,
         isOrderPinRequired_stringValue: pinStr,
         isOrderPinRequired_resolved: pinResolved,
-        message: pinResolved ? "PIN ON — customers see awaiting screen" : "PIN OFF — customers see order status directly",
+        fieldExists: pinRaw !== undefined,
+        message: !pinRaw
+          ? "⚠️ FIELD MISSING — defaulting to PIN OFF (customers see order directly)"
+          : pinResolved
+            ? "✅ PIN ON — customers see awaiting screen"
+            : "⭕ PIN OFF — customers see order status directly",
       });
     } catch (err: any) {
       return res.status(500).json({ message: err?.message || "Error" });
@@ -4923,13 +4929,14 @@ export async function registerRoutes(
         const mDoc = await mRes.json();
         const mf = mDoc.fields || {};
 
-        // Audit the raw Firestore field — log both type and value
+        // Audit the raw Firestore field — log type and value for debugging
         const pinRaw = mf.isOrderPinRequired;
         const pinBool = pinRaw?.booleanValue;
         const pinStr = pinRaw?.stringValue;
-        // Resolve: OFF only when explicitly booleanValue:false or stringValue:"false"
-        const pinResolved: boolean = (pinBool === false || pinStr === "false") ? false : true;
-        console.log(`[Track] merchant=${merchantId} isOrderPinRequired raw=${JSON.stringify(pinRaw)} → resolved=${pinResolved}`);
+        // NEW DEFAULT: if field is MISSING → false (no PIN required, open access)
+        // Only true when field explicitly stored as booleanValue:true or stringValue:"true"
+        const pinResolved: boolean = (pinBool === true || pinStr === "true") ? true : false;
+        console.log(`[Track] merchant=${merchantId} isOrderPinRequired raw=${JSON.stringify(pinRaw)} pinBool=${pinBool} → resolved=${pinResolved}`);
 
         merchant = {
           storeName: mf.storeName?.stringValue || "",

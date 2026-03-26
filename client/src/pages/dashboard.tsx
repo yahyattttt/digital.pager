@@ -6491,29 +6491,27 @@ function SettingsView({
     setIsOrderPinRequired(val);
     const uid = merchant?.uid;
     if (!uid) {
-      window.alert("❌ PIN Toggle: merchant uid is missing — cannot save. Please re-login.");
+      toast({ title: t("خطأ", "Error"), description: "Merchant UID missing — please re-login", variant: "destructive" });
       return;
     }
     setPinToggleSaving(true);
+    // Log so the developer can verify the value being saved
+    console.log("SAVING_PIN_STATUS:", val);
+    console.log(`[PIN Toggle] Writing isOrderPinRequired=${val} to Firestore doc merchants/${uid}`);
     try {
-      console.log(`[PIN Toggle] Saving isOrderPinRequired=${val} via server for merchant ${uid}`);
-      const res = await fetch(`/api/merchant/${uid}/pin-required`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isOrderPinRequired: val }),
+      // Use updateDoc (Firestore SDK) — this CREATES the field if it doesn't exist yet
+      await updateDoc(doc(db, "merchants", uid), { isOrderPinRequired: val });
+      console.log(`[PIN Toggle] ✅ updateDoc SUCCESS — isOrderPinRequired=${val} written to Firestore`);
+      toast({
+        title: t("تم الحفظ", "Saved"),
+        description: val
+          ? t("✅ التحقق بالرمز مفعّل — العميل ينتظر اتصال المتجر", "✅ PIN ON — customer awaits store call")
+          : t("⭕ التحقق معطّل — العميل يرى الطلب مباشرة", "⭕ PIN OFF — customer sees order directly"),
       });
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({ message: res.statusText }));
-        throw new Error(errData?.detail || errData?.message || `HTTP ${res.status}`);
-      }
-      console.log(`[PIN Toggle] ✅ Saved successfully via server: isOrderPinRequired=${val}`);
-      toast({ title: t("تم الحفظ", "Saved"), description: val ? t("التحقق بالرمز مفعّل", "PIN verification ON") : t("التحقق بالرمز معطّل", "PIN verification OFF") });
     } catch (err: any) {
-      console.error("[PIN Toggle] ❌ Save failed:", err);
-      const msg = err?.message || String(err);
-      setIsOrderPinRequired(!val);
-      window.alert(`❌ PIN Toggle Save Failed\n\n${msg}\n\nMerchant UID: ${uid}`);
-      toast({ title: t("خطأ في الحفظ", "Save Failed"), description: msg, variant: "destructive" });
+      console.error("[PIN Toggle] ❌ updateDoc FAILED:", err.code, err.message);
+      setIsOrderPinRequired(!val); // rollback optimistic update
+      toast({ title: t("خطأ في الحفظ", "Save Failed"), description: err.message || String(err), variant: "destructive" });
     } finally {
       setPinToggleSaving(false);
     }
