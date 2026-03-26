@@ -6489,21 +6489,21 @@ function SettingsView({
   }, [onlineOrdersEnabled]);
 
 
-  const [orderVerificationPinEnabled, setOrderVerificationPinEnabled] = useState<boolean>((merchant as any)?.orderVerificationPinEnabled !== false);
+  const [isPinRequired, setIsPinRequired] = useState<boolean>((merchant as any)?.isPinRequired !== false);
   const [pinToggleSaving, setPinToggleSaving] = useState(false);
 
   async function handleToggleOrderPin(val: boolean) {
-    setOrderVerificationPinEnabled(val);
+    setIsPinRequired(val);
     const uid = merchant?.uid;
     if (!uid) return;
     setPinToggleSaving(true);
     try {
       const { doc, setDoc } = await import("firebase/firestore");
       const { db: firestoreDb } = await import("@/lib/firebase");
-      await setDoc(doc(firestoreDb, "merchants", uid), { orderVerificationPinEnabled: val }, { merge: true });
+      await setDoc(doc(firestoreDb, "merchants", uid), { isPinRequired: val }, { merge: true });
       toast({ title: t("تم الحفظ", "Saved"), description: val ? t("تم تفعيل PIN", "PIN enabled") : t("تم إلغاء PIN", "PIN disabled") });
     } catch {
-      setOrderVerificationPinEnabled(!val);
+      setIsPinRequired(!val);
       toast({ title: t("خطأ", "Error"), description: t("فشل في الحفظ", "Save failed"), variant: "destructive" });
     } finally {
       setPinToggleSaving(false);
@@ -7235,15 +7235,15 @@ function SettingsView({
             <div className="flex-1 pe-4">
               <p className="text-sm font-medium text-white/90" dir="rtl">{t("تفعيل كود تأكيد الطلب (PIN)", "Enable Order Confirmation PIN")}</p>
               <p className="text-xs text-white/40 mt-0.5" dir="rtl">
-                {orderVerificationPinEnabled
+                {isPinRequired
                   ? t("العميل ينتظر اتصال المتجر للتحقق", "Customer waits for store call to verify")
-                  : t("العميل يؤكد طلبه مباشرة دون اتصال", "Customer self-confirms without a call")}
+                  : t("العميل يؤكد هويته مباشرةً دون اتصال", "Customer confirms identity directly without a call")}
               </p>
             </div>
             <div className="flex items-center gap-2">
               {pinToggleSaving && <Loader2 className="w-3.5 h-3.5 text-white/30 animate-spin" />}
               <Switch
-                checked={orderVerificationPinEnabled}
+                checked={isPinRequired}
                 onCheckedChange={handleToggleOrderPin}
                 disabled={pinToggleSaving}
                 className="data-[state=checked]:bg-amber-500"
@@ -7252,9 +7252,9 @@ function SettingsView({
             </div>
           </div>
           <p className="text-[11px] text-white/25 mt-2 px-1" dir="rtl">
-            {orderVerificationPinEnabled
+            {isPinRequired
               ? t("✅ مفعّل — يتصل المتجر بالعميل لتأكيد الطلب قبل التحضير", "✅ ON — Store calls customer to confirm before preparing")
-              : t("⭕ معطّل — العميل يضغط 'نعم هذا طلبي' على صفحة التتبع", "⭕ OFF — Customer taps 'Yes, this is my order' on tracking page")}
+              : t("⭕ معطّل — العميل يضغط 'تأكيد الهوية' على صفحة التتبع للدخول مباشرةً", "⭕ OFF — Customer taps 'Confirm Identity' on tracking page to proceed")}
           </p>
         </CardContent>
       </Card>

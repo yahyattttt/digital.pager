@@ -323,6 +323,8 @@ function getSubBadge(subStatus: string | undefined, t: (ar: string, en: string) 
   }
 }
 
+const PRIMARY_ADMIN_EMAIL = "yahiatohary@hotmail.com";
+
 export default function SuperAdminPage() {
   const [, setLocation] = useLocation();
   const { user, loading: authLoading, logout, login } = useAuth();
