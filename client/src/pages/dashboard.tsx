@@ -6490,24 +6490,10 @@ function SettingsView({
 
 
   const [isPinRequired, setIsPinRequired] = useState<boolean>((merchant as any)?.isPinRequired !== false);
-  const [pinToggleSaving, setPinToggleSaving] = useState(false);
+  const pinToggleSaving = false;
 
-  async function handleToggleOrderPin(val: boolean) {
+  function handleToggleOrderPin(val: boolean) {
     setIsPinRequired(val);
-    const uid = merchant?.uid;
-    if (!uid) return;
-    setPinToggleSaving(true);
-    try {
-      const { doc, setDoc } = await import("firebase/firestore");
-      const { db: firestoreDb } = await import("@/lib/firebase");
-      await setDoc(doc(firestoreDb, "merchants", uid), { isPinRequired: val }, { merge: true });
-      toast({ title: t("تم الحفظ", "Saved"), description: val ? t("تم تفعيل PIN", "PIN enabled") : t("تم إلغاء PIN", "PIN disabled") });
-    } catch {
-      setIsPinRequired(!val);
-      toast({ title: t("خطأ", "Error"), description: t("فشل في الحفظ", "Save failed"), variant: "destructive" });
-    } finally {
-      setPinToggleSaving(false);
-    }
   }
 
   const [storeTermsEnabled, setStoreTermsEnabled] = useState<boolean>(merchant?.storeTermsEnabled || false);
@@ -6691,6 +6677,7 @@ function SettingsView({
         googleMapsReviewUrl: googleMapsUrlEdit.trim(),
         commercialRegisterURL: crPdfUrlEdit.trim(),
         support_whatsapp: supportWhatsappEdit.trim(),
+        isPinRequired,
         ...(finalSlug ? { storeSlug: finalSlug } : {}),
       }, { merge: true });
       toast({
@@ -7240,21 +7227,18 @@ function SettingsView({
                   : t("العميل يؤكد هويته مباشرةً دون اتصال", "Customer confirms identity directly without a call")}
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              {pinToggleSaving && <Loader2 className="w-3.5 h-3.5 text-white/30 animate-spin" />}
-              <Switch
-                checked={isPinRequired}
-                onCheckedChange={handleToggleOrderPin}
-                disabled={pinToggleSaving}
-                className="data-[state=checked]:bg-amber-500"
-                data-testid="switch-order-pin"
-              />
-            </div>
+            <Switch
+              checked={isPinRequired}
+              onCheckedChange={handleToggleOrderPin}
+              className="data-[state=checked]:bg-amber-500"
+              data-testid="switch-order-pin"
+            />
           </div>
           <p className="text-[11px] text-white/25 mt-2 px-1" dir="rtl">
             {isPinRequired
               ? t("✅ مفعّل — يتصل المتجر بالعميل لتأكيد الطلب قبل التحضير", "✅ ON — Store calls customer to confirm before preparing")
               : t("⭕ معطّل — العميل يضغط 'تأكيد الهوية' على صفحة التتبع للدخول مباشرةً", "⭕ OFF — Customer taps 'Confirm Identity' on tracking page to proceed")}
+            <span className="block text-white/15 mt-0.5">{t("• يُحفظ عند الضغط على زر 'حفظ اسم المتجر' أدناه", "• Saved when you tap 'Save Store Name' below")}</span>
           </p>
         </CardContent>
       </Card>
