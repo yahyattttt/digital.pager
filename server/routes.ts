@@ -4779,7 +4779,36 @@ export async function registerRoutes(
     }
   });
 
-  // ── Save merchant PIN-required setting (server-side, bypasses Firestore client auth) ──
+  // ── Debug: read raw Firestore PIN field ──
+  app.get("/api/debug/pin/:merchantId", async (req, res) => {
+    try {
+      const { merchantId } = req.params;
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
+      const mRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}`, {
+        headers: { "Cache-Control": "no-store, no-cache" },
+        cache: "no-store" as RequestCache,
+      });
+      if (!mRes.ok) return res.status(404).json({ message: "Merchant not found", status: mRes.status });
+      const mDoc = await mRes.json();
+      const mf = mDoc.fields || {};
+      const pinRaw = mf.isOrderPinRequired;
+      const pinBool = pinRaw?.booleanValue;
+      const pinStr = pinRaw?.stringValue;
+      const pinResolved = (pinBool === false || pinStr === "false") ? false : true;
+      return res.json({
+        merchantId,
+        isOrderPinRequired_raw: pinRaw,
+        isOrderPinRequired_booleanValue: pinBool,
+        isOrderPinRequired_stringValue: pinStr,
+        isOrderPinRequired_resolved: pinResolved,
+        message: pinResolved ? "PIN ON — customers see awaiting screen" : "PIN OFF — customers see order status directly",
+      });
+    } catch (err: any) {
+      return res.status(500).json({ message: err?.message || "Error" });
+    }
+  });
+
   app.patch("/api/merchant/:merchantId/pin-required", async (req, res) => {
     try {
       const { merchantId } = req.params;
@@ -4823,7 +4852,8 @@ export async function registerRoutes(
 
       const collectionName = type === "pager" ? "pagers" : "whatsappOrders";
       const docRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}/${collectionName}/${orderId}`, {
-        headers: {},
+        headers: { "Cache-Control": "no-store, no-cache" },
+        cache: "no-store" as RequestCache,
       });
 
       if (!docRes.ok) return res.status(404).json({ message: "Order not found" });
@@ -4883,21 +4913,34 @@ export async function registerRoutes(
         };
       }
 
+      // Force Node.js native fetch to bypass any HTTP cache for the merchant doc
       const mRes = await apikeyFetch(`${baseUrl}/merchants/${merchantId}`, {
-        headers: {},
+        headers: { "Cache-Control": "no-store, no-cache" },
+        cache: "no-store" as RequestCache,
       });
       let merchant = null;
       if (mRes.ok) {
         const mDoc = await mRes.json();
         const mf = mDoc.fields || {};
+
+        // Audit the raw Firestore field — log both type and value
+        const pinRaw = mf.isOrderPinRequired;
+        const pinBool = pinRaw?.booleanValue;
+        const pinStr = pinRaw?.stringValue;
+        // Resolve: OFF only when explicitly booleanValue:false or stringValue:"false"
+        const pinResolved: boolean = (pinBool === false || pinStr === "false") ? false : true;
+        console.log(`[Track] merchant=${merchantId} isOrderPinRequired raw=${JSON.stringify(pinRaw)} → resolved=${pinResolved}`);
+
         merchant = {
           storeName: mf.storeName?.stringValue || "",
           logoUrl: mf.logoUrl?.stringValue || "",
           googleMapsReviewUrl: mf.googleMapsReviewUrl?.stringValue || "",
           driverPhone: mf.driverPhone?.stringValue || "",
           support_whatsapp: mf.support_whatsapp?.stringValue || "",
-          isOrderPinRequired: mf.isOrderPinRequired?.booleanValue !== false,
+          isOrderPinRequired: pinResolved,
         };
+      } else {
+        console.warn(`[Track] merchant read failed: ${mRes.status} for ${merchantId}`);
       }
 
       // Never cache tracking responses — PIN state must always be fresh

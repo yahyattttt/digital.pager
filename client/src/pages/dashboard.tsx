@@ -6466,8 +6466,26 @@ function SettingsView({
   }, [onlineOrdersEnabled]);
 
 
-  const [isOrderPinRequired, setIsOrderPinRequired] = useState<boolean>((merchant as any)?.isOrderPinRequired !== false);
+  // null = loading, true/false = loaded from server
+  const [isOrderPinRequired, setIsOrderPinRequired] = useState<boolean | null>(null);
   const [pinToggleSaving, setPinToggleSaving] = useState(false);
+
+  // Fetch the real PIN state from Firestore on mount — never rely on stale auth snapshot
+  useEffect(() => {
+    const uid = merchant?.uid;
+    if (!uid) return;
+    fetch(`/api/debug/pin/${uid}`)
+      .then((r) => r.json())
+      .then((data) => {
+        const val = data.isOrderPinRequired_resolved;
+        console.log(`[PIN Init] Fetched isOrderPinRequired from server: ${val} (raw: ${JSON.stringify(data.isOrderPinRequired_raw)})`);
+        if (typeof val === "boolean") setIsOrderPinRequired(val);
+      })
+      .catch((err) => {
+        console.warn("[PIN Init] Failed to fetch PIN state from server, falling back to merchant snapshot:", err);
+        setIsOrderPinRequired((merchant as any)?.isOrderPinRequired !== false);
+      });
+  }, [merchant?.uid]);
 
   async function handleToggleOrderPin(val: boolean) {
     setIsOrderPinRequired(val);
@@ -7471,17 +7489,19 @@ function SettingsView({
             <div className="flex-1 pe-4">
               <p className="text-sm font-semibold text-white/90" dir="rtl">{t("تفعيل كود التحقق للأمان (PIN)", "Enable Security PIN Verification")}</p>
               <p className="text-xs text-white/40 mt-0.5" dir="rtl">
-                {isOrderPinRequired
-                  ? t("العميل ينتظر اتصال المتجر للتحقق من الطلب", "Customer waits for store call to verify the order")
-                  : t("العميل يرى حالة طلبه مباشرة بدون تحقق", "Customer sees order status immediately without verification")}
+                {isOrderPinRequired === null
+                  ? t("جاري التحميل...", "Loading...")
+                  : isOrderPinRequired
+                    ? t("العميل ينتظر اتصال المتجر للتحقق من الطلب", "Customer waits for store call to verify the order")
+                    : t("العميل يرى حالة طلبه مباشرة بدون تحقق", "Customer sees order status immediately without verification")}
               </p>
             </div>
             <div className="flex items-center gap-2">
-              {pinToggleSaving && <Loader2 className="w-3.5 h-3.5 text-white/40 animate-spin" />}
+              {(pinToggleSaving || isOrderPinRequired === null) && <Loader2 className="w-3.5 h-3.5 text-white/40 animate-spin" />}
               <Switch
-                checked={isOrderPinRequired}
+                checked={isOrderPinRequired === true}
                 onCheckedChange={handleToggleOrderPin}
-                disabled={pinToggleSaving}
+                disabled={pinToggleSaving || isOrderPinRequired === null}
                 className="data-[state=checked]:bg-red-600"
                 data-testid="switch-order-pin"
               />
@@ -7490,9 +7510,11 @@ function SettingsView({
 
           <div className="mt-3 px-1 space-y-1">
             <p className="text-[11px] text-white/30" dir="rtl">
-              {isOrderPinRequired
-                ? t("✅ مفعّل — يتصل المتجر بالعميل ويُعطيه رمز التحقق قبل بدء التحضير", "✅ ON — Store calls customer with verification code before preparation begins")
-                : t("⭕ معطّل — صفحة تتبع الطلب تظهر مباشرة دون أي خطوة تحقق", "⭕ OFF — Order tracking page is shown directly with no verification step")}
+              {isOrderPinRequired === null
+                ? t("جاري جلب الإعداد من الخادم...", "Fetching setting from server...")
+                : isOrderPinRequired
+                  ? t("✅ مفعّل — يتصل المتجر بالعميل ويُعطيه رمز التحقق قبل بدء التحضير", "✅ ON — Store calls customer with verification code before preparation begins")
+                  : t("⭕ معطّل — صفحة تتبع الطلب تظهر مباشرة دون أي خطوة تحقق", "⭕ OFF — Order tracking page is shown directly with no verification step")}
             </p>
             <p className="text-[10px] text-white/15" dir="rtl">{t("• يُحفظ فوراً عند التبديل بدون الحاجة لضغط حفظ", "• Saved instantly when toggled — no save button needed")}</p>
           </div>
