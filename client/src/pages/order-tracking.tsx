@@ -450,23 +450,15 @@ export default function OrderTrackingPage() {
         let merchantData = data.merchant || null;
 
         // Read isOrderPinRequired directly from Firestore (public read — security rules allow it)
-        // This overrides whatever the server API returned, giving us a guaranteed fresh value
+        // This overrides the server API value with a guaranteed fresh native JS boolean
         try {
           const mSnap = await getDoc(doc(db, "merchants", merchantId));
           if (mSnap.exists()) {
             const mData = mSnap.data();
-            // Firebase SDK returns a native JS boolean (no REST wrapping like { booleanValue: false })
+            // rawPinFlag is a native JS boolean from the Firebase SDK — no REST wrapping
             const rawPinFlag = mData.isOrderPinRequired;
-            console.log(
-              "[Tracking] DEBUG isOrderPinRequired raw value from Firestore:",
-              rawPinFlag,
-              "| type:", typeof rawPinFlag,
-              "| merchantId:", merchantId
-            );
-            // undefined/true → PIN required; explicitly false → PIN disabled
+            // undefined/true → PIN required (safe default); explicitly false → PIN disabled
             const isOrderPinRequired: boolean = rawPinFlag !== false;
-            console.log("[Tracking] DEBUG resolved pinRequired:", isOrderPinRequired);
-
             if (merchantData) {
               merchantData = { ...merchantData, isOrderPinRequired };
             } else {
@@ -479,25 +471,16 @@ export default function OrderTrackingPage() {
                 isOrderPinRequired,
               };
             }
-          } else {
-            console.warn("[Tracking] DEBUG merchant document does not exist for merchantId:", merchantId);
           }
-        } catch (fsErr) {
-          console.warn("[Tracking] DEBUG Firestore direct-read failed (will use API fallback):", fsErr);
+        } catch {
+          // Firestore direct-read failed — use API-provided merchant data as fallback
         }
-
-        console.log(
-          "[Tracking] DEBUG final merchantData.isOrderPinRequired:",
-          merchantData?.isOrderPinRequired,
-          "| isVerified will be auto-set:", merchantData?.isOrderPinRequired === false
-        );
 
         setMerchant(merchantData);
         setMerchantLoaded(true);
 
-        // CRITICAL: If PIN is disabled, auto-verify immediately — customer sees order status directly
+        // If PIN is disabled, auto-verify immediately — customer lands on order status with zero interaction
         if (merchantData && merchantData.isOrderPinRequired === false) {
-          console.log("[Tracking] DEBUG PIN is disabled — auto-setting isVerified = true");
           setIsVerified(true);
         }
       } catch {
@@ -705,11 +688,6 @@ export default function OrderTrackingPage() {
 
     // Both merchant and order are loaded — decide PIN path
     const pinRequired = merchant?.isOrderPinRequired !== false;
-    console.log(
-      "[Tracking] RENDER decision — pinRequired:", pinRequired,
-      "| isVerified:", isVerified,
-      "| merchant.isOrderPinRequired:", merchant?.isOrderPinRequired
-    );
 
     if (pinRequired) {
       return (
