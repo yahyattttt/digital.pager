@@ -449,15 +449,24 @@ export default function OrderTrackingPage() {
         // Build merchant from API response first
         let merchantData = data.merchant || null;
 
-        // Read isOrderPinRequired directly from Firestore (public read, bypasses auth requirement)
-        // This is the authoritative source — overrides API response for this field
+        // Read isOrderPinRequired directly from Firestore (public read — security rules allow it)
+        // This overrides whatever the server API returned, giving us a guaranteed fresh value
         try {
           const mSnap = await getDoc(doc(db, "merchants", merchantId));
           if (mSnap.exists()) {
             const mData = mSnap.data();
-            // Firebase SDK returns native JS boolean — isOrderPinRequired is exactly true/false/undefined
-            const pinFlag = mData.isOrderPinRequired;
-            const isOrderPinRequired = pinFlag !== false; // undefined→true (default on), false→false (disabled)
+            // Firebase SDK returns a native JS boolean (no REST wrapping like { booleanValue: false })
+            const rawPinFlag = mData.isOrderPinRequired;
+            console.log(
+              "[Tracking] DEBUG isOrderPinRequired raw value from Firestore:",
+              rawPinFlag,
+              "| type:", typeof rawPinFlag,
+              "| merchantId:", merchantId
+            );
+            // undefined/true → PIN required; explicitly false → PIN disabled
+            const isOrderPinRequired: boolean = rawPinFlag !== false;
+            console.log("[Tracking] DEBUG resolved pinRequired:", isOrderPinRequired);
+
             if (merchantData) {
               merchantData = { ...merchantData, isOrderPinRequired };
             } else {
@@ -470,17 +479,25 @@ export default function OrderTrackingPage() {
                 isOrderPinRequired,
               };
             }
+          } else {
+            console.warn("[Tracking] DEBUG merchant document does not exist for merchantId:", merchantId);
           }
         } catch (fsErr) {
-          console.warn("[Tracking] Could not read merchant from Firestore directly:", fsErr);
-          // Fall back to server API value for isOrderPinRequired
+          console.warn("[Tracking] DEBUG Firestore direct-read failed (will use API fallback):", fsErr);
         }
+
+        console.log(
+          "[Tracking] DEBUG final merchantData.isOrderPinRequired:",
+          merchantData?.isOrderPinRequired,
+          "| isVerified will be auto-set:", merchantData?.isOrderPinRequired === false
+        );
 
         setMerchant(merchantData);
         setMerchantLoaded(true);
 
-        // If merchant has PIN disabled, auto-verify immediately — skip the confirm screen entirely
+        // CRITICAL: If PIN is disabled, auto-verify immediately — customer sees order status directly
         if (merchantData && merchantData.isOrderPinRequired === false) {
+          console.log("[Tracking] DEBUG PIN is disabled — auto-setting isVerified = true");
           setIsVerified(true);
         }
       } catch {
@@ -676,15 +693,23 @@ export default function OrderTrackingPage() {
 
   if (order.status === "pending_verification" || order.status === "awaiting_confirmation") {
     // Wait until merchant config is confirmed before deciding PIN requirement
+    // This prevents defaulting to PIN-required while data is still loading
     if (!merchantLoaded) {
       return (
-        <div className="h-[100dvh] flex items-center justify-center" style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }}>
+        <div className="h-[100dvh] flex flex-col items-center justify-center gap-3" style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }}>
           <Loader2 className="w-8 h-8 text-white/30 animate-spin" />
+          <p className="text-white/25 text-sm" dir="rtl">جاري التحميل...</p>
         </div>
       );
     }
 
+    // Both merchant and order are loaded — decide PIN path
     const pinRequired = merchant?.isOrderPinRequired !== false;
+    console.log(
+      "[Tracking] RENDER decision — pinRequired:", pinRequired,
+      "| isVerified:", isVerified,
+      "| merchant.isOrderPinRequired:", merchant?.isOrderPinRequired
+    );
 
     if (pinRequired) {
       return (
