@@ -341,6 +341,8 @@ export default function OrderTrackingPage() {
   const [merchant, setMerchant] = useState<{ storeName: string; logoUrl: string; googleMapsReviewUrl?: string; driverPhone?: string; support_whatsapp?: string; isOrderPinRequired?: boolean } | null>(null);
   // DEFAULT = false: customer never sees PIN screen unless DB explicitly returns true
   const [isOrderPinRequired, setIsOrderPinRequired] = useState<boolean>(false);
+  // Hard bypass flag — set to true immediately when PIN is OFF so render skips PIN block
+  const [isVerified, setIsVerified] = useState<boolean>(false);
   const [merchantLoaded, setMerchantLoaded] = useState(false);
   const [loading, setLoading] = useState(!!orderId);
   const [notFound, setNotFound] = useState(false);
@@ -364,6 +366,7 @@ export default function OrderTrackingPage() {
     setOrder(null);
     setMerchant(null);
     setIsOrderPinRequired(false); // Always reset to false — PIN is off until DB explicitly says true
+    setIsVerified(false);         // Reset bypass flag too — re-evaluated fresh each load
     setMerchantLoaded(false);
     setNotFound(false);
     setLoading(!!orderId);
@@ -465,6 +468,14 @@ export default function OrderTrackingPage() {
         // undefined / null / false / missing field → all resolve to pinEnabled = false
         const pinEnabled = merchantData?.isOrderPinRequired === true;
         console.log(`[Tracking] pinEnabled=${pinEnabled} — only true when Firestore field is exactly boolean true`);
+
+        // ── HARD OVERRIDE (as specified) ────────────────────────────────────
+        // If the toggle is OFF or the field is missing, FORCE access immediately
+        if (merchantData?.isOrderPinRequired === false || merchantData?.isOrderPinRequired === undefined) {
+          setIsVerified(true);
+          console.log("CRITICAL: PIN Bypass activated because toggle is OFF");
+        }
+        // ────────────────────────────────────────────────────────────────────
 
         setMerchant(merchantData);
         // Set the dedicated PIN state — default is false, only flipped if DB says true
@@ -678,12 +689,13 @@ export default function OrderTrackingPage() {
       );
     }
 
-    // Use the dedicated state (default false) — never derived on-the-fly
-    // isOrderPinRequired state is only true when fetchInitial received explicit true from DB
-    // {merchantData?.isOrderPinRequired ? <PinVerification> : <OrderDetails>} pattern:
-    if (!isOrderPinRequired) {
-      // PIN is OFF (or field missing/false in DB) → render order details directly
-      console.log(`%c[Tracking] ✅ RENDER: isOrderPinRequired=${isOrderPinRequired} → showing order screen (NO PIN DOM)`, "color:#22c55e;font-weight:bold;font-size:13px");
+    // DUAL GATE: show order details if EITHER bypass is active OR PIN is off in DB
+    // isVerified = true → set by hard override in fetchInitial when field is false/missing
+    // isOrderPinRequired = false → set by strict === true check from DB
+    // PinVerification component is NEVER added to DOM unless both checks require it
+    if (isVerified || !isOrderPinRequired) {
+      // PIN is OFF → show order details directly, zero PIN DOM
+      console.log(`%c[Tracking] ✅ RENDER: isVerified=${isVerified} isOrderPinRequired=${isOrderPinRequired} → showing order screen directly`, "color:#22c55e;font-weight:bold;font-size:13px");
       const shortNum = getShort3Digit(order);
       return (
         <div
@@ -729,11 +741,17 @@ export default function OrderTrackingPage() {
             )}
           </div>
           {WaFloatBtn}
+          {/* DEBUG STRIP — shows current PIN setting value for troubleshooting */}
+          <div style={{ position: "fixed", bottom: 4, left: 0, right: 0, textAlign: "center", pointerEvents: "none" }}>
+            <span style={{ fontSize: 10, color: "rgba(255,255,255,0.18)", fontFamily: "monospace" }}>
+              Debug: PIN Setting is [{String(merchant?.isOrderPinRequired)}] | isVerified={String(isVerified)}
+            </span>
+          </div>
         </div>
       );
     }
 
-    // STEP 3: PIN IS required — show awaiting-call screen
+    // STEP 3: PIN IS required — show awaiting-call screen (isOrderPinRequired===true AND !isVerified)
     // The <BuzzerCircle> and preparing screen are NOT in the DOM here.
     return (
       <div className="h-[100dvh] flex flex-col items-center justify-center px-5 text-center" style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #000 40%, #0d0000 100%)" }} data-testid="tracking-awaiting-screen">
@@ -802,6 +820,12 @@ export default function OrderTrackingPage() {
           </div>
         </div>
         {WaFloatBtn}
+        {/* DEBUG STRIP — shows what the page thinks the PIN setting is */}
+        <div style={{ position: "fixed", bottom: 4, left: 0, right: 0, textAlign: "center", pointerEvents: "none" }}>
+          <span style={{ fontSize: 10, color: "rgba(255,255,255,0.25)", fontFamily: "monospace", background: "rgba(255,0,0,0.08)", padding: "2px 8px", borderRadius: 4 }}>
+            Debug: PIN Setting is [{String(merchant?.isOrderPinRequired)}] | isVerified={String(isVerified)}
+          </span>
+        </div>
       </div>
     );
   }

@@ -6850,6 +6850,8 @@ function SettingsView({
         isOrderPinRequired: pinValue,
       }, { merge: true });
       console.log(`[Save Support] ✅ Saved — isOrderPinRequired=${pinValue} confirmed in Firestore`);
+      // Visual confirmation — shows exactly what was written to the DB
+      window.alert('Saved as: ' + pinValue);
       toast({
         title: t("تم الحفظ", "Saved"),
         description: t("تم حفظ إعدادات الدعم بنجاح", "Support settings saved successfully"),
