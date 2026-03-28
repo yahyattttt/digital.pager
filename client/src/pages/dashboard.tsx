@@ -6827,8 +6827,16 @@ function SettingsView({
 
   async function handleSaveSupport() {
     const uid = merchant?.uid;
-    if (!uid) return;
+    if (!uid) {
+      const msg = "❌ Save Failed: merchant.uid is missing. Please re-login.";
+      console.error("[Save Support]", msg);
+      window.alert(msg);
+      return;
+    }
     setSupportSaving(true);
+    // Log what we are about to save so developer can verify
+    const pinValue = isOrderPinRequired === true;
+    console.log(`[Save Support] Writing to merchants/${uid} — isOrderPinRequired=${pinValue} (boolean)`);
     try {
       const merchantRef = doc(db, "merchants", uid);
       await setDoc(merchantRef, {
@@ -6836,16 +6844,23 @@ function SettingsView({
         support_whatsapp: supportWhatsappEdit.trim(),
         driverPhone: driverPhone.trim(),
         googleMapsReviewUrl: googleMapsUrlEdit.trim(),
+        // Explicitly save as native Boolean — creates the field if it doesn't exist yet
+        isOrderPinRequired: pinValue,
       }, { merge: true });
+      console.log(`[Save Support] ✅ Saved — isOrderPinRequired=${pinValue} confirmed in Firestore`);
       toast({
         title: t("تم الحفظ", "Saved"),
         description: t("تم حفظ إعدادات الدعم بنجاح", "Support settings saved successfully"),
       });
-    } catch (err) {
-      console.error("[Save Support] Firestore error:", err);
+    } catch (err: any) {
+      // Alert the EXACT error message so it is visible even without DevTools open
+      const errMsg = err?.message || err?.code || JSON.stringify(err) || "Unknown Firestore error";
+      const fullMsg = `❌ Save Support Failed\n\nError: ${errMsg}\n\nMerchant UID: ${uid}`;
+      console.error("[Save Support] ❌ Firestore write failed:", err);
+      window.alert(fullMsg);
       toast({
-        title: t("خطأ", "Error"),
-        description: t("فشل في حفظ إعدادات الدعم", "Failed to save support settings"),
+        title: t("خطأ في الحفظ", "Save Failed"),
+        description: errMsg,
         variant: "destructive",
       });
     } finally {

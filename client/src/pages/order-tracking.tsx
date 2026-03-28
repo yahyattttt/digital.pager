@@ -452,16 +452,22 @@ export default function OrderTrackingPage() {
         setOrder(data.order);
 
         const merchantData = data.merchant || null;
-        const pinOff = merchantData && merchantData.isOrderPinRequired === false;
 
-        console.log(`[Tracking] Merchant ${merchantId} — isOrderPinRequired=${merchantData?.isOrderPinRequired} pinOff=${pinOff}`);
+        // SYNC_CHECK: log the raw value straight from the server — confirm what DB actually sent
+        console.log('SYNC_CHECK: Merchant PIN setting is:', data?.isOrderPinRequired);
+        console.log(`[Tracking] Merchant ${merchantId} — isOrderPinRequired raw=${merchantData?.isOrderPinRequired}`);
+
+        // Only an EXPLICIT true enables the PIN screen. Missing field = false = open access.
+        const pinEnabled = merchantData?.isOrderPinRequired === true;
+        console.log(`[Tracking] pinEnabled=${pinEnabled} (only true when field is explicitly true)`);
 
         setMerchant(merchantData);
         setMerchantLoaded(true);
 
-        // Hard bypass logged — actual bypass happens in render (pinRequired check)
-        if (pinOff) {
-          console.log(`%c[Tracking] ✅ PIN DISABLED — will show order screen directly`, "color:#22c55e;font-weight:bold;font-size:14px");
+        if (!pinEnabled) {
+          console.log(`%c[Tracking] ✅ PIN DISABLED — customer goes straight to order screen`, "color:#22c55e;font-weight:bold;font-size:14px");
+        } else {
+          console.log(`%c[Tracking] 🔒 PIN ENABLED — customer must verify`, "color:#ef4444;font-weight:bold;font-size:14px");
         }
       } catch {
         setNotFound(true);
@@ -665,15 +671,15 @@ export default function OrderTrackingPage() {
       );
     }
 
-    // ?? false: if field is MISSING from Firestore, default to NO PIN (open access)
-    // Only true when field explicitly equals true in Firestore
-    const pinRequired = merchant?.isOrderPinRequired ?? false;
+    // STRICT CHECK: only an explicit boolean true enables PIN.
+    // Missing field, undefined, null, false → all default to NO PIN (open access).
+    const pinRequired = merchant?.isOrderPinRequired === true;
 
     // STEP 2 — VISUAL KILL:
     // If PIN is NOT required → jump straight to the preparing screen.
     // The confirm-button / identity-check block is NEVER added to the DOM.
     if (!pinRequired) {
-      console.log(`%c[Tracking] ✅ PIN DISABLED (or field missing) — showing preparing screen directly`, "color:#22c55e;font-weight:bold;font-size:13px");
+      console.log(`%c[Tracking] ✅ RENDER: PIN OFF — showing order screen directly (isOrderPinRequired=${merchant?.isOrderPinRequired})`, "color:#22c55e;font-weight:bold;font-size:13px");
       const shortNum = getShort3Digit(order);
       return (
         <div
