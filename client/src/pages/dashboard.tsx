@@ -6495,9 +6495,10 @@ function SettingsView({
       return;
     }
     setPinToggleSaving(true);
-    // Log so the developer can verify the value being saved
+    // Exact logs requested for debugging
     console.log("SAVING_PIN_STATUS:", val);
-    console.log(`[PIN Toggle] Writing isOrderPinRequired=${val} to Firestore doc merchants/${uid}`);
+    console.log("DB_SAVE_STATUS:", val);
+    console.log(`[PIN Toggle] Writing isOrderPinRequired=${val} (boolean) to Firestore doc merchants/${uid}`);
     try {
       // Use updateDoc (Firestore SDK) — this CREATES the field if it doesn't exist yet
       await updateDoc(doc(db, "merchants", uid), { isOrderPinRequired: val });
@@ -6834,8 +6835,9 @@ function SettingsView({
       return;
     }
     setSupportSaving(true);
-    // Log what we are about to save so developer can verify
+    // Exact logs requested — confirm what value is being sent to DB
     const pinValue = isOrderPinRequired === true;
+    console.log("DB_SAVE_STATUS:", pinValue);
     console.log(`[Save Support] Writing to merchants/${uid} — isOrderPinRequired=${pinValue} (boolean)`);
     try {
       const merchantRef = doc(db, "merchants", uid);

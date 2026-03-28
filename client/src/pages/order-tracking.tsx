@@ -339,6 +339,8 @@ export default function OrderTrackingPage() {
   const orderId = params.orderId;
   const [order, setOrder] = useState<WhatsAppOrder | null>(null);
   const [merchant, setMerchant] = useState<{ storeName: string; logoUrl: string; googleMapsReviewUrl?: string; driverPhone?: string; support_whatsapp?: string; isOrderPinRequired?: boolean } | null>(null);
+  // DEFAULT = false: customer never sees PIN screen unless DB explicitly returns true
+  const [isOrderPinRequired, setIsOrderPinRequired] = useState<boolean>(false);
   const [merchantLoaded, setMerchantLoaded] = useState(false);
   const [loading, setLoading] = useState(!!orderId);
   const [notFound, setNotFound] = useState(false);
@@ -361,6 +363,7 @@ export default function OrderTrackingPage() {
   useEffect(() => {
     setOrder(null);
     setMerchant(null);
+    setIsOrderPinRequired(false); // Always reset to false — PIN is off until DB explicitly says true
     setMerchantLoaded(false);
     setNotFound(false);
     setLoading(!!orderId);
@@ -453,21 +456,25 @@ export default function OrderTrackingPage() {
 
         const merchantData = data.merchant || null;
 
-        // SYNC_CHECK: log the raw value straight from the server — confirm what DB actually sent
-        console.log('SYNC_CHECK: Merchant PIN setting is:', data?.isOrderPinRequired);
-        console.log(`[Tracking] Merchant ${merchantId} — isOrderPinRequired raw=${merchantData?.isOrderPinRequired}`);
+        // ── EXACT logging as requested ───────────────────────────────
+        console.log('SYNC_CHECK: Merchant PIN setting is:', merchantData?.isOrderPinRequired);
+        console.log('DB_SAVE_STATUS:', merchantData?.isOrderPinRequired);
+        // ─────────────────────────────────────────────────────────────
 
-        // Only an EXPLICIT true enables the PIN screen. Missing field = false = open access.
+        // STRICT: only an EXPLICIT boolean true from the DB enables the PIN screen.
+        // undefined / null / false / missing field → all resolve to pinEnabled = false
         const pinEnabled = merchantData?.isOrderPinRequired === true;
-        console.log(`[Tracking] pinEnabled=${pinEnabled} (only true when field is explicitly true)`);
+        console.log(`[Tracking] pinEnabled=${pinEnabled} — only true when Firestore field is exactly boolean true`);
 
         setMerchant(merchantData);
+        // Set the dedicated PIN state — default is false, only flipped if DB says true
+        setIsOrderPinRequired(pinEnabled);
         setMerchantLoaded(true);
 
         if (!pinEnabled) {
-          console.log(`%c[Tracking] ✅ PIN DISABLED — customer goes straight to order screen`, "color:#22c55e;font-weight:bold;font-size:14px");
+          console.log(`%c[Tracking] ✅ PIN DISABLED — rendering order details directly`, "color:#22c55e;font-weight:bold;font-size:14px");
         } else {
-          console.log(`%c[Tracking] 🔒 PIN ENABLED — customer must verify`, "color:#ef4444;font-weight:bold;font-size:14px");
+          console.log(`%c[Tracking] 🔒 PIN ENABLED — showing awaiting-call screen`, "color:#ef4444;font-weight:bold;font-size:14px");
         }
       } catch {
         setNotFound(true);
@@ -671,15 +678,12 @@ export default function OrderTrackingPage() {
       );
     }
 
-    // STRICT CHECK: only an explicit boolean true enables PIN.
-    // Missing field, undefined, null, false → all default to NO PIN (open access).
-    const pinRequired = merchant?.isOrderPinRequired === true;
-
-    // STEP 2 — VISUAL KILL:
-    // If PIN is NOT required → jump straight to the preparing screen.
-    // The confirm-button / identity-check block is NEVER added to the DOM.
-    if (!pinRequired) {
-      console.log(`%c[Tracking] ✅ RENDER: PIN OFF — showing order screen directly (isOrderPinRequired=${merchant?.isOrderPinRequired})`, "color:#22c55e;font-weight:bold;font-size:13px");
+    // Use the dedicated state (default false) — never derived on-the-fly
+    // isOrderPinRequired state is only true when fetchInitial received explicit true from DB
+    // {merchantData?.isOrderPinRequired ? <PinVerification> : <OrderDetails>} pattern:
+    if (!isOrderPinRequired) {
+      // PIN is OFF (or field missing/false in DB) → render order details directly
+      console.log(`%c[Tracking] ✅ RENDER: isOrderPinRequired=${isOrderPinRequired} → showing order screen (NO PIN DOM)`, "color:#22c55e;font-weight:bold;font-size:13px");
       const shortNum = getShort3Digit(order);
       return (
         <div
