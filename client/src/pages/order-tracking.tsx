@@ -341,8 +341,9 @@ export default function OrderTrackingPage() {
   const [merchant, setMerchant] = useState<{ storeName: string; logoUrl: string; googleMapsReviewUrl?: string; driverPhone?: string; support_whatsapp?: string; isOrderPinRequired?: boolean } | null>(null);
   // DEFAULT = false: customer never sees PIN screen unless DB explicitly returns true
   const [isOrderPinRequired, setIsOrderPinRequired] = useState<boolean>(false);
-  // Hard bypass flag — set to true immediately when PIN is OFF so render skips PIN block
-  const [isVerified, setIsVerified] = useState<boolean>(false);
+  // BYPASS FLAG — starts TRUE so customer always gets order screen by default.
+  // Only flipped to false when DB explicitly returns isOrderPinRequired === true.
+  const [isVerified, setIsVerified] = useState<boolean>(true);
   const [merchantLoaded, setMerchantLoaded] = useState(false);
   const [loading, setLoading] = useState(!!orderId);
   const [notFound, setNotFound] = useState(false);
@@ -366,7 +367,7 @@ export default function OrderTrackingPage() {
     setOrder(null);
     setMerchant(null);
     setIsOrderPinRequired(false); // Always reset to false — PIN is off until DB explicitly says true
-    setIsVerified(false);         // Reset bypass flag too — re-evaluated fresh each load
+    setIsVerified(true);          // Always reset to true — customer gets order screen until DB says PIN=true
     setMerchantLoaded(false);
     setNotFound(false);
     setLoading(!!orderId);
@@ -446,12 +447,11 @@ export default function OrderTrackingPage() {
 
     async function fetchInitial() {
       try {
-        // Cache-buster: force fresh fetch every time — never use a cached response
-        // (PIN state can change server-side; stale cache causes old PIN=true to persist)
-        const cacheBust = `&_v=${Date.now()}`;
+        // Double cache-buster: timestamp + random string to defeat service worker cache
+        const cacheBust = `&_v=${Date.now()}&_r=${Math.random().toString(36).slice(2)}`;
         const res = await fetch(
           `/api/track/${orderId}?merchantId=${merchantId}${trackingType ? `&type=${trackingType}` : ""}${cacheBust}`,
-          { cache: "no-store" }
+          { cache: "no-store", headers: { "Cache-Control": "no-cache, no-store", "Pragma": "no-cache" } }
         );
         if (!res.ok) { setNotFound(true); return; }
         const data = await res.json();
@@ -464,29 +464,26 @@ export default function OrderTrackingPage() {
         console.log('DB_SAVE_STATUS:', merchantData?.isOrderPinRequired);
         // ─────────────────────────────────────────────────────────────
 
-        // STRICT: only an EXPLICIT boolean true from the DB enables the PIN screen.
-        // undefined / null / false / missing field → all resolve to pinEnabled = false
-        const pinEnabled = merchantData?.isOrderPinRequired === true;
-        console.log(`[Tracking] pinEnabled=${pinEnabled} — only true when Firestore field is exactly boolean true`);
+        // RAW VALUE FROM SERVER — log exactly what DB returned
+        const rawPin = merchantData?.isOrderPinRequired;
+        console.log(`[Tracking] DB raw isOrderPinRequired = ${rawPin} (type: ${typeof rawPin})`);
 
-        // ── HARD OVERRIDE (as specified) ────────────────────────────────────
-        // If the toggle is OFF or the field is missing, FORCE access immediately
-        if (merchantData?.isOrderPinRequired === false || merchantData?.isOrderPinRequired === undefined) {
-          setIsVerified(true);
+        // THE ONLY condition that shows the PIN screen: field must be EXACTLY boolean true
+        // undefined / null / false / missing field → isVerified stays true (bypass, open access)
+        if (rawPin === true) {
+          setIsVerified(false);         // Only this path requires PIN
+          setIsOrderPinRequired(true);
+          console.log(`%c[Tracking] 🔒 DB returned true → PIN screen will show`, "color:#ef4444;font-weight:bold;font-size:14px");
+        } else {
+          // Everything else: false, undefined, null, missing → bypass is ACTIVE
+          setIsVerified(true);          // Confirm bypass (already true by default)
+          setIsOrderPinRequired(false);
           console.log("CRITICAL: PIN Bypass activated because toggle is OFF");
+          console.log(`%c[Tracking] ✅ DB returned ${rawPin} → order screen directly (no PIN)`, "color:#22c55e;font-weight:bold;font-size:14px");
         }
-        // ────────────────────────────────────────────────────────────────────
 
         setMerchant(merchantData);
-        // Set the dedicated PIN state — default is false, only flipped if DB says true
-        setIsOrderPinRequired(pinEnabled);
         setMerchantLoaded(true);
-
-        if (!pinEnabled) {
-          console.log(`%c[Tracking] ✅ PIN DISABLED — rendering order details directly`, "color:#22c55e;font-weight:bold;font-size:14px");
-        } else {
-          console.log(`%c[Tracking] 🔒 PIN ENABLED — showing awaiting-call screen`, "color:#ef4444;font-weight:bold;font-size:14px");
-        }
       } catch {
         setNotFound(true);
       } finally {
@@ -689,13 +686,11 @@ export default function OrderTrackingPage() {
       );
     }
 
-    // DUAL GATE: show order details if EITHER bypass is active OR PIN is off in DB
-    // isVerified = true → set by hard override in fetchInitial when field is false/missing
-    // isOrderPinRequired = false → set by strict === true check from DB
-    // PinVerification component is NEVER added to DOM unless both checks require it
-    if (isVerified || !isOrderPinRequired) {
-      // PIN is OFF → show order details directly, zero PIN DOM
-      console.log(`%c[Tracking] ✅ RENDER: isVerified=${isVerified} isOrderPinRequired=${isOrderPinRequired} → showing order screen directly`, "color:#22c55e;font-weight:bold;font-size:13px");
+    // SINGLE GATE: isVerified is the only arbiter
+    //   true  (default + when DB=false/null/undefined) → order screen, no PIN DOM ever
+    //   false (ONLY when DB returned exactly true)     → PIN/awaiting screen
+    if (isVerified) {
+      console.log(`%c[Tracking] ✅ RENDER: isVerified=true → order screen (DB returned isOrderPinRequired=${merchant?.isOrderPinRequired})`, "color:#22c55e;font-weight:bold;font-size:13px");
       const shortNum = getShort3Digit(order);
       return (
         <div

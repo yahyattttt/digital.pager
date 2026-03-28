@@ -6483,7 +6483,8 @@ function SettingsView({
       })
       .catch((err) => {
         console.warn("[PIN Init] Failed to fetch PIN state from server, falling back to merchant snapshot:", err);
-        setIsOrderPinRequired((merchant as any)?.isOrderPinRequired !== false);
+        // CORRECT DEFAULT: missing field → false (PIN OFF). Only true when explicitly true.
+        setIsOrderPinRequired((merchant as any)?.isOrderPinRequired === true);
       });
   }, [merchant?.uid]);
 
@@ -6503,6 +6504,7 @@ function SettingsView({
       // Use updateDoc (Firestore SDK) — this CREATES the field if it doesn't exist yet
       await updateDoc(doc(db, "merchants", uid), { isOrderPinRequired: val });
       console.log(`[PIN Toggle] ✅ updateDoc SUCCESS — isOrderPinRequired=${val} written to Firestore`);
+      window.alert('Security status updated: ' + val);
       toast({
         title: t("تم الحفظ", "Saved"),
         description: val
@@ -6511,6 +6513,7 @@ function SettingsView({
       });
     } catch (err: any) {
       console.error("[PIN Toggle] ❌ updateDoc FAILED:", err.code, err.message);
+      window.alert('❌ Toggle FAILED to save: ' + (err.message || err.code || 'Unknown error'));
       setIsOrderPinRequired(!val); // rollback optimistic update
       toast({ title: t("خطأ في الحفظ", "Save Failed"), description: err.message || String(err), variant: "destructive" });
     } finally {
@@ -6851,7 +6854,7 @@ function SettingsView({
       }, { merge: true });
       console.log(`[Save Support] ✅ Saved — isOrderPinRequired=${pinValue} confirmed in Firestore`);
       // Visual confirmation — shows exactly what was written to the DB
-      window.alert('Saved as: ' + pinValue);
+      window.alert('Security status updated: ' + pinValue);
       toast({
         title: t("تم الحفظ", "Saved"),
         description: t("تم حفظ إعدادات الدعم بنجاح", "Support settings saved successfully"),
