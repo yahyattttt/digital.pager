@@ -255,6 +255,16 @@ export default function CheckOrderPage() {
               تأكيد ✓
             </button>
 
+            {/* Security disclaimer */}
+            <p
+              className="text-[12px] font-semibold text-center leading-relaxed"
+              dir="rtl"
+              style={{ color: "rgba(251,191,36,0.75)", fontFamily: "'Tajawal', 'Cairo', sans-serif" }}
+              data-testid="text-confirm-disclaimer"
+            >
+              ⚠️ تنبيه: يجب إبراز الفاتورة الأصلية عند الاستلام.
+            </p>
+
             {/* Back link */}
             <button
               onClick={handleConfirmCancel}
