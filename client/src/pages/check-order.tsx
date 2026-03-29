@@ -20,12 +20,8 @@ export default function CheckOrderPage() {
   const [loyaltyEnabled, setLoyaltyEnabled] = useState(false);
   const [loyaltyRewardPct, setLoyaltyRewardPct] = useState(0);
 
-  const [pinOpen, setPinOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingPager, setPendingPager] = useState<PagerDoc | null>(null);
-  const [pinInput, setPinInput] = useState("");
-  const [pinError, setPinError] = useState("");
-  const [pinChecking, setPinChecking] = useState(false);
-  const pinInputRef = useRef<HTMLInputElement>(null);
 
   const [loyaltyPromptOpen, setLoyaltyPromptOpen] = useState(false);
   const [confirmedPager, setConfirmedPager] = useState<PagerDoc | null>(null);
@@ -79,50 +75,28 @@ export default function CheckOrderPage() {
 
   function handleSelect(pager: PagerDoc) {
     setPendingPager(pager);
-    setPinInput("");
-    setPinError("");
-    setPinOpen(true);
-    setTimeout(() => pinInputRef.current?.focus(), 120);
+    setConfirmOpen(true);
   }
 
   function redirectToPager(pager: PagerDoc) {
     window.location.href = `/digital-pager/${pager.docId}?m=${merchantId}&type=manual`;
   }
 
-  function handlePinConfirm() {
+  function handleConfirm() {
     if (!pendingPager) return;
-    const entered = pinInput.trim();
-    if (!entered) {
-      setPinError("الرمز غير صحيح، يرجى التأكد من الكاشير");
-      return;
-    }
-    setPinChecking(true);
-    if (entered === pendingPager.access_pin) {
-      setPinOpen(false);
-      setConfirmedPager(pendingPager);
-      if (loyaltyEnabled) {
-        setLoyaltyPromptOpen(true);
-        setTimeout(() => loyaltyPhoneRef.current?.focus(), 120);
-      } else {
-        redirectToPager(pendingPager);
-      }
+    setConfirmOpen(false);
+    setConfirmedPager(pendingPager);
+    if (loyaltyEnabled) {
+      setLoyaltyPromptOpen(true);
+      setTimeout(() => loyaltyPhoneRef.current?.focus(), 120);
     } else {
-      setPinError("الرمز غير صحيح، يرجى التأكد من الكاشير");
-      setPinChecking(false);
-      setPinInput("");
-      setTimeout(() => pinInputRef.current?.focus(), 80);
+      redirectToPager(pendingPager);
     }
   }
 
-  function handlePinCancel() {
-    setPinOpen(false);
+  function handleConfirmCancel() {
+    setConfirmOpen(false);
     setPendingPager(null);
-    setPinInput("");
-    setPinError("");
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Enter") handlePinConfirm();
   }
 
   async function handleJoinLoyalty() {
@@ -228,113 +202,68 @@ export default function CheckOrderPage() {
         )}
       </div>
 
-      {/* PIN Verification Modal */}
-      {pinOpen && pendingPager && (
+      {/* Order Confirmation Modal — replaces old PIN modal */}
+      {confirmOpen && pendingPager && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/88 backdrop-blur-sm px-5"
-          data-testid="pin-modal"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm px-5"
+          data-testid="confirm-modal"
         >
           <div
-            className="w-full max-w-sm rounded-3xl p-6 space-y-5"
+            className="w-full max-w-xs rounded-3xl p-7 flex flex-col items-center gap-6"
             style={{
-              background: "linear-gradient(160deg, #13101a 0%, #0c0c0c 100%)",
-              border: "1.5px solid rgba(140,60,200,0.25)",
-              boxShadow: "0 0 40px rgba(100,0,200,0.08)",
+              background: "linear-gradient(160deg, #0f0f0f 0%, #0a0a0a 100%)",
+              border: "1.5px solid rgba(255,255,255,0.08)",
+              boxShadow: "0 0 40px rgba(0,0,0,0.6)",
             }}
           >
-            <div className="text-center" dir="rtl" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
-              <p className="text-white/35 text-[11px] tracking-[0.25em] uppercase mb-3">PIN VERIFICATION</p>
-
-              <p className="text-white text-lg font-bold mb-1" data-testid="text-pin-modal-title">
-                تأكيد ملكية الطلب
-              </p>
-
-              <p
-                className="text-red-400 font-black mb-3"
-                style={{ fontSize: 38, textShadow: "0 0 24px rgba(255,60,0,0.45)", letterSpacing: "0.05em" }}
-                data-testid="text-pin-order-id"
-              >
-                {pendingPager.displayOrderId || `#${pendingPager.orderNumber}`}
-              </p>
-
-              <p className="text-white/50 text-sm mb-5 leading-relaxed" data-testid="text-pin-subtitle">
-                فضلاً أدخل الرمز الموجود في كرت الطلب
-              </p>
-
-              <input
-                ref={pinInputRef}
-                type="number"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                maxLength={3}
-                value={pinInput}
-                onChange={(e) => {
-                  const val = e.target.value.replace(/\D/g, "").slice(0, 3);
-                  setPinInput(val);
-                  if (pinError) setPinError("");
-                }}
-                onKeyDown={handleKeyDown}
-                placeholder="• • •"
-                className="w-full text-center text-3xl font-black tracking-[0.5em] rounded-2xl py-4 outline-none transition-all"
-                style={{
-                  background: "rgba(255,255,255,0.05)",
-                  border: pinError ? "1.5px solid rgba(220,38,38,0.7)" : "1.5px solid rgba(255,255,255,0.12)",
-                  color: "#fff",
-                  fontFamily: "monospace",
-                  appearance: "textfield",
-                  MozAppearance: "textfield",
-                }}
-                data-testid="input-pin"
-              />
-
-              {pinError && (
-                <p className="text-red-400 text-sm font-semibold mt-3" data-testid="text-pin-error" dir="rtl">
-                  {pinError}
-                </p>
-              )}
-            </div>
-
-            <div className="flex gap-3 mt-2.5" style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
-              <button
-                onClick={handlePinCancel}
-                className="flex-1 py-3.5 rounded-2xl text-sm font-bold transition-all active:scale-[0.97]"
-                style={{
-                  background: "rgba(255,255,255,0.04)",
-                  border: "1.5px solid rgba(255,255,255,0.10)",
-                  color: "rgba(255,255,255,0.45)",
-                }}
-                data-testid="button-pin-cancel"
-              >
-                إلغاء
-              </button>
-              <button
-                onClick={handlePinConfirm}
-                disabled={pinChecking || pinInput.length !== 3}
-                className="flex-1 py-3.5 rounded-2xl text-sm font-bold transition-all active:scale-[0.97] disabled:opacity-50"
-                style={{
-                  background: "rgba(160,0,0,0.85)",
-                  border: "1.5px solid rgba(200,40,40,0.4)",
-                  color: "#fff",
-                  boxShadow: "0 0 28px rgba(255,0,0,0.18)",
-                }}
-                data-testid="button-pin-confirm"
-              >
-                {pinChecking ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  </span>
-                ) : "تأكيد"}
-              </button>
-            </div>
-
+            {/* Question */}
             <p
-              className="text-center text-[12px] font-bold leading-snug pt-1"
-              style={{ color: "#FBBF24", fontFamily: "'Tajawal', 'Cairo', sans-serif" }}
+              className="text-white text-xl font-black text-center leading-snug"
               dir="rtl"
-              data-testid="text-pin-disclaimer"
+              style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}
+              data-testid="text-confirm-question"
             >
-              ⚠️ تنويه: يجب إحضار الفاتورة الورقية الأصلية أثناء استلام طلبك من الكاونتر.
+              هل انت متاكد من رقم طلبك؟
             </p>
+
+            {/* Order ID */}
+            <div
+              className="w-full rounded-2xl border border-white/10 bg-white/5 py-5 px-4 flex flex-col items-center gap-1"
+              data-testid="box-confirm-order-id"
+            >
+              <span className="text-white/40 text-[10px] uppercase tracking-widest">Order ID</span>
+              <span
+                className="text-white text-4xl font-black tracking-wider"
+                style={{ fontFamily: "monospace" }}
+                data-testid="text-confirm-order-id-value"
+              >
+                {pendingPager.displayOrderId || pendingPager.orderNumber}
+              </span>
+            </div>
+
+            {/* Confirm button — no PIN check, immediate action */}
+            <button
+              onClick={handleConfirm}
+              className="w-full py-5 rounded-2xl text-white text-xl font-black active:scale-[0.97] transition-all duration-150"
+              style={{
+                background: "linear-gradient(135deg, #16a34a 0%, #15803d 100%)",
+                boxShadow: "0 0 30px rgba(22,163,74,0.35), 0 4px 15px rgba(0,0,0,0.4)",
+                fontFamily: "'Tajawal', 'Cairo', sans-serif",
+              }}
+              data-testid="button-confirm"
+            >
+              تأكيد ✓
+            </button>
+
+            {/* Back link */}
+            <button
+              onClick={handleConfirmCancel}
+              className="text-white/25 text-sm active:text-white/50 transition-colors"
+              style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}
+              data-testid="button-confirm-back"
+            >
+              رجوع
+            </button>
           </div>
         </div>
       )}
