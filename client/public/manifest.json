@@ -15,6 +15,12 @@
   "gcm_sender_id": "103953800507",
   "icons": [
     {
+      "src": "/logo.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
       "src": "/icon-72x72.png",
       "sizes": "72x72",
       "type": "image/png",
