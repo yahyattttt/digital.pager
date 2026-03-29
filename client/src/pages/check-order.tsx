@@ -140,7 +140,10 @@ export default function CheckOrderPage() {
   return (
     <div className="min-h-[100dvh] flex flex-col" style={{ background: bg }} data-testid="check-order-page">
       <div className="text-center pt-10 pb-6 px-5">
-        <p className="text-white/40 text-[11px] font-medium tracking-[0.35em] uppercase mb-3">DIGITAL PAGER</p>
+        <div className="flex items-center justify-center gap-2 mb-3">
+          <img src="/logo.png" alt="Digital Pager" className="w-7 h-7 object-contain rounded-full" />
+          <p className="text-white/40 text-[11px] font-medium tracking-[0.35em] uppercase">DIGITAL PAGER</p>
+        </div>
         {merchantLogo && (
           <img
             src={merchantLogo}

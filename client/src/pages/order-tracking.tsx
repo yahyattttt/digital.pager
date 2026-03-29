@@ -699,7 +699,10 @@ export default function OrderTrackingPage() {
           data-testid="tracking-preparing-screen"
         >
           <div className="w-full flex flex-col items-center gap-1">
-            <p className="text-white/40 text-[13px] font-medium tracking-[0.3em] uppercase">DIGITAL PAGER</p>
+            <div className="flex items-center justify-center gap-2">
+              <img src="/logo.png" alt="Digital Pager" className="w-7 h-7 object-contain rounded-full" />
+              <p className="text-white/40 text-[13px] font-medium tracking-[0.3em] uppercase">DIGITAL PAGER</p>
+            </div>
             {merchant && (
               <div className="flex items-center justify-center gap-2">
                 {merchant.logoUrl && (
@@ -757,7 +760,10 @@ export default function OrderTrackingPage() {
       >
         {/* Store header */}
         <div className="w-full flex flex-col items-center gap-1 mb-10">
-          <p className="text-white/30 text-[12px] font-medium tracking-[0.3em] uppercase">DIGITAL PAGER</p>
+          <div className="flex items-center justify-center gap-2">
+            <img src="/logo.png" alt="Digital Pager" className="w-6 h-6 object-contain rounded-full" />
+            <p className="text-white/30 text-[12px] font-medium tracking-[0.3em] uppercase">DIGITAL PAGER</p>
+          </div>
           {merchant && (
             <div className="flex items-center justify-center gap-2 mt-1">
               {merchant.logoUrl && (
