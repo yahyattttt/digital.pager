@@ -735,6 +735,7 @@ export default function DashboardPage() {
     loyaltyModuleEnabled: true,
     loyaltyCrmEnabled: true,
     archiveEnabled: true,
+    deliveryFeatureEnabled: false,
   });
   const [manualDigitInput, setManualDigitInput] = useState("");
   const [manualAddLoading, setManualAddLoading] = useState(false);
@@ -7324,7 +7325,7 @@ function SettingsView({
       {settingsTab === "delivery" && (<>
 
       {/* ── SECTION 2: Branch Location & Delivery Range ── */}
-      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
+      {merchantFeatures.deliveryFeatureEnabled ? <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
         <CardContent className="p-6">
           <h3 className="font-semibold mb-1 flex items-center gap-2">
             <MapPin className="w-4 h-4 text-emerald-400" />
@@ -7423,7 +7424,7 @@ function SettingsView({
             </Button>
           </div>
         </CardContent>
-      </Card>
+      </Card> : null}
 
       </>)}
 

@@ -381,6 +381,7 @@ export default function SuperAdminPage() {
     loyaltyModuleEnabled: true,
     loyaltyCrmEnabled: true,
     archiveEnabled: true,
+    deliveryFeatureEnabled: false,
   });
   const [featureLoading, setFeatureLoading] = useState(false);
   const [featureSaving, setFeatureSaving] = useState(false);
@@ -676,7 +677,7 @@ export default function SuperAdminPage() {
         body: JSON.stringify(featureFlags),
       });
       if (res.ok) {
-        toast({ title: t("تم الحفظ", "Saved"), description: t("تم تحديث إعدادات المتجر", "Store features updated") });
+        toast({ title: t("✅ تم بنجاح", "Updated"), description: t("تم تحديث مميزات المتجر بنجاح", "Store features updated successfully") });
         setFeatureDialogOpen(false);
       } else {
         toast({ title: t("خطأ", "Error"), description: t("فشل في حفظ الإعدادات", "Failed to save features"), variant: "destructive" });
@@ -3884,6 +3885,7 @@ export default function SuperAdminPage() {
                 { key: "loyaltyCrmEnabled", ar: "عملاء الولاء", en: "Loyalty CRM", desc_ar: "CRM لعملاء برنامج الولاء", desc_en: "CRM for loyalty program members" },
                 { key: "archiveEnabled", ar: "أرشيف الطلبات", en: "Order Archive", desc_ar: "سجل الطلبات المكتملة والملغاة", desc_en: "Completed & cancelled orders history" },
                 { key: "printReceiptsEnabled", ar: "طباعة الإيصالات", en: "Print Receipts", desc_ar: "زر الطباعة داخل الطلبات", desc_en: "Print button inside orders" },
+                { key: "deliveryFeatureEnabled", ar: "خدمة التوصيل", en: "Delivery Service", desc_ar: "إعدادات التوصيل وموقع الفرع ونطاق التوصيل", desc_en: "Delivery settings, branch location & delivery range" },
               ] as { key: keyof typeof featureFlags; ar: string; en: string; desc_ar: string; desc_en: string }[]).map(({ key, ar, en, desc_ar, desc_en }) => (
                 <div key={key} className="flex items-center justify-between py-3 border-b border-white/[0.06] last:border-0" data-testid={`toggle-${key}`}>
                   <div className="flex-1 min-w-0 me-3">

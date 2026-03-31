@@ -2989,6 +2989,7 @@ export async function registerRoutes(
     loyaltyModuleEnabled: true,
     loyaltyCrmEnabled: true,
     archiveEnabled: true,
+    deliveryFeatureEnabled: false,
   };
 
   function parseFeatures(fields: any) {
@@ -3005,6 +3006,7 @@ export async function registerRoutes(
       loyaltyModuleEnabled: fields?.loyaltyModuleEnabled?.booleanValue ?? DEFAULT_FEATURES.loyaltyModuleEnabled,
       loyaltyCrmEnabled: fields?.loyaltyCrmEnabled?.booleanValue ?? DEFAULT_FEATURES.loyaltyCrmEnabled,
       archiveEnabled: fields?.archiveEnabled?.booleanValue ?? DEFAULT_FEATURES.archiveEnabled,
+      deliveryFeatureEnabled: fields?.deliveryFeatureEnabled?.booleanValue ?? DEFAULT_FEATURES.deliveryFeatureEnabled,
     };
   }
 
@@ -3053,7 +3055,7 @@ export async function registerRoutes(
     try {
       if (!(await isAdminRequest(req))) return res.status(403).json({ message: "Unauthorized" });
       const { merchantId } = req.params;
-      const { analyticsEnabled, crmEnabled, smartRatingEnabled, printReceiptsEnabled, onlineOrdersEnabled, trackingEnabled, couponsEnabled, financialEnabled, reviewsEnabled, loyaltyModuleEnabled, loyaltyCrmEnabled, archiveEnabled } = req.body;
+      const { analyticsEnabled, crmEnabled, smartRatingEnabled, printReceiptsEnabled, onlineOrdersEnabled, trackingEnabled, couponsEnabled, financialEnabled, reviewsEnabled, loyaltyModuleEnabled, loyaltyCrmEnabled, archiveEnabled, deliveryFeatureEnabled } = req.body;
       const baseUrl = getApiKeyBaseUrl();
       if (!baseUrl || !getApiKey()) return res.status(500).json({ message: "Firestore not configured" });
 
@@ -3115,6 +3117,10 @@ export async function registerRoutes(
       if (typeof archiveEnabled === "boolean") {
         updatedFields.archiveEnabled = { booleanValue: archiveEnabled };
         fieldPaths.push("archiveEnabled");
+      }
+      if (typeof deliveryFeatureEnabled === "boolean") {
+        updatedFields.deliveryFeatureEnabled = { booleanValue: deliveryFeatureEnabled };
+        fieldPaths.push("deliveryFeatureEnabled");
       }
 
       if (fieldPaths.length === 0) return res.status(400).json({ message: "No valid feature flags provided" });
