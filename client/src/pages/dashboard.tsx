@@ -132,7 +132,13 @@ const businessTypeLabelsEn: Record<string, string> = {
   other: "Other",
 };
 
-const ADMIN_WHATSAPP = "https://wa.me/966500000000";
+const ADMIN_WHATSAPP_FALLBACK = "https://wa.me/966500000000";
+
+function formatWaUrl(raw: string) {
+  const clean = raw.replace(/\D/g, "");
+  return clean ? `https://wa.me/${clean}` : ADMIN_WHATSAPP_FALLBACK;
+}
+
 const PRIMARY_ADMIN_EMAIL = (import.meta.env.VITE_SUPER_ADMIN_EMAIL || "yahiatohary@hotmail.com").toLowerCase();
 
 type DashboardView = "overview" | "menu" | "analytics" | "tracking" | "customers" | "coupons" | "financial" | "settings" | "archive" | "subscription" | "reviews" | "syshealth" | "loyalty" | "crm";
@@ -146,6 +152,7 @@ function SubscriptionRequiredScreen({
   t,
   toggleLanguage,
   lang,
+  adminWhatsappUrl,
 }: {
   storeName: string;
   plan: string;
@@ -155,6 +162,7 @@ function SubscriptionRequiredScreen({
   t: (ar: string, en: string) => string;
   toggleLanguage: () => void;
   lang: string;
+  adminWhatsappUrl: string;
 }) {
   const planLabel = planLabels[plan]
     ? lang === "ar"
@@ -268,7 +276,7 @@ function SubscriptionRequiredScreen({
               <Button
                 size="lg"
                 className={`w-full h-14 text-base font-bold ${isExpired ? "bg-red-600 hover:bg-red-700 text-white" : ""}`}
-                onClick={() => window.open(ADMIN_WHATSAPP, "_blank")}
+                onClick={() => window.open(adminWhatsappUrl, "_blank")}
                 data-testid="button-contact-whatsapp"
               >
                 <MessageCircle className="w-5 h-5 me-2" />
@@ -310,10 +318,12 @@ function SubscriptionProgress({
   merchant,
   t,
   lang,
+  adminWhatsappUrl,
 }: {
   merchant: { subscriptionExpiry?: string | null; subscriptionStartAt?: string | null; subscriptionStatus?: string; plan?: string };
   t: (ar: string, en: string) => string;
   lang: string;
+  adminWhatsappUrl: string;
 }) {
   const expiry = merchant.subscriptionExpiry;
   const [now, setNow] = useState(new Date());
@@ -370,7 +380,7 @@ function SubscriptionProgress({
       </div>
       {isExpiringSoon && (
         <button
-          onClick={() => window.open(ADMIN_WHATSAPP, "_blank")}
+          onClick={() => window.open(adminWhatsappUrl, "_blank")}
           className={`mt-2 text-xs ${textColor} hover:underline flex items-center gap-1`}
           data-testid="link-renew-sidebar"
         >
@@ -682,6 +692,17 @@ export default function DashboardPage() {
   const { isActive: wakeLockActive, isSupported: wakeLockSupported } = useWakeLock();
   const { isFullscreen, toggleFullscreen, isSupported } = useFullscreen();
   const { toast } = useToast();
+
+  const [adminWhatsapp, setAdminWhatsapp] = useState(ADMIN_WHATSAPP_FALLBACK);
+
+  useEffect(() => {
+    fetch("/api/admin/settings")
+      .then(r => r.json())
+      .then(data => {
+        if (data?.supportWhatsapp) setAdminWhatsapp(formatWaUrl(data.supportWhatsapp));
+      })
+      .catch(() => {});
+  }, []);
 
   const [pagers, setPagers] = useState<(Pager & { docId: string })[]>([]);
   
@@ -1745,6 +1766,7 @@ export default function DashboardPage() {
         t={t}
         toggleLanguage={toggleLanguage}
         lang={lang}
+        adminWhatsappUrl={adminWhatsapp}
       />
     );
   }
@@ -1791,7 +1813,7 @@ export default function DashboardPage() {
         </p>
       </div>
       <a
-        href={`https://wa.me/966500000000`}
+        href={adminWhatsapp}
         target="_blank"
         rel="noopener noreferrer"
         className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all hover:opacity-90 active:scale-[0.97]"
@@ -1969,7 +1991,7 @@ export default function DashboardPage() {
             </button>
           </div>
 
-          <SubscriptionProgress merchant={merchant} t={t} lang={lang} />
+          <SubscriptionProgress merchant={merchant} t={t} lang={lang} adminWhatsappUrl={adminWhatsapp} />
 
           <div className="border-b border-white/[0.06]" />
 
