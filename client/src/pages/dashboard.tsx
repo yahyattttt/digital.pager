@@ -2285,6 +2285,7 @@ export default function DashboardPage() {
                 onlineOrdersEnabled={onlineOrdersEnabled}
                 businessOpenTime={businessOpenTime}
                 businessCloseTime={businessCloseTime}
+                merchantFeatures={merchantFeatures}
                 t={t}
                 lang={lang}
               />
@@ -6460,6 +6461,7 @@ function SettingsView({
   onlineOrdersEnabled,
   businessOpenTime,
   businessCloseTime,
+  merchantFeatures,
   t,
   lang,
 }: {
@@ -6469,6 +6471,21 @@ function SettingsView({
   onlineOrdersEnabled: boolean;
   businessOpenTime: string;
   businessCloseTime: string;
+  merchantFeatures: {
+    analyticsEnabled: boolean;
+    crmEnabled: boolean;
+    smartRatingEnabled: boolean;
+    printReceiptsEnabled: boolean;
+    onlineOrdersEnabled: boolean;
+    trackingEnabled: boolean;
+    couponsEnabled: boolean;
+    financialEnabled: boolean;
+    reviewsEnabled: boolean;
+    loyaltyModuleEnabled: boolean;
+    loyaltyCrmEnabled: boolean;
+    archiveEnabled: boolean;
+    deliveryFeatureEnabled: boolean;
+  };
   t: (ar: string, en: string) => string;
   lang: string;
 }) {
