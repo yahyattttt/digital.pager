@@ -1110,7 +1110,6 @@ export default function DashboardPage() {
       console.error("[Manual Order] ❌ Server request failed:", err);
       const msg = err?.message || String(err);
       const isQuota = msg.includes("resource-exhausted") || msg.includes("quota");
-      window.alert(`❌ فشل إنشاء الطلب\n\n${msg}`);
       toast({
         title: t("خطأ", "Error"),
         description: isQuota
@@ -1239,7 +1238,6 @@ export default function DashboardPage() {
       console.error("[Shift Order] ❌ Server request failed:", err);
       const msg = err?.message || String(err);
       const isQuota = msg.includes("resource-exhausted") || msg.includes("quota");
-      window.alert(`❌ فشل إنشاء الطلب التلقائي\n\n${msg}`);
       toast({
         title: t("خطأ", "Error"),
         description: isQuota
@@ -6526,18 +6524,16 @@ function SettingsView({
       // Use updateDoc (Firestore SDK) — this CREATES the field if it doesn't exist yet
       await updateDoc(doc(db, "merchants", uid), { isOrderPinRequired: val });
       console.log(`[PIN Toggle] ✅ updateDoc SUCCESS — isOrderPinRequired=${val} written to Firestore`);
-      window.alert('Security status updated: ' + val);
       toast({
-        title: t("تم الحفظ", "Saved"),
+        title: t("✅ تم تحديث إعدادات الأمان بنجاح", "✅ Security settings updated"),
         description: val
-          ? t("✅ التحقق بالرمز مفعّل — العميل ينتظر اتصال المتجر", "✅ PIN ON — customer awaits store call")
-          : t("⭕ التحقق معطّل — العميل يرى الطلب مباشرة", "⭕ PIN OFF — customer sees order directly"),
+          ? t("التحقق من رقم الطلب مفعّل للعملاء", "Order confirmation step is now ON for customers")
+          : t("التحقق من رقم الطلب معطّل — العميل يرى الطلب مباشرة", "Order confirmation step is now OFF"),
       });
     } catch (err: any) {
       console.error("[PIN Toggle] ❌ updateDoc FAILED:", err.code, err.message);
-      window.alert('❌ Toggle FAILED to save: ' + (err.message || err.code || 'Unknown error'));
       setIsOrderPinRequired(!val); // rollback optimistic update
-      toast({ title: t("خطأ في الحفظ", "Save Failed"), description: err.message || String(err), variant: "destructive" });
+      toast({ title: t("❌ فشل الحفظ", "Save Failed"), description: err.message || String(err), variant: "destructive" });
     } finally {
       setPinToggleSaving(false);
     }
@@ -6854,9 +6850,8 @@ function SettingsView({
   async function handleSaveSupport() {
     const uid = merchant?.uid;
     if (!uid) {
-      const msg = "❌ Save Failed: merchant.uid is missing. Please re-login.";
-      console.error("[Save Support]", msg);
-      window.alert(msg);
+      console.error("[Save Support] merchant.uid is missing.");
+      toast({ title: t("❌ خطأ", "Error"), description: t("لم يتم التعرف على حسابك، يرجى تسجيل الدخول من جديد.", "Merchant UID missing — please re-login."), variant: "destructive" });
       return;
     }
     setSupportSaving(true);
@@ -6875,20 +6870,15 @@ function SettingsView({
         isOrderPinRequired: pinValue,
       }, { merge: true });
       console.log(`[Save Support] ✅ Saved — isOrderPinRequired=${pinValue} confirmed in Firestore`);
-      // Visual confirmation — shows exactly what was written to the DB
-      window.alert('Security status updated: ' + pinValue);
       toast({
-        title: t("تم الحفظ", "Saved"),
+        title: t("✅ تم الحفظ بنجاح", "Saved successfully"),
         description: t("تم حفظ إعدادات الدعم بنجاح", "Support settings saved successfully"),
       });
     } catch (err: any) {
-      // Alert the EXACT error message so it is visible even without DevTools open
       const errMsg = err?.message || err?.code || JSON.stringify(err) || "Unknown Firestore error";
-      const fullMsg = `❌ Save Support Failed\n\nError: ${errMsg}\n\nMerchant UID: ${uid}`;
       console.error("[Save Support] ❌ Firestore write failed:", err);
-      window.alert(fullMsg);
       toast({
-        title: t("خطأ في الحفظ", "Save Failed"),
+        title: t("❌ خطأ في الحفظ", "Save Failed"),
         description: errMsg,
         variant: "destructive",
       });
