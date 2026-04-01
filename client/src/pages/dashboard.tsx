@@ -3086,12 +3086,15 @@ function OverviewView({
     ...activeWhatsappOrders.map(o => ({ type: "wa" as const, id: o.id, orderNumber: o.orderNumber || "?", displayOrderId: o.displayOrderId || (o.orderNumber ? `#${o.orderNumber}` : "?"), status: o.status, createdAt: o.createdAt, pager: undefined, order: o, orderCategory: getOrderCategory({ type: "wa", order: o }) })),
     ...whatsappOrders.map(o => ({ type: "wa-new" as const, id: o.id, orderNumber: "NEW", displayOrderId: "", status: "awaiting_confirmation" as const, createdAt: o.createdAt, pager: undefined, order: o, orderCategory: getOrderCategory({ type: "wa-new", order: o }) })),
   ].sort((a, b) => {
-    const na = parseInt(a.orderNumber, 10);
-    const nb = parseInt(b.orderNumber, 10);
-    if (!isNaN(na) && !isNaN(nb)) return na - nb;
-    if (!isNaN(na)) return -1;
-    if (!isNaN(nb)) return 1;
-    return safeTime(a.createdAt) - safeTime(b.createdAt);
+    // Priority: awaiting_confirmation / pending_verification (جديد) → 0 (top)
+    //           everything else → 1
+    const statusPriority = (s: string) =>
+      s === "awaiting_confirmation" || s === "pending_verification" ? 0 : 1;
+    const pa = statusPriority(a.status);
+    const pb = statusPriority(b.status);
+    if (pa !== pb) return pa - pb;
+    // Within same priority group: newest first (createdAt DESC)
+    return safeTime(b.createdAt) - safeTime(a.createdAt);
   });
 
   const allActiveOrders = allActiveOrdersRaw.filter(item => {
