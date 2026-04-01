@@ -3010,6 +3010,63 @@ export async function registerRoutes(
     };
   }
 
+  // ===== Staff Login =====
+  app.post("/api/staff-login", async (req, res) => {
+    try {
+      const { phone, password } = req.body;
+      if (!phone || !password) return res.status(400).json({ message: "Phone and password required" });
+      const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
+      const apiKey = getApiKey();
+      if (!projectId || !apiKey) return res.status(500).json({ message: "Server config error" });
+
+      const sanitizedPhone = String(phone).replace(/\D/g, "");
+      const queryUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery?key=${apiKey}`;
+      const queryRes = await fetch(queryUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          structuredQuery: {
+            from: [{ collectionId: "merchants" }],
+            where: {
+              fieldFilter: {
+                field: { fieldPath: "staffPhone" },
+                op: "EQUAL",
+                value: { stringValue: sanitizedPhone },
+              },
+            },
+            limit: 1,
+          },
+        }),
+      });
+
+      if (!queryRes.ok) return res.status(500).json({ message: "Query failed" });
+
+      const results = await queryRes.json();
+      const match = Array.isArray(results) ? results.find((r: any) => r.document) : null;
+
+      if (!match) return res.status(401).json({ message: "بيانات الدخول غير صحيحة", errorCode: "INVALID_CREDENTIALS" });
+
+      const fields = match.document.fields || {};
+      const storedPassword = fields.staffPassword?.stringValue || "";
+
+      if (!storedPassword || storedPassword !== String(password)) {
+        return res.status(401).json({ message: "بيانات الدخول غير صحيحة", errorCode: "INVALID_CREDENTIALS" });
+      }
+
+      const permissionsArr = fields.staffPermissions?.arrayValue?.values || [];
+      const permissions: string[] = permissionsArr.map((v: any) => v.stringValue).filter(Boolean);
+
+      const docName: string = match.document.name || "";
+      const merchantId = docName.split("/").pop() || "";
+
+      console.log(`[Staff Login] ✅ Staff authenticated for merchant ${merchantId}, permissions: ${permissions.join(", ")}`);
+      return res.json({ success: true, merchantId, permissions });
+    } catch (err) {
+      console.error("[Staff Login] Error:", err);
+      return res.status(500).json({ message: "Staff login failed" });
+    }
+  });
+
   app.get("/api/merchant-features/:merchantId", async (req, res) => {
     try {
       const { merchantId } = req.params;

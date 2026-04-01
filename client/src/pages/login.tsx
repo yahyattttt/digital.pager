@@ -10,7 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { useLanguage } from "@/hooks/use-language";
-import { Mail, Loader2, ArrowRight, ArrowLeft, Globe, KeyRound } from "lucide-react";
+import { Mail, Loader2, ArrowRight, ArrowLeft, Globe, KeyRound, Phone, Lock } from "lucide-react";
 import neonBellLogo from "@assets/image0_(1)_1773118136698.png";
 
 export default function LoginPage() {
@@ -19,6 +19,8 @@ export default function LoginPage() {
   const { login } = useAuth();
   const { t, toggleLanguage, isRTL } = useLanguage();
 
+  const [loginMode, setLoginMode] = useState<"owner" | "staff">("owner");
+
   const [email, setEmail] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [otpSent, setOtpSent] = useState(false);
@@ -26,6 +28,10 @@ export default function LoginPage() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const [staffPhone, setStaffPhone] = useState("");
+  const [staffPassword, setStaffPassword] = useState("");
+  const [isStaffLogging, setIsStaffLogging] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -211,6 +217,33 @@ export default function LoginPage() {
     }
   }
 
+  async function handleStaffLogin() {
+    const phone = staffPhone.replace(/\D/g, "");
+    if (!phone || !staffPassword) {
+      toast({ title: t("حقول مطلوبة", "Required fields"), description: t("يرجى إدخال الجوال وكلمة المرور", "Please enter phone and password"), variant: "destructive" });
+      return;
+    }
+    setIsStaffLogging(true);
+    try {
+      const res = await fetch("/api/staff-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ staffPhone: phone, staffPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast({ title: t("خطأ", "Error"), description: data.message || t("بيانات الدخول غير صحيحة", "Invalid credentials"), variant: "destructive" });
+        return;
+      }
+      login(data.merchantId, "", false, true, data.permissions || []);
+      setLocation("/dashboard");
+    } catch (err: any) {
+      toast({ title: t("خطأ", "Error"), description: err.message || t("تعذر الاتصال بالخادم", "Could not reach server"), variant: "destructive" });
+    } finally {
+      setIsStaffLogging(false);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -259,6 +292,97 @@ export default function LoginPage() {
 
         <Card className="border-primary/10 bg-card">
           <CardContent className="pt-6 pb-6 px-6 sm:px-8">
+            {/* Mode Toggle */}
+            <div className="flex rounded-xl overflow-hidden border border-white/10 mb-6">
+              <button
+                type="button"
+                onClick={() => setLoginMode("owner")}
+                className="flex-1 py-2.5 text-sm font-semibold transition-colors"
+                style={{
+                  background: loginMode === "owner" ? "hsl(var(--primary))" : "transparent",
+                  color: loginMode === "owner" ? "#000" : "hsl(var(--muted-foreground))",
+                }}
+                data-testid="tab-owner-login"
+              >
+                {t("صاحب المتجر", "Store Owner")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setLoginMode("staff")}
+                className="flex-1 py-2.5 text-sm font-semibold transition-colors"
+                style={{
+                  background: loginMode === "staff" ? "hsl(var(--primary))" : "transparent",
+                  color: loginMode === "staff" ? "#000" : "hsl(var(--muted-foreground))",
+                }}
+                data-testid="tab-staff-login"
+              >
+                {t("دخول الموظف", "Staff Login")}
+              </button>
+            </div>
+
+            {/* Staff Login Form */}
+            {loginMode === "staff" && (
+              <div className="space-y-5">
+                <div>
+                  <label className="text-sm font-medium text-foreground mb-2 block">
+                    {t("رقم جوال الموظف", "Staff Phone Number")}
+                  </label>
+                  <div className="relative">
+                    <Phone className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <input
+                      type="tel"
+                      placeholder="966501234567"
+                      dir="ltr"
+                      value={staffPhone}
+                      onChange={(e) => setStaffPhone(e.target.value)}
+                      className="w-full h-12 pr-10 pl-4 bg-background border border-border rounded-md text-foreground font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      data-testid="input-staff-phone"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground mb-2 block">
+                    {t("كلمة المرور", "Password")}
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <input
+                      type="password"
+                      placeholder="••••••••"
+                      dir="ltr"
+                      value={staffPassword}
+                      onChange={(e) => setStaffPassword(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleStaffLogin()}
+                      className="w-full h-12 pr-10 pl-4 bg-background border border-border rounded-md text-foreground font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      data-testid="input-staff-password"
+                    />
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleStaffLogin}
+                  disabled={isStaffLogging}
+                  className="w-full h-12 rounded-md font-bold text-base flex items-center justify-center gap-2 disabled:opacity-50 transition-opacity"
+                  style={{ background: "hsl(var(--primary))", color: "#000" }}
+                  data-testid="button-staff-login-submit"
+                >
+                  {isStaffLogging ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      {t("جاري تسجيل الدخول...", "Signing in...")}
+                    </>
+                  ) : (
+                    <>
+                      <KeyRound className="w-4 h-4" />
+                      {t("دخول الموظف", "Staff Sign In")}
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+
+            {/* Owner OTP Login Form */}
+            {loginMode === "owner" && (
             <div className="space-y-5">
               <div>
                 <label className="text-sm font-medium text-foreground mb-2 block">
@@ -380,6 +504,7 @@ export default function LoginPage() {
                 </button>
               </p>
             </div>
+            )}
           </CardContent>
         </Card>
       </div>

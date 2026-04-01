@@ -116,6 +116,7 @@ import {
   Wallet,
   Gift,
   KeyRound,
+  UserCog,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import ArchiveView from "@/pages/order-archive";
@@ -687,7 +688,7 @@ function SysHealthView({
 
 export default function DashboardPage() {
   const [, setLocation] = useLocation();
-  const { merchant, logout } = useAuth();
+  const { merchant, logout, user } = useAuth();
   const { t, toggleLanguage, lang, isRTL } = useLanguage();
   const { isActive: wakeLockActive, isSupported: wakeLockSupported } = useWakeLock();
   const { isFullscreen, toggleFullscreen, isSupported } = useFullscreen();
@@ -1793,7 +1794,9 @@ export default function DashboardPage() {
     ...(isSuperAdmin ? [{ id: "syshealth" as const, icon: HeartPulse, label: t("صحة النظام", "System Health") }] : []),
   ];
 
-  const navItems = allNavItems;
+  const navItems = user?.isStaff
+    ? allNavItems.filter(item => (user.staffPermissions || []).includes(item.id))
+    : allNavItems;
 
   const FeatureDisabled = () => (
     <div className="flex flex-col items-center justify-center py-24 gap-6 text-center px-6">
@@ -6587,7 +6590,7 @@ function SettingsView({
   const [crPdfUploading, setCrPdfUploading] = useState(false);
   const crPdfInputRef = useRef<HTMLInputElement>(null);
   const [supportWhatsappEdit, setSupportWhatsappEdit] = useState<string>((merchant as any)?.support_whatsapp || "");
-  const [settingsTab, setSettingsTab] = useState<"general" | "delivery" | "support" | "finance">("general");
+  const [settingsTab, setSettingsTab] = useState<"general" | "delivery" | "support" | "finance" | "staff">("general");
   const [supportSaving, setSupportSaving] = useState(false);
   const [legalDocsSaving, setLegalDocsSaving] = useState(false);
   const [storeSlugEdit, setStoreSlugEdit] = useState<string>((merchant as any)?.storeSlug || "");
@@ -6598,6 +6601,51 @@ function SettingsView({
   } | null>(null);
   const [manualBranchName, setManualBranchName] = useState<string>("");
   const [showManualBranch, setShowManualBranch] = useState(false);
+
+  // ── Staff Account Settings ──
+  const ALL_PERMISSIONS: { id: string; arLabel: string; enLabel: string }[] = [
+    { id: "overview", arLabel: "لوحة التحكم", enLabel: "Dashboard" },
+    { id: "menu", arLabel: "قسم الأونلاين", enLabel: "Online Section" },
+    { id: "analytics", arLabel: "التحليلات", enLabel: "Analytics" },
+    { id: "tracking", arLabel: "تتبع العملاء", enLabel: "Customer Tracking" },
+    { id: "customers", arLabel: "عملائي", enLabel: "My Customers" },
+    { id: "coupons", arLabel: "الكوبونات", enLabel: "Coupons" },
+    { id: "financial", arLabel: "الإدارة المالية", enLabel: "Financial" },
+    { id: "reviews", arLabel: "تقييمات العملاء", enLabel: "Customer Reviews" },
+    { id: "loyalty", arLabel: "نظام الولاء والمحفظة", enLabel: "Loyalty & Wallet" },
+    { id: "crm", arLabel: "عملاء الولاء", enLabel: "Loyalty CRM" },
+    { id: "archive", arLabel: "أرشيف الطلبات", enLabel: "Order Archive" },
+    { id: "subscription", arLabel: "اشتراكي", enLabel: "Subscription" },
+    { id: "settings", arLabel: "الإعدادات", enLabel: "Settings" },
+  ];
+  const [staffPhone, setStaffPhone] = useState<string>((merchant as any)?.staffPhone || "");
+  const [staffPassword, setStaffPassword] = useState<string>((merchant as any)?.staffPassword || "");
+  const [staffPermissions, setStaffPermissions] = useState<string[]>((merchant as any)?.staffPermissions || []);
+  const [staffSaving, setStaffSaving] = useState(false);
+
+  async function handleSaveStaffSettings() {
+    const uid = merchant?.uid;
+    if (!uid) { toast({ title: t("خطأ", "Error"), description: t("يرجى إعادة تسجيل الدخول", "Please re-login"), variant: "destructive" }); return; }
+    setStaffSaving(true);
+    try {
+      await updateDoc(doc(db, "merchants", uid), {
+        staffPhone: staffPhone.replace(/\D/g, ""),
+        staffPassword: staffPassword,
+        staffPermissions: staffPermissions,
+      });
+      toast({ title: t("✅ تم الحفظ", "Saved"), description: t("تم حفظ إعدادات حساب الموظف بنجاح", "Staff account settings saved successfully") });
+    } catch (err: any) {
+      toast({ title: t("❌ خطأ في الحفظ", "Save Failed"), description: err.message || String(err), variant: "destructive" });
+    } finally {
+      setStaffSaving(false);
+    }
+  }
+
+  function togglePermission(id: string) {
+    setStaffPermissions(prev =>
+      prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
+    );
+  }
 
   useEffect(() => {
     setStoreNameEdit(merchant?.storeName || "");
@@ -6942,6 +6990,7 @@ function SettingsView({
     { key: "delivery" as const, arLabel: "توصيل", enLabel: "Delivery", icon: <MapPin className="w-3.5 h-3.5" /> },
     { key: "support" as const, arLabel: "دعم", enLabel: "Support", icon: <Phone className="w-3.5 h-3.5" /> },
     { key: "finance" as const, arLabel: "مالية/قانوني", enLabel: "Finance/Legal", icon: <CreditCard className="w-3.5 h-3.5" /> },
+    { key: "staff" as const, arLabel: "الموظف", enLabel: "Staff", icon: <UserCog className="w-3.5 h-3.5" /> },
   ];
 
   return (
@@ -7738,6 +7787,119 @@ function SettingsView({
         {legalDocsSaving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Save className="w-4 h-4 me-2" />}
         {t("حفظ إعدادات المالية والقانونية", "Save Finance & Legal Settings")}
       </Button>
+
+      </>)}
+
+      {/* ── TAB: Staff Account ── */}
+      {settingsTab === "staff" && (<>
+
+      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
+        <CardContent className="p-6">
+          <h3 className="font-semibold mb-1 flex items-center gap-2">
+            <UserCog className="w-4 h-4 text-violet-400" />
+            {t("إعدادات حساب الموظف", "Staff Account Settings")}
+          </h3>
+          <p className="text-xs text-muted-foreground mb-5" dir="rtl">
+            {t("حدد رقم وكلمة مرور الموظف وحدد الصفحات التي يمكنه الوصول إليها", "Set staff phone & password, then choose which pages they can access")}
+          </p>
+
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground block">{t("رقم جوال الموظف", "Staff Phone Number")}</label>
+                <div className="relative">
+                  <Phone className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                  <Input
+                    type="tel"
+                    value={staffPhone}
+                    onChange={(e) => setStaffPhone(e.target.value)}
+                    placeholder="966501234567"
+                    dir="ltr"
+                    className="pr-9 h-11 bg-white/[0.03] border-white/10 font-mono text-sm"
+                    data-testid="input-staff-phone"
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground block">{t("كلمة مرور الموظف", "Staff Password")}</label>
+                <div className="relative">
+                  <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                  <Input
+                    type="password"
+                    value={staffPassword}
+                    onChange={(e) => setStaffPassword(e.target.value)}
+                    placeholder="••••••••"
+                    dir="ltr"
+                    className="pr-9 h-11 bg-white/[0.03] border-white/10 font-mono text-sm"
+                    data-testid="input-staff-password"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <p className="text-sm font-semibold mb-3 flex items-center gap-2" dir="rtl">
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                {t("الصلاحيات — اختر الصفحات المسموح بها", "Permissions — Select Allowed Pages")}
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {ALL_PERMISSIONS.map((perm) => (
+                  <label
+                    key={perm.id}
+                    className="flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors"
+                    style={{
+                      background: staffPermissions.includes(perm.id) ? "rgba(16,185,129,0.08)" : "rgba(255,255,255,0.02)",
+                      border: staffPermissions.includes(perm.id) ? "1px solid rgba(16,185,129,0.25)" : "1px solid rgba(255,255,255,0.06)",
+                    }}
+                    data-testid={`perm-label-${perm.id}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={staffPermissions.includes(perm.id)}
+                      onChange={() => togglePermission(perm.id)}
+                      className="w-4 h-4 accent-emerald-500 shrink-0"
+                      data-testid={`perm-check-${perm.id}`}
+                    />
+                    <span className="text-sm font-medium" dir="rtl">{t(perm.arLabel, perm.enLabel)}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="pt-1 space-y-2">
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setStaffPermissions(ALL_PERMISSIONS.map(p => p.id))}
+                  className="text-xs border-white/10 text-muted-foreground hover:text-foreground"
+                  data-testid="button-select-all-perms"
+                >
+                  {t("تحديد الكل", "Select All")}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setStaffPermissions([])}
+                  className="text-xs border-white/10 text-muted-foreground hover:text-foreground"
+                  data-testid="button-clear-all-perms"
+                >
+                  {t("إلغاء الكل", "Clear All")}
+                </Button>
+              </div>
+              <Button
+                onClick={handleSaveStaffSettings}
+                disabled={staffSaving}
+                className="w-full h-11 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-2xl disabled:opacity-30"
+                data-testid="button-save-staff-settings"
+              >
+                {staffSaving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Save className="w-4 h-4 me-2" />}
+                {t("حفظ إعدادات الموظف", "Save Staff Settings")}
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       </>)}
 
