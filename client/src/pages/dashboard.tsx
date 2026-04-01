@@ -1098,6 +1098,7 @@ export default function DashboardPage() {
     }
     setManualAddLoading(true);
     try {
+      console.log(`[Manual Order] Creating pager order ${trimmed} via server for merchant ${merchant.uid}`);
       const res = await fetch("/api/orders/pager", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1114,6 +1115,7 @@ export default function DashboardPage() {
         const detail = errData?.detail || errData?.message || `HTTP ${res.status}`;
         throw new Error(detail);
       }
+      console.log(`[Manual Order] ✅ Order ${trimmed} created successfully via server`);
       setManualDigitInput("");
       toast({ title: t(`تم إضافة طلب رقم ${trimmed} بنجاح`, `Order #${trimmed} added successfully`) });
       setTimeout(() => manualInputRef.current?.focus(), 50);
@@ -1230,6 +1232,7 @@ export default function DashboardPage() {
     shiftAddLockRef.current = true;
     setManualAddLoading(true);
     try {
+      console.log(`[Shift Order] Auto-creating pager order via server for merchant ${merchant.uid}`);
       const res = await fetch("/api/orders/pager-auto", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1242,6 +1245,7 @@ export default function DashboardPage() {
       }
       const data = await res.json();
       const displayId = data.displayOrderId || String(data.orderNumber);
+      console.log(`[Shift Order] ✅ Order #${displayId} created via server`);
       toast({ title: t(`تم إضافة طلب رقم ${displayId} بنجاح`, `Order #${displayId} added successfully`) });
     } catch (err: any) {
       console.error("[Shift Order] ❌ Server request failed:", err);
@@ -6830,6 +6834,7 @@ function SettingsView({
       .then((r) => r.json())
       .then((data) => {
         const val = data.isOrderPinRequired_resolved;
+        console.log(`[PIN Init] Fetched isOrderPinRequired from server: ${val} (raw: ${JSON.stringify(data.isOrderPinRequired_raw)})`);
         if (typeof val === "boolean") setIsOrderPinRequired(val);
       })
       .catch((err) => {
@@ -6848,9 +6853,13 @@ function SettingsView({
     }
     setPinToggleSaving(true);
     // Exact logs requested for debugging
+    console.log("SAVING_PIN_STATUS:", val);
+    console.log("DB_SAVE_STATUS:", val);
+    console.log(`[PIN Toggle] Writing isOrderPinRequired=${val} (boolean) to Firestore doc merchants/${uid}`);
     try {
       // Use updateDoc (Firestore SDK) — this CREATES the field if it doesn't exist yet
       await updateDoc(doc(db, "merchants", uid), { isOrderPinRequired: val });
+      console.log(`[PIN Toggle] ✅ updateDoc SUCCESS — isOrderPinRequired=${val} written to Firestore`);
       toast({
         title: t("✅ تم تحديث إعدادات الأمان بنجاح", "✅ Security settings updated"),
         description: val
@@ -7300,6 +7309,8 @@ function SettingsView({
     setSupportSaving(true);
     // Exact logs requested — confirm what value is being sent to DB
     const pinValue = isOrderPinRequired === true;
+    console.log("DB_SAVE_STATUS:", pinValue);
+    console.log(`[Save Support] Writing to merchants/${uid} — isOrderPinRequired=${pinValue} (boolean)`);
     try {
       const merchantRef = doc(db, "merchants", uid);
       await setDoc(merchantRef, {
@@ -7310,6 +7321,7 @@ function SettingsView({
         // Explicitly save as native Boolean — creates the field if it doesn't exist yet
         isOrderPinRequired: pinValue,
       }, { merge: true });
+      console.log(`[Save Support] ✅ Saved — isOrderPinRequired=${pinValue} confirmed in Firestore`);
       toast({
         title: t("✅ تم الحفظ بنجاح", "Saved successfully"),
         description: t("تم حفظ إعدادات الدعم بنجاح", "Support settings saved successfully"),

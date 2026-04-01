@@ -460,20 +460,26 @@ export default function OrderTrackingPage() {
         const merchantData = data.merchant || null;
 
         // ── EXACT logging as requested ───────────────────────────────
+        console.log('SYNC_CHECK: Merchant PIN setting is:', merchantData?.isOrderPinRequired);
+        console.log('DB_SAVE_STATUS:', merchantData?.isOrderPinRequired);
         // ─────────────────────────────────────────────────────────────
 
         // RAW VALUE FROM SERVER — log exactly what DB returned
         const rawPin = merchantData?.isOrderPinRequired;
+        console.log(`[Tracking] DB raw isOrderPinRequired = ${rawPin} (type: ${typeof rawPin})`);
 
         // THE ONLY condition that shows the PIN screen: field must be EXACTLY boolean true
         // undefined / null / false / missing field → isVerified stays true (bypass, open access)
         if (rawPin === true) {
           setIsVerified(false);         // Only this path requires PIN
           setIsOrderPinRequired(true);
+          console.log(`%c[Tracking] 🔒 DB returned true → PIN screen will show`, "color:#ef4444;font-weight:bold;font-size:14px");
         } else {
           // Everything else: false, undefined, null, missing → bypass is ACTIVE
           setIsVerified(true);          // Confirm bypass (already true by default)
           setIsOrderPinRequired(false);
+          console.log("CRITICAL: PIN Bypass activated because toggle is OFF");
+          console.log(`%c[Tracking] ✅ DB returned ${rawPin} → order screen directly (no PIN)`, "color:#22c55e;font-weight:bold;font-size:14px");
         }
 
         setMerchant(merchantData);
@@ -684,6 +690,7 @@ export default function OrderTrackingPage() {
     //   true  (default + when DB=false/null/undefined) → order screen, no PIN DOM ever
     //   false (ONLY when DB returned exactly true)     → PIN/awaiting screen
     if (isVerified) {
+      console.log(`%c[Tracking] ✅ RENDER: isVerified=true → order screen (DB returned isOrderPinRequired=${merchant?.isOrderPinRequired})`, "color:#22c55e;font-weight:bold;font-size:13px");
       const shortNum = getShort3Digit(order);
       return (
         <div
@@ -797,6 +804,7 @@ export default function OrderTrackingPage() {
           {/* Single Confirm button — sets isVerified=true immediately, no PIN check */}
           <button
             onClick={() => {
+              console.log("[Confirm] Customer confirmed order ID — setting isVerified=true");
               setIsVerified(true);
             }}
             className="w-full py-5 rounded-2xl text-white text-xl font-black active:scale-[0.97] transition-all duration-150"

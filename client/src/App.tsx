@@ -173,6 +173,7 @@ function Router() {
         const key = `share_view_tracked_${merchantId}`;
         if (!sessionStorage.getItem(key)) {
           sessionStorage.setItem(key, "1");
+          console.log("Viral Visit Detected!");
           fetch(`/api/track/sharedlinkview/${merchantId}`, { method: "POST" }).catch(() => {});
         }
       }
