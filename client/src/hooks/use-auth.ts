@@ -11,13 +11,15 @@ interface SessionData {
   isAdmin?: boolean;
   isStaff?: boolean;
   staffPermissions?: string[];
+  staffName?: string;
+  staffId?: string;
 }
 
 interface AuthContextType {
   user: SessionData | null;
   merchant: Merchant | null;
   loading: boolean;
-  login: (uid: string, email: string, isAdmin?: boolean, isStaff?: boolean, staffPermissions?: string[]) => void;
+  login: (uid: string, email: string, isAdmin?: boolean, isStaff?: boolean, staffPermissions?: string[], staffName?: string, staffId?: string) => void;
   logout: () => void;
   refreshMerchant: () => void;
 }
@@ -106,12 +108,12 @@ export function useAuthProvider() {
     return () => unsub();
   }, [user?.uid, user?.email]);
 
-  const login = useCallback((uid: string, email: string, isAdmin?: boolean, isStaff?: boolean, staffPermissions?: string[]) => {
+  const login = useCallback((uid: string, email: string, isAdmin?: boolean, isStaff?: boolean, staffPermissions?: string[], staffName?: string, staffId?: string) => {
     const session: SessionData = {
       uid,
       email,
       ...(isAdmin ? { isAdmin: true } : {}),
-      ...(isStaff ? { isStaff: true, staffPermissions: staffPermissions || [] } : {}),
+      ...(isStaff ? { isStaff: true, staffPermissions: staffPermissions || [], staffName: staffName || "", staffId: staffId || "" } : {}),
     };
     localStorage.setItem(SESSION_KEY, JSON.stringify(session));
     setLoading(true);

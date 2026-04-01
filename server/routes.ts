@@ -3021,6 +3021,8 @@ export async function registerRoutes(
 
       const sanitizedPhone = String(phone).replace(/\D/g, "");
       const queryUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery?key=${apiKey}`;
+
+      // Query merchants where staffPhones array contains this phone (fast index lookup)
       const queryRes = await fetch(queryUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -3029,8 +3031,8 @@ export async function registerRoutes(
             from: [{ collectionId: "merchants" }],
             where: {
               fieldFilter: {
-                field: { fieldPath: "staffPhone" },
-                op: "EQUAL",
+                field: { fieldPath: "staffPhones" },
+                op: "ARRAY_CONTAINS",
                 value: { stringValue: sanitizedPhone },
               },
             },
@@ -3047,20 +3049,30 @@ export async function registerRoutes(
       if (!match) return res.status(401).json({ message: "بيانات الدخول غير صحيحة", errorCode: "INVALID_CREDENTIALS" });
 
       const fields = match.document.fields || {};
-      const storedPassword = fields.staffPassword?.stringValue || "";
 
+      // Parse staffAccounts array from Firestore REST format
+      const accountValues: any[] = fields.staffAccounts?.arrayValue?.values || [];
+      const staffAccount = accountValues
+        .map((v: any) => v.mapValue?.fields || {})
+        .find((f: any) => (f.phone?.stringValue || "").replace(/\D/g, "") === sanitizedPhone);
+
+      if (!staffAccount) return res.status(401).json({ message: "بيانات الدخول غير صحيحة", errorCode: "INVALID_CREDENTIALS" });
+
+      const storedPassword = staffAccount.password?.stringValue || "";
       if (!storedPassword || storedPassword !== String(password)) {
         return res.status(401).json({ message: "بيانات الدخول غير صحيحة", errorCode: "INVALID_CREDENTIALS" });
       }
 
-      const permissionsArr = fields.staffPermissions?.arrayValue?.values || [];
+      const permissionsArr: any[] = staffAccount.permissions?.arrayValue?.values || [];
       const permissions: string[] = permissionsArr.map((v: any) => v.stringValue).filter(Boolean);
+      const staffName: string = staffAccount.name?.stringValue || "";
+      const staffId: string = staffAccount.id?.stringValue || "";
 
       const docName: string = match.document.name || "";
       const merchantId = docName.split("/").pop() || "";
 
-      console.log(`[Staff Login] ✅ Staff authenticated for merchant ${merchantId}, permissions: ${permissions.join(", ")}`);
-      return res.json({ success: true, merchantId, permissions });
+      console.log(`[Staff Login] ✅ Staff "${staffName}" (${staffId}) authenticated for merchant ${merchantId}, permissions: ${permissions.join(", ")}`);
+      return res.json({ success: true, merchantId, permissions, staffName, staffId });
     } catch (err) {
       console.error("[Staff Login] Error:", err);
       return res.status(500).json({ message: "Staff login failed" });

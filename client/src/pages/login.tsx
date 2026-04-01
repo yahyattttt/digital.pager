@@ -235,7 +235,7 @@ export default function LoginPage() {
         toast({ title: t("خطأ", "Error"), description: data.message || t("بيانات الدخول غير صحيحة", "Invalid credentials"), variant: "destructive" });
         return;
       }
-      login(data.merchantId, "", false, true, data.permissions || []);
+      login(data.merchantId, "", false, true, data.permissions || [], data.staffName || "", data.staffId || "");
       setLocation("/dashboard");
     } catch (err: any) {
       toast({ title: t("خطأ", "Error"), description: err.message || t("تعذر الاتصال بالخادم", "Could not reach server"), variant: "destructive" });

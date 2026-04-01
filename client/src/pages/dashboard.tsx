@@ -6602,7 +6602,7 @@ function SettingsView({
   const [manualBranchName, setManualBranchName] = useState<string>("");
   const [showManualBranch, setShowManualBranch] = useState(false);
 
-  // ── Staff Account Settings ──
+  // ── Multi-Staff Management ──
   const ALL_PERMISSIONS: { id: string; arLabel: string; enLabel: string }[] = [
     { id: "overview", arLabel: "لوحة التحكم", enLabel: "Dashboard" },
     { id: "menu", arLabel: "قسم الأونلاين", enLabel: "Online Section" },
@@ -6618,33 +6618,101 @@ function SettingsView({
     { id: "subscription", arLabel: "اشتراكي", enLabel: "Subscription" },
     { id: "settings", arLabel: "الإعدادات", enLabel: "Settings" },
   ];
-  const [staffPhone, setStaffPhone] = useState<string>((merchant as any)?.staffPhone || "");
-  const [staffPassword, setStaffPassword] = useState<string>((merchant as any)?.staffPassword || "");
-  const [staffPermissions, setStaffPermissions] = useState<string[]>((merchant as any)?.staffPermissions || []);
-  const [staffSaving, setStaffSaving] = useState(false);
 
-  async function handleSaveStaffSettings() {
+  type StaffAccount = { id: string; name: string; phone: string; password: string; permissions: string[] };
+
+  const [staffAccounts, setStaffAccounts] = useState<StaffAccount[]>((merchant as any)?.staffAccounts || []);
+  const [staffFormOpen, setStaffFormOpen] = useState(false);
+  const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
+  const [staffFormName, setStaffFormName] = useState("");
+  const [staffFormPhone, setStaffFormPhone] = useState("");
+  const [staffFormPassword, setStaffFormPassword] = useState("");
+  const [staffFormPermissions, setStaffFormPermissions] = useState<string[]>([]);
+  const [staffSaving, setStaffSaving] = useState(false);
+  const [staffDeleting, setStaffDeleting] = useState<string | null>(null);
+
+  function openAddStaffForm() {
+    setEditingStaffId(null);
+    setStaffFormName("");
+    setStaffFormPhone("");
+    setStaffFormPassword("");
+    setStaffFormPermissions([]);
+    setStaffFormOpen(true);
+  }
+
+  function openEditStaffForm(s: StaffAccount) {
+    setEditingStaffId(s.id);
+    setStaffFormName(s.name);
+    setStaffFormPhone(s.phone);
+    setStaffFormPassword(s.password);
+    setStaffFormPermissions(s.permissions);
+    setStaffFormOpen(true);
+  }
+
+  function cancelStaffForm() {
+    setStaffFormOpen(false);
+    setEditingStaffId(null);
+  }
+
+  async function handleSaveStaff() {
     const uid = merchant?.uid;
-    if (!uid) { toast({ title: t("خطأ", "Error"), description: t("يرجى إعادة تسجيل الدخول", "Please re-login"), variant: "destructive" }); return; }
+    if (!uid) return;
+    const cleanPhone = staffFormPhone.replace(/\D/g, "");
+    if (!staffFormName.trim() || !cleanPhone || !staffFormPassword.trim()) {
+      toast({ title: t("حقول مطلوبة", "Required"), description: t("يرجى ملء الاسم والجوال وكلمة المرور", "Please fill name, phone and password"), variant: "destructive" });
+      return;
+    }
+    // Unique phone check
+    const duplicate = staffAccounts.find(s => s.phone === cleanPhone && s.id !== editingStaffId);
+    if (duplicate) {
+      toast({ title: t("رقم مكرر", "Duplicate Phone"), description: t("رقم الهاتف مسجل مسبقاً لموظف آخر", "Phone number is already registered for another staff member"), variant: "destructive" });
+      return;
+    }
     setStaffSaving(true);
     try {
-      await updateDoc(doc(db, "merchants", uid), {
-        staffPhone: staffPhone.replace(/\D/g, ""),
-        staffPassword: staffPassword,
-        staffPermissions: staffPermissions,
-      });
-      toast({ title: t("✅ تم الحفظ", "Saved"), description: t("تم حفظ إعدادات حساب الموظف بنجاح", "Staff account settings saved successfully") });
+      let updatedAccounts: StaffAccount[];
+      if (editingStaffId) {
+        updatedAccounts = staffAccounts.map(s =>
+          s.id === editingStaffId
+            ? { ...s, name: staffFormName.trim(), phone: cleanPhone, password: staffFormPassword, permissions: staffFormPermissions }
+            : s
+        );
+      } else {
+        const newId = crypto.randomUUID();
+        updatedAccounts = [...staffAccounts, { id: newId, name: staffFormName.trim(), phone: cleanPhone, password: staffFormPassword, permissions: staffFormPermissions }];
+      }
+      const staffPhones = updatedAccounts.map(s => s.phone);
+      await updateDoc(doc(db, "merchants", uid), { staffAccounts: updatedAccounts, staffPhones });
+      setStaffAccounts(updatedAccounts);
+      setStaffFormOpen(false);
+      setEditingStaffId(null);
+      toast({ title: t("✅ تم الحفظ", "Saved"), description: t("تم حفظ بيانات الموظف بنجاح", "Staff member saved successfully") });
     } catch (err: any) {
-      toast({ title: t("❌ خطأ في الحفظ", "Save Failed"), description: err.message || String(err), variant: "destructive" });
+      toast({ title: t("❌ خطأ", "Error"), description: err.message || String(err), variant: "destructive" });
     } finally {
       setStaffSaving(false);
     }
   }
 
-  function togglePermission(id: string) {
-    setStaffPermissions(prev =>
-      prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
-    );
+  async function handleDeleteStaff(id: string) {
+    const uid = merchant?.uid;
+    if (!uid) return;
+    setStaffDeleting(id);
+    try {
+      const updatedAccounts = staffAccounts.filter(s => s.id !== id);
+      const staffPhones = updatedAccounts.map(s => s.phone);
+      await updateDoc(doc(db, "merchants", uid), { staffAccounts: updatedAccounts, staffPhones });
+      setStaffAccounts(updatedAccounts);
+      toast({ title: t("✅ تم الحذف", "Deleted"), description: t("تم حذف الموظف بنجاح", "Staff member deleted") });
+    } catch (err: any) {
+      toast({ title: t("❌ خطأ", "Error"), description: err.message || String(err), variant: "destructive" });
+    } finally {
+      setStaffDeleting(null);
+    }
+  }
+
+  function toggleStaffFormPerm(id: string) {
+    setStaffFormPermissions(prev => prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]);
   }
 
   useEffect(() => {
@@ -6658,7 +6726,10 @@ function SettingsView({
     setCrPdfUrlEdit((merchant as any)?.commercialRegisterURL || "");
     setSupportWhatsappEdit((merchant as any)?.support_whatsapp || "");
     setStoreSlugEdit((merchant as any)?.storeSlug || "");
-  }, [merchant?.storeName, merchant?.whatsappNumber, merchant?.logoUrl, (merchant as any)?.ownerPhone, (merchant as any)?.commercialRegisterNumber, (merchant as any)?.taxNumber, (merchant as any)?.googleMapsReviewUrl, (merchant as any)?.commercialRegisterURL, (merchant as any)?.support_whatsapp, (merchant as any)?.storeSlug]);
+    if ((merchant as any)?.staffAccounts) {
+      setStaffAccounts((merchant as any).staffAccounts);
+    }
+  }, [merchant?.storeName, merchant?.whatsappNumber, merchant?.logoUrl, (merchant as any)?.ownerPhone, (merchant as any)?.commercialRegisterNumber, (merchant as any)?.taxNumber, (merchant as any)?.googleMapsReviewUrl, (merchant as any)?.commercialRegisterURL, (merchant as any)?.support_whatsapp, (merchant as any)?.storeSlug, (merchant as any)?.staffAccounts]);
 
   async function handleParseGoogleMaps(overrideBranchName?: string) {
     const uid = merchant?.uid;
@@ -7790,116 +7861,267 @@ function SettingsView({
 
       </>)}
 
-      {/* ── TAB: Staff Account ── */}
+      {/* ── TAB: Staff Management ── */}
       {settingsTab === "staff" && (<>
 
-      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
-        <CardContent className="p-6">
-          <h3 className="font-semibold mb-1 flex items-center gap-2">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-bold flex items-center gap-2">
             <UserCog className="w-4 h-4 text-violet-400" />
-            {t("إعدادات حساب الموظف", "Staff Account Settings")}
-          </h3>
-          <p className="text-xs text-muted-foreground mb-5" dir="rtl">
-            {t("حدد رقم وكلمة مرور الموظف وحدد الصفحات التي يمكنه الوصول إليها", "Set staff phone & password, then choose which pages they can access")}
+            {t("إدارة الموظفين", "Staff Management")}
+          </h2>
+          <p className="text-xs text-muted-foreground mt-0.5" dir="rtl">
+            {t("أضف موظفين وحدد صلاحياتهم بشكل مستقل لكل موظف", "Add staff members and assign individual permissions")}
           </p>
+        </div>
+        {!staffFormOpen && (
+          <Button
+            onClick={openAddStaffForm}
+            size="sm"
+            className="bg-violet-600 hover:bg-violet-700 text-white font-bold gap-2"
+            data-testid="button-add-staff"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            {t("إضافة موظف", "Add Staff")}
+          </Button>
+        )}
+      </div>
 
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {/* Add / Edit Form */}
+      {staffFormOpen && (
+        <Card className="border-violet-500/30 bg-[#0f0b1f] rounded-2xl">
+          <CardContent className="p-5 space-y-4">
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="font-semibold text-sm flex items-center gap-2">
+                <UserCog className="w-4 h-4 text-violet-400" />
+                {editingStaffId ? t("تعديل بيانات الموظف", "Edit Staff Member") : t("إضافة موظف جديد", "Add New Staff Member")}
+              </h3>
+              <button onClick={cancelStaffForm} className="text-muted-foreground hover:text-foreground p-1" data-testid="button-cancel-staff-form">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1.5">
-                <label className="text-xs text-muted-foreground block">{t("رقم جوال الموظف", "Staff Phone Number")}</label>
+                <label className="text-xs text-muted-foreground block">{t("الاسم", "Name")}</label>
+                <Input
+                  value={staffFormName}
+                  onChange={(e) => setStaffFormName(e.target.value)}
+                  placeholder={t("اسم الموظف", "Staff name")}
+                  className="h-10 bg-white/[0.03] border-white/10 text-sm"
+                  data-testid="input-staff-form-name"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground block">{t("رقم الجوال", "Phone")}</label>
                 <div className="relative">
                   <Phone className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                   <Input
                     type="tel"
-                    value={staffPhone}
-                    onChange={(e) => setStaffPhone(e.target.value)}
+                    value={staffFormPhone}
+                    onChange={(e) => setStaffFormPhone(e.target.value)}
                     placeholder="966501234567"
                     dir="ltr"
-                    className="pr-9 h-11 bg-white/[0.03] border-white/10 font-mono text-sm"
-                    data-testid="input-staff-phone"
+                    className="pr-9 h-10 bg-white/[0.03] border-white/10 font-mono text-sm"
+                    data-testid="input-staff-form-phone"
                   />
                 </div>
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs text-muted-foreground block">{t("كلمة مرور الموظف", "Staff Password")}</label>
+                <label className="text-xs text-muted-foreground block">{t("كلمة المرور", "Password")}</label>
                 <div className="relative">
                   <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                   <Input
-                    type="password"
-                    value={staffPassword}
-                    onChange={(e) => setStaffPassword(e.target.value)}
-                    placeholder="••••••••"
+                    type="text"
+                    value={staffFormPassword}
+                    onChange={(e) => setStaffFormPassword(e.target.value)}
+                    placeholder="••••••"
                     dir="ltr"
-                    className="pr-9 h-11 bg-white/[0.03] border-white/10 font-mono text-sm"
-                    data-testid="input-staff-password"
+                    className="pr-9 h-10 bg-white/[0.03] border-white/10 font-mono text-sm"
+                    data-testid="input-staff-form-password"
                   />
                 </div>
               </div>
             </div>
 
-            <div className="pt-2">
-              <p className="text-sm font-semibold mb-3 flex items-center gap-2" dir="rtl">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                {t("الصلاحيات — اختر الصفحات المسموح بها", "Permissions — Select Allowed Pages")}
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                  {t("الصلاحيات", "Permissions")}
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setStaffFormPermissions(ALL_PERMISSIONS.map(p => p.id))}
+                    className="text-xs text-primary hover:underline"
+                    data-testid="button-select-all-form-perms"
+                  >
+                    {t("الكل", "All")}
+                  </button>
+                  <span className="text-muted-foreground">·</span>
+                  <button
+                    onClick={() => setStaffFormPermissions([])}
+                    className="text-xs text-muted-foreground hover:underline"
+                    data-testid="button-clear-all-form-perms"
+                  >
+                    {t("لا شيء", "None")}
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
                 {ALL_PERMISSIONS.map((perm) => (
                   <label
                     key={perm.id}
-                    className="flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors"
+                    className="flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors text-xs"
                     style={{
-                      background: staffPermissions.includes(perm.id) ? "rgba(16,185,129,0.08)" : "rgba(255,255,255,0.02)",
-                      border: staffPermissions.includes(perm.id) ? "1px solid rgba(16,185,129,0.25)" : "1px solid rgba(255,255,255,0.06)",
+                      background: staffFormPermissions.includes(perm.id) ? "rgba(139,92,246,0.12)" : "rgba(255,255,255,0.02)",
+                      border: staffFormPermissions.includes(perm.id) ? "1px solid rgba(139,92,246,0.35)" : "1px solid rgba(255,255,255,0.06)",
                     }}
-                    data-testid={`perm-label-${perm.id}`}
+                    data-testid={`perm-form-label-${perm.id}`}
                   >
                     <input
                       type="checkbox"
-                      checked={staffPermissions.includes(perm.id)}
-                      onChange={() => togglePermission(perm.id)}
-                      className="w-4 h-4 accent-emerald-500 shrink-0"
-                      data-testid={`perm-check-${perm.id}`}
+                      checked={staffFormPermissions.includes(perm.id)}
+                      onChange={() => toggleStaffFormPerm(perm.id)}
+                      className="w-3.5 h-3.5 accent-violet-500 shrink-0"
+                      data-testid={`perm-form-check-${perm.id}`}
                     />
-                    <span className="text-sm font-medium" dir="rtl">{t(perm.arLabel, perm.enLabel)}</span>
+                    <span dir="rtl">{t(perm.arLabel, perm.enLabel)}</span>
                   </label>
                 ))}
               </div>
             </div>
 
-            <div className="pt-1 space-y-2">
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setStaffPermissions(ALL_PERMISSIONS.map(p => p.id))}
-                  className="text-xs border-white/10 text-muted-foreground hover:text-foreground"
-                  data-testid="button-select-all-perms"
-                >
-                  {t("تحديد الكل", "Select All")}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setStaffPermissions([])}
-                  className="text-xs border-white/10 text-muted-foreground hover:text-foreground"
-                  data-testid="button-clear-all-perms"
-                >
-                  {t("إلغاء الكل", "Clear All")}
-                </Button>
-              </div>
+            <div className="flex gap-2 pt-1">
               <Button
-                onClick={handleSaveStaffSettings}
+                onClick={handleSaveStaff}
                 disabled={staffSaving}
-                className="w-full h-11 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-2xl disabled:opacity-30"
-                data-testid="button-save-staff-settings"
+                className="flex-1 h-10 bg-violet-600 hover:bg-violet-700 text-white font-bold"
+                data-testid="button-save-staff-form"
               >
                 {staffSaving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Save className="w-4 h-4 me-2" />}
-                {t("حفظ إعدادات الموظف", "Save Staff Settings")}
+                {editingStaffId ? t("حفظ التعديلات", "Save Changes") : t("إضافة الموظف", "Add Staff")}
+              </Button>
+              <Button variant="outline" onClick={cancelStaffForm} className="h-10 border-white/10 text-muted-foreground" data-testid="button-cancel-staff-form-2">
+                {t("إلغاء", "Cancel")}
               </Button>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Staff Table */}
+      {staffAccounts.length === 0 && !staffFormOpen && (
+        <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground rounded-2xl border border-white/[0.06] bg-white/[0.01]">
+          <UserCog className="w-10 h-10 mb-3 opacity-30" />
+          <p className="text-sm">{t("لا يوجد موظفون بعد", "No staff members yet")}</p>
+          <p className="text-xs mt-1">{t("اضغط \"إضافة موظف\" لإنشاء حساب موظف", "Click \"Add Staff\" to create a staff account")}</p>
+        </div>
+      )}
+
+      {staffAccounts.length > 0 && (
+        <Card className="border-white/[0.06] bg-[#111] rounded-2xl overflow-hidden">
+          <CardContent className="p-0">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-white/[0.06] text-muted-foreground text-xs">
+                  <th className="text-right px-4 py-3 font-medium">{t("الاسم", "Name")}</th>
+                  <th className="text-right px-4 py-3 font-medium hidden sm:table-cell">{t("الجوال", "Phone")}</th>
+                  <th className="text-right px-4 py-3 font-medium hidden md:table-cell">{t("الصلاحيات", "Permissions")}</th>
+                  <th className="px-4 py-3 w-24"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {staffAccounts.map((s, i) => (
+                  <tr
+                    key={s.id}
+                    className="border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02] transition-colors"
+                    data-testid={`staff-row-${s.id}`}
+                  >
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-full bg-violet-500/20 flex items-center justify-center text-violet-300 font-bold text-xs shrink-0">
+                          {s.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="font-medium text-foreground">{s.name}</p>
+                          <p className="text-xs text-muted-foreground sm:hidden font-mono">{s.phone}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 hidden sm:table-cell">
+                      <span className="font-mono text-xs text-muted-foreground" dir="ltr">{s.phone}</span>
+                    </td>
+                    <td className="px-4 py-3 hidden md:table-cell">
+                      <div className="flex flex-wrap gap-1">
+                        {s.permissions.length === ALL_PERMISSIONS.length ? (
+                          <span className="px-2 py-0.5 rounded-full text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                            {t("كل الصلاحيات", "All permissions")}
+                          </span>
+                        ) : s.permissions.length === 0 ? (
+                          <span className="px-2 py-0.5 rounded-full text-xs bg-red-500/10 text-red-400 border border-red-500/20">
+                            {t("بدون صلاحيات", "No permissions")}
+                          </span>
+                        ) : (
+                          <>
+                            {s.permissions.slice(0, 3).map(pid => {
+                              const p = ALL_PERMISSIONS.find(pp => pp.id === pid);
+                              return p ? (
+                                <span key={pid} className="px-2 py-0.5 rounded-full text-xs bg-violet-500/10 text-violet-300 border border-violet-500/20">
+                                  {t(p.arLabel, p.enLabel)}
+                                </span>
+                              ) : null;
+                            })}
+                            {s.permissions.length > 3 && (
+                              <span className="px-2 py-0.5 rounded-full text-xs bg-white/5 text-muted-foreground">
+                                +{s.permissions.length - 3}
+                              </span>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1 justify-end">
+                        <button
+                          onClick={() => openEditStaffForm(s)}
+                          className="p-1.5 rounded-lg hover:bg-white/[0.06] text-muted-foreground hover:text-foreground transition-colors"
+                          title={t("تعديل", "Edit")}
+                          data-testid={`button-edit-staff-${s.id}`}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteStaff(s.id)}
+                          disabled={staffDeleting === s.id}
+                          className="p-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-colors disabled:opacity-50"
+                          title={t("حذف", "Delete")}
+                          data-testid={`button-delete-staff-${s.id}`}
+                        >
+                          {staffDeleting === s.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+      )}
+
+      {!staffFormOpen && (
+        <Button
+          onClick={openAddStaffForm}
+          variant="outline"
+          className="w-full h-10 border-dashed border-white/20 text-muted-foreground hover:text-foreground hover:border-violet-500/40 gap-2"
+          data-testid="button-add-staff-bottom"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          {t("إضافة موظف آخر", "Add Another Staff")}
+        </Button>
+      )}
 
       </>)}
 
