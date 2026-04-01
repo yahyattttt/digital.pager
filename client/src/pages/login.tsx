@@ -88,7 +88,6 @@ export default function LoginPage() {
       if (res.ok) {
         setOtpSent(true);
         startCooldown();
-        console.log("[OTP] Code sent successfully to:", trimmed);
         toast({
           title: t("تم إرسال رمز التحقق", "OTP Sent"),
           description: t("تحقق من بريدك الإلكتروني للحصول على الرمز المكون من 6 أرقام.", "Check your email for the 6-digit code."),

@@ -7,7 +7,7 @@ if ("serviceWorker" in navigator) {
   navigator.serviceWorker.getRegistrations().then((registrations) => {
     registrations.forEach((reg) => {
       reg.unregister().then((success) => {
-        if (success) console.log("[SW] Unregistered stale service worker:", reg.scope);
+        void success;
       });
     });
   }).catch(() => {});

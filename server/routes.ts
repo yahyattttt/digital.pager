@@ -247,7 +247,6 @@ async function getFirestoreOAuthToken(): Promise<string | null> {
       token: accessToken,
       expiresAt: Date.now() + ((tokenData.expires_in as number) || 3600) * 1000,
     };
-    console.log("[SA] Got fresh Firestore OAuth2 token via manual JWT exchange");
     return accessToken;
   } catch (err) {
     console.error("[SA] getFirestoreOAuthToken error:", (err as Error).message);
@@ -415,7 +414,6 @@ async function saveOtpToFirestore(email: string, code: string, attempt = 1): Pro
       }
       return false;
     }
-    console.log(`[OTP] Saved to Firestore 'otps' for ${email}`);
     return true;
   } catch (err) {
     console.error(`[OTP] Firestore save error (attempt ${attempt}/${MAX_ATTEMPTS}):`, (err as Error).message);
@@ -436,7 +434,6 @@ async function getOtpFromFirestore(email: string): Promise<{ code: string; expir
   try {
     const res = await apikeyFetch(`${baseUrl}/otps/${docId}`);
     if (!res.ok) {
-      console.log(`[OTP] Firestore lookup: no doc in 'otps' for ${email} (HTTP ${res.status})`);
       return null;
     }
     const doc = await res.json();
@@ -474,7 +471,6 @@ async function deleteOtpFromFirestore(email: string): Promise<void> {
   const docId = sanitizeEmailKey(email);
   try {
     await apikeyFetch(`${baseUrl}/otps/${docId}`, { method: "DELETE" });
-    console.log(`[OTP] Deleted from Firestore 'otps' for ${email}`);
   } catch {}
 }
 
@@ -576,7 +572,6 @@ async function findMerchantByEmail(email: string): Promise<{ uid: string } | nul
     if (docRes.ok) {
       const docData = await docRes.json();
       if (docData.fields) {
-        console.log(`[AUTH] Found merchant via derived UID fallback for ${emailLower}`);
         return { uid: derivedUid };
       }
     }
@@ -923,7 +918,6 @@ export async function registerRoutes(
                 fields: { subscriptionExpiry: { stringValue: newExpiry.toISOString() } },
               }),
             });
-            console.log(`[REFERRAL] Added 30 days to referrer ${referrerId}`);
           }
         } catch (refErr) {
           console.error("[REFERRAL] Failed to add bonus days:", refErr);
@@ -964,7 +958,6 @@ export async function registerRoutes(
         console.error("[REJECT-REQUEST] patch failed:", errText);
         return res.status(500).json({ message: "Rejection failed" });
       }
-      console.log(`[REJECT-REQUEST] Rejected merchant ${merchantId}: "${reason.trim()}"`);
       return res.json({ success: true });
     } catch (error) {
       console.error("[REJECT-REQUEST] error:", error);
@@ -1007,7 +1000,6 @@ export async function registerRoutes(
         console.error("[DEACTIVATE-STORE] patch failed:", errText);
         return res.status(500).json({ message: "Deactivation failed" });
       }
-      console.log(`[DEACTIVATE-STORE] Deactivated merchant ${merchantId}: "${reason.trim()}"`);
       return res.json({ success: true });
     } catch (error) {
       console.error("[DEACTIVATE-STORE] error:", error);
@@ -1288,7 +1280,6 @@ export async function registerRoutes(
       }
 
       if (response.ok) {
-        console.log("FCM V1 push sent successfully:", result.name);
         return res.json({ success: true, result });
       } else {
         console.error("FCM V1 send error:", result);
@@ -1326,7 +1317,6 @@ export async function registerRoutes(
         return res.status(500).json({ message: "عذراً، نواجه ضغطاً في السيرفر حالياً، يرجى المحاولة بعد دقيقة" });
       }
 
-      console.log(`[OTP] Generated OTP for ${emailLower}: ${code} (stored in Firestore)`);
 
       const resendApiKey = process.env.RESEND_API_KEY;
       if (!resendApiKey) {
@@ -1336,7 +1326,6 @@ export async function registerRoutes(
       const { Resend } = await import("resend");
       const resend = new Resend(resendApiKey);
 
-      console.log(`[OTP] Sending OTP email to: ${emailLower}, from: onboarding@digitalpager.net`);
 
     const sendResult = await resend.emails.send({
       from: "Digital Pager <onboarding@digitalpager.net>",
@@ -1362,7 +1351,6 @@ export async function registerRoutes(
         `,
       });
 
-      console.log(`[Resend] Response:`, JSON.stringify(sendResult));
 
       if (sendResult.error) {
         const errDetails = JSON.stringify(sendResult.error);
@@ -1373,7 +1361,6 @@ export async function registerRoutes(
         return res.status(400).json({ success: false, message: "فشل إرسال البريد الإلكتروني. يرجى التحقق من عنوانك أو المحاولة مرة أخرى.", error: "Email delivery failed" });
       }
 
-      console.log(`[Resend] ✅ Email sent to ${emailLower}, id: ${sendResult.data?.id}`);
       return res.json({ success: true, message: "OTP sent" });
     } catch (error) {
       console.error("[Resend] Unexpected send error:", error instanceof Error ? error.message : String(error));
@@ -1396,7 +1383,6 @@ export async function registerRoutes(
       const emailLower = email.toLowerCase().trim();
 
       const entry = await getOtpFromFirestore(emailLower);
-      console.log(`[OTP-VERIFY] Email: ${emailLower}, OTP found: ${!!entry}, Expired: ${entry ? entry.expiresAt < Date.now() : "N/A"}, Attempts: ${entry?.attempts ?? "N/A"}`);
 
       if (!entry) {
         return res.status(400).json({ message: "No OTP found. Please request a new one.", errorCode: "NO_OTP" });
@@ -1415,7 +1401,6 @@ export async function registerRoutes(
       await updateOtpAttempts(emailLower, entry.attempts + 1);
 
       if (entry.code !== codeStr) {
-        console.log(`[OTP-VERIFY] Code mismatch for ${emailLower}`);
         return res.status(400).json({ message: "Invalid OTP code.", errorCode: "INVALID_CODE" });
       }
 
@@ -1444,7 +1429,6 @@ export async function registerRoutes(
         if (!customToken) {
           return res.status(500).json({ message: "Failed to generate authentication token." });
         }
-        console.log(`[AUTH] Admin login for ${emailLower}, uid: ${uid}`);
         return res.json({ success: true, verified: true, customToken, uid, isNewUser: false, isAdmin: true });
       }
 
@@ -1465,11 +1449,9 @@ export async function registerRoutes(
       if (existingMerchant) {
         uid = existingMerchant.uid;
         isNewUser = false;
-        console.log(`[AUTH] Found existing merchant for ${emailLower}, uid: ${uid}`);
       } else {
         uid = generateUidFromEmail(emailLower);
         isNewUser = true;
-        console.log(`[AUTH] No merchant found for ${emailLower}, generated uid: ${uid}`);
       }
 
       const customToken = createFirebaseCustomToken(uid);
@@ -1477,7 +1459,6 @@ export async function registerRoutes(
         return res.status(500).json({ message: "Failed to generate authentication token." });
       }
 
-      console.log(`[AUTH] OTP verified for ${emailLower}, uid: ${uid}, isNewUser: ${isNewUser}`);
       return res.json({ success: true, verified: true, customToken, uid, isNewUser });
     } catch (error) {
       console.error("Verify OTP error:", error);
@@ -2576,7 +2557,6 @@ export async function registerRoutes(
       });
 
       if (response.ok) {
-        console.log("Merchant registered via server fallback:", uid);
         return res.json({ success: true });
       } else {
         const errorText = await response.text();
@@ -2967,7 +2947,6 @@ export async function registerRoutes(
         return res.status(500).json({ message: "Failed to repair merchant" });
       }
 
-      console.log(`Repaired merchant ${merchantId}, fixed fields: ${missingFields.join(", ")}`);
       return res.json({ message: "Merchant repaired", fixedFields: missingFields });
     } catch (error) {
       console.error("Repair merchant error:", error);
@@ -3071,7 +3050,6 @@ export async function registerRoutes(
       const docName: string = match.document.name || "";
       const merchantId = docName.split("/").pop() || "";
 
-      console.log(`[Staff Login] ✅ Staff "${staffName}" (${staffId}) authenticated for merchant ${merchantId}, permissions: ${permissions.join(", ")}`);
       return res.json({ success: true, merchantId, permissions, staffName, staffId });
     } catch (err) {
       console.error("[Staff Login] Error:", err);
@@ -3209,7 +3187,6 @@ export async function registerRoutes(
 
       const updatedDoc = await patchRes.json();
       const features = parseFeatures(updatedDoc.fields || {});
-      console.log(`[FEATURES] Updated merchant ${merchantId}: ${JSON.stringify(features)}`);
       return res.json({ features });
     } catch (error) {
       console.error("Admin update merchant features error:", error);
@@ -3387,7 +3364,6 @@ export async function registerRoutes(
         return res.status(500).json({ message: "Payment recorded but subscription activation failed" });
       }
 
-      console.log(`[SUBSCRIPTION] Payment recorded for merchant ${merchantId}: ${amountReceived} SAR, ${startDate} to ${endDate}`);
       return res.json({ success: true, paymentId });
     } catch (error) {
       console.error("Subscription payment error:", error);
@@ -3539,7 +3515,6 @@ export async function registerRoutes(
         return res.status(500).json({ message: "Failed to add expense" });
       }
 
-      console.log(`[PLATFORM FINANCE] Expense added: ${name} - ${amount} SAR on ${date}`);
       return res.json({ success: true, expenseId });
     } catch (error) {
       console.error("Add expense error:", error);
@@ -3560,7 +3535,6 @@ export async function registerRoutes(
       });
       if (!delRes.ok) return res.status(500).json({ message: "Failed to delete expense" });
 
-      console.log(`[PLATFORM FINANCE] Expense deleted: ${expenseId}`);
       return res.json({ success: true });
     } catch (error) {
       console.error("Delete expense error:", error);
@@ -3999,12 +3973,10 @@ export async function registerRoutes(
       const base = getApiKeyBaseUrl()!;
 
       // Fetch merchant document — try direct path first, then fallback query by uid field
-      console.log(`[MENU] Fetching merchant document for merchantId: ${merchantId}`);
       let mDoc: any = null;
       const mRes = await apikeyFetch(`${base}/merchants/${merchantId}`);
       if (mRes.ok) {
         mDoc = await mRes.json();
-        console.log(`[MENU] Direct document found for merchantId: ${merchantId}`);
       } else {
         console.warn(`[MENU] Direct doc 404 for ${merchantId} — falling back to uid field query`);
         // Fallback: query merchants collection where uid == merchantId
@@ -4032,7 +4004,6 @@ export async function registerRoutes(
           if (Array.isArray(qData) && qData.length > 0 && qData[0].document) {
             mDoc = qData[0].document;
             const realDocId = mDoc.name.split("/").pop();
-            console.log(`[MENU] Found via uid query — real docId: ${realDocId}`);
           }
         }
         if (!mDoc) {
@@ -4043,7 +4014,6 @@ export async function registerRoutes(
       // Use the real Firestore docId for subcollection paths (may differ from URL merchantId)
       const resolvedMerchantId = mDoc.name ? mDoc.name.split("/").pop()! : merchantId;
       if (resolvedMerchantId !== merchantId) {
-        console.log(`[MENU] Resolved merchantId: ${merchantId} → ${resolvedMerchantId}`);
       }
       const mf = mDoc.fields || {};
 
@@ -4081,7 +4051,6 @@ export async function registerRoutes(
       };
 
       // Fetch products via LIST using the resolved Firestore docId path
-      console.log(`[MENU] Fetching products from merchants/${resolvedMerchantId}/products`);
       const listRes = await apikeyFetch(
         `${base}/merchants/${resolvedMerchantId}/products?pageSize=500`,
         { headers: {} }
@@ -4090,7 +4059,6 @@ export async function registerRoutes(
       let products: any[] = [];
       if (listRes.ok) {
         const listData = await listRes.json();
-        console.log(`[MENU] Raw product docs returned: ${(listData.documents || []).length}`);
         const mapArray = (arr: any[]) => arr.map((v: any) => ({
           name: v.mapValue?.fields?.name?.stringValue || "",
           price: v.mapValue?.fields?.price?.doubleValue ?? parseFloat(v.mapValue?.fields?.price?.integerValue || "0"),
@@ -4172,7 +4140,6 @@ export async function registerRoutes(
       const riyadhNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Riyadh" }));
       const riyadhHours = riyadhNow.getHours();
       const riyadhMinutes = riyadhNow.getMinutes();
-      console.log(`[StoreStatus] Server check for ${merchantId}: storeOpen=${storeOpen}, riyadhTime=${riyadhHours}:${String(riyadhMinutes).padStart(2, "0")}`);
 
       const docId = randomUUID();
       const itemsArray = items.map((item: any) => ({
@@ -4802,7 +4769,6 @@ export async function registerRoutes(
       }
       const created = await createRes.json();
       const docId = (created.name as string)?.split("/").pop() || "";
-      console.log(`[POST /api/orders/pager-auto] Created pager order #${newNum} (${displayId}) for merchant ${merchantId}, docId=${docId}`);
       return res.json({ success: true, id: docId, orderNumber: newNum, displayOrderId: displayId });
     } catch (err: any) {
       console.error("[POST /api/orders/pager-auto] Error:", err);
@@ -4874,7 +4840,6 @@ export async function registerRoutes(
         return res.status(500).json({ message: "Firestore batch write failed", detail: errText });
       }
 
-      console.log(`[POST /api/orders/pager-range] Created ${count} pager orders (#${s}–#${e}) for merchant ${merchantId}`);
       return res.json({ success: true, count, start: s, end: e });
     } catch (err: any) {
       console.error("[POST /api/orders/pager-range] Error:", err);
@@ -4918,7 +4883,6 @@ export async function registerRoutes(
       }
       const created = await createRes.json();
       const docId = (created.name as string)?.split("/").pop() || "";
-      console.log(`[POST /api/orders/pager] Created pager order ${orderNumber} for merchant ${merchantId}, docId=${docId}`);
       return res.json({ success: true, id: docId });
     } catch (err: any) {
       console.error("[POST /api/orders/pager] Error:", err);
@@ -4983,7 +4947,6 @@ export async function registerRoutes(
         console.error("[PATCH /api/merchant/pin-required] Firestore error:", errText);
         return res.status(500).json({ message: "Firestore write failed", detail: errText });
       }
-      console.log(`[PATCH /api/merchant/pin-required] Saved isOrderPinRequired=${isOrderPinRequired} for merchant ${merchantId}`);
       return res.json({ success: true });
     } catch (err: any) {
       console.error("[PATCH /api/merchant/pin-required] Error:", err);
@@ -5083,7 +5046,6 @@ export async function registerRoutes(
         // NEW DEFAULT: if field is MISSING → false (no PIN required, open access)
         // Only true when field explicitly stored as booleanValue:true or stringValue:"true"
         const pinResolved: boolean = (pinBool === true || pinStr === "true") ? true : false;
-        console.log(`[Track] merchant=${merchantId} isOrderPinRequired raw=${JSON.stringify(pinRaw)} pinBool=${pinBool} → resolved=${pinResolved}`);
 
         merchant = {
           storeName: mf.storeName?.stringValue || "",
@@ -5140,7 +5102,6 @@ export async function registerRoutes(
         console.error("[confirm-order] Patch failed:", patchRes.status, errText);
         return res.status(500).json({ message: "Failed to confirm order" });
       }
-      console.log(`[confirm-order] Order ${orderId} self-confirmed for merchant ${merchantId}`);
       return res.json({ success: true });
     } catch (error) {
       console.error("Confirm order error:", error);
@@ -5482,12 +5443,10 @@ export async function registerRoutes(
           if (patchRes.ok) {
             cleaned++;
             details.push({ orderId: docId, displayOrderId, removedOrderNumber: orderNumber });
-            console.log(`[Cleanup] Fixed online order: displayOrderId=${displayOrderId}, old orderNumber=${orderNumber} → ${cloudOrderNum}`);
           }
         }
       } while (pageToken);
 
-      console.log(`[Cleanup] Completed for merchant ${merchantId}: ${cleaned} orders cleaned`);
       return res.json({ success: true, cleaned, details });
     } catch (error) {
       console.error("Cleanup error:", error);
@@ -5631,7 +5590,6 @@ Example format:
         }
         return res.status(502).json({ message: "حدث خطأ أثناء إنشاء المنيو. حاول مرة أخرى." });
       }
-      console.log(`[AI-Menu] Using model: ${usedModel}`);
 
       const geminiData = await geminiRes.json();
       const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
@@ -5688,7 +5646,6 @@ Example format:
         })
       );
 
-      console.log(`[AI-Menu] Generated ${enrichedProducts.length} products successfully`);
       return res.json({ products: enrichedProducts });
     } catch (err: any) {
       console.error("[AI-Menu] Unexpected error:", err);
