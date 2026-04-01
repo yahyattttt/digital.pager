@@ -3085,7 +3085,20 @@ function OverviewView({
     ...notifiedPagers.map(p => ({ type: "pager-notified" as const, id: p.docId, orderNumber: p.orderNumber, displayOrderId: p.displayOrderId || `#${p.orderNumber}`, status: "notified" as const, createdAt: p.createdAt, pager: p, order: undefined, orderCategory: "manual" as const })),
     ...activeWhatsappOrders.map(o => ({ type: "wa" as const, id: o.id, orderNumber: o.orderNumber || "?", displayOrderId: o.displayOrderId || (o.orderNumber ? `#${o.orderNumber}` : "?"), status: o.status, createdAt: o.createdAt, pager: undefined, order: o, orderCategory: getOrderCategory({ type: "wa", order: o }) })),
     ...whatsappOrders.map(o => ({ type: "wa-new" as const, id: o.id, orderNumber: "NEW", displayOrderId: "", status: "awaiting_confirmation" as const, createdAt: o.createdAt, pager: undefined, order: o, orderCategory: getOrderCategory({ type: "wa-new", order: o }) })),
-  ].sort((a, b) => safeTime(b.createdAt) - safeTime(a.createdAt));
+  ].sort((a, b) => {
+    // Priority 1: online orders (wa / wa-new) always above manual (pager / pager-notified)
+    const isOnline = (t: string) => t === "wa" || t === "wa-new" ? 0 : 1;
+    const pa = isOnline(a.type);
+    const pb = isOnline(b.type);
+    if (pa !== pb) return pa - pb;
+    // Priority 2: within online → newest createdAt first
+    if (pa === 0) return safeTime(b.createdAt) - safeTime(a.createdAt);
+    // Priority 3: within manual → ascending orderNumber (1, 2, 3…)
+    const na = parseInt(a.orderNumber, 10);
+    const nb = parseInt(b.orderNumber, 10);
+    if (!isNaN(na) && !isNaN(nb)) return na - nb;
+    return safeTime(a.createdAt) - safeTime(b.createdAt);
+  });
 
   const allActiveOrders = allActiveOrdersRaw.filter(item => {
     if (typeFilter !== "all" && item.orderCategory !== typeFilter) return false;
