@@ -1,4 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
+import "dayjs/locale/ar";
+dayjs.extend(relativeTime);
 import { useLocation } from "wouter";
 import {
   collection,
@@ -5710,6 +5714,32 @@ function AnalyticsView({
   );
 }
 
+type ReviewPreset = "today" | "7days" | "month" | "all";
+
+function useRelativeTime(ts: string, lang: string) {
+  const locale = lang === "ar" ? "ar" : "en";
+  if (!ts) return { relative: "", exact: "" };
+  const d = dayjs(ts).locale(locale);
+  return {
+    relative: d.fromNow(),
+    exact: dayjs(ts).format("YYYY-MM-DD HH:mm"),
+  };
+}
+
+function RelativeTimestamp({ ts, lang }: { ts: string; lang: string }) {
+  const { relative, exact } = useRelativeTime(ts, lang);
+  if (!relative) return null;
+  return (
+    <span
+      title={exact}
+      className="text-[10px] text-white/30 cursor-default border-b border-dotted border-white/20"
+      data-testid="review-relative-time"
+    >
+      {relative}
+    </span>
+  );
+}
+
 function ReviewsView({
   merchant,
   t,
@@ -5721,6 +5751,7 @@ function ReviewsView({
 }) {
   const [feedbacks, setFeedbacks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [preset, setPreset] = useState<ReviewPreset>("all");
 
   useEffect(() => {
     if (!merchant?.uid) return;
@@ -5732,23 +5763,90 @@ function ReviewsView({
   }, [merchant?.uid]);
 
   const dir = lang === "ar" ? "rtl" : "ltr";
-  const lowRatings = feedbacks.filter(f => f.stars <= 3);
+
+  // Sort newest first
+  const sorted = [...feedbacks].sort((a, b) => {
+    const ta = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+    const tb = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+    return tb - ta;
+  });
+
+  // Date filter
+  const now = dayjs();
+  const filtered = sorted.filter(f => {
+    if (preset === "all") return true;
+    if (!f.timestamp) return false;
+    const d = dayjs(f.timestamp);
+    if (preset === "today") return d.isSame(now, "day");
+    if (preset === "7days") return d.isAfter(now.subtract(7, "day"));
+    if (preset === "month") return d.isSame(now, "month");
+    return true;
+  });
+
+  const lowRatings = filtered.filter(f => f.stars <= 3);
+  const highRatings = filtered.filter(f => f.stars >= 4);
   const starCounts = [1, 2, 3, 4, 5].map(s => ({ star: s, count: feedbacks.filter(f => f.stars === s).length }));
   const maxCount = Math.max(...starCounts.map(s => s.count), 1);
 
+  const avgRating = feedbacks.length > 0
+    ? (feedbacks.reduce((s, f) => s + (f.stars || 0), 0) / feedbacks.length).toFixed(1)
+    : "0.0";
+
+  const presets: { key: ReviewPreset; ar: string; en: string }[] = [
+    { key: "today", ar: "اليوم", en: "Today" },
+    { key: "7days", ar: "آخر 7 أيام", en: "Last 7 days" },
+    { key: "month", ar: "هذا الشهر", en: "This month" },
+    { key: "all", ar: "الكل", en: "All" },
+  ];
+
   return (
     <div className="p-4 space-y-5 max-w-xl mx-auto w-full" dir={dir}>
-      <div className="flex items-center gap-3 mb-2">
+
+      {/* Header */}
+      <div className="flex items-center gap-3">
         <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
           <Star className="w-4 h-4 text-amber-400" />
         </div>
         <div>
           <h2 className="text-white font-bold text-base">{t("تقييمات العملاء", "Customer Reviews")}</h2>
-          <p className="text-white/30 text-xs">{feedbacks.length} {t("تقييم إجمالي", "total ratings")}</p>
+          <p className="text-white/30 text-xs">
+            {feedbacks.length} {t("تقييم إجمالي", "total")} · ⭐ {avgRating}
+          </p>
         </div>
       </div>
 
-      {/* Star Breakdown */}
+      {/* Date Filter Presets */}
+      <div
+        className="flex gap-1.5 flex-wrap"
+        data-testid="review-filter-presets"
+        dir="ltr"
+      >
+        {presets.map(p => (
+          <button
+            key={p.key}
+            onClick={() => setPreset(p.key)}
+            data-testid={`preset-btn-${p.key}`}
+            className="px-3 py-1.5 rounded-full text-xs font-semibold transition-all"
+            style={{
+              background: preset === p.key
+                ? "hsl(var(--primary))"
+                : "rgba(255,255,255,0.04)",
+              color: preset === p.key ? "#000" : "rgba(255,255,255,0.5)",
+              border: preset === p.key
+                ? "1px solid transparent"
+                : "1px solid rgba(255,255,255,0.08)",
+            }}
+          >
+            {t(p.ar, p.en)}
+          </button>
+        ))}
+        <span className="ms-auto text-xs text-white/30 flex items-center gap-1" dir={dir}>
+          <Filter className="w-3 h-3" />
+          {filtered.length} {t("نتيجة", "results")}
+        </span>
+      </div>
+
+      {/* Star Breakdown (always shows full dataset) */}
       {feedbacks.length > 0 && (
         <div className="rounded-2xl bg-[#111] border border-white/[0.06] p-4" data-testid="section-star-breakdown">
           <h3 className="text-xs font-bold uppercase tracking-wider text-white/40 mb-3">{t("توزيع التقييمات", "Rating Breakdown")}</h3>
@@ -5786,39 +5884,85 @@ function ReviewsView({
         </div>
       )}
 
-      {!loading && feedbacks.length === 0 && (
+      {!loading && filtered.length === 0 && (
         <div className="text-center py-12" data-testid="state-no-reviews">
           <span className="text-4xl">💬</span>
-          <p className="text-white/40 text-sm mt-3">{t("لا توجد تقييمات بعد", "No reviews yet")}</p>
-          <p className="text-white/20 text-xs mt-1">{t("ستظهر تقييمات العملاء هنا", "Customer ratings will appear here")}</p>
+          <p className="text-white/40 text-sm mt-3">
+            {preset === "all"
+              ? t("لا توجد تقييمات بعد", "No reviews yet")
+              : t("لا توجد تقييمات في هذه الفترة", "No reviews in this period")}
+          </p>
+          {preset !== "all" && (
+            <button
+              onClick={() => setPreset("all")}
+              className="mt-3 text-xs text-primary hover:underline"
+            >
+              {t("عرض الكل", "Show all")}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* 4-5 Star Reviews */}
+      {!loading && highRatings.length > 0 && (
+        <div data-testid="section-high-reviews">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-white/40 mb-3 flex items-center gap-2">
+            {t("تقييمات إيجابية", "Positive Reviews")}
+            <span className="text-emerald-400">({highRatings.length})</span>
+          </h3>
+          <div className="space-y-2">
+            {highRatings.map((fb, i) => {
+              const stars = fb.stars || 0;
+              return (
+                <div
+                  key={fb.id || `high-${i}`}
+                  className="rounded-xl border border-emerald-500/15 bg-emerald-500/[0.03] p-3"
+                  data-testid={`review-high-${i}`}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-1" dir="ltr">
+                      {Array.from({ length: 5 }).map((_, si) => (
+                        <span key={si} className="text-sm" style={{ color: si < stars ? "#10b981" : "rgba(255,255,255,0.1)" }}>★</span>
+                      ))}
+                    </div>
+                    <RelativeTimestamp ts={fb.timestamp || ""} lang={lang} />
+                  </div>
+                  {fb.comment && (
+                    <p className="text-sm text-emerald-300/70 leading-relaxed">{fb.comment}</p>
+                  )}
+                  {fb.orderType && (
+                    <p className="text-[10px] text-white/20 mt-1.5">{fb.orderType}</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
       {/* 1-3 Star Reviews (Private Feedback) */}
       {!loading && lowRatings.length > 0 && (
         <div data-testid="section-low-reviews">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-white/40 mb-3">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-white/40 mb-3 flex items-center gap-2">
             {t("ملاحظات العملاء (سرية)", "Customer Notes (Private)")}
-            <span className="ms-2 text-red-400">({lowRatings.length})</span>
+            <span className="text-red-400">({lowRatings.length})</span>
           </h3>
           <div className="space-y-2">
             {lowRatings.map((fb, i) => {
               const stars = fb.stars || 0;
-              const ts = fb.timestamp || "";
-              const dateStr = ts ? new Date(ts).toLocaleDateString(lang === "ar" ? "ar-SA" : "en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
               return (
                 <div
-                  key={fb.id || i}
+                  key={fb.id || `low-${i}`}
                   className="rounded-xl border border-red-500/20 bg-red-500/[0.04] p-3"
-                  data-testid={`review-item-${i}`}
+                  data-testid={`review-low-${i}`}
                 >
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center justify-between mb-1.5">
                     <div className="flex items-center gap-1" dir="ltr">
                       {Array.from({ length: 5 }).map((_, si) => (
                         <span key={si} className="text-sm" style={{ color: si < stars ? "#ef4444" : "rgba(255,255,255,0.1)" }}>★</span>
                       ))}
                     </div>
-                    <span className="text-[10px] text-white/20">{dateStr}</span>
+                    <RelativeTimestamp ts={fb.timestamp || ""} lang={lang} />
                   </div>
                   {fb.comment && (
                     <p className="text-sm text-red-300/80 leading-relaxed">{fb.comment}</p>
