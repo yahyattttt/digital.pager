@@ -974,16 +974,20 @@ export default function DigitalPagerPage() {
           <button
             onClick={handleActivateAlerts}
             data-testid="btn-activate-alerts"
-            className="flex items-center justify-center gap-2.5 w-full py-3.5 rounded-2xl transition-all active:scale-95"
+            className="flex items-center justify-center gap-2.5 w-full rounded-2xl transition-all active:scale-95"
             style={{
-              background: "rgba(22,5,5,0.9)",
-              border: "1.5px solid #4a1010",
-              color: "#cc4422",
+              background: alertConfirmed ? "rgba(22,5,5,0.9)" : "#FF6B00",
+              border: alertConfirmed ? "1.5px solid #4a1010" : "none",
+              color: alertConfirmed ? "#cc4422" : "#000000",
+              fontWeight: "bold",
+              paddingTop: "14px",
+              paddingBottom: "14px",
+              boxShadow: alertConfirmed ? "none" : "0 0 18px 4px rgba(255,107,0,0.45)",
             }}
           >
             <Bell className="w-4 h-4" fill="none" />
-            <span className="text-sm font-semibold">
-              {alertConfirmed ? "تم تفعيل التنبيهات ✓" : "فعل الجرس للتنبيهات"}
+            <span className="text-sm font-bold">
+              {alertConfirmed ? "تم تفعيل التنبيهات ✓" : "فعل الجرس للتنبيهات 🔔"}
             </span>
           </button>
         )}
