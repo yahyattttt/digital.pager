@@ -7546,8 +7546,8 @@ function SettingsView({
               </div>
               <p className="text-[11px] text-muted-foreground leading-relaxed" dir="rtl">
                 {t(
-                  "المواصفات المقترحة: قياس 512x512 بكسل، صيغة PNG بخلفية شفافة، وجودة عالية لضمان وضوح علامتك التجارية.",
-                  "Recommended: 512×512 px, PNG with transparent background, high quality."
+                  "المواصفات المقترحة: قياس 512x512 بكسل، صيغة PNG أو JPG بجودة عالية لضمان وضوح علامتك التجارية.",
+                  "Recommended: 512×512 px, PNG or JPG, high quality."
                 )}
               </p>
             </div>
