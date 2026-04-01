@@ -4810,6 +4810,78 @@ export async function registerRoutes(
     }
   });
 
+  // ── Bulk range order generation ───────────────────────────────────────────────
+  app.post("/api/orders/pager-range", async (req, res) => {
+    try {
+      const { merchantId, start, end } = req.body;
+      if (!merchantId) return res.status(400).json({ message: "merchantId is required" });
+      const s = parseInt(String(start), 10);
+      const e = parseInt(String(end), 10);
+      if (isNaN(s) || isNaN(e) || s < 1 || e < s)
+        return res.status(400).json({ message: "Invalid range: start must be ≥ 1 and end ≥ start" });
+      const count = e - s + 1;
+      if (count > 50)
+        return res.status(400).json({ message: "Range cannot exceed 50 orders at a time" });
+
+      const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
+      const apiKey = getApiKey();
+      if (!projectId || !apiKey) return res.status(500).json({ message: "Firestore not configured" });
+      const baseDocPath = `projects/${projectId}/databases/(default)/documents`;
+      const commitUrl = `https://firestore.googleapis.com/v1/${baseDocPath}:commit?key=${apiKey}`;
+      const now = new Date().toISOString();
+
+      // Build batch writes: one per pager order + one for the shift counter
+      const writes: any[] = [];
+      for (let num = s; num <= e; num++) {
+        const docId = (crypto as any).randomUUID();
+        const displayId = String(num).padStart(3, "0").slice(-3);
+        const pin = String(Math.floor(100 + Math.random() * 900));
+        writes.push({
+          update: {
+            name: `${baseDocPath}/merchants/${merchantId}/pagers/${docId}`,
+            fields: {
+              storeId: { stringValue: merchantId },
+              orderNumber: { stringValue: String(num) },
+              displayOrderId: { stringValue: displayId },
+              orderType: { stringValue: "manual" },
+              orderSource: { stringValue: "Manual" },
+              status: { stringValue: "waiting" },
+              createdAt: { stringValue: now },
+              notifiedAt: { nullValue: null },
+              access_pin: { stringValue: pin },
+            },
+          },
+        });
+      }
+
+      // Update shift counter to `end`
+      writes.push({
+        update: {
+          name: `${baseDocPath}/merchants/${merchantId}/settings/manualShift`,
+          fields: { last_shift_number: { integerValue: String(e) } },
+        },
+        updateMask: { fieldPaths: ["last_shift_number"] },
+      });
+
+      const commitRes = await fetch(commitUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ writes }),
+      });
+      if (!commitRes.ok) {
+        const errText = await commitRes.text();
+        console.error("[POST /api/orders/pager-range] Firestore batch error:", errText);
+        return res.status(500).json({ message: "Firestore batch write failed", detail: errText });
+      }
+
+      console.log(`[POST /api/orders/pager-range] Created ${count} pager orders (#${s}–#${e}) for merchant ${merchantId}`);
+      return res.json({ success: true, count, start: s, end: e });
+    } catch (err: any) {
+      console.error("[POST /api/orders/pager-range] Error:", err);
+      return res.status(500).json({ message: err?.message || "Server error" });
+    }
+  });
+
   // ── Create pager order (server-side, bypasses Firestore client auth) ─────────
   app.post("/api/orders/pager", async (req, res) => {
     try {

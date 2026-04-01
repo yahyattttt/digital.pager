@@ -87,6 +87,7 @@ import {
   Users2,
   Ticket,
   DollarSign,
+  List,
   UserX,
   FileDown,
   Calendar,
@@ -749,6 +750,12 @@ export default function DashboardPage() {
   const [shiftConfigInput, setShiftConfigInput] = useState("");
   const manualInputRef = useRef<HTMLInputElement>(null);
 
+  // ── Bulk Range Generation Modal ─────────────────────────────────────────
+  const [showRangeModal, setShowRangeModal] = useState(false);
+  const [rangeStart, setRangeStart] = useState("");
+  const [rangeEnd, setRangeEnd] = useState("");
+  const [rangeLoading, setRangeLoading] = useState(false);
+
   // ── Quick Loyalty Redemption Modal ─────────────────────────────────────
   const [showQuickRedeem, setShowQuickRedeem] = useState(false);
   const [qrPhone, setQrPhone] = useState("");
@@ -1256,6 +1263,41 @@ export default function DashboardPage() {
       shiftAddLockRef.current = false;
     }
   }, [merchant?.uid, isApproved, manualAddLoading, lastShiftNumber, t, toast]);
+
+  const handleRangeGenerate = useCallback(async () => {
+    if (!merchant?.uid || !isApproved) return;
+    const s = parseInt(rangeStart, 10);
+    const e = parseInt(rangeEnd, 10);
+    if (isNaN(s) || isNaN(e) || s < 1 || e < s) {
+      toast({ title: t("خطأ", "Error"), description: t("يرجى إدخال نطاق صحيح", "Please enter a valid range"), variant: "destructive" });
+      return;
+    }
+    if (e - s + 1 > 50) {
+      toast({ title: t("خطأ", "Error"), description: t("لا يمكن توليد أكثر من 50 رقماً في المرة الواحدة", "Cannot generate more than 50 numbers at once"), variant: "destructive" });
+      return;
+    }
+    setRangeLoading(true);
+    try {
+      const res = await fetch("/api/orders/pager-range", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ merchantId: merchant.uid, start: s, end: e }),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ message: res.statusText }));
+        throw new Error(errData?.message || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      setShowRangeModal(false);
+      setRangeStart("");
+      setRangeEnd("");
+      toast({ title: t(`تم توليد ${data.count} أرقام بنجاح`, `${data.count} orders generated successfully`) });
+    } catch (err: any) {
+      toast({ title: t("خطأ", "Error"), description: err?.message || String(err), variant: "destructive" });
+    } finally {
+      setRangeLoading(false);
+    }
+  }, [merchant?.uid, isApproved, rangeStart, rangeEnd, t, toast]);
 
   // ── System Health Monitoring ─────────────────────────────────────────────
   const logSystemError = useCallback(async (code: string, msg: string) => {
@@ -2212,6 +2254,7 @@ export default function DashboardPage() {
                 isApproved={isApproved}
                 onOpenQuickRedeem={() => { setShowQuickRedeem(true); setQrSuccess(false); }}
                 loyaltyEnabled={!!merchant?.loyalty_config?.is_enabled}
+                onOpenRangeModal={() => setShowRangeModal(true)}
               />
             )}
 
@@ -2511,6 +2554,115 @@ export default function DashboardPage() {
         </button>
       )}
 
+      {/* ── Range Generation Modal ───────────────────────────────────────── */}
+      {showRangeModal && (
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center p-4"
+          data-testid="modal-range-generate"
+        >
+          <div
+            className="absolute inset-0 bg-black/75 backdrop-blur-sm"
+            onClick={() => { if (!rangeLoading) { setShowRangeModal(false); setRangeStart(""); setRangeEnd(""); } }}
+          />
+          <div
+            className="relative w-full max-w-xs rounded-2xl p-6 space-y-5"
+            style={{
+              background: "linear-gradient(160deg, #120404 0%, #0a0000 100%)",
+              border: "1.5px solid rgba(239,68,68,0.22)",
+              boxShadow: "0 0 48px rgba(239,68,68,0.08)",
+              fontFamily: "'Tajawal','Cairo',sans-serif",
+            }}
+            dir={lang === "ar" ? "rtl" : "ltr"}
+          >
+            {/* Close */}
+            <button
+              onClick={() => { if (!rangeLoading) { setShowRangeModal(false); setRangeStart(""); setRangeEnd(""); } }}
+              className="absolute top-4 left-4 p-1 text-white/30 hover:text-white/60 transition-colors"
+              data-testid="button-range-modal-close"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            {/* Header */}
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center shrink-0">
+                <List className="w-5 h-5 text-orange-400" />
+              </div>
+              <div>
+                <h3 className="text-white font-bold text-base">{t("توليد نطاق", "Generate Range")}</h3>
+                <p className="text-white/30 text-xs mt-0.5">{t("الحد الأقصى ٥٠ رقماً في المرة", "Max 50 per batch")}</p>
+              </div>
+            </div>
+
+            {/* Inputs */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-xs text-white/50 font-semibold">{t("من رقم", "Start")}</label>
+                <Input
+                  type="number"
+                  min={1}
+                  inputMode="numeric"
+                  placeholder="1"
+                  value={rangeStart}
+                  onChange={(e) => setRangeStart(e.target.value.replace(/\D/g, ""))}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleRangeGenerate(); }}
+                  className="h-11 text-center text-lg font-bold border-white/10 bg-white/[0.04] rounded-xl"
+                  dir="ltr"
+                  data-testid="input-range-start"
+                  disabled={rangeLoading}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs text-white/50 font-semibold">{t("إلى رقم", "End")}</label>
+                <Input
+                  type="number"
+                  min={1}
+                  inputMode="numeric"
+                  placeholder="10"
+                  value={rangeEnd}
+                  onChange={(e) => setRangeEnd(e.target.value.replace(/\D/g, ""))}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleRangeGenerate(); }}
+                  className="h-11 text-center text-lg font-bold border-white/10 bg-white/[0.04] rounded-xl"
+                  dir="ltr"
+                  data-testid="input-range-end"
+                  disabled={rangeLoading}
+                />
+              </div>
+            </div>
+
+            {/* Range preview */}
+            {rangeStart && rangeEnd && parseInt(rangeEnd) >= parseInt(rangeStart) && (
+              <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-3 text-center">
+                <span className="text-xs text-white/40">
+                  {t("سيتم توليد", "Will generate")}{" "}
+                  <span className="text-orange-400 font-bold text-sm">
+                    {Math.min(parseInt(rangeEnd) - parseInt(rangeStart) + 1, 51)}
+                  </span>{" "}
+                  {t("رقماً", "orders")}
+                  {parseInt(rangeEnd) - parseInt(rangeStart) + 1 > 50 && (
+                    <span className="text-red-400 block text-xs mt-0.5">{t("⚠ تجاوز الحد المسموح (50)", "⚠ Exceeds limit of 50")}</span>
+                  )}
+                </span>
+              </div>
+            )}
+
+            {/* Generate button */}
+            <Button
+              onClick={handleRangeGenerate}
+              disabled={rangeLoading || !rangeStart || !rangeEnd}
+              className="w-full h-11 font-bold text-sm rounded-xl"
+              style={{ background: "hsl(var(--primary))", color: "#000" }}
+              data-testid="button-range-generate"
+            >
+              {rangeLoading
+                ? <><Loader2 className="w-4 h-4 animate-spin me-2" />{t("جاري التوليد...", "Generating...")}</>
+                : <><List className="w-4 h-4 me-2" />{t("توليد الآن", "Generate Now")}</>
+              }
+            </Button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
@@ -2645,6 +2797,7 @@ function OverviewView({
   isApproved,
   onOpenQuickRedeem,
   loyaltyEnabled,
+  onOpenRangeModal,
 }: {
   merchant: any;
   waitingPagers: (Pager & { docId: string })[];
@@ -2690,6 +2843,7 @@ function OverviewView({
   isApproved: boolean;
   onOpenQuickRedeem: () => void;
   loyaltyEnabled: boolean;
+  onOpenRangeModal: () => void;
 }) {
   const { toast } = useToast();
   const [printOrder, setPrintOrder] = useState<WhatsAppOrder | null>(null);
@@ -3107,6 +3261,16 @@ function OverviewView({
               >
                 {manualAddLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin me-1.5" /> : <Plus className="w-3.5 h-3.5 me-1.5" />}
                 {t("توليد رقم تلقائي", "Auto Generate")}
+              </Button>
+              <Button
+                onClick={onOpenRangeModal}
+                size="sm"
+                className="h-9 px-3 bg-orange-600/90 hover:bg-orange-500 text-white text-xs font-bold rounded-xl active:scale-[0.96] transition-all flex items-center gap-1.5"
+                title={t("توليد نطاق من الأرقام", "Generate number range")}
+                data-testid="button-open-range-modal"
+              >
+                <List className="w-3.5 h-3.5" />
+                {t("نطاق", "Range")}
               </Button>
               <Button
                 onClick={() => { setShiftConfigInput(String(lastShiftNumber)); setShowShiftConfig(true); }}
