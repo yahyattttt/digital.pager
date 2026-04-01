@@ -3085,17 +3085,7 @@ function OverviewView({
     ...notifiedPagers.map(p => ({ type: "pager-notified" as const, id: p.docId, orderNumber: p.orderNumber, displayOrderId: p.displayOrderId || `#${p.orderNumber}`, status: "notified" as const, createdAt: p.createdAt, pager: p, order: undefined, orderCategory: "manual" as const })),
     ...activeWhatsappOrders.map(o => ({ type: "wa" as const, id: o.id, orderNumber: o.orderNumber || "?", displayOrderId: o.displayOrderId || (o.orderNumber ? `#${o.orderNumber}` : "?"), status: o.status, createdAt: o.createdAt, pager: undefined, order: o, orderCategory: getOrderCategory({ type: "wa", order: o }) })),
     ...whatsappOrders.map(o => ({ type: "wa-new" as const, id: o.id, orderNumber: "NEW", displayOrderId: "", status: "awaiting_confirmation" as const, createdAt: o.createdAt, pager: undefined, order: o, orderCategory: getOrderCategory({ type: "wa-new", order: o }) })),
-  ].sort((a, b) => {
-    // Priority: awaiting_confirmation / pending_verification (جديد) → 0 (top)
-    //           everything else → 1
-    const statusPriority = (s: string) =>
-      s === "awaiting_confirmation" || s === "pending_verification" ? 0 : 1;
-    const pa = statusPriority(a.status);
-    const pb = statusPriority(b.status);
-    if (pa !== pb) return pa - pb;
-    // Within same priority group: newest first (createdAt DESC)
-    return safeTime(b.createdAt) - safeTime(a.createdAt);
-  });
+  ].sort((a, b) => safeTime(b.createdAt) - safeTime(a.createdAt));
 
   const allActiveOrders = allActiveOrdersRaw.filter(item => {
     if (typeFilter !== "all" && item.orderCategory !== typeFilter) return false;

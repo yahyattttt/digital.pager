@@ -4828,7 +4828,9 @@ export async function registerRoutes(
       if (!projectId || !apiKey) return res.status(500).json({ message: "Firestore not configured" });
       const baseDocPath = `projects/${projectId}/databases/(default)/documents`;
       const commitUrl = `https://firestore.googleapis.com/v1/${baseDocPath}:commit?key=${apiKey}`;
-      const now = new Date().toISOString();
+      // Base time: each order in the range gets baseTime + (num - s) ms
+      // So the LAST number (end) has the newest timestamp → appears first in DESC sort
+      const baseTime = Date.now();
 
       // Build batch writes: one per pager order + one for the shift counter
       const writes: any[] = [];
@@ -4836,6 +4838,8 @@ export async function registerRoutes(
         const docId = (crypto as any).randomUUID();
         const displayId = String(num).padStart(3, "0").slice(-3);
         const pin = String(Math.floor(100 + Math.random() * 900));
+        // Each order is 1ms newer than the previous so higher numbers sort first
+        const orderTime = new Date(baseTime + (num - s)).toISOString();
         writes.push({
           update: {
             name: `${baseDocPath}/merchants/${merchantId}/pagers/${docId}`,
@@ -4846,7 +4850,7 @@ export async function registerRoutes(
               orderType: { stringValue: "manual" },
               orderSource: { stringValue: "Manual" },
               status: { stringValue: "waiting" },
-              createdAt: { stringValue: now },
+              createdAt: { stringValue: orderTime },
               notifiedAt: { nullValue: null },
               access_pin: { stringValue: pin },
             },
