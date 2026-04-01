@@ -23,6 +23,7 @@ import DeliveryTrackerPage from "@/pages/delivery-tracker";
 import CheckOrderPage from "@/pages/check-order";
 import OrderCompletedPage from "@/pages/order-completed";
 import OnlineOrderPage from "@/pages/online-order";
+import FloatingWhatsApp from "@/components/floating-whatsapp";
 
 function SuperAdminRoute() {
   const { user, loading } = useAuth();
@@ -180,6 +181,8 @@ function Router() {
   }, []);
 
   return (
+    <>
+    <FloatingWhatsApp />
     <Switch>
       <Route path="/" component={LandingPage} />
       <Route path="/register">
@@ -209,6 +212,7 @@ function Router() {
       <Route path="/online-order/:slug" component={OnlineOrderPage} />
       <Route component={NotFound} />
     </Switch>
+    </>
   );
 }
 
