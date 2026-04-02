@@ -437,7 +437,7 @@ export default function DigitalPagerPage() {
       if ("mediaSession" in navigator) {
         const logoSrc = merchantLogo || "/logo.png";
         navigator.mediaSession.metadata = new MediaMetadata({
-          title: "طلبك قيد التحضير ☕",
+          title: "طلبك جاهز للإستلام ☕",
           artist: merchantName || "Digital Pager",
           album: "نقدر ذائقتكم",
           artwork: [
