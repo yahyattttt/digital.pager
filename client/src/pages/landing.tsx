@@ -66,25 +66,16 @@ export default function LandingPage() {
     {
       id: "zap",
       svg: <Share2 className="w-full h-full" style={{ color: "#ff6b35" }} strokeWidth={1.5} />,
-      boldText: t("التسويق الفيروسي لمتجرك:", "Viral Marketing for Your Store:"),
+      boldText: t("نزيد الوعي لعلامتك التجارية:", "We Grow Your Brand Awareness:"),
       bodyText: t(
         " ميزة مشاركة رابط التتبع تتيح لعملائك مشاركة حماسهم مع أصدقائهم، مما يضمن لك انتشاراً واسعاً وزواراً جدد دون تكاليف إعلانية.",
         " The tracking link sharing feature lets your customers spread their excitement with friends, guaranteeing wide reach and new visitors with zero ad spend."
       ),
     },
     {
-      id: "users",
-      svg: <ShoppingBag className="w-full h-full" style={{ color: "#ff6b35" }} strokeWidth={1.5} />,
-      boldText: t("رابط خاص لطلبات الأونلاين:", "Your Own Online Order Link:"),
-      bodyText: t(
-        " ودّع الطرق التقليدية واستقبل طلبات المحلي والسفري مباشرة عبر رابطك الخاص وبدون أي عمولات، مع تجربة شراء عصرية ومباشرة.",
-        " Say goodbye to traditional methods and receive dine-in and takeaway orders directly through your own link with zero commission, offering a modern and seamless buying experience."
-      ),
-    },
-    {
       id: "bell",
       svg: <Users className="w-full h-full" style={{ color: "#ff6b35" }} strokeWidth={1.5} />,
-      boldText: t("قاعدة بيانات عملائك:", "Your Customer Database:"),
+      boldText: t("قاعدة ببيانات عملاءك:", "Your Customer Database:"),
       bodyText: t(
         " ابنِ ثروتك الحقيقية بامتلاك بيانات عملائك بالكامل، مما يتيح لك فهم تفضيلاتهم وإعادة استهدافهم بعروض مخصصة تضمن عودتهم إليك.",
         " Build your real wealth by owning your complete customer data, enabling you to understand their preferences and retarget them with personalised offers that bring them back."
@@ -356,7 +347,7 @@ export default function LandingPage() {
             </h2>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {features.map((f, i) => (
               <FeatureCard key={f.id} icon={f.svg} boldText={f.boldText} bodyText={f.bodyText} index={i} />
             ))}
