@@ -432,6 +432,20 @@ export default function DigitalPagerPage() {
       bell.currentTime = 0;
       bell.play().catch(() => {});
     } catch {}
+    // Set lock-screen media metadata so the OS shows the store brand
+    try {
+      if ("mediaSession" in navigator) {
+        const logoSrc = merchantLogo || "/logo.png";
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: "طلبك قيد التحضير ☕",
+          artist: merchantName || "Digital Pager",
+          album: "نقدر ذائقتكم",
+          artwork: [
+            { src: logoSrc, sizes: "512x512", type: "image/png" },
+          ],
+        });
+      }
+    } catch {}
     // Pre-load alert.mp3 into the ref so it's ready to fire
     try {
       if (!alertAudioRef.current) alertAudioRef.current = new Audio("/alert.mp3");
