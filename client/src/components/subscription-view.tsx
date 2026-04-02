@@ -24,30 +24,29 @@ import {
 } from "lucide-react";
 
 const UNIFIED_FEATURES = [
-  "بيجر رقمي ذكي لتنبيه العملاء",
-  "استقبال الطلبات عبر خرائط جوجل",
-  "بناء وإعادة استهداف قاعدة عملائك",
-  "الفلترة الذكية لتقييمات جوجل ماب",
-  "نظام متكامل لإدارة التوصيل الذاتي",
-  "إمكانية مشاركة العملاء للبيجر الرقمي لزيادة شهرتك",
+  "بيجر رقمي لنداء العملاء لإستلام الطلب",
+  "تحويل العملاء الى تقييمات خرائط قوقل",
+  "التقييمات السلبية يتم إظهارها داخل لوحة تحكم التاجر",
+  "نظام ولاء للعميل لإدخال بياناته والاستفادة من العروض",
 ];
 
 const PLANS = [
   {
     id: "trial",
-    price: 99,
+    price: 39,
+    originalPrice: 99,
     days: 30,
     icon: Star,
-    bg: "linear-gradient(160deg,#1e2a3a 0%,#0f172a 100%)",
-    border: "#334155",
-    accent: "#94a3b8",
-    glow: "rgba(148,163,184,0.12)",
-    btnBg: "rgba(148,163,184,0.12)",
-    btnBorder: "#334155",
-    btnText: "#cbd5e1",
-    btnHover: "rgba(148,163,184,0.2)",
-    nameAr: "باقة البداية",
-    nameEn: "Starter",
+    bg: "linear-gradient(160deg,rgba(28,8,8,0.97) 0%,rgba(14,4,4,0.99) 100%)",
+    border: "rgba(255,69,0,0.25)",
+    borderActive: "rgba(255,69,0,0.65)",
+    accent: "#ff6a00",
+    glow: "rgba(255,69,0,0.08)",
+    btnBg: "transparent",
+    btnBorder: "rgba(255,69,0,0.4)",
+    btnText: "#ff6030",
+    nameAr: "باقة شهر",
+    nameEn: "Monthly",
     durationAr: "شهر واحد",
     discount: null as { ar: string; color: string; bg: string } | null,
     popular: false,
@@ -56,63 +55,66 @@ const PLANS = [
   },
   {
     id: "basic",
-    price: 269,
+    price: 107,
+    originalPrice: 269,
     days: 90,
     icon: Zap,
-    bg: "linear-gradient(160deg,#1e3a5f 0%,#0c1a2e 100%)",
-    border: "#2563eb",
-    accent: "#93c5fd",
-    glow: "rgba(37,99,235,0.18)",
-    btnBg: "rgba(37,99,235,0.18)",
-    btnBorder: "#2563eb",
-    btnText: "#93c5fd",
-    btnHover: "rgba(37,99,235,0.28)",
-    nameAr: "باقة النمو",
-    nameEn: "Growth",
+    bg: "linear-gradient(160deg,rgba(28,8,8,0.97) 0%,rgba(14,4,4,0.99) 100%)",
+    border: "rgba(255,69,0,0.25)",
+    borderActive: "rgba(255,69,0,0.65)",
+    accent: "#ff6a00",
+    glow: "rgba(255,69,0,0.08)",
+    btnBg: "transparent",
+    btnBorder: "rgba(255,69,0,0.4)",
+    btnText: "#ff6030",
+    nameAr: "باقة 3 شهور",
+    nameEn: "3 Months",
     durationAr: "٣ أشهر",
-    discount: { ar: "وفر 10%", color: "#93c5fd", bg: "rgba(37,99,235,0.2)" },
+    discount: null as { ar: string; color: string; bg: string } | null,
     popular: false,
     bestValue: false,
     premium: false,
   },
   {
     id: "premium",
-    price: 499,
+    price: 199,
+    originalPrice: 499,
     days: 180,
     icon: Rocket,
-    bg: "linear-gradient(160deg,#3b0764 0%,#1a0533 100%)",
-    border: "#a855f7",
-    accent: "#d8b4fe",
-    glow: "rgba(168,85,247,0.28)",
-    btnBg: "linear-gradient(135deg,#7c3aed,#a855f7)",
-    btnBorder: "#a855f7",
-    btnText: "#ffffff",
-    btnHover: "linear-gradient(135deg,#6d28d9,#9333ea)",
-    nameAr: "باقة التميز",
-    nameEn: "Pro",
+    bg: "linear-gradient(160deg,rgba(28,8,8,0.97) 0%,rgba(14,4,4,0.99) 100%)",
+    border: "rgba(255,69,0,0.25)",
+    borderActive: "rgba(255,69,0,0.65)",
+    accent: "#ff6a00",
+    glow: "rgba(255,69,0,0.08)",
+    btnBg: "transparent",
+    btnBorder: "rgba(255,69,0,0.4)",
+    btnText: "#ff6030",
+    nameAr: "باقة 6 شهور",
+    nameEn: "6 Months",
     durationAr: "٦ أشهر",
-    discount: { ar: "وفر 20% — خصم خاص لك", color: "#e9d5ff", bg: "rgba(168,85,247,0.25)" },
+    discount: null as { ar: string; color: string; bg: string } | null,
     popular: true,
     bestValue: false,
     premium: true,
   },
   {
     id: "enterprise",
-    price: 999,
+    price: 399,
+    originalPrice: 999,
     days: 365,
     icon: Crown,
-    bg: "linear-gradient(160deg,#78350f 0%,#1c0800 100%)",
-    border: "#f59e0b",
-    accent: "#fcd34d",
-    glow: "rgba(245,158,11,0.28)",
-    btnBg: "linear-gradient(135deg,#d97706,#f59e0b)",
-    btnBorder: "#f59e0b",
-    btnText: "#000000",
-    btnHover: "linear-gradient(135deg,#b45309,#d97706)",
-    nameAr: "باقة المؤسسات",
-    nameEn: "Enterprise",
+    bg: "linear-gradient(160deg,rgba(28,8,8,0.97) 0%,rgba(14,4,4,0.99) 100%)",
+    border: "rgba(255,69,0,0.25)",
+    borderActive: "rgba(255,69,0,0.75)",
+    accent: "#ff4500",
+    glow: "rgba(255,69,0,0.14)",
+    btnBg: "linear-gradient(90deg,#ff4500,#ff6a00)",
+    btnBorder: "none",
+    btnText: "#ffffff",
+    nameAr: "باقة 12 شهر",
+    nameEn: "12 Months",
     durationAr: "سنة كاملة",
-    discount: { ar: "أفضل قيمة — وفر 30%", color: "#fef3c7", bg: "rgba(245,158,11,0.25)" },
+    discount: null as { ar: string; color: string; bg: string } | null,
     popular: false,
     bestValue: true,
     premium: true,
@@ -380,10 +382,22 @@ export default function SubscriptionView({ merchant, t, lang }: Props) {
 
       {/* ── Plan Cards ── */}
       <div>
-        <h2 className="text-base font-semibold mb-4" data-testid="text-plans-heading">
-          {t("اختر الباقة", "Choose Your Plan")}
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Section header + promotional badges */}
+        <div className="mb-5">
+          <h2 className="text-base font-semibold mb-3" data-testid="text-plans-heading">
+            {t("اختر الباقة", "Choose Your Plan")}
+          </h2>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span style={{ background: "linear-gradient(90deg,#ff4500,#ff6a00)", borderRadius: 99, padding: "4px 14px", fontSize: 11, fontWeight: 700, color: "#fff" }}>
+              {t("خصم خاص للعملاء الجدد 60%", "60% New Customer Discount")}
+            </span>
+            <span style={{ background: "rgba(255,69,0,0.1)", border: "1px solid rgba(255,69,0,0.3)", borderRadius: 99, padding: "4px 12px", fontSize: 11, fontWeight: 600, color: "#ff6a00" }}>
+              {t("تجربة مجانية لمدة 15 يوم", "15-Day Free Trial")}
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {PLANS.map((plan) => {
             const Icon = plan.icon;
             const isSelected = selectedPlan === plan.id;
@@ -397,97 +411,84 @@ export default function SubscriptionView({ merchant, t, lang }: Props) {
                 className="relative flex flex-col rounded-2xl overflow-hidden transition-all duration-200"
                 style={{
                   background: plan.bg,
-                  border: `1.5px solid ${isSelected ? plan.border : "rgba(255,255,255,0.08)"}`,
+                  border: `1.5px solid ${isSelected ? plan.borderActive : plan.border}`,
                   boxShadow: isSelected
-                    ? `0 0 0 1px ${plan.border}40, 0 8px 32px ${plan.glow}`
-                    : plan.premium
-                    ? `0 4px 24px ${plan.glow}`
+                    ? `0 0 32px ${plan.glow}`
+                    : plan.bestValue
+                    ? `0 0 28px ${plan.glow}`
                     : "none",
                 }}
               >
-                {/* "Most Popular" ribbon */}
-                {plan.popular && (
-                  <div className="absolute top-0 inset-x-0 h-0.5" style={{ background: `linear-gradient(90deg, transparent, ${plan.border}, transparent)` }} />
-                )}
-                {plan.popular && (
-                  <div className="absolute -top-px left-1/2 -translate-x-1/2">
-                    <span className="inline-block text-[10px] font-black px-3 py-0.5 rounded-b-lg tracking-wide whitespace-nowrap" style={{ background: plan.border, color: "#fff" }}>
-                      ★ {t("الأكثر طلباً", "Most Popular")}
+                {/* Best value badge */}
+                {plan.bestValue && (
+                  <div className="absolute top-3 end-3">
+                    <span style={{ background: "#ff4500", borderRadius: 99, padding: "2px 8px", fontSize: 9, fontWeight: 700, color: "#fff", letterSpacing: "0.04em" }}>
+                      {t("الأوفر", "Best Value")}
                     </span>
                   </div>
                 )}
-                {plan.bestValue && (
-                  <div className="absolute -top-px left-1/2 -translate-x-1/2">
-                    <span className="inline-block text-[10px] font-black px-3 py-0.5 rounded-b-lg tracking-wide whitespace-nowrap" style={{ background: plan.border, color: "#000" }}>
-                      👑 {t("أفضل قيمة", "Best Value")}
+                {plan.popular && !plan.bestValue && (
+                  <div className="absolute top-3 end-3">
+                    <span style={{ background: "rgba(255,69,0,0.15)", border: "1px solid rgba(255,69,0,0.35)", borderRadius: 99, padding: "2px 8px", fontSize: 9, fontWeight: 700, color: "#ff6a00" }}>
+                      {t("الأكثر طلباً", "Popular")}
                     </span>
                   </div>
                 )}
 
-                <div className="flex flex-col flex-1 p-5 pt-6 gap-4">
-                  {/* Plan Identity */}
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(0,0,0,0.3)" }}>
-                        <Icon className="w-[18px] h-[18px]" style={{ color: plan.accent }} />
-                      </div>
-                      <div>
-                        <p className="font-black text-sm text-white leading-tight">{plan.nameAr}</p>
-                        <p className="text-[11px] font-medium" style={{ color: `${plan.accent}99` }}>{plan.durationAr}</p>
-                      </div>
+                <div className="flex flex-col flex-1 p-4 gap-3">
+                  {/* Plan name */}
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: "rgba(255,69,0,0.1)" }}>
+                      <Icon className="w-4 h-4" style={{ color: "#ff4500" }} />
+                    </div>
+                    <p style={{ fontWeight: 700, fontSize: 13, color: "#ff4500" }}>{plan.nameAr}</p>
+                  </div>
+
+                  {/* Price */}
+                  <div>
+                    <span style={{ fontSize: 11, color: "rgba(200,185,178,0.4)", textDecoration: "line-through", display: "block", marginBottom: 1 }}>
+                      {plan.originalPrice} SR
+                    </span>
+                    <div>
+                      <span style={{ fontSize: 30, fontWeight: 900, color: "#f0f0f0", lineHeight: 1 }}>{plan.price}</span>
+                      <span style={{ fontSize: 13, fontWeight: 500, color: "rgba(200,185,178,0.55)", marginInlineStart: 4 }}>SR</span>
                     </div>
                     {isSelected && (
-                      <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0" style={{ background: plan.border }}>
-                        <Check className="w-3.5 h-3.5 text-white" />
+                      <div className="inline-flex items-center gap-1 mt-1">
+                        <Check className="w-3 h-3" style={{ color: "#ff4500" }} />
+                        <span style={{ fontSize: 10, color: "#ff4500", fontWeight: 600 }}>{t("مختارة", "Selected")}</span>
                       </div>
-                    )}
-                  </div>
-
-                  {/* Price + Discount Badge */}
-                  <div className="flex items-end gap-3 flex-wrap">
-                    <div>
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-3xl font-black text-white tabular-nums">{plan.price}</span>
-                        <span className="text-sm font-medium" style={{ color: `${plan.accent}80` }}>{t("ريال", "SAR")}</span>
-                      </div>
-                      <p className="text-[10px] mt-0.5" style={{ color: `${plan.accent}60` }}>{plan.durationAr}</p>
-                    </div>
-                    {plan.discount && (
-                      <span
-                        className="text-[10px] font-black px-2.5 py-1 rounded-full leading-none whitespace-nowrap mb-1"
-                        style={{ background: plan.discount.bg, color: plan.discount.color, border: `1px solid ${plan.discount.color}40` }}
-                        data-testid={`badge-discount-${plan.id}`}
-                      >
-                        {plan.discount.ar}
-                      </span>
                     )}
                   </div>
 
                   {/* Divider */}
-                  <div style={{ height: 1, background: `linear-gradient(90deg, ${plan.border}30, transparent)` }} />
+                  <div style={{ borderTop: "1px solid rgba(255,69,0,0.1)" }} />
 
-                  {/* Unified Feature List */}
+                  {/* Feature header */}
+                  <p style={{ fontSize: 10, color: "rgba(200,185,178,0.55)", fontWeight: 700, letterSpacing: "0.04em" }}>
+                    {t("الإشتراك يشمل:", "Plan includes:")}
+                  </p>
+
+                  {/* Feature list */}
                   <ul className="space-y-2 flex-1">
                     {UNIFIED_FEATURES.map((feature) => (
                       <li key={feature} className="flex items-start gap-2">
-                        <div className="w-4 h-4 rounded-full flex items-center justify-center shrink-0 mt-0.5" style={{ background: `${plan.border}25` }}>
-                          <Check className="w-2.5 h-2.5" style={{ color: plan.accent }} />
-                        </div>
-                        <span className="text-[12px] leading-snug" style={{ color: "rgba(255,255,255,0.75)" }}>{feature}</span>
+                        <span style={{ color: "#ff4500", flexShrink: 0, fontSize: 11, marginTop: 1 }}>✔</span>
+                        <span style={{ fontSize: 11, lineHeight: 1.55, color: "rgba(220,210,200,0.72)" }}>{feature}</span>
                       </li>
                     ))}
                   </ul>
 
-                  {/* Activate Button */}
+                  {/* Activate Button — logic completely untouched */}
                   {canActivate ? (
                     <button
                       onClick={() => handleActivate(plan.id)}
                       disabled={!!submittingPlanId}
                       data-testid={`btn-activate-${plan.id}`}
-                      className="w-full h-11 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all duration-200 mt-1"
+                      className="w-full h-10 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all duration-200 mt-1"
                       style={{
-                        background: plan.premium ? plan.btnBg : plan.btnBg,
-                        border: `1px solid ${plan.btnBorder}`,
+                        background: plan.btnBg,
+                        border: plan.btnBorder === "none" ? "none" : `1px solid ${plan.btnBorder}`,
                         color: plan.btnText,
                         opacity: submittingPlanId && submittingPlanId !== plan.id ? 0.5 : 1,
                       }}
@@ -500,7 +501,7 @@ export default function SubscriptionView({ merchant, t, lang }: Props) {
                     </button>
                   ) : (
                     <div
-                      className="w-full h-11 rounded-xl flex items-center justify-center gap-2 mt-1"
+                      className="w-full h-10 rounded-xl flex items-center justify-center gap-2 mt-1"
                       style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
                     >
                       {isLocked ? (
