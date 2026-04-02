@@ -476,15 +476,37 @@ export default function LandingPage() {
             </div>
           )}
 
-          {/* Bottom row: logo + copyright */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+          {/* Bottom row: logo + copyright + legal links */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
             <div className="flex items-center gap-2">
               <img src={neonBellLogo} alt="Digital Pager" className="h-8 w-auto object-contain" style={{ mixBlendMode: "screen" }} />
               <span style={{ fontWeight: 700, fontSize: 13, color: "rgba(255,255,255,0.5)" }}>Digital Pager</span>
             </div>
-            <p style={{ fontSize: 12, color: "rgba(200,190,185,0.38)" }}>
-              &copy; {new Date().getFullYear()} Digital Pager. {t("جميع الحقوق محفوظة.", "All rights reserved.")}
-            </p>
+            <div style={{ display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
+              <a
+                href="/platform-terms"
+                data-testid="link-footer-terms"
+                onClick={e => { e.preventDefault(); setLocation("/platform-terms"); }}
+                style={{ fontSize: 12, color: "rgba(200,185,178,0.5)", textDecoration: "none", transition: "color 0.2s" }}
+                onMouseOver={e => (e.currentTarget.style.color = "#ff4500")}
+                onMouseOut={e => (e.currentTarget.style.color = "rgba(200,185,178,0.5)")}
+              >
+                {t("الشروط والأحكام", "Terms & Conditions")}
+              </a>
+              <a
+                href="/platform-privacy"
+                data-testid="link-footer-privacy"
+                onClick={e => { e.preventDefault(); setLocation("/platform-privacy"); }}
+                style={{ fontSize: 12, color: "rgba(200,185,178,0.5)", textDecoration: "none", transition: "color 0.2s" }}
+                onMouseOver={e => (e.currentTarget.style.color = "#ff4500")}
+                onMouseOut={e => (e.currentTarget.style.color = "rgba(200,185,178,0.5)")}
+              >
+                {t("سياسة الخصوصية", "Privacy Policy")}
+              </a>
+              <p style={{ fontSize: 12, color: "rgba(200,190,185,0.38)", margin: 0 }}>
+                &copy; {new Date().getFullYear()} Digital Pager. {t("جميع الحقوق محفوظة.", "All rights reserved.")}
+              </p>
+            </div>
           </div>
 
         </div>

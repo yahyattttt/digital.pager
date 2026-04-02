@@ -1040,6 +1040,23 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/public/platform-content", async (_req, res) => {
+    try {
+      const baseUrl = getApiKeyBaseUrl();
+      if (!baseUrl || !getApiKey()) return res.json({ platformTermsText: "", platformPrivacyText: "" });
+      const docRes = await apikeyFetch(`${baseUrl}/systemSettings/global`);
+      if (!docRes.ok) return res.json({ platformTermsText: "", platformPrivacyText: "" });
+      const body = await docRes.json();
+      const fields = body?.fields ?? {};
+      return res.json({
+        platformTermsText: fields.platformTermsText?.stringValue ?? "",
+        platformPrivacyText: fields.platformPrivacyText?.stringValue ?? "",
+      });
+    } catch {
+      return res.json({ platformTermsText: "", platformPrivacyText: "" });
+    }
+  });
+
   app.post("/api/upload-cr", crUpload.single("cr"), (req, res) => {
     if (!req.file) {
       return res.status(400).json({ message: "No file uploaded" });

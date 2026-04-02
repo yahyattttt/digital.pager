@@ -23,6 +23,8 @@ import DeliveryTrackerPage from "@/pages/delivery-tracker";
 import CheckOrderPage from "@/pages/check-order";
 import OrderCompletedPage from "@/pages/order-completed";
 import OnlineOrderPage from "@/pages/online-order";
+import PlatformTermsPage from "@/pages/platform-terms";
+import PlatformPrivacyPage from "@/pages/platform-privacy";
 import FloatingWhatsApp from "@/components/floating-whatsapp";
 
 function SuperAdminRoute() {
@@ -210,6 +212,8 @@ function Router() {
       <Route path="/check-order/:merchantId" component={CheckOrderPage} />
       <Route path="/order-completed/:merchantId" component={OrderCompletedPage} />
       <Route path="/online-order/:slug" component={OnlineOrderPage} />
+      <Route path="/platform-terms" component={PlatformTermsPage} />
+      <Route path="/platform-privacy" component={PlatformPrivacyPage} />
       <Route component={NotFound} />
     </Switch>
     </>
