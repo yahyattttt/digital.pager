@@ -913,7 +913,7 @@ export default function DashboardPage() {
       const truly_new = newCurbsideIds.filter(id => !prevCurbsideIdsRef.current.has(id));
       if (truly_new.length > 0) {
         try {
-          if (!curbsideAudioRef.current) curbsideAudioRef.current = new Audio("/bell.mp3");
+          if (!curbsideAudioRef.current) { curbsideAudioRef.current = new Audio("/silent.mp3"); curbsideAudioRef.current.loop = true; }
           curbsideAudioRef.current.currentTime = 0;
           curbsideAudioRef.current.play().catch(() => {});
         } catch {}

@@ -278,8 +278,8 @@ export default function DigitalPagerPage() {
   // Used ONLY for the activation button — unlocks browser session audio
   const playBell = useCallback(() => {
     try {
-      const audio = bellAudioRef.current || new Audio("/bell.mp3");
-      bellAudioRef.current = audio;
+      if (!bellAudioRef.current) { bellAudioRef.current = new Audio("/silent.mp3"); bellAudioRef.current.loop = true; }
+      const audio = bellAudioRef.current;
       audio.currentTime = 0;
       audio.play().catch(() => {});
     } catch {}
@@ -425,10 +425,10 @@ export default function DigitalPagerPage() {
   }, [loyaltyEnabled, merchantId, customerPhone, isManual]);
 
   function handleActivateAlerts() {
-    // Play bell.mp3 on button press — this unlocks the browser audio session
+    // Play silent.mp3 on button press — this unlocks the browser audio session
     try {
-      const bell = bellAudioRef.current || new Audio("/bell.mp3");
-      bellAudioRef.current = bell;
+      if (!bellAudioRef.current) { bellAudioRef.current = new Audio("/silent.mp3"); bellAudioRef.current.loop = true; }
+      const bell = bellAudioRef.current;
       bell.currentTime = 0;
       bell.play().catch(() => {});
     } catch {}
