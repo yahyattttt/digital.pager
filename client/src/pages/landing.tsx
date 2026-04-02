@@ -229,6 +229,120 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ── PRICING SECTION ── */}
+      <section style={{ position: "relative", zIndex: 10, paddingTop: 80, paddingBottom: 80 }}>
+        <div className="max-w-7xl mx-auto px-5">
+          {/* Header */}
+          <div style={{ textAlign: "center", marginBottom: 40 }}>
+            <p style={{ fontSize: 11, letterSpacing: "0.2em", color: "#ff4500", fontWeight: 600, textTransform: "uppercase", marginBottom: 10 }}>
+              {t("الأسعار", "PRICING")}
+            </p>
+            <h2 style={{ fontSize: "clamp(1.5rem, 3vw, 2.1rem)", fontWeight: 800, color: "#f0f0f0", lineHeight: 1.3, marginBottom: 16 }}>
+              {t("اختر باقتك المناسبة", "Choose Your Plan")}
+            </h2>
+            {/* Discount banner */}
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
+              <span style={{ background: "linear-gradient(90deg,#ff4500,#ff6a00)", borderRadius: 99, padding: "5px 18px", fontSize: 12, fontWeight: 700, color: "#fff" }}>
+                خصم خاص للعملاء الجدد 60%
+              </span>
+              <span style={{ background: "rgba(255,69,0,0.1)", border: "1px solid rgba(255,69,0,0.3)", borderRadius: 99, padding: "5px 16px", fontSize: 12, fontWeight: 600, color: "#ff6a00" }}>
+                تجربة مجانية لمدة 15 يوم
+              </span>
+            </div>
+          </div>
+
+          {/* 4 Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {[
+              { period: "باقة شهر",     months: 1,  original: 99,  discounted: 39  },
+              { period: "باقة 3 شهور",  months: 3,  original: 269, discounted: 107 },
+              { period: "باقة 6 شهور",  months: 6,  original: 499, discounted: 199 },
+              { period: "باقة 12 شهر",  months: 12, original: 999, discounted: 399 },
+            ].map((pkg, i) => (
+              <div
+                key={i}
+                data-testid={`card-pricing-${pkg.months}m`}
+                style={{
+                  background: "linear-gradient(160deg,rgba(28,8,8,0.97) 0%,rgba(14,4,4,0.99) 100%)",
+                  border: i === 3 ? "1.5px solid rgba(255,69,0,0.65)" : "1px solid rgba(255,69,0,0.16)",
+                  borderRadius: 18,
+                  padding: "26px 22px",
+                  position: "relative",
+                  overflow: "hidden",
+                  boxShadow: i === 3 ? "0 0 40px rgba(255,69,0,0.1)" : "none",
+                  display: "flex",
+                  flexDirection: "column",
+                }}
+              >
+                {/* Most-value badge */}
+                {i === 3 && (
+                  <div style={{ position: "absolute", top: 14, insetInlineEnd: 14, background: "#ff4500", borderRadius: 99, padding: "2px 10px", fontSize: 10, fontWeight: 700, color: "#fff", letterSpacing: "0.05em" }}>
+                    {t("الأوفر", "Best Value")}
+                  </div>
+                )}
+
+                {/* Plan name */}
+                <p style={{ color: "#ff4500", fontWeight: 700, fontSize: 14, marginBottom: 14 }}>{pkg.period}</p>
+
+                {/* Price */}
+                <div style={{ marginBottom: 20 }}>
+                  <span style={{ fontSize: 12, color: "rgba(200,185,178,0.4)", textDecoration: "line-through", display: "block", marginBottom: 2 }}>
+                    {pkg.original} SR
+                  </span>
+                  <span style={{ fontSize: 36, fontWeight: 900, color: "#f0f0f0", lineHeight: 1 }}>
+                    {pkg.discounted}
+                  </span>
+                  <span style={{ fontSize: 14, fontWeight: 500, color: "rgba(200,185,178,0.55)", marginInlineStart: 4 }}>SR</span>
+                </div>
+
+                {/* Divider */}
+                <div style={{ borderTop: "1px solid rgba(255,69,0,0.1)", marginBottom: 16 }} />
+
+                {/* Subscription header */}
+                <p style={{ fontSize: 11, color: "rgba(200,185,178,0.6)", fontWeight: 700, marginBottom: 12, letterSpacing: "0.04em" }}>
+                  {t("الإشتراك يشمل:", "Plan includes:")}
+                </p>
+
+                {/* Feature list */}
+                <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 10, flex: 1 }}>
+                  {[
+                    t("بيجر رقمي لنداء العملاء لإستلام الطلب", "Digital pager for customer call-back"),
+                    t("تحويل العملاء الى تقييمات خرائط قوقل", "Convert customers to Google Maps reviews"),
+                    t("التقييمات السلبية يتم إظهارها داخل لوحة تحكم التاجر", "Negative reviews shown only in merchant dashboard"),
+                    t("نظام ولاء للعميل لإدخال بياناته والاستفادة من العروض", "Customer loyalty system with offers & rewards"),
+                  ].map((feat, fi) => (
+                    <li key={fi} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12, color: "rgba(220,210,200,0.72)", lineHeight: 1.55, direction: isRTL ? "rtl" : "ltr" }}>
+                      <span style={{ color: "#ff4500", flexShrink: 0, marginTop: 1 }}>✔</span>
+                      {feat}
+                    </li>
+                  ))}
+                </ul>
+
+                {/* CTA */}
+                <button
+                  onClick={() => setLocation("/register")}
+                  data-testid={`button-pricing-cta-${pkg.months}m`}
+                  style={{
+                    marginTop: 22,
+                    width: "100%",
+                    background: i === 3 ? "linear-gradient(90deg,#ff4500,#ff6a00)" : "transparent",
+                    border: i === 3 ? "none" : "1px solid rgba(255,69,0,0.35)",
+                    borderRadius: 10,
+                    padding: "10px 0",
+                    color: i === 3 ? "#fff" : "#ff6030",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  {t("ابدأ مجاناً", "Get Started Free")}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ── FEATURE CARDS ── */}
       <section style={{ position: "relative", zIndex: 10, paddingBottom: 80 }}>
         <div className="max-w-7xl mx-auto px-5">
