@@ -355,6 +355,165 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ── COMPARISON TABLE ── */}
+      <section style={{ position: "relative", zIndex: 10, paddingTop: 80, paddingBottom: 80 }}>
+        <div className="max-w-5xl mx-auto px-5">
+
+          {/* Section label */}
+          <div style={{ textAlign: "center", marginBottom: 48 }}>
+            <p style={{ fontSize: 11, letterSpacing: "0.2em", color: "#ff4500", fontWeight: 600, textTransform: "uppercase", marginBottom: 10 }}>
+              {t("المقارنة", "COMPARISON")}
+            </p>
+            <h2 style={{ fontSize: "clamp(1.4rem, 3vw, 2rem)", fontWeight: 800, color: "#f0f0f0", lineHeight: 1.3, marginBottom: 8 }}>
+              {t("جهاز بيجر مطاعم التقليدي vs البيجر الرقمي", "Traditional Restaurant Pager vs Digital Pager")}
+            </h2>
+            <p style={{ fontSize: 13, color: "rgba(200,185,178,0.55)", maxWidth: 520, margin: "0 auto" }}>
+              {t(
+                "نظام مناداة العملاء الذكي — بدون أجهزة، بدون صيانة، بدون حدود.",
+                "Smart customer calling system — no devices, no maintenance, no limits."
+              )}
+            </p>
+          </div>
+
+          {/* Table wrapper — scrollable on mobile */}
+          <div style={{ overflowX: "auto", borderRadius: 18, border: "1px solid rgba(255,69,0,0.15)" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 560 }}>
+              <thead>
+                <tr>
+                  {/* Feature column */}
+                  <th style={{
+                    padding: "16px 20px", textAlign: isRTL ? "right" : "left",
+                    fontSize: 12, fontWeight: 700, color: "rgba(200,185,178,0.5)",
+                    background: "rgba(14,4,4,0.98)", letterSpacing: "0.06em", textTransform: "uppercase",
+                    borderBottom: "1px solid rgba(255,69,0,0.12)",
+                  }}>
+                    {t("المقارنة", "Feature")}
+                  </th>
+                  {/* Traditional */}
+                  <th style={{
+                    padding: "16px 20px", textAlign: "center", width: "30%",
+                    fontSize: 13, fontWeight: 800, color: "rgba(220,60,60,0.85)",
+                    background: "rgba(14,4,4,0.98)",
+                    borderBottom: "1px solid rgba(255,69,0,0.12)",
+                    borderInlineStart: "1px solid rgba(255,69,0,0.08)",
+                  }}>
+                    {t("البيجر التقليدي", "Traditional Pager")}
+                    <div style={{ fontSize: 10, fontWeight: 400, color: "rgba(200,100,100,0.5)", marginTop: 2 }}>
+                      {t("جهاز بيجر مطاعم", "Restaurant Pager Device")}
+                    </div>
+                  </th>
+                  {/* Digital */}
+                  <th style={{
+                    padding: "16px 20px", textAlign: "center", width: "30%",
+                    fontSize: 13, fontWeight: 800, color: "#ff4500",
+                    background: "rgba(255,69,0,0.05)",
+                    borderBottom: "1px solid rgba(255,69,0,0.12)",
+                    borderInlineStart: "1px solid rgba(255,69,0,0.1)",
+                  }}>
+                    {t("البيجر الرقمي", "Digital Pager")}
+                    <div style={{ fontSize: 10, fontWeight: 400, color: "rgba(255,100,0,0.5)", marginTop: 2 }}>
+                      {t("بدون أجهزة", "Device-Free")}
+                    </div>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  {
+                    feature: t("تكلفة التأسيس", "Setup Cost"),
+                    seoNote: t("سعر جهاز البيجر", "Pager device price"),
+                    traditional: { text: t("سعر جهاز البيجر مرتفع", "High pager device cost"), ok: false },
+                    digital: { text: t("0 ريال — بدون أجهزة", "0 SAR — no devices"), ok: true },
+                  },
+                  {
+                    feature: t("الصيانة", "Maintenance"),
+                    seoNote: t("صيانة أجهزة البيجر", "Pager device maintenance"),
+                    traditional: { text: t("صيانة أجهزة البيجر وبطاريات", "Pager device maintenance & batteries"), ok: false },
+                    digital: { text: t("تحديثات سحابية فورية", "Instant cloud updates"), ok: true },
+                  },
+                  {
+                    feature: t("مدى الإشارة", "Signal Range"),
+                    seoNote: "",
+                    traditional: { text: t("محدود بمدى الجهاز اللاسلكي", "Limited by wireless device range"), ok: false },
+                    digital: { text: t("مدى غير محدود عبر الإنترنت", "Unlimited range via internet"), ok: true },
+                  },
+                  {
+                    feature: t("ضياع الأجهزة", "Lost Devices"),
+                    seoNote: "",
+                    traditional: { text: t("وارد جداً ومكلف", "Very common and costly"), ok: false },
+                    digital: { text: t("مستحيل — على جوال العميل", "Impossible — on customer's phone"), ok: true },
+                  },
+                  {
+                    feature: t("القيمة المضافة", "Added Value"),
+                    seoNote: t("نظام مناداة العملاء", "Customer calling system"),
+                    traditional: { text: t("مناداة فقط", "Call-only"), ok: false },
+                    digital: { text: t("تقييمات قوقل ماب + نظام ولاء", "Google Maps reviews + loyalty system"), ok: true },
+                  },
+                ].map((row, i) => (
+                  <tr
+                    key={i}
+                    style={{
+                      background: i % 2 === 0 ? "rgba(14,4,4,0.95)" : "rgba(20,6,6,0.97)",
+                      borderBottom: i < 4 ? "1px solid rgba(255,69,0,0.07)" : "none",
+                    }}
+                  >
+                    {/* Feature label */}
+                    <td style={{ padding: "18px 20px" }}>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: "#f0f0f0", marginBottom: 2 }}>{row.feature}</p>
+                      {row.seoNote && (
+                        <p style={{ fontSize: 10, color: "rgba(200,185,178,0.35)", fontStyle: "italic" }}>{row.seoNote}</p>
+                      )}
+                    </td>
+                    {/* Traditional */}
+                    <td style={{
+                      padding: "18px 16px", textAlign: "center",
+                      borderInlineStart: "1px solid rgba(255,69,0,0.08)",
+                    }}>
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, flexDirection: "column" }}>
+                        <span style={{ fontSize: 18, lineHeight: 1 }}>{row.traditional.ok ? "✅" : "❌"}</span>
+                        <span style={{ fontSize: 11, color: "rgba(220,160,160,0.75)", lineHeight: 1.4, maxWidth: 130, textAlign: "center" }}>
+                          {row.traditional.text}
+                        </span>
+                      </div>
+                    </td>
+                    {/* Digital */}
+                    <td style={{
+                      padding: "18px 16px", textAlign: "center",
+                      background: "rgba(255,69,0,0.03)",
+                      borderInlineStart: "1px solid rgba(255,69,0,0.1)",
+                    }}>
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, flexDirection: "column" }}>
+                        <span style={{ fontSize: 18, lineHeight: 1 }}>{row.digital.ok ? "✅" : "⚠️"}</span>
+                        <span style={{ fontSize: 11, color: "rgba(200,240,200,0.8)", lineHeight: 1.4, maxWidth: 130, textAlign: "center" }}>
+                          {row.digital.text}
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* CTA under table */}
+          <div style={{ textAlign: "center", marginTop: 36 }}>
+            <button
+              onClick={() => setLocation("/register")}
+              data-testid="button-comparison-cta"
+              style={{
+                background: "linear-gradient(90deg,#ff4500,#ff6a00)",
+                border: "none", borderRadius: 12,
+                padding: "12px 32px", fontSize: 14, fontWeight: 700,
+                color: "#fff", cursor: "pointer",
+              }}
+            >
+              {t("جرّب البيجر الرقمي مجاناً", "Try Digital Pager Free")}
+            </button>
+          </div>
+
+        </div>
+      </section>
+
       {/* ── CTA STRIP ── */}
       <section
         style={{
