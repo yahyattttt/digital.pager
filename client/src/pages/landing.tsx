@@ -360,22 +360,6 @@ export default function LandingPage() {
             </table>
           </div>
 
-          {/* CTA under table */}
-          <div style={{ textAlign: "center", marginTop: 36 }}>
-            <button
-              onClick={() => setLocation("/register")}
-              data-testid="button-comparison-cta"
-              style={{
-                background: "linear-gradient(90deg,#ff4500,#ff6a00)",
-                border: "none", borderRadius: 12,
-                padding: "12px 32px", fontSize: 14, fontWeight: 700,
-                color: "#fff", cursor: "pointer",
-              }}
-            >
-              {t("جرّب البيجر الرقمي مجاناً", "Try Digital Pager Free")}
-            </button>
-          </div>
-
         </div>
       </section>
 
