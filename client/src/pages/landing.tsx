@@ -334,27 +334,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── FEATURE CARDS ── */}
-      <section style={{ position: "relative", zIndex: 10, paddingBottom: 80 }}>
-        <div className="max-w-7xl mx-auto px-5">
-          {/* Section label */}
-          <div style={{ textAlign: "center", marginBottom: 48 }}>
-            <p style={{ fontSize: 11, letterSpacing: "0.2em", color: "#ff4500", fontWeight: 600, textTransform: "uppercase", marginBottom: 10 }}>
-              {t("المميزات", "FEATURES")}
-            </p>
-            <h2 style={{ fontSize: "clamp(1.5rem, 3vw, 2.1rem)", fontWeight: 800, color: "#f0f0f0", lineHeight: 1.3 }}>
-              {t("ما الذي ستحققه عند انضمامك إلينا؟", "What Will You Achieve When You Join Us?")}
-            </h2>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {features.map((f, i) => (
-              <FeatureCard key={f.id} icon={f.svg} boldText={f.boldText} bodyText={f.bodyText} index={i} />
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* ── COMPARISON TABLE ── */}
       <section style={{ position: "relative", zIndex: 10, paddingTop: 80, paddingBottom: 80 }}>
         <div className="max-w-5xl mx-auto px-5">
@@ -511,6 +490,27 @@ export default function LandingPage() {
             </button>
           </div>
 
+        </div>
+      </section>
+
+      {/* ── FEATURE CARDS ── */}
+      <section style={{ position: "relative", zIndex: 10, paddingBottom: 80 }}>
+        <div className="max-w-7xl mx-auto px-5">
+          {/* Section label */}
+          <div style={{ textAlign: "center", marginBottom: 48 }}>
+            <p style={{ fontSize: 11, letterSpacing: "0.2em", color: "#ff4500", fontWeight: 600, textTransform: "uppercase", marginBottom: 10 }}>
+              {t("المميزات", "FEATURES")}
+            </p>
+            <h2 style={{ fontSize: "clamp(1.5rem, 3vw, 2.1rem)", fontWeight: 800, color: "#f0f0f0", lineHeight: 1.3 }}>
+              {t("ما الذي ستحققه عند انضمامك إلينا؟", "What Will You Achieve When You Join Us?")}
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {features.map((f, i) => (
+              <FeatureCard key={f.id} icon={f.svg} boldText={f.boldText} bodyText={f.bodyText} index={i} />
+            ))}
+          </div>
         </div>
       </section>
 
