@@ -7479,6 +7479,81 @@ function SettingsView({
       {/* ── TAB: General ── */}
       {settingsTab === "general" && (<>
 
+      {/* ── Legal & Official Data ── */}
+      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
+        <CardContent className="p-6">
+          <h3 className="font-semibold mb-1 flex items-center gap-2">
+            <Receipt className="w-4 h-4 text-amber-400" />
+            {t("البيانات الرسمية والقانونية", "Legal & Official Data")}
+          </h3>
+          <p className="text-xs text-muted-foreground mb-5">{t("السجل التجاري والرقم الضريبي ووثائق المنشأة", "Commercial register, VAT ID and business documents")}</p>
+          <div className="space-y-5">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">{t("جوال المسؤول", "Manager Phone")}</label>
+                <div className="relative">
+                  <Phone className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                  <Input value={ownerPhoneEdit} onChange={(e) => setOwnerPhoneEdit(e.target.value)} placeholder="966501234567" dir="ltr" className="pr-9 h-11 bg-white/[0.03] border-white/10 font-mono text-sm" data-testid="input-owner-phone-edit" />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">{t("رقم السجل التجاري", "Commercial Register No.")}<span className="text-destructive ms-1 text-[10px]">*</span></label>
+                <div className="relative">
+                  <Hash className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                  <Input value={crNumberEdit} onChange={(e) => setCrNumberEdit(e.target.value)} placeholder="1010XXXXXX" dir="ltr" className="pr-9 h-11 bg-white/[0.03] border-white/10 font-mono text-sm" data-testid="input-cr-number-edit" />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground">{t("الرقم الضريبي للمنشأة", "Tax Registration No.")}<span className="text-muted-foreground/50 ms-1.5 text-[10px]">{t("(إن وجد)", "(optional)")}</span></label>
+                <div className="relative">
+                  <Receipt className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                  <Input value={taxNumberEdit} onChange={(e) => setTaxNumberEdit(e.target.value)} placeholder="3XXXXXXXXXXXXXXXXXXX" dir="ltr" className="pr-9 h-11 bg-white/[0.03] border-white/10 font-mono text-sm" data-testid="input-tax-number-edit" />
+                </div>
+              </div>
+            </div>
+
+            {/* CR PDF Upload */}
+            <div className="space-y-2 pt-1">
+              <label className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <FileText className="w-3.5 h-3.5 text-amber-400" />
+                {t("إرفاق السجل التجاري (PDF)", "Attach Commercial Register (PDF)")}
+                <span className="text-muted-foreground/50 text-[10px]">{t("(إن وجد)", "(optional)")}</span>
+              </label>
+              {crPdfUrlEdit ? (
+                <div className="flex items-center gap-2 p-3 rounded-xl border border-white/10 bg-white/[0.03]">
+                  <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                    <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.2)" }}>
+                      <FileText className="w-4 h-4 text-red-400" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-white truncate" data-testid="text-cr-pdf-name">{crPdfUrlEdit.split("/").pop() || "commercial_register.pdf"}</p>
+                      <p className="text-[10px] text-green-400 flex items-center gap-1 mt-0.5"><CheckCircle className="w-3 h-3" />{t("تم الرفع بنجاح", "Uploaded successfully")}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-1.5 shrink-0">
+                    <a href={crPdfUrlEdit} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold" style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.6)", border: "1px solid rgba(255,255,255,0.1)" }} data-testid="btn-preview-cr-pdf">
+                      <Eye className="w-3.5 h-3.5" />{t("معاينة", "Preview")}
+                    </a>
+                    <button onClick={() => crPdfInputRef.current?.click()} disabled={crPdfUploading} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold" style={{ background: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.2)" }} data-testid="btn-replace-cr-pdf">
+                      <RefreshCw className="w-3.5 h-3.5" />{t("استبدال", "Replace")}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button type="button" onClick={() => crPdfInputRef.current?.click()} disabled={crPdfUploading} className="w-full flex flex-col items-center justify-center gap-2 py-5 rounded-xl border-2 border-dashed" style={{ borderColor: "rgba(251,191,36,0.25)", background: "rgba(251,191,36,0.03)" }} data-testid="btn-upload-cr-pdf">
+                  {crPdfUploading ? <Loader2 className="w-6 h-6 animate-spin text-amber-400" /> : <CloudUpload className="w-6 h-6 text-amber-400/70" />}
+                  <div className="text-center">
+                    <p className="text-sm font-semibold text-amber-400/80">{crPdfUploading ? t("جارٍ الرفع...", "Uploading...") : t("اضغط لرفع ملف PDF", "Click to upload PDF")}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{t("يُقبل ملفات PDF فقط، بحد أقصى 10MB", "PDF files only, max 10MB")}</p>
+                  </div>
+                </button>
+              )}
+              <input ref={crPdfInputRef} type="file" accept="application/pdf" className="hidden" onChange={handleCrPdfUpload} data-testid="input-cr-pdf-file" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* ── SECTION 1: Account Info ── */}
       <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
         <CardContent className="p-6">
@@ -8016,81 +8091,6 @@ function SettingsView({
 
       {/* ── TAB: Finance / Legal ── */}
       {settingsTab === "finance" && (<>
-
-      {/* ── Legal (Finance Tab): Official IDs ── */}
-      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
-        <CardContent className="p-6">
-          <h3 className="font-semibold mb-1 flex items-center gap-2">
-            <Receipt className="w-4 h-4 text-amber-400" />
-            {t("البيانات الرسمية والقانونية", "Legal & Official Data")}
-          </h3>
-          <p className="text-xs text-muted-foreground mb-5">{t("السجل التجاري والرقم الضريبي ووثائق المنشأة", "Commercial register, VAT ID and business documents")}</p>
-          <div className="space-y-5">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-xs text-muted-foreground">{t("جوال المسؤول", "Manager Phone")}</label>
-                <div className="relative">
-                  <Phone className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                  <Input value={ownerPhoneEdit} onChange={(e) => setOwnerPhoneEdit(e.target.value)} placeholder="966501234567" dir="ltr" className="pr-9 h-11 bg-white/[0.03] border-white/10 font-mono text-sm" data-testid="input-owner-phone-edit" />
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs text-muted-foreground">{t("رقم السجل التجاري", "Commercial Register No.")}<span className="text-destructive ms-1 text-[10px]">*</span></label>
-                <div className="relative">
-                  <Hash className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                  <Input value={crNumberEdit} onChange={(e) => setCrNumberEdit(e.target.value)} placeholder="1010XXXXXX" dir="ltr" className="pr-9 h-11 bg-white/[0.03] border-white/10 font-mono text-sm" data-testid="input-cr-number-edit" />
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs text-muted-foreground">{t("الرقم الضريبي للمنشأة", "Tax Registration No.")}<span className="text-muted-foreground/50 ms-1.5 text-[10px]">{t("(إن وجد)", "(optional)")}</span></label>
-                <div className="relative">
-                  <Receipt className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                  <Input value={taxNumberEdit} onChange={(e) => setTaxNumberEdit(e.target.value)} placeholder="3XXXXXXXXXXXXXXXXXXX" dir="ltr" className="pr-9 h-11 bg-white/[0.03] border-white/10 font-mono text-sm" data-testid="input-tax-number-edit" />
-                </div>
-              </div>
-            </div>
-
-            {/* CR PDF Upload */}
-            <div className="space-y-2 pt-1">
-              <label className="text-xs text-muted-foreground flex items-center gap-1.5">
-                <FileText className="w-3.5 h-3.5 text-amber-400" />
-                {t("إرفاق السجل التجاري (PDF)", "Attach Commercial Register (PDF)")}
-                <span className="text-muted-foreground/50 text-[10px]">{t("(إن وجد)", "(optional)")}</span>
-              </label>
-              {crPdfUrlEdit ? (
-                <div className="flex items-center gap-2 p-3 rounded-xl border border-white/10 bg-white/[0.03]">
-                  <div className="flex items-center gap-2.5 flex-1 min-w-0">
-                    <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.2)" }}>
-                      <FileText className="w-4 h-4 text-red-400" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold text-white truncate" data-testid="text-cr-pdf-name">{crPdfUrlEdit.split("/").pop() || "commercial_register.pdf"}</p>
-                      <p className="text-[10px] text-green-400 flex items-center gap-1 mt-0.5"><CheckCircle className="w-3 h-3" />{t("تم الرفع بنجاح", "Uploaded successfully")}</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-1.5 shrink-0">
-                    <a href={crPdfUrlEdit} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold" style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.6)", border: "1px solid rgba(255,255,255,0.1)" }} data-testid="btn-preview-cr-pdf">
-                      <Eye className="w-3.5 h-3.5" />{t("معاينة", "Preview")}
-                    </a>
-                    <button onClick={() => crPdfInputRef.current?.click()} disabled={crPdfUploading} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold" style={{ background: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.2)" }} data-testid="btn-replace-cr-pdf">
-                      <RefreshCw className="w-3.5 h-3.5" />{t("استبدال", "Replace")}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <button type="button" onClick={() => crPdfInputRef.current?.click()} disabled={crPdfUploading} className="w-full flex flex-col items-center justify-center gap-2 py-5 rounded-xl border-2 border-dashed" style={{ borderColor: "rgba(251,191,36,0.25)", background: "rgba(251,191,36,0.03)" }} data-testid="btn-upload-cr-pdf">
-                  {crPdfUploading ? <Loader2 className="w-6 h-6 animate-spin text-amber-400" /> : <CloudUpload className="w-6 h-6 text-amber-400/70" />}
-                  <div className="text-center">
-                    <p className="text-sm font-semibold text-amber-400/80">{crPdfUploading ? t("جارٍ الرفع...", "Uploading...") : t("اضغط لرفع ملف PDF", "Click to upload PDF")}</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">{t("يُقبل ملفات PDF فقط، بحد أقصى 10MB", "PDF files only, max 10MB")}</p>
-                  </div>
-                </button>
-              )}
-              <input ref={crPdfInputRef} type="file" accept="application/pdf" className="hidden" onChange={handleCrPdfUpload} data-testid="input-cr-pdf-file" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* ── Payment Integration (single source of truth) ── */}
       <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
