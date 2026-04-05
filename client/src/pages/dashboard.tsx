@@ -7777,6 +7777,38 @@ function SettingsView({
         </CardContent>
       </Card>
 
+      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
+        <CardContent className="p-6">
+          <h3 className="font-semibold mb-1 flex items-center gap-2">
+            <Star className="w-4 h-4 text-amber-400" />
+            {t("رابط تقييم جوجل ماب", "Google Maps Review Link")}
+          </h3>
+          <p className="text-xs text-muted-foreground mb-4">{t("يُحوَّل العملاء 4-5 نجوم تلقائياً لهذا الرابط", "4-5 star customers are auto-redirected to this link")}</p>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">{t("رابط صفحة تقييمك على جوجل ماب", "Your Google Maps review page URL")}</label>
+              <div className="relative">
+                <MapPin className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-amber-400/60" />
+                <Input value={googleMapsUrlEdit} onChange={(e) => setGoogleMapsUrlEdit(e.target.value)} placeholder="https://maps.google.com/..." dir="ltr" className="pr-9 h-11 bg-white/[0.03] border-white/10 font-mono text-sm placeholder:text-white/20" data-testid="input-google-maps-url" />
+              </div>
+              <p className="text-[11px] leading-relaxed" dir="rtl" style={{ color: "rgba(251,191,36,0.5)" }}>
+                {t("⭐ التقييمات 4-5 نجوم تُحوَّل لجوجل ماب، والتقييمات 1-3 نجوم تُحفظ داخلياً فقط.", "⭐ Ratings of 4-5 stars redirect to Google Maps. Ratings of 1-3 stars are saved internally only.")}
+              </p>
+              {googleMapsUrlEdit && (
+                <a href={googleMapsUrlEdit} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-[11px] text-amber-400/70 hover:text-amber-400 transition-colors" data-testid="link-test-maps-url">
+                  <ExternalLink className="w-3 h-3" />
+                  {t("اختبار الرابط", "Test link")}
+                </a>
+              )}
+            </div>
+            <Button onClick={handleSaveSupport} disabled={supportSaving} className="w-full h-11 bg-green-600 hover:bg-green-700 text-white font-bold rounded-2xl disabled:opacity-30" data-testid="button-save-support">
+              {supportSaving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Save className="w-4 h-4 me-2" />}
+              {t("حفظ إعدادات الدعم", "Save Support Settings")}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       </>)}
 
       {/* ── TAB: Delivery ── */}
@@ -7927,38 +7959,6 @@ function SettingsView({
               </label>
               <Input type="tel" value={driverPhone} onChange={(e) => setDriverPhone(e.target.value)} placeholder="966501234567" maxLength={15} className="h-11 bg-white/[0.03] border-white/10 font-mono" dir="ltr" data-testid="input-driver-phone" />
             </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
-        <CardContent className="p-6">
-          <h3 className="font-semibold mb-1 flex items-center gap-2">
-            <Star className="w-4 h-4 text-amber-400" />
-            {t("رابط تقييم جوجل ماب", "Google Maps Review Link")}
-          </h3>
-          <p className="text-xs text-muted-foreground mb-4">{t("يُحوَّل العملاء 4-5 نجوم تلقائياً لهذا الرابط", "4-5 star customers are auto-redirected to this link")}</p>
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <label className="text-xs text-muted-foreground">{t("رابط صفحة تقييمك على جوجل ماب", "Your Google Maps review page URL")}</label>
-              <div className="relative">
-                <MapPin className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-amber-400/60" />
-                <Input value={googleMapsUrlEdit} onChange={(e) => setGoogleMapsUrlEdit(e.target.value)} placeholder="https://maps.google.com/..." dir="ltr" className="pr-9 h-11 bg-white/[0.03] border-white/10 font-mono text-sm placeholder:text-white/20" data-testid="input-google-maps-url" />
-              </div>
-              <p className="text-[11px] leading-relaxed" dir="rtl" style={{ color: "rgba(251,191,36,0.5)" }}>
-                {t("⭐ التقييمات 4-5 نجوم تُحوَّل لجوجل ماب، والتقييمات 1-3 نجوم تُحفظ داخلياً فقط.", "⭐ Ratings of 4-5 stars redirect to Google Maps. Ratings of 1-3 stars are saved internally only.")}
-              </p>
-              {googleMapsUrlEdit && (
-                <a href={googleMapsUrlEdit} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-[11px] text-amber-400/70 hover:text-amber-400 transition-colors" data-testid="link-test-maps-url">
-                  <ExternalLink className="w-3 h-3" />
-                  {t("اختبار الرابط", "Test link")}
-                </a>
-              )}
-            </div>
-            <Button onClick={handleSaveSupport} disabled={supportSaving} className="w-full h-11 bg-green-600 hover:bg-green-700 text-white font-bold rounded-2xl disabled:opacity-30" data-testid="button-save-support">
-              {supportSaving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Save className="w-4 h-4 me-2" />}
-              {t("حفظ إعدادات الدعم", "Save Support Settings")}
-            </Button>
           </div>
         </CardContent>
       </Card>
