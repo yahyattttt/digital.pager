@@ -4393,7 +4393,6 @@ function MenuView({
         deliveryRange: parseFloat(deliveryRange) || 0,
         storeLat: storeLat.trim() ? parseFloat(storeLat) : null,
         storeLng: storeLng.trim() ? parseFloat(storeLng) : null,
-        driverPhone: driverPhone.trim(),
         cityCode,
         onlineOrdersEnabled: localOnlineOrdersEnabled,
         businessOpenTime: localOpenTime,
@@ -4406,6 +4405,31 @@ function MenuView({
       setDeliverySaving(false);
     }
   }
+
+  // ── WhatsApp / Support state ──
+  const [whatsappEdit, setWhatsappEdit] = useState<string>(merchant?.whatsappNumber || "");
+  const [supportWhatsappEdit, setSupportWhatsappEdit] = useState<string>((merchant as any)?.support_whatsapp || "");
+  const [whatsappSaving, setWhatsappSaving] = useState(false);
+
+  async function handleSaveWhatsapp() {
+    const uid = merchant?.uid || merchant?.id;
+    if (!uid) return;
+    setWhatsappSaving(true);
+    try {
+      const merchantRef = doc(db, "merchants", uid);
+      await setDoc(merchantRef, {
+        whatsappNumber: whatsappEdit.trim(),
+        support_whatsapp: supportWhatsappEdit.trim(),
+        driverPhone: driverPhone.trim(),
+      }, { merge: true });
+      toast({ title: t("تم الحفظ", "Saved"), description: t("تم حفظ أرقام التواصل بنجاح", "Contact numbers saved successfully") });
+    } catch (err) {
+      toast({ title: t("خطأ", "Error"), description: t("فشل في الحفظ", "Failed to save"), variant: "destructive" });
+    } finally {
+      setWhatsappSaving(false);
+    }
+  }
+
   const [products, setProducts] = useState<Product[]>([]);
   const [productsLoading, setProductsLoading] = useState(true);
   const [showProductDialog, setShowProductDialog] = useState(false);
@@ -4980,9 +5004,57 @@ function MenuView({
 
       </>)}
 
-      {/* ══ TAB: Settings (Delivery) ══ */}
+      {/* ══ TAB: Settings (Delivery + Support) ══ */}
       {menuViewTab === "settings" && (
         <div className="space-y-4">
+
+          {/* ── WhatsApp / Support Numbers ── */}
+          <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
+            <CardContent className="p-6">
+              <h3 className="font-semibold mb-1 flex items-center gap-2">
+                <Phone className="w-4 h-4 text-green-400" />
+                {t("أرقام التواصل والدعم", "Contact & Support Numbers")}
+              </h3>
+              <p className="text-xs text-muted-foreground mb-5">{t("أرقام الواتساب التي تظهر للعملاء في صفحات التتبع", "WhatsApp numbers shown to customers on tracking pages")}</p>
+              <div className="space-y-5">
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground flex items-center gap-1.5">
+                    <span className="inline-flex w-3.5 h-3.5 items-center justify-center">
+                      <svg viewBox="0 0 24 24" fill="#25d366" className="w-3.5 h-3.5"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12.001 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.987-1.306A9.953 9.953 0 0012.001 22C17.523 22 22 17.523 22 12S17.523 2 12.001 2zm0 18c-1.738 0-3.368-.474-4.769-1.299l-.342-.203-3.037.794.812-2.962-.222-.358A7.964 7.964 0 014 12c0-4.418 3.582-8 8.001-8 4.418 0 7.999 3.582 7.999 8s-3.581 8-7.999 8z"/></svg>
+                    </span>
+                    {t("واتساب التواصل العام", "General WhatsApp")}
+                    <span className="text-muted-foreground/50 text-[10px]">{t("(يستخدمه العملاء للطلبات العامة)", "(general customer contact)")}</span>
+                  </label>
+                  <Input value={whatsappEdit} onChange={(e) => setWhatsappEdit(e.target.value)} placeholder="966501234567" dir="ltr" className="h-11 bg-white/[0.03] border-white/10 font-mono" data-testid="input-whatsapp-edit" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground flex items-center gap-1.5">
+                    <span className="inline-flex w-3.5 h-3.5 items-center justify-center">
+                      <svg viewBox="0 0 24 24" fill="#25d366" className="w-3.5 h-3.5"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12.001 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.987-1.306A9.953 9.953 0 0012.001 22C17.523 22 22 17.523 22 12S17.523 2 12.001 2zm0 18c-1.738 0-3.368-.474-4.769-1.299l-.342-.203-3.037.794.812-2.962-.222-.358A7.964 7.964 0 014 12c0-4.418 3.582-8 8.001-8 4.418 0 7.999 3.582 7.999 8s-3.581 8-7.999 8z"/></svg>
+                    </span>
+                    {t("واتساب دعم العملاء", "Customer Support WhatsApp")}
+                    <span className="text-muted-foreground/50 text-[10px]">{t("(يظهر في صفحة التتبع)", "(shown on tracking page)")}</span>
+                  </label>
+                  <Input value={supportWhatsappEdit} onChange={(e) => setSupportWhatsappEdit(e.target.value)} placeholder="966501234567" dir="ltr" className="h-11 bg-white/[0.03] border-white/10 font-mono" data-testid="input-support-whatsapp-edit" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground flex items-center gap-1.5">
+                    <span className="inline-flex w-3.5 h-3.5 items-center justify-center">
+                      <svg viewBox="0 0 24 24" fill="#25d366" className="w-3.5 h-3.5"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12.001 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.987-1.306A9.953 9.953 0 0012.001 22C17.523 22 22 17.523 22 12S17.523 2 12.001 2zm0 18c-1.738 0-3.368-.474-4.769-1.299l-.342-.203-3.037.794.812-2.962-.222-.358A7.964 7.964 0 014 12c0-4.418 3.582-8 8.001-8 4.418 0 7.999 3.582 7.999 8s-3.581 8-7.999 8z"/></svg>
+                    </span>
+                    {t("واتساب المندوب (السائق)", "Driver WhatsApp")}
+                    <span className="text-muted-foreground/50 text-[10px]">{t("(للطلبات التوصيل)", "(for delivery orders)")}</span>
+                  </label>
+                  <Input type="tel" value={driverPhone} onChange={(e) => setDriverPhone(e.target.value)} placeholder="966501234567" maxLength={15} className="h-11 bg-white/[0.03] border-white/10 font-mono" dir="ltr" data-testid="input-driver-phone" />
+                </div>
+                <Button onClick={handleSaveWhatsapp} disabled={whatsappSaving} className="w-full h-11 bg-green-600 hover:bg-green-700 text-white font-bold rounded-2xl disabled:opacity-30" data-testid="button-save-whatsapp">
+                  {whatsappSaving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Save className="w-4 h-4 me-2" />}
+                  {t("حفظ أرقام التواصل", "Save Contact Numbers")}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
           {merchantFeatures.deliveryFeatureEnabled ? (
             <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
               <CardContent className="p-6">
@@ -5043,11 +5115,6 @@ function MenuView({
                         </div>
                       </div>
 
-                      <div className="space-y-1.5">
-                        <label className="text-xs text-muted-foreground block">{t("رقم جوال المندوب (واتساب)", "Driver Phone (WhatsApp)")}</label>
-                        <Input type="tel" value={driverPhone} onChange={(e) => setDriverPhone(e.target.value)} placeholder={t("مثال: 966501234567", "e.g. 966501234567")} maxLength={15} className="h-11 bg-white/[0.03] border-white/10 font-mono" dir="ltr" data-testid="input-driver-phone" />
-                        <p className="text-[10px] text-muted-foreground">{t("اتركه فارغاً لاختيار المندوب يدوياً عند كل طلب", "Leave empty to choose driver manually per order")}</p>
-                      </div>
                     </div>
                   )}
 
@@ -7104,7 +7171,7 @@ function SettingsView({
   const [crPdfUploading, setCrPdfUploading] = useState(false);
   const crPdfInputRef = useRef<HTMLInputElement>(null);
   const [supportWhatsappEdit, setSupportWhatsappEdit] = useState<string>((merchant as any)?.support_whatsapp || "");
-  const [settingsTab, setSettingsTab] = useState<"general" | "support" | "finance" | "staff">("general");
+  const [settingsTab, setSettingsTab] = useState<"general" | "finance" | "staff">("general");
   const [supportSaving, setSupportSaving] = useState(false);
   const [legalDocsSaving, setLegalDocsSaving] = useState(false);
   const [storeSlugEdit, setStoreSlugEdit] = useState<string>((merchant as any)?.storeSlug || "");
@@ -7572,7 +7639,6 @@ function SettingsView({
 
   const tabDef = [
     { key: "general" as const, arLabel: "عام", enLabel: "General", icon: <Store className="w-3.5 h-3.5" /> },
-    { key: "support" as const, arLabel: "دعم", enLabel: "Support", icon: <Phone className="w-3.5 h-3.5" /> },
     { key: "finance" as const, arLabel: "مالية/قانوني", enLabel: "Finance/Legal", icon: <CreditCard className="w-3.5 h-3.5" /> },
     { key: "staff" as const, arLabel: "الموظف", enLabel: "Staff", icon: <UserCog className="w-3.5 h-3.5" /> },
   ];
@@ -7976,8 +8042,6 @@ function SettingsView({
                 <p className="text-sm font-medium truncate" data-testid="text-business-type">{lang === "ar" ? businessTypeLabels[merchant.businessType] || merchant.businessType : businessTypeLabelsEn[merchant.businessType] || merchant.businessType}</p>
               </div>
             </div>
-            <p className="text-[11px] text-muted-foreground" dir="rtl">{t("⚡ أرقام الواتساب وروابط الدعم متوفرة في تبويب 'دعم' · البيانات المالية والقانونية في تبويب 'مالية/قانوني'", "⚡ WhatsApp numbers are in the 'Support' tab · Financial & legal data in the 'Finance/Legal' tab")}</p>
-
             <Button onClick={handleSaveAccountInfo} disabled={branchInfoSaving} className="w-full h-11 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-2xl disabled:opacity-30" data-testid="button-save-account-info">
               {branchInfoSaving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Save className="w-4 h-4 me-2" />}
               {t("حفظ اسم المتجر", "Save Store Name")}
@@ -8068,9 +8132,9 @@ function SettingsView({
                 </a>
               )}
             </div>
-            <Button onClick={handleSaveSupport} disabled={supportSaving} className="w-full h-11 bg-green-600 hover:bg-green-700 text-white font-bold rounded-2xl disabled:opacity-30" data-testid="button-save-support">
+            <Button onClick={handleSaveSupport} disabled={supportSaving} className="w-full h-11 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-2xl disabled:opacity-30" data-testid="button-save-support">
               {supportSaving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Save className="w-4 h-4 me-2" />}
-              {t("حفظ إعدادات الدعم", "Save Support Settings")}
+              {t("حفظ رابط جوجل ماب", "Save Google Maps Link")}
             </Button>
           </div>
         </CardContent>
@@ -8121,53 +8185,6 @@ function SettingsView({
                   : t("⭕ معطّل — صفحة تتبع الطلب تظهر مباشرة دون أي خطوة تحقق", "⭕ OFF — Order tracking page is shown directly with no verification step")}
             </p>
             <p className="text-[10px] text-white/15" dir="rtl">{t("• يُحفظ فوراً عند التبديل بدون الحاجة لضغط حفظ", "• Saved instantly when toggled — no save button needed")}</p>
-          </div>
-        </CardContent>
-      </Card>
-
-      </>)}
-
-      {/* ── TAB: Support ── */}
-      {settingsTab === "support" && (<>
-
-      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
-        <CardContent className="p-6">
-          <h3 className="font-semibold mb-1 flex items-center gap-2">
-            <Phone className="w-4 h-4 text-green-400" />
-            {t("أرقام التواصل والدعم", "Contact & Support Numbers")}
-          </h3>
-          <p className="text-xs text-muted-foreground mb-5">{t("أرقام الواتساب التي تظهر للعملاء في صفحات التتبع", "WhatsApp numbers shown to customers on tracking pages")}</p>
-          <div className="space-y-5">
-            <div className="space-y-1.5">
-              <label className="text-xs text-muted-foreground flex items-center gap-1.5">
-                <span className="inline-flex w-3.5 h-3.5 items-center justify-center">
-                  <svg viewBox="0 0 24 24" fill="#25d366" className="w-3.5 h-3.5"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12.001 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.987-1.306A9.953 9.953 0 0012.001 22C17.523 22 22 17.523 22 12S17.523 2 12.001 2zm0 18c-1.738 0-3.368-.474-4.769-1.299l-.342-.203-3.037.794.812-2.962-.222-.358A7.964 7.964 0 014 12c0-4.418 3.582-8 8.001-8 4.418 0 7.999 3.582 7.999 8s-3.581 8-7.999 8z"/></svg>
-                </span>
-                {t("واتساب التواصل العام", "General WhatsApp")}
-                <span className="text-muted-foreground/50 text-[10px]">{t("(يستخدمه العملاء للطلبات العامة)", "(general customer contact)")}</span>
-              </label>
-              <Input value={whatsappEdit} onChange={(e) => setWhatsappEdit(e.target.value)} placeholder="966501234567" dir="ltr" className="h-11 bg-white/[0.03] border-white/10 font-mono" data-testid="input-whatsapp-edit" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs text-muted-foreground flex items-center gap-1.5">
-                <span className="inline-flex w-3.5 h-3.5 items-center justify-center">
-                  <svg viewBox="0 0 24 24" fill="#25d366" className="w-3.5 h-3.5"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12.001 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.987-1.306A9.953 9.953 0 0012.001 22C17.523 22 22 17.523 22 12S17.523 2 12.001 2zm0 18c-1.738 0-3.368-.474-4.769-1.299l-.342-.203-3.037.794.812-2.962-.222-.358A7.964 7.964 0 014 12c0-4.418 3.582-8 8.001-8 4.418 0 7.999 3.582 7.999 8s-3.581 8-7.999 8z"/></svg>
-                </span>
-                {t("واتساب دعم العملاء", "Customer Support WhatsApp")}
-                <span className="text-muted-foreground/50 text-[10px]">{t("(يظهر في صفحة التتبع)", "(shown on tracking page)")}</span>
-              </label>
-              <Input value={supportWhatsappEdit} onChange={(e) => setSupportWhatsappEdit(e.target.value)} placeholder="966501234567" dir="ltr" className="h-11 bg-white/[0.03] border-white/10 font-mono" data-testid="input-support-whatsapp-edit" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs text-muted-foreground flex items-center gap-1.5">
-                <span className="inline-flex w-3.5 h-3.5 items-center justify-center">
-                  <svg viewBox="0 0 24 24" fill="#25d366" className="w-3.5 h-3.5"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12.001 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.987-1.306A9.953 9.953 0 0012.001 22C17.523 22 22 17.523 22 12S17.523 2 12.001 2zm0 18c-1.738 0-3.368-.474-4.769-1.299l-.342-.203-3.037.794.812-2.962-.222-.358A7.964 7.964 0 014 12c0-4.418 3.582-8 8.001-8 4.418 0 7.999 3.582 7.999 8s-3.581 8-7.999 8z"/></svg>
-                </span>
-                {t("واتساب المندوب (السائق)", "Driver WhatsApp")}
-                <span className="text-muted-foreground/50 text-[10px]">{t("(للطلبات التوصيل)", "(for delivery orders)")}</span>
-              </label>
-              <Input type="tel" value={driverPhone} onChange={(e) => setDriverPhone(e.target.value)} placeholder="966501234567" maxLength={15} className="h-11 bg-white/[0.03] border-white/10 font-mono" dir="ltr" data-testid="input-driver-phone" />
-            </div>
           </div>
         </CardContent>
       </Card>
