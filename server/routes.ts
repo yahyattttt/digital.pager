@@ -2597,6 +2597,91 @@ export async function registerRoutes(
 
       if (response.ok) {
         console.log("Merchant registered via server fallback:", uid);
+
+        // ── Non-blocking admin notification email ──
+        // Intentionally NOT awaited — registration response is returned immediately.
+        (async () => {
+          try {
+            const resendApiKey = process.env.RESEND_API_KEY;
+            if (!resendApiKey) {
+              console.log("[Registration Notify] RESEND_API_KEY not set — skipping admin email.");
+              return;
+            }
+            const adminEmail = process.env.ADMIN_EMAIL || "yahiatohary@hotmail.com";
+            const { Resend } = await import("resend");
+            const resend = new Resend(resendApiKey);
+            const timestamp = new Date().toLocaleString("en-US", {
+              timeZone: "Asia/Riyadh",
+              weekday: "long",
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit",
+            });
+            const result = await resend.emails.send({
+              from: "Digital Pager <onboarding@digitalpager.net>",
+              to: adminEmail,
+              subject: "[New Registration] A new store has joined the platform!",
+              html: `
+                <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; background: #0a0a0a; color: #f0f0f0; border-radius: 12px; overflow: hidden; border: 1px solid #222;">
+                  <!-- Header -->
+                  <div style="background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); padding: 28px 32px; text-align: center;">
+                    <h1 style="margin: 0; color: #fff; font-size: 22px; letter-spacing: -0.3px;">🎉 New Store Registration</h1>
+                    <p style="margin: 6px 0 0; color: rgba(255,255,255,0.75); font-size: 13px;">Digital Pager Platform</p>
+                  </div>
+                  <!-- Body -->
+                  <div style="padding: 28px 32px;">
+                    <p style="margin: 0 0 20px; color: #ccc; font-size: 15px; line-height: 1.6;">
+                      A new merchant has successfully registered on the platform. Here are the details:
+                    </p>
+                    <!-- Details table -->
+                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+                      <tr>
+                        <td style="padding: 12px 16px; background: #111; border-bottom: 1px solid #222; color: #888; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; width: 40%;">Store Name</td>
+                        <td style="padding: 12px 16px; background: #111; border-bottom: 1px solid #222; color: #fff; font-size: 15px; font-weight: 600;">${storeName}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 12px 16px; background: #111; border-bottom: 1px solid #222; color: #888; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Owner Name</td>
+                        <td style="padding: 12px 16px; background: #111; border-bottom: 1px solid #222; color: #fff; font-size: 15px;">${ownerName || "—"}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 12px 16px; background: #111; border-bottom: 1px solid #222; color: #888; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Owner Email</td>
+                        <td style="padding: 12px 16px; background: #111; border-bottom: 1px solid #222; color: #f87171; font-size: 15px; font-family: monospace;">${email}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 12px 16px; background: #111; border-bottom: 1px solid #222; color: #888; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Business Type</td>
+                        <td style="padding: 12px 16px; background: #111; border-bottom: 1px solid #222; color: #fff; font-size: 15px;">${businessType || "other"}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 12px 16px; background: #111; color: #888; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Registered At</td>
+                        <td style="padding: 12px 16px; background: #111; color: #a3a3a3; font-size: 14px;">${timestamp} (KSA Time)</td>
+                      </tr>
+                    </table>
+                    <div style="background: #111; border: 1px solid #222; border-radius: 8px; padding: 14px 16px; margin-bottom: 24px;">
+                      <p style="margin: 0; color: #666; font-size: 12px; line-height: 1.6;">
+                        <strong style="color: #aaa;">Merchant UID:</strong>
+                        <span style="font-family: monospace; color: #888; margin-left: 6px;">${uid}</span>
+                      </p>
+                    </div>
+                    <p style="margin: 0; color: #555; font-size: 12px; text-align: center;">
+                      This is an automated notification from Digital Pager Platform.
+                    </p>
+                  </div>
+                </div>
+              `,
+            });
+            if (result.error) {
+              console.error("[Registration Notify] ❌ Resend error:", JSON.stringify(result.error));
+            } else {
+              console.log(`[Registration Notify] ✅ Admin notification sent to ${adminEmail}, id: ${result.data?.id}`);
+            }
+          } catch (notifyErr) {
+            console.error("[Registration Notify] ❌ Unexpected error:", notifyErr instanceof Error ? notifyErr.message : String(notifyErr));
+          }
+        })();
+
         return res.json({ success: true });
       } else {
         const errorText = await response.text();
