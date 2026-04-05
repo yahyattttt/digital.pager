@@ -4430,6 +4430,57 @@ function MenuView({
     }
   }
 
+  // ── Finance / Legal state ──
+  const [moyasarPublishableKey, setMoyasarPublishableKey] = useState<string>(merchant?.moyasarPublishableKey || "");
+  const [moyasarSecretKey, setMoyasarSecretKey] = useState<string>(merchant?.moyasarSecretKey || "");
+  const [onlinePaymentEnabled, setOnlinePaymentEnabled] = useState<boolean>(merchant?.onlinePaymentEnabled || false);
+  const [codEnabled, setCodEnabled] = useState<boolean>(merchant?.codEnabled !== false);
+  const [storeTermsEnabled, setStoreTermsEnabled] = useState<boolean>(merchant?.storeTermsEnabled || false);
+  const [storeTermsText, setStoreTermsText] = useState<string>(merchant?.storeTermsText || "");
+  const [storePrivacyText, setStorePrivacyText] = useState<string>(merchant?.storePrivacyText || "");
+  const [legalDocsSaving, setLegalDocsSaving] = useState(false);
+  const [storeLegalSaving, setStoreLegalSaving] = useState(false);
+  const [menuSettingsTab, setMenuSettingsTab] = useState<"contact" | "delivery" | "finance">("contact");
+
+  async function handleSaveFinanceDocs() {
+    const uid = merchant?.uid || merchant?.id;
+    if (!uid) return;
+    setLegalDocsSaving(true);
+    try {
+      const merchantRef = doc(db, "merchants", uid);
+      await setDoc(merchantRef, {
+        moyasarPublishableKey,
+        moyasarSecretKey,
+        onlinePaymentEnabled,
+        codEnabled,
+      }, { merge: true });
+      toast({ title: t("تم الحفظ", "Saved"), description: t("تم حفظ إعدادات الدفع بنجاح", "Payment settings saved successfully") });
+    } catch (err) {
+      toast({ title: t("خطأ", "Error"), description: t("فشل في الحفظ", "Failed to save"), variant: "destructive" });
+    } finally {
+      setLegalDocsSaving(false);
+    }
+  }
+
+  async function handleSaveFinanceTerms() {
+    const uid = merchant?.uid || merchant?.id;
+    if (!uid) return;
+    setStoreLegalSaving(true);
+    try {
+      const merchantRef = doc(db, "merchants", uid);
+      await setDoc(merchantRef, {
+        storeTermsEnabled,
+        storeTermsText,
+        storePrivacyText,
+      }, { merge: true });
+      toast({ title: t("تم الحفظ", "Saved"), description: t("تم حفظ الشروط والأحكام بنجاح", "Store terms saved successfully") });
+    } catch (err) {
+      toast({ title: t("خطأ", "Error"), description: t("فشل في الحفظ", "Failed to save"), variant: "destructive" });
+    } finally {
+      setStoreLegalSaving(false);
+    }
+  }
+
   const [products, setProducts] = useState<Product[]>([]);
   const [productsLoading, setProductsLoading] = useState(true);
   const [showProductDialog, setShowProductDialog] = useState(false);
@@ -5004,11 +5055,38 @@ function MenuView({
 
       </>)}
 
-      {/* ══ TAB: Settings (Delivery + Support) ══ */}
+      {/* ══ TAB: Settings ══ */}
       {menuViewTab === "settings" && (
         <div className="space-y-4">
 
-          {/* ── WhatsApp / Support Numbers ── */}
+          {/* ── Secondary navigation ── */}
+          <div className="flex gap-1 p-1 rounded-xl bg-white/[0.03] border border-white/[0.06]" role="tablist">
+            {([
+              { key: "contact" as const, arLabel: "التواصل", enLabel: "Contact", icon: <Phone className="w-3.5 h-3.5" /> },
+              { key: "delivery" as const, arLabel: "التوصيل", enLabel: "Delivery", icon: <MapPin className="w-3.5 h-3.5" /> },
+              { key: "finance" as const, arLabel: "مالية/قانوني", enLabel: "Finance", icon: <CreditCard className="w-3.5 h-3.5" /> },
+            ] as const).map((tab) => (
+              <button
+                key={tab.key}
+                role="tab"
+                aria-selected={menuSettingsTab === tab.key}
+                onClick={() => setMenuSettingsTab(tab.key)}
+                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold transition-all"
+                style={{
+                  background: menuSettingsTab === tab.key ? "rgba(220,38,38,0.18)" : "transparent",
+                  color: menuSettingsTab === tab.key ? "#f87171" : "rgba(255,255,255,0.4)",
+                  border: menuSettingsTab === tab.key ? "1px solid rgba(220,38,38,0.3)" : "1px solid transparent",
+                }}
+                data-testid={`tab-online-settings-${tab.key}`}
+              >
+                {tab.icon}
+                <span>{lang === "ar" ? tab.arLabel : tab.enLabel}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* ── Contact sub-tab ── */}
+          {menuSettingsTab === "contact" && (
           <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
             <CardContent className="p-6">
               <h3 className="font-semibold mb-1 flex items-center gap-2">
@@ -5054,8 +5132,12 @@ function MenuView({
               </div>
             </CardContent>
           </Card>
+          )}
 
-          {merchantFeatures.deliveryFeatureEnabled ? (
+          {/* ── Delivery sub-tab ── */}
+          {menuSettingsTab === "delivery" && (
+            <>
+            {merchantFeatures.deliveryFeatureEnabled ? (
             <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
               <CardContent className="p-6">
                 <h3 className="font-semibold mb-1 flex items-center gap-2">
@@ -5114,7 +5196,6 @@ function MenuView({
                           </div>
                         </div>
                       </div>
-
                     </div>
                   )}
 
@@ -5151,12 +5232,107 @@ function MenuView({
                 </div>
               </CardContent>
             </Card>
-          ) : (
-            <div className="p-6 text-center rounded-2xl border border-white/[0.06] bg-[#111]">
-              <Truck className="w-8 h-8 text-white/20 mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground">{t("خدمة التوصيل غير مفعّلة في خطتك الحالية", "Delivery feature is not enabled in your current plan")}</p>
-            </div>
+            ) : (
+              <div className="p-6 text-center rounded-2xl border border-white/[0.06] bg-[#111]">
+                <Truck className="w-8 h-8 text-white/20 mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">{t("خدمة التوصيل غير مفعّلة في خطتك الحالية", "Delivery feature is not enabled in your current plan")}</p>
+              </div>
+            )}
+            </>
           )}
+
+          {/* ── Finance / Legal sub-tab ── */}
+          {menuSettingsTab === "finance" && (
+            <>
+            {/* ── Payment Integration ── */}
+            <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-1">
+                  <h3 className="font-semibold flex items-center gap-2">
+                    <CreditCard className="w-4 h-4 text-blue-400" />
+                    {t("ربط بوابة الدفع", "Payment Integration")}
+                  </h3>
+                  {moyasarPublishableKey.trim() && moyasarSecretKey.trim() && (
+                    <span
+                      className="flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full"
+                      style={{ background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.25)", color: "#34d399" }}
+                      data-testid="badge-payment-gateway-active"
+                    >
+                      <CheckCircle className="w-3 h-3" />
+                      {t("بوابة الدفع نشطة ✅", "Payment Gateway Active ✅")}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mb-5">{t("مفاتيح Moyasar وإعدادات الدفع", "Moyasar keys and payment settings")}</p>
+                <div className="space-y-5">
+                  <div className="space-y-1.5">
+                    <label className="text-xs text-muted-foreground block">Moyasar Publishable Key</label>
+                    <Input type="text" value={moyasarPublishableKey} onChange={(e) => setMoyasarPublishableKey(e.target.value)} placeholder="pk_live_..." className="h-11 bg-white/[0.03] border-white/10 font-mono" dir="ltr" data-testid="input-moyasar-pub-key" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs text-muted-foreground block">Moyasar Secret Key</label>
+                    <Input type="password" value={moyasarSecretKey} onChange={(e) => setMoyasarSecretKey(e.target.value)} placeholder="sk_live_..." className="h-11 bg-white/[0.03] border-white/10 font-mono" dir="ltr" data-testid="input-moyasar-secret-key" />
+                  </div>
+                  <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]">
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold" dir="rtl">{t("تفعيل الدفع الإلكتروني", "Enable Online Payment")}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5" dir="rtl">{t("السماح للعملاء بالدفع إلكترونياً عبر بوابة Moyasar", "Allow customers to pay online via Moyasar gateway")}</p>
+                    </div>
+                    <Switch checked={onlinePaymentEnabled} onCheckedChange={setOnlinePaymentEnabled} className="data-[state=checked]:bg-blue-600" data-testid="switch-online-payment" />
+                  </div>
+                  <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]">
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold" dir="rtl">{t("تفعيل الدفع عند الاستلام", "Enable Cash on Delivery")}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5" dir="rtl">{t("السماح للعملاء بالدفع نقداً عند استلام الطلب", "Allow customers to pay cash on delivery")}</p>
+                    </div>
+                    <Switch checked={codEnabled} onCheckedChange={setCodEnabled} className="data-[state=checked]:bg-emerald-600" data-testid="switch-cod-payment" />
+                  </div>
+                  <Button onClick={handleSaveFinanceDocs} disabled={legalDocsSaving} className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl disabled:opacity-30" data-testid="button-save-payment-settings">
+                    {legalDocsSaving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Save className="w-4 h-4 me-2" />}
+                    {t("حفظ إعدادات الدفع", "Save Payment Settings")}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* ── Terms & Conditions ── */}
+            <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
+              <CardContent className="p-6">
+                <h3 className="font-semibold mb-1 flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-amber-400" />
+                  {t("الشروط والأحكام", "Terms & Conditions")}
+                </h3>
+                <p className="text-xs text-muted-foreground mb-5">{t("شروط المتجر وسياسة الخصوصية للعملاء", "Store terms and privacy policy for customers")}</p>
+                <div className="space-y-5">
+                  <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]" data-testid="store-terms-toggle-row">
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold" dir="rtl">{t("شروط وأحكام المتجر", "Store Terms & Conditions")}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5" dir="rtl">{t("عرض شروط المتجر للعملاء عند الطلب أونلاين", "Show store terms to customers during online ordering")}</p>
+                    </div>
+                    <Switch checked={storeTermsEnabled} onCheckedChange={setStoreTermsEnabled} className="data-[state=checked]:bg-emerald-600" data-testid="switch-store-terms" />
+                  </div>
+                  {storeTermsEnabled && (
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <label className="text-xs text-muted-foreground block" dir="rtl">{t("شروط وأحكام المتجر", "Store Terms & Conditions")}</label>
+                        <Textarea value={storeTermsText} onChange={(e) => setStoreTermsText(e.target.value)} placeholder={t("اكتب شروط وأحكام المتجر هنا...", "Write store terms here...")} rows={5} dir="rtl" className="resize-y bg-white/[0.03] border-white/10" data-testid="textarea-store-terms" />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs text-muted-foreground block" dir="rtl">{t("سياسة الخصوصية للمتجر", "Store Privacy Policy")}</label>
+                        <Textarea value={storePrivacyText} onChange={(e) => setStorePrivacyText(e.target.value)} placeholder={t("اكتب سياسة الخصوصية هنا...", "Write privacy policy here...")} rows={5} dir="rtl" className="resize-y bg-white/[0.03] border-white/10" data-testid="textarea-store-privacy" />
+                      </div>
+                    </div>
+                  )}
+                  <Button onClick={handleSaveFinanceTerms} disabled={storeLegalSaving} className="w-full h-11 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-2xl disabled:opacity-30" data-testid="button-save-store-terms">
+                    {storeLegalSaving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Save className="w-4 h-4 me-2" />}
+                    {t("حفظ الشروط والأحكام", "Save Terms & Conditions")}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+            </>
+          )}
+
         </div>
       )}
     </div>
@@ -7171,7 +7347,7 @@ function SettingsView({
   const [crPdfUploading, setCrPdfUploading] = useState(false);
   const crPdfInputRef = useRef<HTMLInputElement>(null);
   const [supportWhatsappEdit, setSupportWhatsappEdit] = useState<string>((merchant as any)?.support_whatsapp || "");
-  const [settingsTab, setSettingsTab] = useState<"general" | "finance" | "staff">("general");
+  const [settingsTab, setSettingsTab] = useState<"general" | "staff">("general");
   const [supportSaving, setSupportSaving] = useState(false);
   const [legalDocsSaving, setLegalDocsSaving] = useState(false);
   const [storeSlugEdit, setStoreSlugEdit] = useState<string>((merchant as any)?.storeSlug || "");
@@ -7639,7 +7815,6 @@ function SettingsView({
 
   const tabDef = [
     { key: "general" as const, arLabel: "عام", enLabel: "General", icon: <Store className="w-3.5 h-3.5" /> },
-    { key: "finance" as const, arLabel: "مالية/قانوني", enLabel: "Finance/Legal", icon: <CreditCard className="w-3.5 h-3.5" /> },
     { key: "staff" as const, arLabel: "الموظف", enLabel: "Staff", icon: <UserCog className="w-3.5 h-3.5" /> },
   ];
 
@@ -8191,98 +8366,6 @@ function SettingsView({
 
       </>)}
 
-      {/* ── TAB: Finance / Legal ── */}
-      {settingsTab === "finance" && (<>
-
-      {/* ── Payment Integration (single source of truth) ── */}
-      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between mb-1">
-            <h3 className="font-semibold flex items-center gap-2">
-              <CreditCard className="w-4 h-4 text-blue-400" />
-              {t("ربط بوابة الدفع", "Payment Integration")}
-            </h3>
-            {moyasarPublishableKey.trim() && moyasarSecretKey.trim() && (
-              <span
-                className="flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full"
-                style={{ background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.25)", color: "#34d399" }}
-                data-testid="badge-payment-gateway-active"
-              >
-                <CheckCircle className="w-3 h-3" />
-                {t("بوابة الدفع نشطة ✅", "Payment Gateway Active ✅")}
-              </span>
-            )}
-          </div>
-          <p className="text-xs text-muted-foreground mb-5">{t("مفاتيح Moyasar وإعدادات الدفع", "Moyasar keys and payment settings")}</p>
-          <div className="space-y-5">
-            <div className="space-y-1.5">
-              <label className="text-xs text-muted-foreground block">Moyasar Publishable Key</label>
-              <Input type="text" value={moyasarPublishableKey} onChange={(e) => setMoyasarPublishableKey(e.target.value)} placeholder="pk_live_..." className="h-11 bg-white/[0.03] border-white/10 font-mono" dir="ltr" data-testid="input-moyasar-pub-key" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs text-muted-foreground block">Moyasar Secret Key</label>
-              <Input type="password" value={moyasarSecretKey} onChange={(e) => setMoyasarSecretKey(e.target.value)} placeholder="sk_live_..." className="h-11 bg-white/[0.03] border-white/10 font-mono" dir="ltr" data-testid="input-moyasar-secret-key" />
-            </div>
-            <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]">
-              <div className="flex-1">
-                <p className="text-sm font-semibold" dir="rtl">{t("تفعيل الدفع الإلكتروني", "Enable Online Payment")}</p>
-                <p className="text-xs text-muted-foreground mt-0.5" dir="rtl">{t("السماح للعملاء بالدفع إلكترونياً عبر بوابة Moyasar", "Allow customers to pay online via Moyasar gateway")}</p>
-              </div>
-              <Switch checked={onlinePaymentEnabled} onCheckedChange={setOnlinePaymentEnabled} className="data-[state=checked]:bg-blue-600" data-testid="switch-online-payment" />
-            </div>
-            <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]">
-              <div className="flex-1">
-                <p className="text-sm font-semibold" dir="rtl">{t("تفعيل الدفع عند الاستلام", "Enable Cash on Delivery")}</p>
-                <p className="text-xs text-muted-foreground mt-0.5" dir="rtl">{t("السماح للعملاء بالدفع نقداً عند استلام الطلب", "Allow customers to pay cash on delivery")}</p>
-              </div>
-              <Switch checked={codEnabled} onCheckedChange={setCodEnabled} className="data-[state=checked]:bg-emerald-600" data-testid="switch-cod-payment" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* ── Terms & Conditions ── */}
-      <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
-        <CardContent className="p-6">
-          <h3 className="font-semibold mb-1 flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-amber-400" />
-            {t("الشروط والأحكام", "Terms & Conditions")}
-          </h3>
-          <p className="text-xs text-muted-foreground mb-5">{t("شروط المتجر وسياسة الخصوصية للعملاء", "Store terms and privacy policy for customers")}</p>
-          <div className="space-y-5">
-            <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]" data-testid="store-terms-toggle-row">
-              <div className="flex-1">
-                <p className="text-sm font-semibold" dir="rtl">{t("شروط وأحكام المتجر", "Store Terms & Conditions")}</p>
-                <p className="text-xs text-muted-foreground mt-0.5" dir="rtl">{t("عرض شروط المتجر للعملاء عند الطلب أونلاين", "Show store terms to customers during online ordering")}</p>
-              </div>
-              <Switch checked={storeTermsEnabled} onCheckedChange={setStoreTermsEnabled} className="data-[state=checked]:bg-emerald-600" data-testid="switch-store-terms" />
-            </div>
-            {storeTermsEnabled && (
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-xs text-muted-foreground block" dir="rtl">{t("شروط وأحكام المتجر", "Store Terms & Conditions")}</label>
-                  <Textarea value={storeTermsText} onChange={(e) => setStoreTermsText(e.target.value)} placeholder={t("اكتب شروط وأحكام المتجر هنا...", "Write store terms here...")} rows={5} dir="rtl" className="resize-y bg-white/[0.03] border-white/10" data-testid="textarea-store-terms" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs text-muted-foreground block" dir="rtl">{t("سياسة الخصوصية للمتجر", "Store Privacy Policy")}</label>
-                  <Textarea value={storePrivacyText} onChange={(e) => setStorePrivacyText(e.target.value)} placeholder={t("اكتب سياسة الخصوصية هنا...", "Write privacy policy here...")} rows={5} dir="rtl" className="resize-y bg-white/[0.03] border-white/10" data-testid="textarea-store-privacy" />
-                </div>
-              </div>
-            )}
-            <Button onClick={handleSaveStoreLegal} disabled={storeLegalSaving} className="w-full h-11 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-2xl disabled:opacity-30" data-testid="button-save-store-terms">
-              {storeLegalSaving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Save className="w-4 h-4 me-2" />}
-              {t("حفظ الشروط والأحكام", "Save Terms & Conditions")}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Button onClick={handleSaveLegalDocs} disabled={legalDocsSaving} className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl disabled:opacity-30" data-testid="button-save-legal-docs">
-        {legalDocsSaving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Save className="w-4 h-4 me-2" />}
-        {t("حفظ إعدادات المالية والقانونية", "Save Finance & Legal Settings")}
-      </Button>
-
-      </>)}
 
       {/* ── TAB: Staff Management ── */}
       {settingsTab === "staff" && (<>
