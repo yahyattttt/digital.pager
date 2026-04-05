@@ -25,6 +25,7 @@ import OrderCompletedPage from "@/pages/order-completed";
 import OnlineOrderPage from "@/pages/online-order";
 import PlatformTermsPage from "@/pages/platform-terms";
 import PlatformPrivacyPage from "@/pages/platform-privacy";
+import PlatformPolicyPage from "@/pages/platform-policy";
 import FloatingWhatsApp from "@/components/floating-whatsapp";
 
 function SuperAdminRoute() {
@@ -214,6 +215,7 @@ function Router() {
       <Route path="/online-order/:slug" component={OnlineOrderPage} />
       <Route path="/platform-terms" component={PlatformTermsPage} />
       <Route path="/platform-privacy" component={PlatformPrivacyPage} />
+      <Route path="/platform-policy" component={PlatformPolicyPage} />
       <Route component={NotFound} />
     </Switch>
     </>

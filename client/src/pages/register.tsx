@@ -58,7 +58,10 @@ export default function RegisterPage() {
   const [platformTermsText, setPlatformTermsText] = useState("");
   const [platformPrivacyText, setPlatformPrivacyText] = useState("");
   const [platformTermsAccepted, setPlatformTermsAccepted] = useState(false);
-  const [showTermsModal, setShowTermsModal] = useState<"terms" | "privacy" | null>(null);
+  const [policyAr, setPolicyAr] = useState("");
+  const [policyEn, setPolicyEn] = useState("");
+  const [policyAccepted, setPolicyAccepted] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState<"terms" | "privacy" | "policy" | null>(null);
 
   useEffect(() => {
     async function fetchPlatformTerms() {
@@ -71,6 +74,8 @@ export default function RegisterPage() {
             setPlatformTermsText(data.platformTermsText || "");
             setPlatformPrivacyText(data.platformPrivacyText || "");
           }
+          setPolicyAr((data as any).policyAr || "");
+          setPolicyEn((data as any).policyEn || "");
         }
       } catch {
         // silent
@@ -258,6 +263,14 @@ export default function RegisterPage() {
       toast({
         title: t("مطلوب", "Required"),
         description: t("يجب الموافقة على شروط وأحكام المنصة وسياسة الخصوصية", "You must accept the platform terms and privacy policy"),
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!policyAccepted) {
+      toast({
+        title: t("مطلوب", "Required"),
+        description: t("يجب الموافقة على سياسة الاشتراك والإلغاء والاسترداد", "You must accept the Subscription, Cancellation & Refund Policy"),
         variant: "destructive",
       });
       return;
@@ -713,10 +726,32 @@ export default function RegisterPage() {
                   </label>
                 )}
 
+                {/* ── Mandatory Refund / Cancellation Policy Checkbox ── */}
+                <label className="flex items-start gap-3 p-4 rounded-xl bg-white/[0.02] border border-border/30 cursor-pointer" dir={isRTL ? "rtl" : "ltr"} data-testid="label-refund-policy">
+                  <input
+                    type="checkbox"
+                    checked={policyAccepted}
+                    onChange={(e) => setPolicyAccepted(e.target.checked)}
+                    className="mt-1 w-5 h-5 rounded border-primary/50 text-primary focus:ring-primary bg-transparent accent-primary flex-shrink-0"
+                    data-testid="checkbox-refund-policy"
+                  />
+                  <div className="text-sm text-muted-foreground leading-relaxed">
+                    <span>{t("أوافق على ", "I agree to the ")}</span>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowTermsModal("policy"); }}
+                      className="text-primary font-medium hover:underline"
+                      data-testid="link-refund-policy"
+                    >
+                      {t("سياسة الاشتراك والإلغاء والاسترداد", "Subscription, Cancellation & Refund Policy")}
+                    </button>
+                  </div>
+                </label>
+
                 <Button
                   type="submit"
                   className="w-full h-12 text-base font-bold"
-                  disabled={isSubmitting || !otpVerified || (platformTermsEnabled && !platformTermsAccepted)}
+                  disabled={isSubmitting || !otpVerified || (platformTermsEnabled && !platformTermsAccepted) || !policyAccepted}
                   data-testid="button-register-submit"
                 >
                   {isSubmitting ? (
@@ -751,10 +786,12 @@ export default function RegisterPage() {
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowTermsModal(null)} />
           <div className="relative w-full max-w-lg max-h-[80dvh] bg-background border border-border rounded-2xl flex flex-col overflow-hidden mx-4">
             <div className="flex items-center justify-between p-4 border-b border-border/30">
-              <h3 className="font-bold text-base" dir="rtl" data-testid="modal-legal-title">
+              <h3 className="font-bold text-base" dir={isRTL ? "rtl" : "ltr"} data-testid="modal-legal-title">
                 {showTermsModal === "terms"
                   ? t("شروط وأحكام المنصة", "Platform Terms & Conditions")
-                  : t("سياسة الخصوصية للمنصة", "Platform Privacy Policy")
+                  : showTermsModal === "privacy"
+                  ? t("سياسة الخصوصية للمنصة", "Platform Privacy Policy")
+                  : t("سياسة الاشتراك والإلغاء والاسترداد", "Subscription, Cancellation & Refund Policy")
                 }
               </h3>
               <button onClick={() => setShowTermsModal(null)} className="p-1 text-muted-foreground hover:text-foreground" data-testid="button-close-legal-modal">
@@ -762,8 +799,13 @@ export default function RegisterPage() {
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-5">
-              <div className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap" dir="rtl" data-testid="text-legal-content">
-                {showTermsModal === "terms" ? platformTermsText : platformPrivacyText}
+              <div className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap" dir={isRTL ? "rtl" : "ltr"} data-testid="text-legal-content">
+                {showTermsModal === "terms"
+                  ? platformTermsText
+                  : showTermsModal === "privacy"
+                  ? platformPrivacyText
+                  : (isRTL ? policyAr : policyEn)
+                }
               </div>
             </div>
             <div className="p-4 border-t border-border/30">

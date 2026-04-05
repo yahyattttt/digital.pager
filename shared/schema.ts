@@ -180,6 +180,8 @@ export const systemSettingsSchema = z.object({
   platformTermsEnabled: z.boolean().default(false),
   platformTermsText: z.string().default(""),
   platformPrivacyText: z.string().default(""),
+  policyAr: z.string().default(""),
+  policyEn: z.string().default(""),
   // ── Identity & Contact (footer) ──────────────────────────────────────────
   instagram: z.string().default(""),
   twitterX: z.string().default(""),

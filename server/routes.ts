@@ -1043,17 +1043,20 @@ export async function registerRoutes(
   app.get("/api/public/platform-content", async (_req, res) => {
     try {
       const baseUrl = getApiKeyBaseUrl();
-      if (!baseUrl || !getApiKey()) return res.json({ platformTermsText: "", platformPrivacyText: "" });
+      const empty = { platformTermsText: "", platformPrivacyText: "", policyAr: "", policyEn: "" };
+      if (!baseUrl || !getApiKey()) return res.json(empty);
       const docRes = await apikeyFetch(`${baseUrl}/systemSettings/global`);
-      if (!docRes.ok) return res.json({ platformTermsText: "", platformPrivacyText: "" });
+      if (!docRes.ok) return res.json(empty);
       const body = await docRes.json();
       const fields = body?.fields ?? {};
       return res.json({
         platformTermsText: fields.platformTermsText?.stringValue ?? "",
         platformPrivacyText: fields.platformPrivacyText?.stringValue ?? "",
+        policyAr: fields.policyAr?.stringValue ?? "",
+        policyEn: fields.policyEn?.stringValue ?? "",
       });
     } catch {
-      return res.json({ platformTermsText: "", platformPrivacyText: "" });
+      return res.json({ platformTermsText: "", platformPrivacyText: "", policyAr: "", policyEn: "" });
     }
   });
 

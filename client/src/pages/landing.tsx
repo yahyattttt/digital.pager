@@ -646,6 +646,16 @@ export default function LandingPage() {
               >
                 {t("سياسة الخصوصية", "Privacy Policy")}
               </a>
+              <a
+                href="/platform-policy"
+                data-testid="link-footer-refund-policy"
+                onClick={e => { e.preventDefault(); setLocation("/platform-policy"); }}
+                style={{ fontSize: 12, color: "rgba(200,185,178,0.5)", textDecoration: "none", transition: "color 0.2s" }}
+                onMouseOver={e => (e.currentTarget.style.color = "#ff4500")}
+                onMouseOut={e => (e.currentTarget.style.color = "rgba(200,185,178,0.5)")}
+              >
+                {t("سياسة الاشتراك والاسترداد", "Refund Policy")}
+              </a>
               <p style={{ fontSize: 12, color: "rgba(200,190,185,0.38)", margin: 0 }}>
                 &copy; {new Date().getFullYear()} Digital Pager. {t("جميع الحقوق محفوظة.", "All rights reserved.")}
               </p>

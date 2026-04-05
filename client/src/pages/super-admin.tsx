@@ -347,6 +347,8 @@ export default function SuperAdminPage() {
     platformTermsEnabled: false,
     platformTermsText: "",
     platformPrivacyText: "",
+    policyAr: "",
+    policyEn: "",
     instagram: "", twitterX: "", linkedin: "", snapchat: "",
     commercialRegister: "", taxNumber: "", location: "",
     showInstagram: false, showTwitterX: false, showLinkedin: false, showSnapchat: false,
@@ -975,6 +977,8 @@ export default function SuperAdminPage() {
           platformTermsEnabled: data.platformTermsEnabled || false,
           platformTermsText: data.platformTermsText || "",
           platformPrivacyText: data.platformPrivacyText || "",
+          policyAr: data.policyAr || "",
+          policyEn: data.policyEn || "",
           instagram: data.instagram || "",
           twitterX: data.twitterX || "",
           linkedin: data.linkedin || "",
@@ -2969,6 +2973,48 @@ export default function SuperAdminPage() {
                           </div>
                         </div>
                       )}
+
+                      {/* ── Refund / Cancellation Policy ── */}
+                      <div className="space-y-4 pt-2">
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">
+                            {t("سياسة الاشتراك والإلغاء والاسترداد", "Subscription, Cancellation & Refund Policy")}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {t("يتم عرض هذه السياسة في صفحة مستقلة وفي نموذج التسجيل بناءً على لغة المستخدم.", "This policy is shown on a dedicated page and in the registration form based on the user's language.")}
+                          </p>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="policyAr" data-testid="label-policy-ar">
+                            {t("النص العربي", "Arabic Text")}
+                          </Label>
+                          <Textarea
+                            id="policyAr"
+                            value={settings.policyAr}
+                            onChange={(e) => setSettings(s => ({ ...s, policyAr: e.target.value }))}
+                            placeholder="اكتب سياسة الاشتراك والإلغاء والاسترداد بالعربية هنا..."
+                            rows={8}
+                            dir="rtl"
+                            className="resize-y"
+                            data-testid="textarea-policy-ar"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="policyEn" data-testid="label-policy-en">
+                            {t("النص الإنجليزي", "English Text")}
+                          </Label>
+                          <Textarea
+                            id="policyEn"
+                            value={settings.policyEn}
+                            onChange={(e) => setSettings(s => ({ ...s, policyEn: e.target.value }))}
+                            placeholder="Write the subscription, cancellation & refund policy in English here..."
+                            rows={8}
+                            dir="ltr"
+                            className="resize-y"
+                            data-testid="textarea-policy-en"
+                          />
+                        </div>
+                      </div>
                     </div>
 
                     <Button
