@@ -22,6 +22,7 @@ export default function CheckOrderPage() {
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingPager, setPendingPager] = useState<PagerDoc | null>(null);
+  const [notifAcknowledged, setNotifAcknowledged] = useState(false);
 
   const [loyaltyPromptOpen, setLoyaltyPromptOpen] = useState(false);
   const [confirmedPager, setConfirmedPager] = useState<PagerDoc | null>(null);
@@ -75,6 +76,7 @@ export default function CheckOrderPage() {
 
   function handleSelect(pager: PagerDoc) {
     setPendingPager(pager);
+    setNotifAcknowledged(false);
     setConfirmOpen(true);
   }
 
@@ -244,20 +246,6 @@ export default function CheckOrderPage() {
               </span>
             </div>
 
-            {/* Confirm button — no PIN check, immediate action */}
-            <button
-              onClick={handleConfirm}
-              className="w-full py-5 rounded-2xl text-white text-xl font-black active:scale-[0.97] transition-all duration-150"
-              style={{
-                background: "linear-gradient(135deg, #16a34a 0%, #15803d 100%)",
-                boxShadow: "0 0 30px rgba(22,163,74,0.35), 0 4px 15px rgba(0,0,0,0.4)",
-                fontFamily: "'Tajawal', 'Cairo', sans-serif",
-              }}
-              data-testid="button-confirm"
-            >
-              تأكيد ✓
-            </button>
-
             {/* Security disclaimer */}
             <p
               className="text-[12px] font-semibold text-center leading-relaxed"
@@ -267,6 +255,49 @@ export default function CheckOrderPage() {
             >
               ⚠️ تنبيه: يجب إبراز الفاتورة الأصلية عند الاستلام.
             </p>
+
+            {/* Notification acknowledgement checkbox */}
+            <label
+              className="flex items-center justify-center gap-3 cursor-pointer"
+              style={{ marginTop: "4px" }}
+              data-testid="label-notif-ack"
+            >
+              <input
+                type="checkbox"
+                checked={notifAcknowledged}
+                onChange={(e) => setNotifAcknowledged(e.target.checked)}
+                className="w-5 h-5 rounded accent-red-500 cursor-pointer shrink-0"
+                data-testid="checkbox-notif-ack"
+              />
+              <span
+                className="text-[13px] text-center leading-relaxed"
+                dir="rtl"
+                style={{ color: "rgba(255,255,255,0.8)", fontFamily: "'Tajawal', 'Cairo', sans-serif" }}
+              >
+                قد لا تظهر الإشعارات وأنت خارج الصفحة بسبب قيود المتصفح.
+              </span>
+            </label>
+
+            {/* Confirm button — enabled only after checkbox is ticked */}
+            <button
+              onClick={handleConfirm}
+              disabled={!notifAcknowledged}
+              className="w-full py-5 rounded-2xl text-white text-xl font-black active:scale-[0.97] transition-all duration-150"
+              style={{
+                background: notifAcknowledged
+                  ? "linear-gradient(135deg, #16a34a 0%, #15803d 100%)"
+                  : "rgba(255,255,255,0.08)",
+                boxShadow: notifAcknowledged
+                  ? "0 0 30px rgba(22,163,74,0.35), 0 4px 15px rgba(0,0,0,0.4)"
+                  : "none",
+                fontFamily: "'Tajawal', 'Cairo', sans-serif",
+                cursor: notifAcknowledged ? "pointer" : "not-allowed",
+                opacity: notifAcknowledged ? 1 : 0.4,
+              }}
+              data-testid="button-confirm"
+            >
+              تأكيد ✓
+            </button>
 
             {/* Back link */}
             <button
