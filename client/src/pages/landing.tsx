@@ -55,30 +55,39 @@ export default function LandingPage() {
 
   const features = [
     {
-      id: "shield",
+      id: "pickup",
+      svg: <ShoppingBag className="w-full h-full" style={{ color: "#ff6b35" }} strokeWidth={1.5} />,
+      boldText: t("تجربة استلام أكثر احترافية:", "A more professional pickup experience:"),
+      bodyText: t(
+        " سهّل على عميلك معرفة أن طلبه أصبح جاهزًا، وقلل النداءات اليدوية والازدحام والارتباك داخل المتجر.",
+        " Help customers know when their order is ready while reducing manual calling, crowding, and confusion inside your store."
+      ),
+    },
+    {
+      id: "review",
       svg: <MapPin className="w-full h-full" style={{ color: "#ff6b35" }} strokeWidth={1.5} />,
-      boldText: t("رفع تقييمك على خرائط جوجل:", "Boost Your Google Maps Rating:"),
+      boldText: t("تسهيل الوصول إلى صفحة التقييم:", "Easier access to your review page:"),
       bodyText: t(
-        " يتم توجيه العميل تلقائياً بعد الانتهاء من الطلب إلى رابط التقييم الخاص بمتجرك، لتتصدر نتائج البحث وتكسب ثقة العملاء الجدد.",
-        " Customers are automatically redirected after their order to your store's review link, so you rank higher in search and earn new customer trust."
+        " بعد انتهاء الطلب، يمكن توجيه العميل بسهولة إلى صفحة تقييم متجرك على خرائط Google، مما يساعد على تحسين تجربة العميل وتشجيع التفاعل مع متجرك.",
+        " After the order is completed, customers can be directed to your Google Maps review page in a simple and convenient way, helping encourage interaction with your business."
       ),
     },
     {
-      id: "zap",
+      id: "digital",
       svg: <Share2 className="w-full h-full" style={{ color: "#ff6b35" }} strokeWidth={1.5} />,
-      boldText: t("نزيد الوعي لعلامتك التجارية:", "We Grow Your Brand Awareness:"),
+      boldText: t("بديل رقمي للبيجر التقليدي:", "A digital alternative to traditional pagers:"),
       bodyText: t(
-        " ميزة مشاركة رابط التتبع تتيح لعملائك مشاركة حماسهم مع أصدقائهم، مما يضمن لك انتشاراً واسعاً وزواراً جدد دون تكاليف إعلانية.",
-        " The tracking link sharing feature lets your customers spread their excitement with friends, guaranteeing wide reach and new visitors with zero ad spend."
+        " استمتع بتجربة تشغيل حديثة بدل الأجهزة التقليدية، بطريقة أسهل وأكثر مرونة للمتجر والعميل.",
+        " Replace traditional pager devices with a more modern and flexible experience for both the merchant and the customer."
       ),
     },
     {
-      id: "bell",
+      id: "insight",
       svg: <Users className="w-full h-full" style={{ color: "#ff6b35" }} strokeWidth={1.5} />,
-      boldText: t("قاعدة ببيانات عملاءك:", "Your Customer Database:"),
+      boldText: t("فهم أفضل لتجربة العميل:", "Better visibility into customer experience:"),
       bodyText: t(
-        " ابنِ ثروتك الحقيقية بامتلاك بيانات عملائك بالكامل، مما يتيح لك فهم تفضيلاتهم وإعادة استهدافهم بعروض مخصصة تضمن عودتهم إليك.",
-        " Build your real wealth by owning your complete customer data, enabling you to understand their preferences and retarget them with personalised offers that bring them back."
+        " اطّلع على ملاحظات وتجربة العملاء من خلال واجهة بسيطة تساعدك على تحسين الخدمة واتخاذ قرارات أفضل داخل متجرك.",
+        " View customer feedback and experience through a simple interface that helps you improve service and make better decisions for your store."
       ),
     },
   ];
@@ -312,7 +321,7 @@ export default function LandingPage() {
                     feature: t("القيمة المضافة", "Added Value"),
                     seoNote: t("نظام مناداة العملاء", "Customer calling system"),
                     traditional: { text: t("مناداة فقط", "Call-only"), ok: false },
-                    digital: { text: t("تقييمات قوقل ماب + نظام ولاء", "Google Maps reviews + loyalty system"), ok: true },
+                    digital: { text: t("توجيه للتقييم + واجهة ملاحظات", "Review redirect + feedback dashboard"), ok: true },
                   },
                 ].map((row, i) => (
                   <tr
@@ -372,17 +381,24 @@ export default function LandingPage() {
               {t("الأسعار", "PRICING")}
             </p>
             <h2 style={{ fontSize: "clamp(1.5rem, 3vw, 2.1rem)", fontWeight: 800, color: "#f0f0f0", lineHeight: 1.3, marginBottom: 16 }}>
-              {t("اختر باقتك المناسبة", "Choose Your Plan")}
+              {t("اختر الباقة المناسبة لمتجرك", "Choose the plan that fits your business")}
             </h2>
             {/* Discount banner */}
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "center", marginBottom: 16 }}>
               <span style={{ background: "linear-gradient(90deg,#ff4500,#ff6a00)", borderRadius: 99, padding: "5px 18px", fontSize: 12, fontWeight: 700, color: "#fff" }}>
-                خصم خاص للعملاء الجدد 60%
+                {t("خصم خاص 60% للعملاء الجدد", "Special 60% discount for new customers")}
               </span>
               <span style={{ background: "rgba(255,69,0,0.1)", border: "1px solid rgba(255,69,0,0.3)", borderRadius: 99, padding: "5px 16px", fontSize: 12, fontWeight: 600, color: "#ff6a00" }}>
-                تجربة مجانية لمدة 15 يوم
+                {t("تجربة مجانية لمدة 15 يوم", "15-day free trial")}
               </span>
             </div>
+            {/* Notification disclaimer */}
+            <p style={{ fontSize: 11, color: "rgba(200,185,178,0.45)", maxWidth: 560, margin: "0 auto", lineHeight: 1.7 }}>
+              {t(
+                "ملاحظة: تختلف تجربة الإشعارات حسب الجهاز والمتصفح ونظام التشغيل، ولا تضمن المنصة ظهور الإشعارات في جميع الحالات أو خارج المتصفح.",
+                "Note: Notification behavior may vary depending on the device, browser, operating system, and user settings. The platform does not guarantee that notifications will appear in all cases or outside the browser."
+              )}
+            </p>
           </div>
 
           {/* 4 Cards */}
@@ -440,10 +456,10 @@ export default function LandingPage() {
                 {/* Feature list */}
                 <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 10, flex: 1 }}>
                   {[
-                    t("بيجر رقمي لنداء العملاء لإستلام الطلب", "Digital pager for customer call-back"),
-                    t("تحويل العملاء الى تقييمات خرائط قوقل", "Convert customers to Google Maps reviews"),
-                    t("التقييمات السلبية يتم إظهارها داخل لوحة تحكم التاجر", "Negative reviews shown only in merchant dashboard"),
-                    t("نظام ولاء للعميل لإدخال بياناته والاستفادة من العروض", "Customer loyalty system with offers & rewards"),
+                    t("بيجر رقمي لتنبيه العميل عند جاهزية الطلب", "Digital pager to notify customers when the order is ready"),
+                    t("توجيه العميل إلى صفحة تقييم متجرك على خرائط Google", "Direct customers to your Google Maps review page"),
+                    t("عرض ملاحظات وتجربة العميل داخل لوحة تحكم التاجر", "View customer feedback and experience inside the merchant dashboard"),
+                    t("واجهة تشغيل سهلة وسريعة للمتجر", "Easy and fast setup for your store"),
                   ].map((feat, fi) => (
                     <li key={fi} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12, color: "rgba(220,210,200,0.72)", lineHeight: 1.55, direction: isRTL ? "rtl" : "ltr" }}>
                       <span style={{ color: "#ff4500", flexShrink: 0, marginTop: 1 }}>✔</span>
@@ -469,7 +485,7 @@ export default function LandingPage() {
                     cursor: "pointer",
                   }}
                 >
-                  {t("ابدأ مجاناً", "Get Started Free")}
+                  {t("ابدأ مجانًا", "Start Free")}
                 </button>
               </div>
             ))}
@@ -486,11 +502,11 @@ export default function LandingPage() {
               {t("المميزات", "FEATURES")}
             </p>
             <h2 style={{ fontSize: "clamp(1.5rem, 3vw, 2.1rem)", fontWeight: 800, color: "#f0f0f0", lineHeight: 1.3 }}>
-              {t("ما الذي ستحققه عند انضمامك إلينا؟", "What Will You Achieve When You Join Us?")}
+              {t("ما الذي يقدمه لك البيجر الرقمي؟", "What does Digital Pager help you with?")}
             </h2>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {features.map((f, i) => (
               <FeatureCard key={f.id} icon={f.svg} boldText={f.boldText} bodyText={f.bodyText} index={i} />
             ))}
@@ -518,9 +534,15 @@ export default function LandingPage() {
             )}
           </p>
           <NeonBtn variant="solid" size="lg" onClick={() => setLocation("/register")} testId="button-cta-register">
-            {t("ابدأ مجاناً", "Get Started Free")}
+            {t("ابدأ مجانًا", "Start Free")}
             <ArrowIcon className="w-4 h-4 ms-2 inline" />
           </NeonBtn>
+          <p style={{ marginTop: 20, fontSize: 11, color: "rgba(200,185,178,0.38)", maxWidth: 480, margin: "20px auto 0", lineHeight: 1.7 }}>
+            {t(
+              "بالاشتراك أو طلب التجربة المجانية، فإنك توافق على الشروط والأحكام وسياسة الخصوصية وسياسة الاشتراك والإلغاء والاسترداد.",
+              "By subscribing or requesting the free trial, you agree to the Terms & Conditions, Privacy Policy, and Subscription, Cancellation & Refund Policy."
+            )}
+          </p>
         </div>
       </section>
 

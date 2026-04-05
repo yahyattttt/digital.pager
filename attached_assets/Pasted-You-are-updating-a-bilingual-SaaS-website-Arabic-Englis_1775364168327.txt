@@ -1,0 +1,374 @@
+You are updating a bilingual SaaS website (Arabic + English) for a Saudi B2B platform called "Digital Pager".
+
+IMPORTANT:
+Do NOT redesign the website.
+Do NOT change layout, spacing, colors, pricing card structure, or visual hierarchy unless necessary for text fitting.
+Your task is ONLY to:
+1) update marketing copy,
+2) remove legally risky claims,
+3) align the website with the platform’s Terms & Conditions, Privacy Policy, and Subscription/Refund Policy,
+4) keep Arabic and English content fully consistent.
+
+==================================================
+BUSINESS CONTEXT
+==================================================
+
+Platform name:
+- Arabic: البيجر الرقمي
+- English: Digital Pager
+
+Legal entity:
+- Arabic: مؤسسة البيجر الرقمي
+- English: Digital Pager Establishment
+
+Commercial Registration:
+- 1010680263
+
+Current product scope (VERY IMPORTANT):
+This is a Saudi B2B SaaS platform for merchants (cafes, restaurants, stores).
+
+The platform currently provides:
+- a digital pager / ready-order notification flow,
+- directing customers to the merchant’s Google Maps review page,
+- simple merchant-facing feedback/experience visibility.
+
+The platform DOES NOT currently provide:
+- loyalty program,
+- customer database building,
+- customer phone number collection for marketing,
+- retargeting tools,
+- CRM / rewards / promotional campaigns.
+
+==================================================
+LEGAL / COMPLIANCE REQUIREMENTS
+==================================================
+
+You MUST remove or rewrite any website copy that implies any of the following:
+- guaranteed notifications,
+- guaranteed Google reviews,
+- guaranteed higher ratings,
+- guaranteed ranking on Google,
+- collecting customer data,
+- owning customer database,
+- loyalty / rewards functionality,
+- remarketing / retargeting customers,
+- misleading filtering or manipulation of public reviews.
+
+You MUST keep the copy aligned with these legal positions:
+
+1) Notification disclaimer:
+The platform does NOT guarantee that notifications will appear in all cases, especially outside the browser, because this may depend on:
+- device settings,
+- browser permissions,
+- operating system restrictions,
+- Apple / Google browser limitations,
+- internet connectivity,
+- whether the customer keeps the page/browser open.
+
+2) Review flow disclaimer:
+The platform only helps direct customers to the merchant’s Google Maps review page.
+It does NOT guarantee:
+- that a customer will leave a review,
+- that the review will be positive,
+- that Google will publish or keep the review,
+- any ranking or search-result improvement.
+
+3) No customer database / no loyalty:
+The website must NOT mention:
+- loyalty program,
+- collecting customer phone numbers,
+- building customer databases,
+- customer data ownership,
+- remarketing,
+- custom offers to end customers.
+
+==================================================
+PRICING / COMMERCIAL RULES
+==================================================
+
+Current official plans:
+- 1 month: 99 SAR
+- 3 months: 269 SAR
+- 6 months: 499 SAR
+- 12 months: 999 SAR
+
+Current promotional discounted prices shown on the website:
+- 1 month: 39 SAR
+- 3 months: 107 SAR
+- 6 months: 199 SAR
+- 12 months: 399 SAR
+
+Offer details:
+- 15-day free trial
+- 60% discount for new customers
+
+Payment method:
+- Bank transfer only
+- Arabic: التحويل البنكي إلى حساب مؤسسة البيجر الرقمي
+- English: Bank transfer to the account of Digital Pager Establishment
+
+==================================================
+TASKS TO COMPLETE
+==================================================
+
+You must locate and update ALL matching website text in BOTH Arabic and English versions.
+
+--------------------------------------------------
+TASK 1 — UPDATE PRICING SECTION
+--------------------------------------------------
+
+Find the pricing section and replace its copy with legally safer wording.
+
+ARABIC TARGET COPY:
+
+Section title:
+الأسعار
+
+Section subtitle:
+اختر الباقة المناسبة لمتجرك
+
+Promotional lines:
+خصم خاص 60% للعملاء الجدد
+تجربة مجانية لمدة 15 يوم
+
+Add this small disclaimer under the pricing intro or near the pricing cards:
+ملاحظة: تختلف تجربة الإشعارات حسب الجهاز والمتصفح ونظام التشغيل، ولا تضمن المنصة ظهور الإشعارات في جميع الحالات أو خارج المتصفح.
+
+For ALL pricing plans, replace the included feature list with this exact structure:
+
+1) بيجر رقمي لتنبيه العميل عند جاهزية الطلب
+2) توجيه العميل إلى صفحة تقييم متجرك على خرائط Google
+3) عرض ملاحظات وتجربة العميل داخل لوحة تحكم التاجر
+4) واجهة تشغيل سهلة وسريعة للمتجر
+
+IMPORTANT:
+Remove ANY mention of:
+- نظام ولاء
+- إدخال بيانات العميل
+- الاستفادة من العروض
+- قاعدة بيانات العملاء
+- إعادة الاستهداف
+
+Pricing labels:
+- باقة شهر
+- باقة 3 شهور
+- باقة 6 شهور
+- باقة 12 شهر
+- الأوفر (for the 12-month plan if currently used)
+
+CTA button text:
+ابدأ مجانًا
+
+--------------------------------------------------
+TASK 2 — UPDATE FEATURES SECTION
+--------------------------------------------------
+
+Replace the features section with the following legally safer copy.
+
+ARABIC TARGET COPY:
+
+Section title:
+المميزات
+
+Section subtitle:
+ما الذي يقدمه لك البيجر الرقمي؟
+
+Feature 1 title:
+تجربة استلام أكثر احترافية
+
+Feature 1 body:
+سهّل على عميلك معرفة أن طلبه أصبح جاهزًا، وقلل النداءات اليدوية والازدحام والارتباك داخل المتجر.
+
+Feature 2 title:
+تسهيل الوصول إلى صفحة التقييم
+
+Feature 2 body:
+بعد انتهاء الطلب، يمكن توجيه العميل بسهولة إلى صفحة تقييم متجرك على خرائط Google، مما يساعد على تحسين تجربة العميل وتشجيع التفاعل مع متجرك.
+
+Feature 3 title:
+بديل رقمي للبيجر التقليدي
+
+Feature 3 body:
+استمتع بتجربة تشغيل حديثة بدل الأجهزة التقليدية، بطريقة أسهل وأكثر مرونة للمتجر والعميل.
+
+Feature 4 title:
+فهم أفضل لتجربة العميل
+
+Feature 4 body:
+اطّلع على ملاحظات وتجربة العملاء من خلال واجهة بسيطة تساعدك على تحسين الخدمة واتخاذ قرارات أفضل داخل متجرك.
+
+IMPORTANT:
+Remove / replace any Arabic claims similar to:
+- رفع تقييمك على خرائط جوجل
+- لتتصدر نتائج البحث
+- نزيد الوعي لعلامتك التجارية
+- قاعدة ببيانات عملاءك
+- امتلك بيانات عملائك بالكامل
+- إعادة استهدافهم بعروض مخصصة
+
+--------------------------------------------------
+TASK 3 — ADD LEGAL CONSENT TEXT
+--------------------------------------------------
+
+Find the pricing CTA area, signup area, free trial area, or checkout-related UI.
+
+Add this Arabic legal consent text somewhere visible near the CTA / signup / trial action:
+
+بالاشتراك أو طلب التجربة المجانية، فإنك توافق على الشروط والأحكام وسياسة الخصوصية وسياسة الاشتراك والإلغاء والاسترداد.
+
+If there is a checkbox area, use this sentence there as well.
+
+--------------------------------------------------
+TASK 4 — UPDATE ENGLISH VERSION TO MATCH EXACTLY
+--------------------------------------------------
+
+You MUST also update the English version so it means the same thing as the Arabic version.
+
+Use the following English copy:
+
+PRICING SECTION
+
+Title:
+Pricing
+
+Subtitle:
+Choose the plan that fits your business
+
+Promo lines:
+Special 60% discount for new customers
+15-day free trial
+
+Disclaimer:
+Note: Notification behavior may vary depending on the device, browser, operating system, and user settings. The platform does not guarantee that notifications will appear in all cases or outside the browser.
+
+Pricing plan included features (for ALL plans):
+1) Digital pager to notify customers when the order is ready
+2) Direct customers to your Google Maps review page
+3) View customer feedback and experience inside the merchant dashboard
+4) Easy and fast setup for your store
+
+IMPORTANT:
+Remove ANY English mention of:
+- loyalty program
+- customer data collection
+- customer database
+- customer phone number collection
+- retargeting
+- customer ownership
+- offers for end customers
+
+Plan labels:
+- 1-Month Plan
+- 3-Month Plan
+- 6-Month Plan
+- 12-Month Plan
+- Best Value (if there is a highlighted badge)
+
+CTA:
+Start Free
+
+FEATURES SECTION
+
+Title:
+Features
+
+Subtitle:
+What does Digital Pager help you with?
+
+Feature 1 title:
+A more professional pickup experience
+
+Feature 1 body:
+Help customers know when their order is ready while reducing manual calling, crowding, and confusion inside your store.
+
+Feature 2 title:
+Easier access to your review page
+
+Feature 2 body:
+After the order is completed, customers can be directed to your Google Maps review page in a simple and convenient way, helping encourage interaction with your business.
+
+Feature 3 title:
+A digital alternative to traditional pagers
+
+Feature 3 body:
+Replace traditional pager devices with a more modern and flexible experience for both the merchant and the customer.
+
+Feature 4 title:
+Better visibility into customer experience
+
+Feature 4 body:
+View customer feedback and experience through a simple interface that helps you improve service and make better decisions for your store.
+
+Legal consent text:
+By subscribing or requesting the free trial, you agree to the Terms & Conditions, Privacy Policy, and Subscription, Cancellation & Refund Policy.
+
+--------------------------------------------------
+TASK 5 — GLOBAL CONTENT AUDIT
+--------------------------------------------------
+
+Search the ENTIRE codebase (all pages, components, translation files, constants, JSON, i18n dictionaries, CMS-like data files, hardcoded strings, etc.) for risky copy and replace or neutralize it.
+
+You MUST search for and fix any wording related to:
+- loyalty
+- rewards
+- customer data
+- customer phone numbers
+- CRM
+- retargeting
+- guaranteed notifications
+- guaranteed reviews
+- review filtering
+- ranking on Google
+- top search results
+- customer database
+- marketing database
+- collecting end-user data
+
+Examples of risky phrases to remove or rewrite:
+Arabic:
+- نظام ولاء
+- قاعدة بيانات العملاء
+- جمع بيانات العملاء
+- إدخال رقم الجوال
+- إعادة الاستهداف
+- رفع تقييمك
+- تصدر نتائج البحث
+- إشعارات مضمونة
+- تقييمات سلبية
+- نزيد وعي علامتك التجارية
+
+English:
+- loyalty
+- customer database
+- collect customer data
+- collect phone numbers
+- retarget
+- boost your rating
+- rank higher
+- guaranteed notifications
+- negative reviews filtering
+- build your customer base
+
+Replace them with safer, product-accurate wording consistent with the approved messaging above.
+
+--------------------------------------------------
+TASK 6 — DO NOT BREAK THE APP
+--------------------------------------------------
+
+After updating:
+1) Ensure both Arabic and English pages render correctly.
+2) Ensure text direction (RTL/LTR) still works properly.
+3) Ensure no layout overflow or broken cards/buttons due to longer text.
+4) Ensure translation keys still work if the app uses i18n.
+5) Ensure no dead references or broken imports after copy changes.
+
+==================================================
+OUTPUT REQUIRED
+==================================================
+
+After making changes, provide:
+
+1) A summary of all files changed
+2) A list of all risky phrases removed/replaced
+3) Any places where the current product UX may still need legal-safe wording
+4) Any UI sections you could not confidently update and need manual review
