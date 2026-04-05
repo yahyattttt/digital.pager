@@ -2259,152 +2259,7 @@ export default function DashboardPage() {
             )}
 
             {!isContentLocked && currentView === "menu" && (
-              merchantFeatures.onlineOrdersEnabled ? (
-                <div className="space-y-5">
-                  {/* ── Online Section Sub-Tabs ── */}
-                  <div className="flex gap-1.5 p-1 rounded-2xl bg-white/[0.03] border border-white/[0.06]" role="tablist">
-                    {([
-                      { key: "online", arLabel: "أونلاين", enLabel: "Online", icon: <UtensilsCrossed className="w-3.5 h-3.5" /> },
-                      { key: "settings", arLabel: "إعدادات", enLabel: "Settings", icon: <Truck className="w-3.5 h-3.5" /> },
-                    ] as const).map((tab) => (
-                      <button
-                        key={tab.key}
-                        role="tab"
-                        aria-selected={menuSubTab === tab.key}
-                        onClick={() => setMenuSubTab(tab.key)}
-                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold transition-all"
-                        style={{
-                          background: menuSubTab === tab.key ? "rgba(220,38,38,0.18)" : "transparent",
-                          color: menuSubTab === tab.key ? "#f87171" : "rgba(255,255,255,0.4)",
-                          border: menuSubTab === tab.key ? "1px solid rgba(220,38,38,0.3)" : "1px solid transparent",
-                        }}
-                        data-testid={`tab-menu-${tab.key}`}
-                      >
-                        {tab.icon}
-                        <span>{lang === "ar" ? tab.arLabel : tab.enLabel}</span>
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* ── Sub-Tab: Online (products + link) ── */}
-                  {menuSubTab === "online" && <MenuView merchant={merchant} t={t} lang={lang} />}
-
-                  {/* ── Sub-Tab: Settings (delivery + hours) ── */}
-                  {menuSubTab === "settings" && (
-                    <div className="space-y-5">
-                      {merchantFeatures.deliveryFeatureEnabled ? (
-                        <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
-                          <CardContent className="p-6">
-                            <h3 className="font-semibold mb-1 flex items-center gap-2">
-                              <MapPin className="w-4 h-4 text-emerald-400" />
-                              {t("موقع الفرع ونطاق التوصيل", "Branch Location & Delivery Range")}
-                            </h3>
-                            <p className="text-xs text-muted-foreground mb-4">{t("إعدادات التوصيل والموقع وساعات العمل", "Delivery, location, and business hours settings")}</p>
-                            <div className="space-y-4">
-                              <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]">
-                                <div className="flex-1">
-                                  <p className="text-sm font-semibold" dir="rtl">{t("تفعيل خدمة التوصيل", "Enable Delivery")}</p>
-                                  <p className="text-xs text-muted-foreground mt-0.5" dir="rtl">{t("للمتاجر التي تملك توصيلاً ذاتياً فقط", "For stores with their own delivery service only")}</p>
-                                </div>
-                                <Switch checked={deliveryEnabled} onCheckedChange={setDeliveryEnabled} className="data-[state=checked]:bg-emerald-600" data-testid="switch-delivery-enabled" />
-                              </div>
-
-                              <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]">
-                                <div className="flex-1">
-                                  <p className="text-sm font-semibold" dir="rtl">{t("تفعيل خدمة استلام الطلب في السيارة", "Enable Curbside Pickup")}</p>
-                                  <p className="text-xs text-muted-foreground mt-0.5" dir="rtl">{t("يتيح للعميل طلب تسليم الطلب إلى سيارته أمام المتجر", "Allows customer to request delivery to their car outside")}</p>
-                                </div>
-                                <Switch checked={curbsideEnabled} onCheckedChange={setCurbsideEnabled} className="data-[state=checked]:bg-orange-500" data-testid="switch-curbside-enabled" />
-                              </div>
-
-                              {deliveryEnabled && (
-                                <div className="space-y-4 pt-1">
-                                  <div className="grid grid-cols-2 gap-3">
-                                    <div className="space-y-1.5">
-                                      <label className="text-xs text-muted-foreground block">{t("رسوم التوصيل (ريال)", "Delivery Fee (SAR)")}</label>
-                                      <Input type="number" value={deliveryFee} onChange={(e) => setDeliveryFee(e.target.value)} placeholder="0" min="0" step="0.5" className="h-11 bg-white/[0.03] border-white/10 font-mono" dir="ltr" data-testid="input-delivery-fee" />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                      <label className="text-xs text-muted-foreground block flex items-center gap-1">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />
-                                        {t("أقصى نطاق (كم)", "Max Range (km)")}
-                                      </label>
-                                      <Input type="number" value={deliveryRange} onChange={(e) => setDeliveryRange(e.target.value)} placeholder={t("0=غير محدود", "0=unlimited")} min="0" step="1" className="h-11 bg-white/[0.03] border-white/10 font-mono" dir="ltr" data-testid="input-delivery-range" />
-                                    </div>
-                                  </div>
-                                  <p className="text-[10px] text-muted-foreground" dir="rtl">{t("اضبط النطاق على 0 لقبول أي مسافة. يُستخدم مع الإحداثيات لحساب المسافة.", "Set range to 0 to accept any distance. Used with coordinates for distance calculation.")}</p>
-
-                                  <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.06] space-y-3">
-                                    <p className="text-sm font-semibold flex items-center gap-2" dir="rtl">
-                                      <MapPin className="w-4 h-4 text-red-400" />
-                                      {t("إحداثيات موقع الفرع", "Branch Location Coordinates")}
-                                    </p>
-                                    <p className="text-[11px] text-muted-foreground" dir="rtl">{t("افتح Google Maps، انقر بزر اليمين على موقع فرعك، وانسخ الإحداثيات.", "Open Google Maps, right-click your branch, and copy coordinates.")}</p>
-                                    <div className="grid grid-cols-2 gap-3">
-                                      <div className="space-y-1">
-                                        <label className="text-[11px] text-muted-foreground block">{t("خط العرض", "Latitude")}</label>
-                                        <Input type="text" value={storeLat} onChange={(e) => setStoreLat(e.target.value)} placeholder="24.7136" className="h-10 bg-black/40 border-white/10 font-mono text-sm" dir="ltr" data-testid="input-store-lat" />
-                                      </div>
-                                      <div className="space-y-1">
-                                        <label className="text-[11px] text-muted-foreground block">{t("خط الطول", "Longitude")}</label>
-                                        <Input type="text" value={storeLng} onChange={(e) => setStoreLng(e.target.value)} placeholder="46.6753" className="h-10 bg-black/40 border-white/10 font-mono text-sm" dir="ltr" data-testid="input-store-lng" />
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  <div className="space-y-1.5">
-                                    <label className="text-xs text-muted-foreground block">{t("رقم جوال المندوب (واتساب)", "Driver Phone (WhatsApp)")}</label>
-                                    <Input type="tel" value={driverPhone} onChange={(e) => setDriverPhone(e.target.value)} placeholder={t("مثال: 966501234567", "e.g. 966501234567")} maxLength={15} className="h-11 bg-white/[0.03] border-white/10 font-mono" dir="ltr" data-testid="input-driver-phone" />
-                                    <p className="text-[10px] text-muted-foreground">{t("اتركه فارغاً لاختيار المندوب يدوياً عند كل طلب", "Leave empty to choose driver manually per order")}</p>
-                                  </div>
-                                </div>
-                              )}
-
-                              <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]" data-testid="online-orders-toggle-row">
-                                <div className="flex-1">
-                                  <p className="text-sm font-semibold" dir="rtl">{t("استقبال الطلبات أونلاين", "Enable Online Orders")}</p>
-                                  <p className="text-xs text-muted-foreground mt-0.5" dir="rtl">{t("إيقاف فوري لاستقبال الطلبات عند ضغط المطبخ", "Instantly stop receiving orders during kitchen pressure")}</p>
-                                </div>
-                                <Switch checked={localOnlineOrdersEnabled} onCheckedChange={setLocalOnlineOrdersEnabled} className="data-[state=checked]:bg-emerald-600" data-testid="switch-online-orders" />
-                              </div>
-
-                              <div className="space-y-3">
-                                <p className="text-sm font-semibold flex items-center gap-2"><Clock className="w-4 h-4 text-violet-400" />{t("ساعات العمل", "Business Hours")}</p>
-                                <p className="text-xs text-muted-foreground" dir="rtl">{t("خارج هذه الأوقات لن يتمكن العملاء من الطلب.", "Outside these hours, customers cannot place orders.")}</p>
-                                <div className="grid grid-cols-2 gap-3">
-                                  <div>
-                                    <label className="text-xs text-muted-foreground block mb-1.5">{t("وقت الفتح", "Opening Time")}</label>
-                                    <Input type="time" value={localOpenTime} onChange={(e) => setLocalOpenTime(e.target.value)} className="h-11 bg-white/[0.03] border-white/10 text-center font-mono" dir="ltr" data-testid="input-open-time" />
-                                  </div>
-                                  <div>
-                                    <label className="text-xs text-muted-foreground block mb-1.5">{t("وقت الإغلاق", "Closing Time")}</label>
-                                    <Input type="time" value={localCloseTime} onChange={(e) => setLocalCloseTime(e.target.value)} className="h-11 bg-white/[0.03] border-white/10 text-center font-mono" dir="ltr" data-testid="input-close-time" />
-                                  </div>
-                                </div>
-                                {localOpenTime && localCloseTime && (
-                                  <p className="text-xs text-muted-foreground text-center" dir="rtl" data-testid="text-hours-preview">{t("ساعات العمل:", "Business Hours:")} {localOpenTime} → {localCloseTime}</p>
-                                )}
-                              </div>
-
-                              <Button onClick={handleSaveBranchDelivery} disabled={deliverySaving} className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl disabled:opacity-30" data-testid="button-save-branch-delivery">
-                                {deliverySaving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Save className="w-4 h-4 me-2" />}
-                                {t("حفظ إعدادات الفرع والتوصيل", "Save Branch & Delivery Settings")}
-                              </Button>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ) : (
-                        <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
-                          <CardContent className="py-12 flex flex-col items-center justify-center text-center gap-3">
-                            <Truck className="w-10 h-10 text-muted-foreground/20" />
-                            <p className="text-muted-foreground text-sm" dir="rtl">{t("ميزة التوصيل غير مفعّلة لهذا الحساب", "Delivery feature is not enabled for this account")}</p>
-                          </CardContent>
-                        </Card>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ) : <FeatureDisabled />
+              merchantFeatures.onlineOrdersEnabled ? <MenuView merchant={merchant} t={t} lang={lang} /> : <FeatureDisabled />
             )}
 
             {!isContentLocked && currentView === "analytics" && (
@@ -7056,8 +6911,7 @@ function SettingsView({
   const [crPdfUploading, setCrPdfUploading] = useState(false);
   const crPdfInputRef = useRef<HTMLInputElement>(null);
   const [supportWhatsappEdit, setSupportWhatsappEdit] = useState<string>((merchant as any)?.support_whatsapp || "");
-  const [settingsTab, setSettingsTab] = useState<"general" | "support" | "finance" | "staff">("general");
-  const [menuSubTab, setMenuSubTab] = useState<"online" | "settings">("online");
+  const [settingsTab, setSettingsTab] = useState<"general" | "delivery" | "support" | "finance" | "staff">("general");
   const [supportSaving, setSupportSaving] = useState(false);
   const [legalDocsSaving, setLegalDocsSaving] = useState(false);
   const [storeSlugEdit, setStoreSlugEdit] = useState<string>((merchant as any)?.storeSlug || "");
@@ -7525,6 +7379,7 @@ function SettingsView({
 
   const tabDef = [
     { key: "general" as const, arLabel: "عام", enLabel: "General", icon: <Store className="w-3.5 h-3.5" /> },
+    { key: "delivery" as const, arLabel: "توصيل", enLabel: "Delivery", icon: <MapPin className="w-3.5 h-3.5" /> },
     { key: "support" as const, arLabel: "دعم", enLabel: "Support", icon: <Phone className="w-3.5 h-3.5" /> },
     { key: "finance" as const, arLabel: "مالية/قانوني", enLabel: "Finance/Legal", icon: <CreditCard className="w-3.5 h-3.5" /> },
     { key: "staff" as const, arLabel: "الموظف", enLabel: "Staff", icon: <UserCog className="w-3.5 h-3.5" /> },
@@ -8077,6 +7932,113 @@ function SettingsView({
           </div>
         </CardContent>
       </Card>
+
+      </>)}
+
+      {/* ── TAB: Delivery ── */}
+      {settingsTab === "delivery" && (<>
+
+      {/* ── SECTION 2: Branch Location & Delivery Range ── */}
+      {merchantFeatures.deliveryFeatureEnabled ? <Card className="border-white/[0.06] bg-[#111] rounded-2xl">
+        <CardContent className="p-6">
+          <h3 className="font-semibold mb-1 flex items-center gap-2">
+            <MapPin className="w-4 h-4 text-emerald-400" />
+            {t("موقع الفرع ونطاق التوصيل", "Branch Location & Delivery Range")}
+          </h3>
+          <p className="text-xs text-muted-foreground mb-4">{t("إعدادات التوصيل والموقع وساعات العمل", "Delivery, location, and business hours settings")}</p>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]">
+              <div className="flex-1">
+                <p className="text-sm font-semibold" dir="rtl">{t("تفعيل خدمة التوصيل", "Enable Delivery")}</p>
+                <p className="text-xs text-muted-foreground mt-0.5" dir="rtl">{t("للمتاجر التي تملك توصيلاً ذاتياً فقط", "For stores with their own delivery service only")}</p>
+              </div>
+              <Switch checked={deliveryEnabled} onCheckedChange={setDeliveryEnabled} className="data-[state=checked]:bg-emerald-600" data-testid="switch-delivery-enabled" />
+            </div>
+
+            <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]">
+              <div className="flex-1">
+                <p className="text-sm font-semibold" dir="rtl">{t("تفعيل خدمة استلام الطلب في السيارة", "Enable Curbside Pickup")}</p>
+                <p className="text-xs text-muted-foreground mt-0.5" dir="rtl">{t("يتيح للعميل طلب تسليم الطلب إلى سيارته أمام المتجر", "Allows customer to request delivery to their car outside")}</p>
+              </div>
+              <Switch checked={curbsideEnabled} onCheckedChange={setCurbsideEnabled} className="data-[state=checked]:bg-orange-500" data-testid="switch-curbside-enabled" />
+            </div>
+
+            {deliveryEnabled && (
+              <div className="space-y-4 pt-1">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs text-muted-foreground block">{t("رسوم التوصيل (ريال)", "Delivery Fee (SAR)")}</label>
+                    <Input type="number" value={deliveryFee} onChange={(e) => setDeliveryFee(e.target.value)} placeholder="0" min="0" step="0.5" className="h-11 bg-white/[0.03] border-white/10 font-mono" dir="ltr" data-testid="input-delivery-fee" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs text-muted-foreground block flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />
+                      {t("أقصى نطاق (كم)", "Max Range (km)")}
+                    </label>
+                    <Input type="number" value={deliveryRange} onChange={(e) => setDeliveryRange(e.target.value)} placeholder={t("0=غير محدود", "0=unlimited")} min="0" step="1" className="h-11 bg-white/[0.03] border-white/10 font-mono" dir="ltr" data-testid="input-delivery-range" />
+                  </div>
+                </div>
+                <p className="text-[10px] text-muted-foreground" dir="rtl">{t("اضبط النطاق على 0 لقبول أي مسافة. يُستخدم مع الإحداثيات لحساب المسافة.", "Set range to 0 to accept any distance. Used with coordinates for distance calculation.")}</p>
+
+                <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.06] space-y-3">
+                  <p className="text-sm font-semibold flex items-center gap-2" dir="rtl">
+                    <MapPin className="w-4 h-4 text-red-400" />
+                    {t("إحداثيات موقع الفرع", "Branch Location Coordinates")}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground" dir="rtl">{t("افتح Google Maps، انقر بزر اليمين على موقع فرعك، وانسخ الإحداثيات.", "Open Google Maps, right-click your branch, and copy coordinates.")}</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[11px] text-muted-foreground block">{t("خط العرض", "Latitude")}</label>
+                      <Input type="text" value={storeLat} onChange={(e) => setStoreLat(e.target.value)} placeholder="24.7136" className="h-10 bg-black/40 border-white/10 font-mono text-sm" dir="ltr" data-testid="input-store-lat" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[11px] text-muted-foreground block">{t("خط الطول", "Longitude")}</label>
+                      <Input type="text" value={storeLng} onChange={(e) => setStoreLng(e.target.value)} placeholder="46.6753" className="h-10 bg-black/40 border-white/10 font-mono text-sm" dir="ltr" data-testid="input-store-lng" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground block">{t("رقم جوال المندوب (واتساب)", "Driver Phone (WhatsApp)")}</label>
+                  <Input type="tel" value={driverPhone} onChange={(e) => setDriverPhone(e.target.value)} placeholder={t("مثال: 966501234567", "e.g. 966501234567")} maxLength={15} className="h-11 bg-white/[0.03] border-white/10 font-mono" dir="ltr" data-testid="input-driver-phone" />
+                  <p className="text-[10px] text-muted-foreground">{t("اتركه فارغاً لاختيار المندوب يدوياً عند كل طلب", "Leave empty to choose driver manually per order")}</p>
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/[0.06]" data-testid="online-orders-toggle-row">
+              <div className="flex-1">
+                <p className="text-sm font-semibold" dir="rtl">{t("استقبال الطلبات أونلاين", "Enable Online Orders")}</p>
+                <p className="text-xs text-muted-foreground mt-0.5" dir="rtl">{t("إيقاف فوري لاستقبال الطلبات عند ضغط المطبخ", "Instantly stop receiving orders during kitchen pressure")}</p>
+              </div>
+              <Switch checked={localOnlineOrdersEnabled} onCheckedChange={setLocalOnlineOrdersEnabled} className="data-[state=checked]:bg-emerald-600" data-testid="switch-online-orders" />
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-sm font-semibold flex items-center gap-2"><Clock className="w-4 h-4 text-violet-400" />{t("ساعات العمل", "Business Hours")}</p>
+              <p className="text-xs text-muted-foreground" dir="rtl">{t("خارج هذه الأوقات لن يتمكن العملاء من الطلب.", "Outside these hours, customers cannot place orders.")}</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground block mb-1.5">{t("وقت الفتح", "Opening Time")}</label>
+                  <Input type="time" value={localOpenTime} onChange={(e) => setLocalOpenTime(e.target.value)} className="h-11 bg-white/[0.03] border-white/10 text-center font-mono" dir="ltr" data-testid="input-open-time" />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground block mb-1.5">{t("وقت الإغلاق", "Closing Time")}</label>
+                  <Input type="time" value={localCloseTime} onChange={(e) => setLocalCloseTime(e.target.value)} className="h-11 bg-white/[0.03] border-white/10 text-center font-mono" dir="ltr" data-testid="input-close-time" />
+                </div>
+              </div>
+              {localOpenTime && localCloseTime && (
+                <p className="text-xs text-muted-foreground text-center" dir="rtl" data-testid="text-hours-preview">{t("ساعات العمل:", "Business Hours:")} {localOpenTime} → {localCloseTime}</p>
+              )}
+            </div>
+
+            <Button onClick={handleSaveBranchDelivery} disabled={deliverySaving} className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl disabled:opacity-30" data-testid="button-save-branch-delivery">
+              {deliverySaving ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Save className="w-4 h-4 me-2" />}
+              {t("حفظ إعدادات الفرع والتوصيل", "Save Branch & Delivery Settings")}
+            </Button>
+          </div>
+        </CardContent>
+      </Card> : null}
 
       </>)}
 
