@@ -229,6 +229,50 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ── VIDEO DEMO ── */}
+      <section style={{ position: "relative", zIndex: 10, paddingTop: 72, paddingBottom: 72 }}>
+        <div style={{ maxWidth: 800, margin: "0 auto", paddingLeft: 20, paddingRight: 20 }}>
+          <h2 style={{
+            textAlign: "center",
+            fontSize: "clamp(1.2rem, 2.8vw, 1.75rem)",
+            fontWeight: 800,
+            color: "#f0f0f0",
+            lineHeight: 1.35,
+            marginBottom: 32,
+          }}>
+            {t(
+              "شاهد كيف يعمل البيجر الرقمي على هاتف عميلك",
+              "Watch how Digital Pager works on your customer's phone"
+            )}
+          </h2>
+          {/* 16:9 responsive wrapper */}
+          <div style={{
+            position: "relative",
+            width: "100%",
+            paddingBottom: "56.25%",
+            borderRadius: 12,
+            overflow: "hidden",
+            boxShadow: "0 8px 40px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.06)",
+          }}>
+            <iframe
+              src="https://www.youtube.com/embed/T50YA6UTlxk"
+              title="Digital Pager Demo"
+              loading="lazy"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "100%",
+                height: "100%",
+                border: "none",
+              }}
+            />
+          </div>
+        </div>
+      </section>
+
       {/* ── COMPARISON TABLE ── */}
       <section style={{ position: "relative", zIndex: 10, paddingTop: 80, paddingBottom: 80 }}>
         <div className="max-w-5xl mx-auto px-5">
