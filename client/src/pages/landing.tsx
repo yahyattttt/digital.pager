@@ -245,28 +245,26 @@ export default function LandingPage() {
               "Watch how Digital Pager works on your customer's phone"
             )}
           </h2>
-          {/* 16:9 responsive wrapper */}
+          {/* 16:9 responsive wrapper — native aspect-ratio + GPU hint */}
           <div style={{
-            position: "relative",
             width: "100%",
-            paddingBottom: "56.25%",
+            aspectRatio: "16 / 9",
             borderRadius: 12,
             overflow: "hidden",
             boxShadow: "0 8px 40px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.06)",
+            willChange: "transform",
           }}>
             <iframe
               src="https://www.youtube.com/embed/T50YA6UTlxk"
               title="Digital Pager Demo"
               loading="lazy"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
               allowFullScreen
               style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
                 width: "100%",
                 height: "100%",
                 border: "none",
+                display: "block",
               }}
             />
           </div>
