@@ -21,6 +21,7 @@ export default function LandingPage() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [tick, setTick] = useState(0);
   const [footerInfo, setFooterInfo] = useState<FooterInfo>({});
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
   const pagerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -585,6 +586,173 @@ export default function LandingPage() {
               "By subscribing or requesting the free trial, you agree to the Terms & Conditions, Privacy Policy, and Subscription, Cancellation & Refund Policy."
             )}
           </p>
+        </div>
+      </section>
+
+      {/* ── FAQ ── */}
+      <section style={{ position: "relative", zIndex: 10, paddingTop: 80, paddingBottom: 80 }} dir="rtl">
+        {/* FAQ JSON-LD Schema for Google rich results */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "FAQPage",
+              "mainEntity": [
+                {
+                  "@type": "Question",
+                  "name": "هل يغني هذا النظام عن شراء جهاز بيجر للمطاعم التقليدي؟",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "نعم، نظامنا هو أفضل بديل رقمي لـ جهاز البيجر التقليدي. يوفر عليك تكاليف الصيانة وشراء الأجهزة المكسورة، ويعمل مباشرة عبر جوال العميل."
+                  }
+                },
+                {
+                  "@type": "Question",
+                  "name": "كيف يساعد نظام المناداة الرقمي في رفع تقييمات قوقل ماب؟",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "بمجرد استلام العميل لطلبه عبر نظام استدعاء الزبائن الخاص بنا، تظهر له صفحة تطلب منه تقييم مطعمك في قوقل ماب، مما يرفع ترتيبك بين المنافسين تلقائياً."
+                  }
+                },
+                {
+                  "@type": "Question",
+                  "name": "هل يحتاج العميل لتحميل تطبيق لاستخدام نظام نداء المطاعم؟",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "لا نهائياً. بمجرد مسح كود الـ QR، يفتح نظام نداء المطاعم في متصفح العميل مباشرة، مما يضمن تجربة سريعة وسهلة."
+                  }
+                },
+                {
+                  "@type": "Question",
+                  "name": "ما هي تكلفة صيانة نظام بيجر المطاعم الرقمي مقارنة بالأجهزة؟",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "تكلفة الصيانة هي صفر. وداعاً لضياع الأجهزة، تعطل البطاريات، أو الحاجة لـ قطع غيار بيجر. كل ما تحتاجه هو اشتراك بسيط في المنصة."
+                  }
+                },
+                {
+                  "@type": "Question",
+                  "name": "هل يدعم نظام مناداة الزبائن اللغة العربية بالكامل؟",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "نعم، واجهة نظام مناداة الزبائن والموظفين مصممة باللغة العربية بالكامل لتناسب السوق السعودي والخليجي."
+                  }
+                }
+              ]
+            })
+          }}
+        />
+
+        <div style={{ maxWidth: 760, margin: "0 auto", paddingLeft: 20, paddingRight: 20 }}>
+          {/* Section label */}
+          <div style={{ textAlign: "center", marginBottom: 48 }}>
+            <p style={{ fontSize: 11, letterSpacing: "0.2em", color: "#ff4500", fontWeight: 600, textTransform: "uppercase", marginBottom: 10 }}>
+              FAQ
+            </p>
+            <h2 style={{ fontSize: "clamp(1.4rem, 3vw, 2rem)", fontWeight: 800, color: "#f0f0f0", lineHeight: 1.3 }}>
+              الأسئلة الشائعة
+            </h2>
+          </div>
+
+          {/* Accordion items */}
+          {[
+            {
+              q: "هل يغني هذا النظام عن شراء جهاز بيجر للمطاعم التقليدي؟",
+              a: "نعم، نظامنا هو أفضل بديل رقمي لـ جهاز البيجر التقليدي. يوفر عليك تكاليف الصيانة وشراء الأجهزة المكسورة، ويعمل مباشرة عبر جوال العميل.",
+            },
+            {
+              q: "كيف يساعد نظام المناداة الرقمي في رفع تقييمات قوقل ماب؟",
+              a: "بمجرد استلام العميل لطلبه عبر نظام استدعاء الزبائن الخاص بنا، تظهر له صفحة تطلب منه تقييم مطعمك في قوقل ماب، مما يرفع ترتيبك بين المنافسين تلقائياً.",
+            },
+            {
+              q: "هل يحتاج العميل لتحميل تطبيق لاستخدام نظام نداء المطاعم؟",
+              a: "لا نهائياً. بمجرد مسح كود الـ QR، يفتح نظام نداء المطاعم في متصفح العميل مباشرة، مما يضمن تجربة سريعة وسهلة.",
+            },
+            {
+              q: "ما هي تكلفة صيانة نظام بيجر المطاعم الرقمي مقارنة بالأجهزة؟",
+              a: "تكلفة الصيانة هي صفر. وداعاً لضياع الأجهزة، تعطل البطاريات، أو الحاجة لـ قطع غيار بيجر. كل ما تحتاجه هو اشتراك بسيط في المنصة.",
+            },
+            {
+              q: "هل يدعم نظام مناداة الزبائن اللغة العربية بالكامل؟",
+              a: "نعم، واجهة نظام مناداة الزبائن والموظفين مصممة باللغة العربية بالكامل لتناسب السوق السعودي والخليجي.",
+            },
+          ].map((item, i) => (
+            <div
+              key={i}
+              style={{
+                borderBottom: "1px solid rgba(255,255,255,0.07)",
+                marginBottom: 0,
+              }}
+            >
+              <button
+                data-testid={`faq-toggle-${i}`}
+                onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                style={{
+                  width: "100%",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  textAlign: "right",
+                  padding: "20px 0",
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  gap: 16,
+                }}
+              >
+                <span style={{
+                  fontSize: "clamp(0.95rem, 2.2vw, 1.05rem)",
+                  fontWeight: 700,
+                  color: openFaq === i ? "#ff4500" : "#e8ddd8",
+                  lineHeight: 1.5,
+                  textAlign: "right",
+                  flex: 1,
+                  transition: "color 0.2s",
+                }}>
+                  {item.q}
+                </span>
+                <span style={{
+                  flexShrink: 0,
+                  width: 28,
+                  height: 28,
+                  borderRadius: "50%",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: openFaq === i ? "#ff4500" : "rgba(200,185,178,0.5)",
+                  fontSize: 18,
+                  fontWeight: 300,
+                  transition: "transform 0.25s, color 0.2s, border-color 0.2s",
+                  transform: openFaq === i ? "rotate(45deg)" : "rotate(0deg)",
+                  borderColor: openFaq === i ? "rgba(255,69,0,0.4)" : "rgba(255,255,255,0.12)",
+                }}>
+                  +
+                </span>
+              </button>
+
+              {/* Answer panel */}
+              <div
+                data-testid={`faq-answer-${i}`}
+                style={{
+                  maxHeight: openFaq === i ? 300 : 0,
+                  overflow: "hidden",
+                  transition: "max-height 0.35s ease",
+                }}
+              >
+                <p style={{
+                  fontSize: "clamp(0.88rem, 2vw, 0.97rem)",
+                  color: "rgba(200,185,178,0.7)",
+                  lineHeight: 1.8,
+                  paddingBottom: 20,
+                  textAlign: "right",
+                }}>
+                  {item.a}
+                </p>
+              </div>
+            </div>
+          ))}
         </div>
       </section>
 
