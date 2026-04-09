@@ -144,16 +144,53 @@ export default function LandingPage() {
         </div>
       </nav>
 
-      {/* ── HERO ── */}
+      {/* ── VIDEO DEMO — Hero position ── */}
+      <section style={{ position: "relative", zIndex: 10, paddingTop: 56, paddingBottom: 48 }}>
+        <div style={{ maxWidth: 820, margin: "0 auto", paddingLeft: 20, paddingRight: 20 }}>
+          <h2 style={{
+            textAlign: "center",
+            fontSize: "clamp(1.2rem, 2.8vw, 1.75rem)",
+            fontWeight: 800,
+            color: "#f0f0f0",
+            lineHeight: 1.35,
+            marginBottom: 28,
+          }}>
+            {t(
+              "شاهد كيف يعمل البيجر الرقمي على هاتف عميلك",
+              "Watch how Digital Pager works on your customer's phone"
+            )}
+          </h2>
+          {/* 16:9 responsive wrapper — native aspect-ratio + GPU hint */}
+          <div style={{
+            width: "100%",
+            aspectRatio: "16 / 9",
+            borderRadius: 14,
+            overflow: "hidden",
+            boxShadow: "0 8px 48px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,255,255,0.07)",
+            willChange: "transform",
+          }}>
+            <iframe
+              src="https://www.youtube.com/embed/T50YA6UTlxk"
+              title="Digital Pager Demo"
+              loading="lazy"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+              style={{ width: "100%", height: "100%", border: "none", display: "block" }}
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* ── HERO — below video ── */}
       <section style={{ position: "relative", zIndex: 10 }}>
-        <div className="max-w-7xl mx-auto px-5 pt-16 pb-16">
+        <div className="max-w-7xl mx-auto px-5 pt-8 pb-16">
           <div
             className="flex flex-col lg:flex-row items-center gap-14"
             style={{ flexDirection: isRTL ? "row-reverse" : "row" }}
           >
             {/* Left: Text */}
             <div className="flex-1 min-w-0" style={{ textAlign: isRTL ? "right" : "left" }}>
-              {/* Badge — smaller than headline to anchor the hierarchy */}
+              {/* Badge */}
               <div
                 className="inline-flex items-center gap-2 mb-6"
                 style={{
@@ -168,7 +205,7 @@ export default function LandingPage() {
                 {t("الحل العصري لإدارة قوائم الانتظار", "The Modern Waitlist Solution")}
               </div>
 
-              {/* Main title — ExtraBold/Black, largest text on the page */}
+              {/* Main title */}
               <h1
                 data-testid="text-hero-title"
                 style={{
@@ -182,17 +219,12 @@ export default function LandingPage() {
               >
                 {t("تخلص من البيجر التقليدي.", "Ditch the Old Pagers.")}
                 <br />
-                <span
-                  style={{
-                    color: "#ff4500",
-                    textShadow: "0 0 32px rgba(255,69,0,0.7), 0 0 80px rgba(255,69,0,0.25)",
-                  }}
-                >
+                <span style={{ color: "#ff4500", textShadow: "0 0 32px rgba(255,69,0,0.7), 0 0 80px rgba(255,69,0,0.25)" }}>
                   {t("انطلق رقمياً.", "Go Digital.")}
                 </span>
               </h1>
 
-              {/* Description — Regular weight contrasts sharply with the Black headline */}
+              {/* Description */}
               <p
                 data-testid="text-hero-subtitle"
                 style={{
@@ -211,14 +243,45 @@ export default function LandingPage() {
               </p>
 
               {/* CTA Buttons */}
-              <div className="flex items-center gap-3 flex-wrap">
-                <NeonBtn variant="solid" size="lg" onClick={() => setLocation("/register")} testId="button-hero-register">
-                  {t("سجل متجرك الآن", "Register Now")}
-                  <ArrowIcon className="w-4 h-4 ms-2 inline" />
-                </NeonBtn>
-                <NeonBtn variant="ghost" size="lg" onClick={() => setLocation("/login")} testId="button-hero-login">
-                  {t("تسجيل الدخول", "Sign In")}
-                </NeonBtn>
+              <div className="flex flex-col items-start gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <NeonBtn variant="solid" size="lg" onClick={() => setLocation("/register")} testId="button-hero-register">
+                    {t("سجل متجرك الآن", "Register Now")}
+                    <ArrowIcon className="w-4 h-4 ms-2 inline" />
+                  </NeonBtn>
+                  <NeonBtn variant="ghost" size="lg" onClick={() => setLocation("/login")} testId="button-hero-login">
+                    {t("تسجيل الدخول", "Sign In")}
+                  </NeonBtn>
+                </div>
+                {/* Free trial CTA */}
+                <button
+                  data-testid="button-hero-free-trial"
+                  onClick={() => setLocation("/register")}
+                  style={{
+                    padding: "12px 28px",
+                    borderRadius: 10,
+                    border: "2px solid #4ADE80",
+                    background: "rgba(74,222,128,0.08)",
+                    color: "#4ADE80",
+                    fontSize: 15,
+                    fontWeight: 700,
+                    fontFamily: "'Cairo','Tajawal',sans-serif",
+                    cursor: "pointer",
+                    letterSpacing: "0.01em",
+                    boxShadow: "0 0 18px rgba(74,222,128,0.18)",
+                    transition: "background 0.2s, box-shadow 0.2s",
+                  }}
+                  onMouseEnter={e => {
+                    (e.currentTarget as HTMLButtonElement).style.background = "rgba(74,222,128,0.16)";
+                    (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 0 28px rgba(74,222,128,0.32)";
+                  }}
+                  onMouseLeave={e => {
+                    (e.currentTarget as HTMLButtonElement).style.background = "rgba(74,222,128,0.08)";
+                    (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 0 18px rgba(74,222,128,0.18)";
+                  }}
+                >
+                  ✦ {t("تجربة مجانية لمدة 15 يوم", "Free 15-Day Trial")}
+                </button>
               </div>
             </div>
 
@@ -226,48 +289,6 @@ export default function LandingPage() {
             <div className="flex-shrink-0 flex items-center justify-center" style={{ width: "clamp(260px,38vw,420px)" }}>
               <PagerDevice queueNum={queueNum} t={t} pagerRef={pagerRef} />
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── VIDEO DEMO ── */}
-      <section style={{ position: "relative", zIndex: 10, paddingTop: 72, paddingBottom: 72 }}>
-        <div style={{ maxWidth: 800, margin: "0 auto", paddingLeft: 20, paddingRight: 20 }}>
-          <h2 style={{
-            textAlign: "center",
-            fontSize: "clamp(1.2rem, 2.8vw, 1.75rem)",
-            fontWeight: 800,
-            color: "#f0f0f0",
-            lineHeight: 1.35,
-            marginBottom: 32,
-          }}>
-            {t(
-              "شاهد كيف يعمل البيجر الرقمي على هاتف عميلك",
-              "Watch how Digital Pager works on your customer's phone"
-            )}
-          </h2>
-          {/* 16:9 responsive wrapper — native aspect-ratio + GPU hint */}
-          <div style={{
-            width: "100%",
-            aspectRatio: "16 / 9",
-            borderRadius: 12,
-            overflow: "hidden",
-            boxShadow: "0 8px 40px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.06)",
-            willChange: "transform",
-          }}>
-            <iframe
-              src="https://www.youtube.com/embed/T50YA6UTlxk"
-              title="Digital Pager Demo"
-              loading="lazy"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              allowFullScreen
-              style={{
-                width: "100%",
-                height: "100%",
-                border: "none",
-                display: "block",
-              }}
-            />
           </div>
         </div>
       </section>
