@@ -92,7 +92,7 @@ export default function CheckOrderPage() {
           maxDisplay = data.displayOrderId || data.orderNumber || "";
         }
       });
-      setLiveQueueNumber(maxNum >= 0 ? maxDisplay || String(maxNum) : null);
+      setLiveQueueNumber(prev => maxNum >= 0 ? (maxDisplay || String(maxNum)) : prev);
     });
     return () => unsub();
   }, [merchantId]);
