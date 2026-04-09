@@ -23,6 +23,7 @@ export default function CheckOrderPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingPager, setPendingPager] = useState<PagerDoc | null>(null);
   const [notifAcknowledged, setNotifAcknowledged] = useState(false);
+  const [liveQueueDisplay, setLiveQueueDisplay] = useState<string | null>(null);
 
   const [loyaltyPromptOpen, setLoyaltyPromptOpen] = useState(false);
   const [confirmedPager, setConfirmedPager] = useState<PagerDoc | null>(null);
@@ -70,6 +71,27 @@ export default function CheckOrderPage() {
       });
       docs.sort((a, b) => Number(a.orderNumber) - Number(b.orderNumber));
       setPagers(docs);
+    });
+    return () => unsub();
+  }, [merchantId]);
+
+  // Live queue counter — tracks the highest order number that is notified or archived
+  useEffect(() => {
+    if (!merchantId) return;
+    const pagersRef = collection(db, "merchants", merchantId, "pagers");
+    const q = query(pagersRef, where("status", "in", ["notified", "archived"]));
+    const unsub = onSnapshot(q, (snap) => {
+      let maxNum = -1;
+      let maxDisplay = "";
+      snap.forEach((d) => {
+        const data = d.data();
+        const num = Number(data.orderNumber) || 0;
+        if (num > maxNum) {
+          maxNum = num;
+          maxDisplay = data.displayOrderId || data.orderNumber || String(num);
+        }
+      });
+      setLiveQueueDisplay(maxNum >= 0 ? maxDisplay : null);
     });
     return () => unsub();
   }, [merchantId]);
@@ -272,9 +294,18 @@ export default function CheckOrderPage() {
               <span
                 className="text-[13px] text-center leading-relaxed"
                 dir="rtl"
-                style={{ color: "rgba(255,255,255,0.8)", fontFamily: "'Tajawal', 'Cairo', sans-serif" }}
+                style={{ color: "rgba(255,255,255,0.75)", fontFamily: "'Tajawal', 'Cairo', sans-serif" }}
               >
-                قد لا تظهر الإشعارات وأنت خارج الصفحة بسبب قيود المتصفح.
+                {liveQueueDisplay !== null ? (
+                  <>
+                    الدور الآن:{" "}
+                    <span style={{ color: "#22c55e", fontWeight: 800, fontSize: 16 }}>
+                      رقم {liveQueueDisplay}
+                    </span>
+                  </>
+                ) : (
+                  <span style={{ color: "rgba(255,255,255,0.45)" }}>بانتظار بدء نداء الطلبات</span>
+                )}
               </span>
             </label>
 
