@@ -150,7 +150,7 @@ export default function StorePagerPage() {
   const [bellPrimed, setBellPrimed] = useState(false);
   const [bellPlaying, setBellPlaying] = useState(false);
   const [showRatingPopup, setShowRatingPopup] = useState(false);
-  const [nowServingNumber, setNowServingNumber] = useState<string | null>(null);
+  const [latestServedNumber, setLatestServedNumber] = useState<string | null>(null);
   const ratingShownRef = useRef(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -350,17 +350,17 @@ export default function StorePagerPage() {
   }, [merchant, toast]);
 
 
-  // "Now Serving" — real-time listener active only while on the preparing screen
+  // Live Queue — active only while customer is on the preparing screen
   useEffect(() => {
     if (!storeId || phase !== "preparing") {
-      setNowServingNumber(null);
+      setLatestServedNumber(null);
       return;
     }
     const pagersRef = collection(db, "merchants", storeId, "pagers");
     const q = query(pagersRef, where("status", "in", ["notified", "archived"]));
     const unsub = onSnapshot(q, (snap) => {
       if (snap.empty) {
-        setNowServingNumber(null);
+        setLatestServedNumber(null);
         return;
       }
       const sorted = snap.docs
@@ -371,7 +371,8 @@ export default function StorePagerPage() {
           return tb - ta;
         });
       const top = sorted[0] as any;
-      setNowServingNumber(top.displayOrderId || top.orderNumber ? String(top.displayOrderId || top.orderNumber) : null);
+      const val = top.displayOrderId || top.orderNumber;
+      setLatestServedNumber(val ? String(val) : null);
     });
     return () => unsub();
   }, [storeId, phase]);
@@ -603,29 +604,53 @@ export default function StorePagerPage() {
             </p>
             <p className="text-white/40 text-sm mt-1 text-center">Your order is being prepared</p>
 
-            {/* Now Serving counter — visible only on preparing screen */}
+            {/* Live Queue — only rendered while phase === "preparing" */}
             <div
               dir="rtl"
-              data-testid="now-serving-counter"
+              data-testid="live-queue-counter"
               style={{
-                marginTop: 14,
-                padding: "10px 16px",
-                borderRadius: 12,
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(255,255,255,0.10)",
+                marginTop: 16,
+                padding: "12px 20px",
+                borderRadius: 14,
+                background: latestServedNumber
+                  ? "rgba(74,222,128,0.08)"
+                  : "rgba(255,255,255,0.03)",
+                border: latestServedNumber
+                  ? "1px solid rgba(74,222,128,0.30)"
+                  : "1px solid rgba(255,255,255,0.08)",
                 textAlign: "center",
                 fontFamily: "'Tajawal','Cairo',sans-serif",
+                transition: "all 0.4s ease",
               }}
             >
-              {nowServingNumber !== null ? (
-                <span style={{ color: "#4ADE80", fontSize: 16, fontWeight: 700 }}>
-                  الدور الآن: رقم {nowServingNumber}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                {latestServedNumber && (
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      background: "#4ADE80",
+                      boxShadow: "0 0 6px #4ADE80",
+                      display: "inline-block",
+                      animation: "pulse 1.5s infinite",
+                      flexShrink: 0,
+                    }}
+                  />
+                )}
+                <span
+                  style={{
+                    color: latestServedNumber ? "#4ADE80" : "rgba(255,255,255,0.30)",
+                    fontSize: latestServedNumber ? 18 : 13,
+                    fontWeight: 700,
+                    letterSpacing: latestServedNumber ? "-0.3px" : "normal",
+                  }}
+                >
+                  {latestServedNumber
+                    ? `الدور الآن رقم: ${latestServedNumber}`
+                    : "الدور الآن رقم: ---"}
                 </span>
-              ) : (
-                <span style={{ color: "rgba(255,255,255,0.35)", fontSize: 14, fontWeight: 500 }}>
-                  الدور الآن: بانتظار نداء الطلبات
-                </span>
-              )}
+              </div>
             </div>
 
           </div>
