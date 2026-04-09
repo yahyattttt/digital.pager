@@ -897,43 +897,12 @@ export default function DigitalPagerPage() {
           {statusTextAr}
         </p>
 
-        {/* Now Serving — live real-time counter */}
+        {/* Live real-time serving number */}
         <div
-          className="flex items-center justify-center gap-2 mt-3"
           dir="rtl"
           data-testid="live-queue-counter"
-          style={{ fontFamily: "'Tajawal','Cairo',sans-serif", textAlign: "center" }}
-        >
-          {currentQueueNumber !== null && (
-            <span
-              className="w-2.5 h-2.5 rounded-full shrink-0 animate-pulse"
-              style={{ background: "#4ADE80", boxShadow: "0 0 6px #4ADE80" }}
-            />
-          )}
-          <p style={{ margin: 0, lineHeight: 1.4, textAlign: "center" }}>
-            {currentQueueNumber !== null ? (
-              <>
-                <span style={{ color: "rgba(255,255,255,0.65)", fontSize: 15, fontWeight: 600 }}>
-                  الدور الآن رقم:{" "}
-                </span>
-                <span style={{ color: "#4ADE80", fontSize: 24, fontWeight: 700 }}>
-                  {currentQueueNumber}
-                </span>
-              </>
-            ) : (
-              <span style={{ color: "rgba(255,255,255,0.35)", fontSize: 14, fontWeight: 500 }}>
-                الدور الآن: بانتظار النداء
-              </span>
-            )}
-          </p>
-        </div>
-
-        {/* Live verification block — independent real-time display */}
-        <div
-          dir="rtl"
-          data-testid="live-queue-verified"
           style={{
-            marginTop: 10,
+            marginTop: 12,
             padding: 10,
             borderRadius: 10,
             background: "#1a1a1a",
@@ -944,7 +913,7 @@ export default function DigitalPagerPage() {
         >
           <span style={{ color: "#FFD700", fontSize: 16, fontWeight: 700 }}>
             الرقم المحدث الآن:{" "}
-            {currentQueueNumber ?? "بانتظار النداء"}
+            {currentQueueNumber ?? "---"}
           </span>
         </div>
       </div>
