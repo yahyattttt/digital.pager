@@ -204,6 +204,8 @@ export default function DigitalPagerPage() {
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [loyaltyEnabled, setLoyaltyEnabled] = useState(false);
   const [liveQueueDisplay, setLiveQueueDisplay] = useState<string | null>(null);
+  // High-water mark: once a number is shown it never goes backwards or disappears
+  const liveQueueHWM = useRef<{ num: number; display: string } | null>(null);
   const orderNumberToastedRef = useRef(false);
 
   const prevStatusRef = useRef<OrderStatus>("processing");
@@ -425,23 +427,38 @@ export default function DigitalPagerPage() {
     return () => unsub();
   }, [loyaltyEnabled, merchantId, customerPhone, isManual]);
 
-  // Live queue counter — highest orderNumber with status "notified" or "archived"
+  // Live queue counter — always shows the highest ever-alerted order number.
+  // Uses a high-water mark (HWM) ref so the number NEVER goes backwards or
+  // disappears once shown, even if the pager is archived, deleted, or collected.
   useEffect(() => {
     if (!merchantId) return;
     const pagersRef = collection(db, "merchants", merchantId, "pagers");
+    // "notified" = merchant pressed the alert/buzz button (جاهز للاستلام)
+    // "archived" = customer collected the order (تم الاستلام)
+    // Both are included so the number persists after collection.
     const q = query(pagersRef, where("status", "in", ["notified", "archived"]));
     const unsub = onSnapshot(q, (snap) => {
-      let maxNum = -1;
-      let maxDisplay = "";
+      // Find the highest orderNumber in this snapshot
+      let snapMaxNum = -1;
+      let snapMaxDisplay = "";
       snap.forEach((d) => {
         const data = d.data();
         const num = Number(data.orderNumber) || 0;
-        if (num > maxNum) {
-          maxNum = num;
-          maxDisplay = data.displayOrderId || data.orderNumber || String(num);
+        if (num > snapMaxNum) {
+          snapMaxNum = num;
+          snapMaxDisplay = data.displayOrderId || data.orderNumber || String(num);
         }
       });
-      setLiveQueueDisplay(maxNum >= 0 ? maxDisplay : null);
+
+      // Only advance the HWM — never let the displayed number go down
+      if (snapMaxNum > (liveQueueHWM.current?.num ?? -1)) {
+        liveQueueHWM.current = { num: snapMaxNum, display: snapMaxDisplay };
+        setLiveQueueDisplay(snapMaxDisplay);
+      } else if (liveQueueHWM.current) {
+        // Snapshot shrank (e.g. pagers cleaned up) — keep showing the last known number
+        setLiveQueueDisplay(liveQueueHWM.current.display);
+      }
+      // If HWM is still null and snapshot is empty → keep null (fallback text)
     });
     return () => unsub();
   }, [merchantId]);
