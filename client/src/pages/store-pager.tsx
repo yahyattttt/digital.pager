@@ -150,6 +150,8 @@ export default function StorePagerPage() {
   const [bellPrimed, setBellPrimed] = useState(false);
   const [bellPlaying, setBellPlaying] = useState(false);
   const [showRatingPopup, setShowRatingPopup] = useState(false);
+  const [currentQueueNumber, setCurrentQueueNumber] = useState<string | null>(null);
+  const queueHWM = useRef<{ num: number; display: string } | null>(null);
   const ratingShownRef = useRef(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -347,6 +349,45 @@ export default function StorePagerPage() {
       }
     }
   }, [merchant, toast]);
+
+  // Live "Now Serving" counter — tracks the highest ever-alerted order number for this store
+  useEffect(() => {
+    if (!storeId) return;
+    const storageKey = `sp_queue_${storeId}`;
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved) as { num: number; display: string };
+        if (parsed?.num >= 0 && parsed?.display) {
+          queueHWM.current = parsed;
+          setCurrentQueueNumber(parsed.display);
+        }
+      }
+    } catch { /* ignore */ }
+
+    const pagersRef = collection(db, "merchants", storeId, "pagers");
+    const q = query(pagersRef, where("status", "in", ["notified", "archived"]));
+    const unsub = onSnapshot(q, (snap) => {
+      let snapMaxNum = -1;
+      let snapMaxDisplay = "";
+      snap.forEach((d) => {
+        const data = d.data();
+        const num = Number(data.orderNumber) || 0;
+        if (num > snapMaxNum) {
+          snapMaxNum = num;
+          snapMaxDisplay = data.displayOrderId || data.orderNumber || String(num);
+        }
+      });
+      if (snapMaxNum > (queueHWM.current?.num ?? -1)) {
+        queueHWM.current = { num: snapMaxNum, display: snapMaxDisplay };
+        setCurrentQueueNumber(snapMaxDisplay);
+        try { localStorage.setItem(storageKey, JSON.stringify(queueHWM.current)); } catch { /* ignore */ }
+      } else if (queueHWM.current) {
+        setCurrentQueueNumber(queueHWM.current.display);
+      }
+    });
+    return () => unsub();
+  }, [storeId]);
 
   function handleGoogleMapsClick() {
     if (!merchant?.googleMapsReviewUrl) return;
@@ -574,6 +615,37 @@ export default function StorePagerPage() {
               جاري التحضير 👨‍🍳
             </p>
             <p className="text-white/40 text-sm mt-1 text-center">Your order is being prepared</p>
+
+            {/* Now Serving counter */}
+            <div
+              className="flex items-center justify-center gap-2 mt-3"
+              dir="rtl"
+              data-testid="live-queue-counter"
+              style={{ fontFamily: "'Tajawal','Cairo',sans-serif", textAlign: "center" }}
+            >
+              {currentQueueNumber !== null && (
+                <span
+                  className="w-2.5 h-2.5 rounded-full shrink-0 animate-pulse"
+                  style={{ background: "#4ADE80", boxShadow: "0 0 6px #4ADE80" }}
+                />
+              )}
+              <p style={{ margin: 0, lineHeight: 1.4 }}>
+                {currentQueueNumber !== null ? (
+                  <>
+                    <span style={{ color: "rgba(255,255,255,0.65)", fontSize: 15, fontWeight: 600 }}>
+                      الدور الآن رقم:{" "}
+                    </span>
+                    <span style={{ color: "#4ADE80", fontSize: 24, fontWeight: 700 }}>
+                      {currentQueueNumber}
+                    </span>
+                  </>
+                ) : (
+                  <span style={{ color: "rgba(255,255,255,0.35)", fontSize: 14, fontWeight: 500 }}>
+                    الدور الآن: بانتظار النداء
+                  </span>
+                )}
+              </p>
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
