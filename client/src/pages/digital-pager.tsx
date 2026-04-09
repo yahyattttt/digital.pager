@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useLocation } from "wouter";
-import { doc, onSnapshot, updateDoc } from "firebase/firestore";
+import { doc, onSnapshot, updateDoc, collection, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Bell, Share2, Wallet, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -203,6 +203,7 @@ export default function DigitalPagerPage() {
   const [customerPhone, setCustomerPhone] = useState<string>("");
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [loyaltyEnabled, setLoyaltyEnabled] = useState(false);
+  const [liveQueueDisplay, setLiveQueueDisplay] = useState<string | null>(null);
   const orderNumberToastedRef = useRef(false);
 
   const prevStatusRef = useRef<OrderStatus>("processing");
@@ -423,6 +424,27 @@ export default function DigitalPagerPage() {
     });
     return () => unsub();
   }, [loyaltyEnabled, merchantId, customerPhone, isManual]);
+
+  // Live queue counter — highest orderNumber with status "notified" or "archived"
+  useEffect(() => {
+    if (!merchantId) return;
+    const pagersRef = collection(db, "merchants", merchantId, "pagers");
+    const q = query(pagersRef, where("status", "in", ["notified", "archived"]));
+    const unsub = onSnapshot(q, (snap) => {
+      let maxNum = -1;
+      let maxDisplay = "";
+      snap.forEach((d) => {
+        const data = d.data();
+        const num = Number(data.orderNumber) || 0;
+        if (num > maxNum) {
+          maxNum = num;
+          maxDisplay = data.displayOrderId || data.orderNumber || String(num);
+        }
+      });
+      setLiveQueueDisplay(maxNum >= 0 ? maxDisplay : null);
+    });
+    return () => unsub();
+  }, [merchantId]);
 
   function handleActivateAlerts() {
     // Play silent.mp3 on button press — this unlocks the browser audio session
@@ -850,10 +872,22 @@ export default function DigitalPagerPage() {
         >
           {statusTextAr}
         </p>
-        {/* Browser disclaimer */}
-        <p className="flex items-start justify-center gap-1.5 text-[15px] text-gray-400 mt-4 mb-1 leading-relaxed px-2" dir="rtl" data-testid="text-disclaimer">
-          <span className="mt-0.5 shrink-0">⚠️</span>
-          <span>بسبب قيود المتصفح، لا يمكننا تنبيهك خارج هذه الصفحة. يرجى إبقاؤها مفتوحة لضمان استلام التنبيه 📱</span>
+        {/* Live queue counter */}
+        <p className="flex items-center justify-center gap-1.5 text-[15px] mt-4 mb-1 leading-relaxed px-2" dir="rtl" data-testid="text-disclaimer">
+          {liveQueueDisplay !== null ? (
+            <>
+              <span style={{ color: "rgba(255,255,255,0.7)" }}>الدور الآن:</span>
+              {" "}
+              <span style={{ color: "#22c55e", fontWeight: 800, fontSize: 18 }}>
+                رقم {liveQueueDisplay}
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="mt-0.5 shrink-0">⏳</span>
+              <span style={{ color: "rgba(255,255,255,0.4)" }}>بانتظار بدء نداء الطلبات</span>
+            </>
+          )}
         </p>
       </div>
 
