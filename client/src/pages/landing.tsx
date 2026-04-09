@@ -447,7 +447,7 @@ export default function LandingPage() {
           {/* 4 Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             {[
-              { period: "باقة شهر",     months: 1,  original: 99,  discounted: 39  },
+              { period: "باقة مجانية 15 يوم", months: 1,  original: 0,   discounted: 0   },
               { period: "باقة 3 شهور",  months: 3,  original: 269, discounted: 107 },
               { period: "باقة 6 شهور",  months: 6,  original: 499, discounted: 199 },
               { period: "باقة 12 شهر",  months: 12, original: 999, discounted: 399 },
@@ -479,13 +479,21 @@ export default function LandingPage() {
 
                 {/* Price */}
                 <div style={{ marginBottom: 20 }}>
-                  <span style={{ fontSize: 12, color: "rgba(200,185,178,0.4)", textDecoration: "line-through", display: "block", marginBottom: 2 }}>
-                    {pkg.original} SR
-                  </span>
-                  <span style={{ fontSize: 36, fontWeight: 900, color: "#f0f0f0", lineHeight: 1 }}>
-                    {pkg.discounted}
-                  </span>
-                  <span style={{ fontSize: 14, fontWeight: 500, color: "rgba(200,185,178,0.55)", marginInlineStart: 4 }}>SR</span>
+                  {pkg.discounted === 0 ? (
+                    <span style={{ fontSize: 36, fontWeight: 900, color: "#ff4500", lineHeight: 1, display: "block" }}>
+                      {t("مجاني", "Free")}
+                    </span>
+                  ) : (
+                    <>
+                      <span style={{ fontSize: 12, color: "rgba(200,185,178,0.4)", textDecoration: "line-through", display: "block", marginBottom: 2 }}>
+                        {pkg.original} SR
+                      </span>
+                      <span style={{ fontSize: 36, fontWeight: 900, color: "#f0f0f0", lineHeight: 1 }}>
+                        {pkg.discounted}
+                      </span>
+                      <span style={{ fontSize: 14, fontWeight: 500, color: "rgba(200,185,178,0.55)", marginInlineStart: 4 }}>SR</span>
+                    </>
+                  )}
                 </div>
 
                 {/* Divider */}

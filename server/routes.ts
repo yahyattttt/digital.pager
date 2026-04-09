@@ -85,7 +85,7 @@ const subDocUpload = multer({
 });
 
 const PLAN_DAYS: Record<string, number> = {
-  trial: 30,
+  trial: 15,
   basic: 90,
   premium: 180,
   enterprise: 365,

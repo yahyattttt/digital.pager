@@ -33,9 +33,9 @@ const UNIFIED_FEATURES = [
 const PLANS = [
   {
     id: "trial",
-    price: 39,
-    originalPrice: 99,
-    days: 30,
+    price: 0,
+    originalPrice: 0,
+    days: 15,
     icon: Star,
     bg: "linear-gradient(160deg,rgba(28,8,8,0.97) 0%,rgba(14,4,4,0.99) 100%)",
     border: "rgba(255,69,0,0.25)",
@@ -45,9 +45,9 @@ const PLANS = [
     btnBg: "transparent",
     btnBorder: "rgba(255,69,0,0.4)",
     btnText: "#ff6030",
-    nameAr: "باقة شهر",
-    nameEn: "Monthly",
-    durationAr: "شهر واحد",
+    nameAr: "باقة مجانية 15 يوم",
+    nameEn: "15 Days Free",
+    durationAr: "١٥ يوماً",
     discount: null as { ar: string; color: string; bg: string } | null,
     popular: false,
     bestValue: false,
@@ -446,13 +446,21 @@ export default function SubscriptionView({ merchant, t, lang }: Props) {
 
                   {/* Price */}
                   <div>
-                    <span style={{ fontSize: 11, color: "rgba(200,185,178,0.4)", textDecoration: "line-through", display: "block", marginBottom: 1 }}>
-                      {plan.originalPrice} SR
-                    </span>
-                    <div>
-                      <span style={{ fontSize: 30, fontWeight: 900, color: "#f0f0f0", lineHeight: 1 }}>{plan.price}</span>
-                      <span style={{ fontSize: 13, fontWeight: 500, color: "rgba(200,185,178,0.55)", marginInlineStart: 4 }}>SR</span>
-                    </div>
+                    {plan.price === 0 ? (
+                      <span style={{ fontSize: 28, fontWeight: 900, color: "#ff4500", lineHeight: 1, display: "block" }}>
+                        {t("مجاني", "Free")}
+                      </span>
+                    ) : (
+                      <>
+                        <span style={{ fontSize: 11, color: "rgba(200,185,178,0.4)", textDecoration: "line-through", display: "block", marginBottom: 1 }}>
+                          {plan.originalPrice} SR
+                        </span>
+                        <div>
+                          <span style={{ fontSize: 30, fontWeight: 900, color: "#f0f0f0", lineHeight: 1 }}>{plan.price}</span>
+                          <span style={{ fontSize: 13, fontWeight: 500, color: "rgba(200,185,178,0.55)", marginInlineStart: 4 }}>SR</span>
+                        </div>
+                      </>
+                    )}
                     {isSelected && (
                       <div className="inline-flex items-center gap-1 mt-1">
                         <Check className="w-3 h-3" style={{ color: "#ff4500" }} />
