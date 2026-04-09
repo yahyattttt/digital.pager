@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useLocation } from "wouter";
-import { doc, onSnapshot, updateDoc } from "firebase/firestore";
+import { doc, onSnapshot, updateDoc, collection, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Bell, Share2, Wallet, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -203,6 +203,8 @@ export default function DigitalPagerPage() {
   const [customerPhone, setCustomerPhone] = useState<string>("");
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [loyaltyEnabled, setLoyaltyEnabled] = useState(false);
+  const [liveQueueDisplay, setLiveQueueDisplay] = useState<string | null>(null);
+  const liveQueueHWM = useRef<{ num: number; display: string } | null>(null);
   const orderNumberToastedRef = useRef(false);
 
   const prevStatusRef = useRef<OrderStatus>("processing");
@@ -424,6 +426,46 @@ export default function DigitalPagerPage() {
     return () => unsub();
   }, [loyaltyEnabled, merchantId, customerPhone, isManual]);
 
+  // Live queue counter — highest ever-alerted order number, persists across refreshes
+  useEffect(() => {
+    if (!merchantId) return;
+    const storageKey = `dp_liveq_${merchantId}`;
+
+    // Restore from localStorage immediately so the number shows before Firestore responds
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved) as { num: number; display: string };
+        if (parsed?.num >= 0 && parsed?.display) {
+          liveQueueHWM.current = parsed;
+          setLiveQueueDisplay(parsed.display);
+        }
+      }
+    } catch { /* ignore */ }
+
+    const pagersRef = collection(db, "merchants", merchantId, "pagers");
+    const q = query(pagersRef, where("status", "in", ["notified", "archived"]));
+    const unsub = onSnapshot(q, (snap) => {
+      let snapMaxNum = -1;
+      let snapMaxDisplay = "";
+      snap.forEach((d) => {
+        const data = d.data();
+        const num = Number(data.orderNumber) || 0;
+        if (num > snapMaxNum) {
+          snapMaxNum = num;
+          snapMaxDisplay = data.displayOrderId || data.orderNumber || String(num);
+        }
+      });
+      if (snapMaxNum > (liveQueueHWM.current?.num ?? -1)) {
+        liveQueueHWM.current = { num: snapMaxNum, display: snapMaxDisplay };
+        setLiveQueueDisplay(snapMaxDisplay);
+        try { localStorage.setItem(storageKey, JSON.stringify(liveQueueHWM.current)); } catch { /* ignore */ }
+      } else if (liveQueueHWM.current) {
+        setLiveQueueDisplay(liveQueueHWM.current.display);
+      }
+    });
+    return () => unsub();
+  }, [merchantId]);
 
   function handleActivateAlerts() {
     // Play silent.mp3 on button press — this unlocks the browser audio session
@@ -851,6 +893,28 @@ export default function DigitalPagerPage() {
         >
           {statusTextAr}
         </p>
+
+        {/* Live queue counter — shows the last order number alerted by the store */}
+        {liveQueueDisplay !== null && (
+          <div
+            className="flex items-center justify-center gap-2 mt-3"
+            dir="rtl"
+            data-testid="live-queue-counter"
+          >
+            <span
+              className="w-2.5 h-2.5 rounded-full shrink-0 animate-pulse"
+              style={{ background: "#22c55e", boxShadow: "0 0 6px #22c55e" }}
+            />
+            <p style={{ fontFamily: "'Tajawal','Cairo',sans-serif", lineHeight: 1.3, textAlign: "center" }}>
+              <span style={{ color: "rgba(255,255,255,0.65)", fontSize: 14, fontWeight: 500 }}>
+                الدور الآن رقم:{" "}
+              </span>
+              <span style={{ color: "#22c55e", fontSize: 26, fontWeight: 900, letterSpacing: "-0.5px" }}>
+                {liveQueueDisplay}
+              </span>
+            </p>
+          </div>
+        )}
       </div>
 
 
