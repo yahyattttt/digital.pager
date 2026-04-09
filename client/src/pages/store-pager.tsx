@@ -150,6 +150,7 @@ export default function StorePagerPage() {
   const [bellPrimed, setBellPrimed] = useState(false);
   const [bellPlaying, setBellPlaying] = useState(false);
   const [showRatingPopup, setShowRatingPopup] = useState(false);
+  const [nowServingNumber, setNowServingNumber] = useState<string | null>(null);
   const ratingShownRef = useRef(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -348,6 +349,32 @@ export default function StorePagerPage() {
     }
   }, [merchant, toast]);
 
+
+  // "Now Serving" — real-time listener active only while on the preparing screen
+  useEffect(() => {
+    if (!storeId || phase !== "preparing") {
+      setNowServingNumber(null);
+      return;
+    }
+    const pagersRef = collection(db, "merchants", storeId, "pagers");
+    const q = query(pagersRef, where("status", "in", ["notified", "archived"]));
+    const unsub = onSnapshot(q, (snap) => {
+      if (snap.empty) {
+        setNowServingNumber(null);
+        return;
+      }
+      const sorted = snap.docs
+        .map((d) => d.data())
+        .sort((a: any, b: any) => {
+          const ta = a.updatedAt?.toMillis?.() ?? Number(a.updatedAt) ?? 0;
+          const tb = b.updatedAt?.toMillis?.() ?? Number(b.updatedAt) ?? 0;
+          return tb - ta;
+        });
+      const top = sorted[0] as any;
+      setNowServingNumber(top.displayOrderId || top.orderNumber ? String(top.displayOrderId || top.orderNumber) : null);
+    });
+    return () => unsub();
+  }, [storeId, phase]);
 
   function handleGoogleMapsClick() {
     if (!merchant?.googleMapsReviewUrl) return;
@@ -575,6 +602,31 @@ export default function StorePagerPage() {
               جاري التحضير 👨‍🍳
             </p>
             <p className="text-white/40 text-sm mt-1 text-center">Your order is being prepared</p>
+
+            {/* Now Serving counter — visible only on preparing screen */}
+            <div
+              dir="rtl"
+              data-testid="now-serving-counter"
+              style={{
+                marginTop: 14,
+                padding: "10px 16px",
+                borderRadius: 12,
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.10)",
+                textAlign: "center",
+                fontFamily: "'Tajawal','Cairo',sans-serif",
+              }}
+            >
+              {nowServingNumber !== null ? (
+                <span style={{ color: "#4ADE80", fontSize: 16, fontWeight: 700 }}>
+                  الدور الآن: رقم {nowServingNumber}
+                </span>
+              ) : (
+                <span style={{ color: "rgba(255,255,255,0.35)", fontSize: 14, fontWeight: 500 }}>
+                  الدور الآن: بانتظار نداء الطلبات
+                </span>
+              )}
+            </div>
 
           </div>
 
