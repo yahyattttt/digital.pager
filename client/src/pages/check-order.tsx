@@ -32,8 +32,6 @@ export default function CheckOrderPage() {
   const [loyaltyTosAccepted, setLoyaltyTosAccepted] = useState(false);
   const loyaltyPhoneRef = useRef<HTMLInputElement>(null);
 
-  const [liveQueueNumber, setLiveQueueNumber] = useState<string | null>(null);
-
   useEffect(() => {
     if (!merchantId) return;
     fetch(`/api/merchant-public/${merchantId}`)
@@ -72,27 +70,6 @@ export default function CheckOrderPage() {
       });
       docs.sort((a, b) => Number(a.orderNumber) - Number(b.orderNumber));
       setPagers(docs);
-    });
-    return () => unsub();
-  }, [merchantId]);
-
-  // Live queue counter — highest orderNumber among notified + archived pagers
-  useEffect(() => {
-    if (!merchantId) return;
-    const pagersRef = collection(db, "merchants", merchantId, "pagers");
-    const q = query(pagersRef, where("status", "in", ["notified", "archived"]));
-    const unsub = onSnapshot(q, (snap) => {
-      let maxNum = -1;
-      let maxDisplay = "";
-      snap.forEach((d) => {
-        const data = d.data();
-        const num = Number(data.orderNumber || 0);
-        if (num > maxNum) {
-          maxNum = num;
-          maxDisplay = data.displayOrderId || data.orderNumber || "";
-        }
-      });
-      setLiveQueueNumber(prev => maxNum >= 0 ? (maxDisplay || String(maxNum)) : prev);
     });
     return () => unsub();
   }, [merchantId]);
@@ -282,7 +259,7 @@ export default function CheckOrderPage() {
             {/* Notification acknowledgement checkbox */}
             <label
               className="flex items-center justify-center gap-3 cursor-pointer"
-              style={{ marginTop: "4px", padding: "10px 12px" }}
+              style={{ marginTop: "4px" }}
               data-testid="label-notif-ack"
             >
               <input
@@ -293,22 +270,11 @@ export default function CheckOrderPage() {
                 data-testid="checkbox-notif-ack"
               />
               <span
-                className="text-[16px] text-center leading-relaxed"
+                className="text-[13px] text-center leading-relaxed"
                 dir="rtl"
                 style={{ color: "rgba(255,255,255,0.8)", fontFamily: "'Tajawal', 'Cairo', sans-serif" }}
               >
-                {liveQueueNumber !== null ? (
-                  <>
-                    الدور الآن:{" "}
-                    <span style={{ color: "#22c55e", fontWeight: 800, fontSize: "1.2em" }}>
-                      رقم {liveQueueNumber}
-                    </span>
-                  </>
-                ) : (
-                  <span style={{ color: "rgba(255,255,255,0.5)" }}>
-                    بانتظار بدء نداء الطلبات
-                  </span>
-                )}
+                قد لا تظهر الإشعارات وأنت خارج الصفحة بسبب قيود المتصفح.
               </span>
             </label>
 
