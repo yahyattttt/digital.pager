@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "wouter";
-import { collection, query, where, onSnapshot, doc } from "firebase/firestore";
+import { collection, query, where, onSnapshot, doc, orderBy, limit } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Share2, Copy, Loader2, MapPin } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -150,7 +150,7 @@ export default function StorePagerPage() {
   const [bellPrimed, setBellPrimed] = useState(false);
   const [bellPlaying, setBellPlaying] = useState(false);
   const [showRatingPopup, setShowRatingPopup] = useState(false);
-  const [lastAlertedNumber, setLastAlertedNumber] = useState<string | null>(null);
+  const [globalNowServing, setGlobalNowServing] = useState("---");
   const ratingShownRef = useRef(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -350,30 +350,50 @@ export default function StorePagerPage() {
   }, [merchant, toast]);
 
 
-  // Last Alerted Number — separate from the customer's own order; tracks what the store is currently serving
+  // globalNowServing — completely independent from the customer's own pager document
+  // Listens to ALL alerted pagers for this merchant, ordered by updatedAt desc, takes top 1
   useEffect(() => {
-    if (!storeId || phase !== "preparing") {
-      setLastAlertedNumber(null);
-      return;
-    }
-    const pagersRef = collection(db, "merchants", storeId, "pagers");
-    const q = query(pagersRef, where("status", "in", ["notified", "archived"]));
-    const unsub = onSnapshot(q, (snap) => {
-      if (snap.empty) { setLastAlertedNumber(null); return; }
-      const sorted = snap.docs
-        .map((d) => d.data())
-        .sort((a: any, b: any) => {
-          const ta = a.updatedAt?.toMillis?.() ?? Number(a.updatedAt) ?? 0;
-          const tb = b.updatedAt?.toMillis?.() ?? Number(b.updatedAt) ?? 0;
-          return tb - ta;
+    if (!storeId) return;
+    const q = query(
+      collection(db, "merchants", storeId, "pagers"),
+      where("status", "in", ["notified", "archived"]),
+      orderBy("updatedAt", "desc"),
+      limit(1)
+    );
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        if (snap.empty) {
+          setGlobalNowServing("---");
+          return;
+        }
+        const data = snap.docs[0].data() as any;
+        const val = data.displayOrderId || data.orderNumber;
+        setGlobalNowServing(val ? String(val) : "---");
+      },
+      () => {
+        // Fallback: composite index may not exist — sort client-side instead
+        const fallbackQ = query(
+          collection(db, "merchants", storeId, "pagers"),
+          where("status", "in", ["notified", "archived"])
+        );
+        onSnapshot(fallbackQ, (snap2) => {
+          if (snap2.empty) { setGlobalNowServing("---"); return; }
+          const sorted = snap2.docs
+            .map((d) => d.data() as any)
+            .sort((a, b) => {
+              const ta = a.updatedAt?.toMillis?.() ?? Number(a.updatedAt) ?? 0;
+              const tb = b.updatedAt?.toMillis?.() ?? Number(b.updatedAt) ?? 0;
+              return tb - ta;
+            });
+          const top = sorted[0];
+          const val = top.displayOrderId || top.orderNumber;
+          setGlobalNowServing(val ? String(val) : "---");
         });
-      const top = sorted[0] as any;
-      const val = top.displayOrderId || top.orderNumber;
-      console.log("Live Queue — latest alerted order:", top);
-      setLastAlertedNumber(val ? String(val) : null);
-    });
+      }
+    );
     return () => unsub();
-  }, [storeId, phase]);
+  }, [storeId]);
 
   function handleGoogleMapsClick() {
     if (!merchant?.googleMapsReviewUrl) return;
@@ -612,8 +632,8 @@ export default function StorePagerPage() {
                 className="text-yellow-500 font-bold text-lg text-center"
                 style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}
               >
-                {lastAlertedNumber !== null
-                  ? `الدور الآن رقم: ${lastAlertedNumber}`
+                {globalNowServing !== "---"
+                  ? `الدور الآن رقم: ${globalNowServing}`
                   : "بانتظار نداء الطلبات"}
               </p>
             </div>

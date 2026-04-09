@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useLocation } from "wouter";
-import { doc, onSnapshot, updateDoc, collection, query, where } from "firebase/firestore";
+import { doc, onSnapshot, updateDoc, collection, query, where, orderBy, limit } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Bell, Share2, Wallet, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -203,7 +203,7 @@ export default function DigitalPagerPage() {
   const [customerPhone, setCustomerPhone] = useState<string>("");
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [loyaltyEnabled, setLoyaltyEnabled] = useState(false);
-  const [lastAlertedNumber, setLastAlertedNumber] = useState<string | null>(null);
+  const [globalNowServing, setGlobalNowServing] = useState("---");
   const orderNumberToastedRef = useRef(false);
 
   const prevStatusRef = useRef<OrderStatus>("processing");
@@ -425,36 +425,51 @@ export default function DigitalPagerPage() {
     return () => unsub();
   }, [loyaltyEnabled, merchantId, customerPhone, isManual]);
 
-  // Last Alerted Number — separate from the customer's own order; tracks what the store is currently serving
-  // NOTE: do NOT reference isReady here — it is declared later in this component (TDZ)
+  // globalNowServing — completely independent from the customer's own order
+  // Listens to ALL alerted pagers for this merchant, ordered by updatedAt desc, takes top 1
+  // NOTE: do NOT use isReady here — declared later in the component body (temporal dead zone)
   useEffect(() => {
-    const isPreparingPhase =
-      status !== "ready" &&
-      status !== "done" &&
-      status !== "cancelled" &&
-      status !== "waiting_acceptance";
-    if (!merchantId || !isPreparingPhase) {
-      setLastAlertedNumber(null);
-      return;
-    }
-    const pagersRef = collection(db, "merchants", merchantId, "pagers");
-    const q = query(pagersRef, where("status", "in", ["notified", "archived"]));
-    const unsub = onSnapshot(q, (snap) => {
-      if (snap.empty) { setLastAlertedNumber(null); return; }
-      const sorted = snap.docs
-        .map((d) => d.data())
-        .sort((a: any, b: any) => {
-          const ta = a.updatedAt?.toMillis?.() ?? Number(a.updatedAt) ?? 0;
-          const tb = b.updatedAt?.toMillis?.() ?? Number(b.updatedAt) ?? 0;
-          return tb - ta;
+    if (!merchantId) return;
+    const q = query(
+      collection(db, "merchants", merchantId, "pagers"),
+      where("status", "in", ["notified", "archived"]),
+      orderBy("updatedAt", "desc"),
+      limit(1)
+    );
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        if (snap.empty) {
+          setGlobalNowServing("---");
+          return;
+        }
+        const data = snap.docs[0].data() as any;
+        const val = data.displayOrderId || data.orderNumber;
+        setGlobalNowServing(val ? String(val) : "---");
+      },
+      () => {
+        // Fallback: index may not exist yet — query without orderBy
+        const fallbackQ = query(
+          collection(db, "merchants", merchantId, "pagers"),
+          where("status", "in", ["notified", "archived"])
+        );
+        onSnapshot(fallbackQ, (snap2) => {
+          if (snap2.empty) { setGlobalNowServing("---"); return; }
+          const sorted = snap2.docs
+            .map((d) => d.data() as any)
+            .sort((a, b) => {
+              const ta = a.updatedAt?.toMillis?.() ?? Number(a.updatedAt) ?? 0;
+              const tb = b.updatedAt?.toMillis?.() ?? Number(b.updatedAt) ?? 0;
+              return tb - ta;
+            });
+          const top = sorted[0];
+          const val = top.displayOrderId || top.orderNumber;
+          setGlobalNowServing(val ? String(val) : "---");
         });
-      const top = sorted[0] as any;
-      const val = top.displayOrderId || top.orderNumber;
-      console.log("Live Queue — latest alerted order:", top);
-      setLastAlertedNumber(val ? String(val) : null);
-    });
+      }
+    );
     return () => unsub();
-  }, [merchantId, status]);
+  }, [merchantId]);
 
   function handleActivateAlerts() {
     // Play silent.mp3 on button press — this unlocks the browser audio session
@@ -894,8 +909,8 @@ export default function DigitalPagerPage() {
               className="text-yellow-500 font-bold text-lg text-center"
               style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}
             >
-              {lastAlertedNumber !== null
-                ? `الدور الآن رقم: ${lastAlertedNumber}`
+              {globalNowServing !== "---"
+                ? `الدور الآن رقم: ${globalNowServing}`
                 : "بانتظار نداء الطلبات"}
             </p>
           </div>
