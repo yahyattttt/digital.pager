@@ -282,7 +282,7 @@ export default function CheckOrderPage() {
             {/* Notification acknowledgement checkbox */}
             <label
               className="flex items-center justify-center gap-3 cursor-pointer"
-              style={{ marginTop: "4px" }}
+              style={{ marginTop: "4px", padding: "10px 12px" }}
               data-testid="label-notif-ack"
             >
               <input
@@ -293,14 +293,14 @@ export default function CheckOrderPage() {
                 data-testid="checkbox-notif-ack"
               />
               <span
-                className="text-[13px] text-center leading-relaxed"
+                className="text-[16px] text-center leading-relaxed"
                 dir="rtl"
                 style={{ color: "rgba(255,255,255,0.8)", fontFamily: "'Tajawal', 'Cairo', sans-serif" }}
               >
                 {liveQueueNumber !== null ? (
                   <>
                     الدور الآن:{" "}
-                    <span style={{ color: "#22c55e", fontWeight: 800, fontSize: "1.05em" }}>
+                    <span style={{ color: "#22c55e", fontWeight: 800, fontSize: "1.2em" }}>
                       رقم {liveQueueNumber}
                     </span>
                   </>
