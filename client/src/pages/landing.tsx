@@ -179,6 +179,41 @@ export default function LandingPage() {
             />
           </div>
         </div>
+
+        {/* ── Free Trial CTA — directly below video ── */}
+        <div style={{ maxWidth: 820, margin: "0 auto", paddingLeft: 20, paddingRight: 20, marginTop: 24, textAlign: "center" }}>
+          <button
+            data-testid="button-free-trial-below-video"
+            onClick={() => setLocation("/register")}
+            style={{
+              display: "inline-block",
+              width: "100%",
+              maxWidth: 520,
+              padding: "16px 36px",
+              borderRadius: 12,
+              border: "none",
+              background: "linear-gradient(135deg, #F59E0B 0%, #D97706 100%)",
+              color: "#fff",
+              fontSize: "clamp(1rem, 2.5vw, 1.15rem)",
+              fontWeight: 800,
+              fontFamily: "'Cairo','Tajawal',sans-serif",
+              cursor: "pointer",
+              letterSpacing: "0.02em",
+              boxShadow: "0 4px 24px rgba(245,158,11,0.45), 0 0 0 1px rgba(245,158,11,0.2)",
+              transition: "transform 0.15s, box-shadow 0.15s",
+            }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-2px)";
+              (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 8px 32px rgba(245,158,11,0.60), 0 0 0 1px rgba(245,158,11,0.3)";
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0)";
+              (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 4px 24px rgba(245,158,11,0.45), 0 0 0 1px rgba(245,158,11,0.2)";
+            }}
+          >
+            🎁 {t("تجربة مجانية لمدة 15 يوم — ابدأ الآن", "Free 15-Day Trial — Start Now")}
+          </button>
+        </div>
       </section>
 
       {/* ── HERO — below video ── */}
@@ -243,45 +278,14 @@ export default function LandingPage() {
               </p>
 
               {/* CTA Buttons */}
-              <div className="flex flex-col items-start gap-3">
-                <div className="flex items-center gap-3 flex-wrap">
-                  <NeonBtn variant="solid" size="lg" onClick={() => setLocation("/register")} testId="button-hero-register">
-                    {t("سجل متجرك الآن", "Register Now")}
-                    <ArrowIcon className="w-4 h-4 ms-2 inline" />
-                  </NeonBtn>
-                  <NeonBtn variant="ghost" size="lg" onClick={() => setLocation("/login")} testId="button-hero-login">
-                    {t("تسجيل الدخول", "Sign In")}
-                  </NeonBtn>
-                </div>
-                {/* Free trial CTA */}
-                <button
-                  data-testid="button-hero-free-trial"
-                  onClick={() => setLocation("/register")}
-                  style={{
-                    padding: "12px 28px",
-                    borderRadius: 10,
-                    border: "2px solid #4ADE80",
-                    background: "rgba(74,222,128,0.08)",
-                    color: "#4ADE80",
-                    fontSize: 15,
-                    fontWeight: 700,
-                    fontFamily: "'Cairo','Tajawal',sans-serif",
-                    cursor: "pointer",
-                    letterSpacing: "0.01em",
-                    boxShadow: "0 0 18px rgba(74,222,128,0.18)",
-                    transition: "background 0.2s, box-shadow 0.2s",
-                  }}
-                  onMouseEnter={e => {
-                    (e.currentTarget as HTMLButtonElement).style.background = "rgba(74,222,128,0.16)";
-                    (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 0 28px rgba(74,222,128,0.32)";
-                  }}
-                  onMouseLeave={e => {
-                    (e.currentTarget as HTMLButtonElement).style.background = "rgba(74,222,128,0.08)";
-                    (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 0 18px rgba(74,222,128,0.18)";
-                  }}
-                >
-                  ✦ {t("تجربة مجانية لمدة 15 يوم", "Free 15-Day Trial")}
-                </button>
+              <div className="flex items-center gap-3 flex-wrap">
+                <NeonBtn variant="solid" size="lg" onClick={() => setLocation("/register")} testId="button-hero-register">
+                  {t("سجل متجرك الآن", "Register Now")}
+                  <ArrowIcon className="w-4 h-4 ms-2 inline" />
+                </NeonBtn>
+                <NeonBtn variant="ghost" size="lg" onClick={() => setLocation("/login")} testId="button-hero-login">
+                  {t("تسجيل الدخول", "Sign In")}
+                </NeonBtn>
               </div>
             </div>
 
