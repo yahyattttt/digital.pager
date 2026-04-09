@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "wouter";
-import { collection, query, where, onSnapshot, doc, orderBy, limit } from "firebase/firestore";
+import { collection, query, where, onSnapshot, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Share2, Copy, Loader2, MapPin } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -150,7 +150,7 @@ export default function StorePagerPage() {
   const [bellPrimed, setBellPrimed] = useState(false);
   const [bellPlaying, setBellPlaying] = useState(false);
   const [showRatingPopup, setShowRatingPopup] = useState(false);
-  const [globalQueue, setGlobalQueue] = useState("---");
+  const [nowServingNumber, setNowServingNumber] = useState<string | null>(null);
   const ratingShownRef = useRef(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -350,42 +350,31 @@ export default function StorePagerPage() {
   }, [merchant, toast]);
 
 
-  // globalQueue — independent real-time listener for the prominent live queue box
+  // "Now Serving" — real-time listener active only while on the preparing screen
   useEffect(() => {
-    if (!storeId) return;
-    const q = query(
-      collection(db, "merchants", storeId, "pagers"),
-      where("status", "in", ["notified", "archived"]),
-      orderBy("updatedAt", "desc"),
-      limit(1)
-    );
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        if (snap.empty) { setGlobalQueue("---"); return; }
-        const data = snap.docs[0].data() as any;
-        const val = data.displayOrderId || data.orderNumber;
-        setGlobalQueue(val ? String(val) : "---");
-      },
-      () => {
-        const fallbackQ = query(
-          collection(db, "merchants", storeId, "pagers"),
-          where("status", "in", ["notified", "archived"])
-        );
-        onSnapshot(fallbackQ, (snap2) => {
-          if (snap2.empty) { setGlobalQueue("---"); return; }
-          const sorted = snap2.docs.map((d) => d.data() as any).sort((a, b) => {
-            const ta = a.updatedAt?.toMillis?.() ?? Number(a.updatedAt) ?? 0;
-            const tb = b.updatedAt?.toMillis?.() ?? Number(b.updatedAt) ?? 0;
-            return tb - ta;
-          });
-          const val = sorted[0].displayOrderId || sorted[0].orderNumber;
-          setGlobalQueue(val ? String(val) : "---");
-        });
+    if (!storeId || phase !== "preparing") {
+      setNowServingNumber(null);
+      return;
+    }
+    const pagersRef = collection(db, "merchants", storeId, "pagers");
+    const q = query(pagersRef, where("status", "in", ["notified", "archived"]));
+    const unsub = onSnapshot(q, (snap) => {
+      if (snap.empty) {
+        setNowServingNumber(null);
+        return;
       }
-    );
+      const sorted = snap.docs
+        .map((d) => d.data())
+        .sort((a: any, b: any) => {
+          const ta = a.updatedAt?.toMillis?.() ?? Number(a.updatedAt) ?? 0;
+          const tb = b.updatedAt?.toMillis?.() ?? Number(b.updatedAt) ?? 0;
+          return tb - ta;
+        });
+      const top = sorted[0] as any;
+      setNowServingNumber(top.displayOrderId || top.orderNumber ? String(top.displayOrderId || top.orderNumber) : null);
+    });
     return () => unsub();
-  }, [storeId]);
+  }, [storeId, phase]);
 
   function handleGoogleMapsClick() {
     if (!merchant?.googleMapsReviewUrl) return;
@@ -614,60 +603,30 @@ export default function StorePagerPage() {
             </p>
             <p className="text-white/40 text-sm mt-1 text-center">Your order is being prepared</p>
 
-            {/* Live Queue — only rendered while phase === "preparing" */}
-            {(() => {
-              const myId = selectedPager?.displayOrderId || selectedPager?.orderNumber || "";
-              const isMyTurn = globalQueue !== "---" && myId !== "" && globalQueue === myId;
-              const borderColor = globalQueue !== "---"
-                ? (isMyTurn ? "#F43F5E" : "#4ADE80")
-                : "#FFD700";
-              return (
-                <div
-                  dir="rtl"
-                  data-testid="global-queue-box"
-                  style={{
-                    marginTop: 16,
-                    padding: "16px 20px",
-                    borderRadius: 14,
-                    background: "#1A1A1A",
-                    border: `1.5px solid ${borderColor}`,
-                    textAlign: "center",
-                    fontFamily: "'Tajawal','Cairo',sans-serif",
-                    width: "100%",
-                    boxSizing: "border-box",
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
-                    <span
-                      style={{
-                        width: 9,
-                        height: 9,
-                        borderRadius: "50%",
-                        background: borderColor,
-                        boxShadow: `0 0 8px ${borderColor}`,
-                        display: "inline-block",
-                        animation: "pulse 1.4s ease-in-out infinite",
-                        flexShrink: 0,
-                      }}
-                    />
-                    <span
-                      style={{
-                        color: borderColor,
-                        fontSize: 18,
-                        fontWeight: 800,
-                        letterSpacing: "-0.2px",
-                      }}
-                    >
-                      {isMyTurn
-                        ? "دورك وصل! تفضل للاستلام"
-                        : globalQueue !== "---"
-                          ? `الدور الآن رقم: ${globalQueue}`
-                          : "الدور الآن: بانتظار نداء الطلبات"}
-                    </span>
-                  </div>
-                </div>
-              );
-            })()}
+            {/* Now Serving counter — visible only on preparing screen */}
+            <div
+              dir="rtl"
+              data-testid="now-serving-counter"
+              style={{
+                marginTop: 14,
+                padding: "10px 16px",
+                borderRadius: 12,
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.10)",
+                textAlign: "center",
+                fontFamily: "'Tajawal','Cairo',sans-serif",
+              }}
+            >
+              {nowServingNumber !== null ? (
+                <span style={{ color: "#4ADE80", fontSize: 16, fontWeight: 700 }}>
+                  الدور الآن: رقم {nowServingNumber}
+                </span>
+              ) : (
+                <span style={{ color: "rgba(255,255,255,0.35)", fontSize: 14, fontWeight: 500 }}>
+                  الدور الآن: بانتظار نداء الطلبات
+                </span>
+              )}
+            </div>
 
           </div>
 
