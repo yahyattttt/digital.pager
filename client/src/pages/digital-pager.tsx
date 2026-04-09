@@ -426,9 +426,10 @@ export default function DigitalPagerPage() {
   }, [loyaltyEnabled, merchantId, customerPhone, isManual]);
 
   // Live Queue — active only while order is in preparing/processing phase
+  // NOTE: isReady is derived from status — do NOT reference isReady here (declared later in component)
   useEffect(() => {
-    const isPreparingPhase = !isReady && status !== "waiting_acceptance" && status !== "done" && status !== "cancelled";
-    if (!merchantId || !isPreparingPhase) {
+    const preparing = status !== "ready" && status !== "done" && status !== "cancelled" && status !== "waiting_acceptance";
+    if (!merchantId || !preparing) {
       setNowServing("---");
       return;
     }
@@ -445,10 +446,11 @@ export default function DigitalPagerPage() {
         });
       const top = sorted[0] as any;
       const val = top.displayOrderId || top.orderNumber;
+      console.log("Live Queue — Order Data:", top);
       setNowServing(val ? String(val) : "---");
     });
     return () => unsub();
-  }, [merchantId, status, isReady]);
+  }, [merchantId, status]);
 
   function handleActivateAlerts() {
     // Play silent.mp3 on button press — this unlocks the browser audio session
