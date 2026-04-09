@@ -927,6 +927,26 @@ export default function DigitalPagerPage() {
             )}
           </p>
         </div>
+
+        {/* Live verification block — independent real-time display */}
+        <div
+          dir="rtl"
+          data-testid="live-queue-verified"
+          style={{
+            marginTop: 10,
+            padding: 10,
+            borderRadius: 10,
+            background: "#1a1a1a",
+            border: "1px solid #333",
+            textAlign: "center",
+            fontFamily: "'Tajawal','Cairo',sans-serif",
+          }}
+        >
+          <span style={{ color: "#FFD700", fontSize: 16, fontWeight: 700 }}>
+            الرقم المحدث الآن:{" "}
+            {currentQueueNumber ?? "بانتظار النداء"}
+          </span>
+        </div>
       </div>
 
 
