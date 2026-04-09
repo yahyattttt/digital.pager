@@ -203,7 +203,6 @@ export default function DigitalPagerPage() {
   const [customerPhone, setCustomerPhone] = useState<string>("");
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [loyaltyEnabled, setLoyaltyEnabled] = useState(false);
-  const [globalNowServing, setGlobalNowServing] = useState("---");
   const [globalQueue, setGlobalQueue] = useState("---");
   const orderNumberToastedRef = useRef(false);
 
@@ -426,53 +425,7 @@ export default function DigitalPagerPage() {
     return () => unsub();
   }, [loyaltyEnabled, merchantId, customerPhone, isManual]);
 
-  // globalNowServing — completely independent from the customer's own order
-  // Listens to ALL alerted pagers for this merchant, ordered by updatedAt desc, takes top 1
-  // NOTE: do NOT use isReady here — declared later in the component body (temporal dead zone)
-  useEffect(() => {
-    if (!merchantId) return;
-    const q = query(
-      collection(db, "merchants", merchantId, "pagers"),
-      where("status", "in", ["notified", "archived"]),
-      orderBy("updatedAt", "desc"),
-      limit(1)
-    );
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        if (snap.empty) {
-          setGlobalNowServing("---");
-          return;
-        }
-        const data = snap.docs[0].data() as any;
-        const val = data.displayOrderId || data.orderNumber;
-        setGlobalNowServing(val ? String(val) : "---");
-      },
-      () => {
-        // Fallback: index may not exist yet — query without orderBy
-        const fallbackQ = query(
-          collection(db, "merchants", merchantId, "pagers"),
-          where("status", "in", ["notified", "archived"])
-        );
-        onSnapshot(fallbackQ, (snap2) => {
-          if (snap2.empty) { setGlobalNowServing("---"); return; }
-          const sorted = snap2.docs
-            .map((d) => d.data() as any)
-            .sort((a, b) => {
-              const ta = a.updatedAt?.toMillis?.() ?? Number(a.updatedAt) ?? 0;
-              const tb = b.updatedAt?.toMillis?.() ?? Number(b.updatedAt) ?? 0;
-              return tb - ta;
-            });
-          const top = sorted[0];
-          const val = top.displayOrderId || top.orderNumber;
-          setGlobalNowServing(val ? String(val) : "---");
-        });
-      }
-    );
-    return () => unsub();
-  }, [merchantId]);
-
-  // globalQueue — independent second listener for the prominent live queue box
+  // globalQueue — independent real-time listener for the prominent live queue box
   useEffect(() => {
     if (!merchantId) return;
     const q = query(
@@ -938,68 +891,58 @@ export default function DigitalPagerPage() {
 
         {/* Live Queue — only shown while order is in preparing phase */}
         {!isReady && status !== "waiting_acceptance" && status !== "done" && status !== "cancelled" && (
-          <>
-            <div
-              className="mt-4 p-3 bg-gray-800/50 rounded-lg border border-yellow-500/30"
-              dir="rtl"
-              data-testid="live-queue-counter"
-            >
-              <p
-                className="text-yellow-500 font-bold text-lg text-center"
-                style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}
+          <div
+            dir="rtl"
+            data-testid="global-queue-box"
+            style={{
+              marginTop: 16,
+              padding: "16px 20px",
+              borderRadius: 14,
+              background: "#1A1A1A",
+              border: globalQueue !== "---"
+                ? (globalQueue === orderNumber ? "1.5px solid #F43F5E" : "1.5px solid #4ADE80")
+                : "1.5px solid #FFD700",
+              textAlign: "center",
+              fontFamily: "'Tajawal','Cairo',sans-serif",
+              width: "100%",
+              boxSizing: "border-box",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
+              <span
+                style={{
+                  width: 9,
+                  height: 9,
+                  borderRadius: "50%",
+                  background: globalQueue !== "---"
+                    ? (globalQueue === orderNumber ? "#F43F5E" : "#4ADE80")
+                    : "#FFD700",
+                  boxShadow: globalQueue !== "---"
+                    ? (globalQueue === orderNumber ? "0 0 8px #F43F5E" : "0 0 8px #4ADE80")
+                    : "0 0 8px #FFD700",
+                  display: "inline-block",
+                  animation: "pulse 1.4s ease-in-out infinite",
+                  flexShrink: 0,
+                }}
+              />
+              <span
+                style={{
+                  color: globalQueue !== "---"
+                    ? (globalQueue === orderNumber ? "#F43F5E" : "#4ADE80")
+                    : "#FFD700",
+                  fontSize: 18,
+                  fontWeight: 800,
+                  letterSpacing: "-0.2px",
+                }}
               >
-                {globalNowServing !== "---"
-                  ? `الدور الآن رقم: ${globalNowServing}`
-                  : "بانتظار نداء الطلبات"}
-              </p>
-            </div>
-
-            {/* Global Queue Box — independent real-time Firestore listener */}
-            <div
-              dir="rtl"
-              data-testid="global-queue-box"
-              style={{
-                marginTop: 10,
-                padding: "14px 18px",
-                borderRadius: 14,
-                background: "#1A1A1A",
-                border: globalQueue !== "---"
-                  ? "1.5px solid #4ADE80"
-                  : "1.5px solid #FFD700",
-                textAlign: "center",
-                fontFamily: "'Tajawal','Cairo',sans-serif",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
-                <span
-                  style={{
-                    width: 9,
-                    height: 9,
-                    borderRadius: "50%",
-                    background: globalQueue !== "---" ? "#4ADE80" : "#FFD700",
-                    boxShadow: globalQueue !== "---"
-                      ? "0 0 8px #4ADE80"
-                      : "0 0 8px #FFD700",
-                    display: "inline-block",
-                    animation: "pulse 1.4s ease-in-out infinite",
-                    flexShrink: 0,
-                  }}
-                />
-                <span
-                  style={{
-                    color: globalQueue !== "---" ? "#4ADE80" : "#FFD700",
-                    fontSize: 18,
-                    fontWeight: 800,
-                    letterSpacing: "-0.2px",
-                  }}
-                >
-                  {globalQueue !== "---"
+                {globalQueue === orderNumber && orderNumber !== ""
+                  ? "دورك وصل! تفضل للاستلام"
+                  : globalQueue !== "---"
                     ? `الدور الآن رقم: ${globalQueue}`
                     : "الدور الآن: بانتظار نداء الطلبات"}
-                </span>
-              </div>
+              </span>
             </div>
-          </>
+          </div>
         )}
 
       </div>

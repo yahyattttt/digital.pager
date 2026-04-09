@@ -150,7 +150,6 @@ export default function StorePagerPage() {
   const [bellPrimed, setBellPrimed] = useState(false);
   const [bellPlaying, setBellPlaying] = useState(false);
   const [showRatingPopup, setShowRatingPopup] = useState(false);
-  const [globalNowServing, setGlobalNowServing] = useState("---");
   const [globalQueue, setGlobalQueue] = useState("---");
   const ratingShownRef = useRef(false);
 
@@ -351,52 +350,7 @@ export default function StorePagerPage() {
   }, [merchant, toast]);
 
 
-  // globalNowServing — completely independent from the customer's own pager document
-  // Listens to ALL alerted pagers for this merchant, ordered by updatedAt desc, takes top 1
-  useEffect(() => {
-    if (!storeId) return;
-    const q = query(
-      collection(db, "merchants", storeId, "pagers"),
-      where("status", "in", ["notified", "archived"]),
-      orderBy("updatedAt", "desc"),
-      limit(1)
-    );
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        if (snap.empty) {
-          setGlobalNowServing("---");
-          return;
-        }
-        const data = snap.docs[0].data() as any;
-        const val = data.displayOrderId || data.orderNumber;
-        setGlobalNowServing(val ? String(val) : "---");
-      },
-      () => {
-        // Fallback: composite index may not exist — sort client-side instead
-        const fallbackQ = query(
-          collection(db, "merchants", storeId, "pagers"),
-          where("status", "in", ["notified", "archived"])
-        );
-        onSnapshot(fallbackQ, (snap2) => {
-          if (snap2.empty) { setGlobalNowServing("---"); return; }
-          const sorted = snap2.docs
-            .map((d) => d.data() as any)
-            .sort((a, b) => {
-              const ta = a.updatedAt?.toMillis?.() ?? Number(a.updatedAt) ?? 0;
-              const tb = b.updatedAt?.toMillis?.() ?? Number(b.updatedAt) ?? 0;
-              return tb - ta;
-            });
-          const top = sorted[0];
-          const val = top.displayOrderId || top.orderNumber;
-          setGlobalNowServing(val ? String(val) : "---");
-        });
-      }
-    );
-    return () => unsub();
-  }, [storeId]);
-
-  // globalQueue — independent second listener for the prominent live queue box
+  // globalQueue — independent real-time listener for the prominent live queue box
   useEffect(() => {
     if (!storeId) return;
     const q = query(
@@ -661,66 +615,59 @@ export default function StorePagerPage() {
             <p className="text-white/40 text-sm mt-1 text-center">Your order is being prepared</p>
 
             {/* Live Queue — only rendered while phase === "preparing" */}
-            <div
-              className="mt-4 p-3 bg-gray-800/50 rounded-lg border border-yellow-500/30"
-              dir="rtl"
-              data-testid="live-queue-counter"
-            >
-              <p
-                className="text-yellow-500 font-bold text-lg text-center"
-                style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}
-              >
-                {globalNowServing !== "---"
-                  ? `الدور الآن رقم: ${globalNowServing}`
-                  : "بانتظار نداء الطلبات"}
-              </p>
-            </div>
-
-            {/* Global Queue Box — independent real-time Firestore listener */}
-            <div
-              dir="rtl"
-              data-testid="global-queue-box"
-              style={{
-                marginTop: 10,
-                padding: "14px 18px",
-                borderRadius: 14,
-                background: "#1A1A1A",
-                border: globalQueue !== "---"
-                  ? "1.5px solid #4ADE80"
-                  : "1.5px solid #FFD700",
-                textAlign: "center",
-                fontFamily: "'Tajawal','Cairo',sans-serif",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
-                <span
+            {(() => {
+              const myId = selectedPager?.displayOrderId || selectedPager?.orderNumber || "";
+              const isMyTurn = globalQueue !== "---" && myId !== "" && globalQueue === myId;
+              const borderColor = globalQueue !== "---"
+                ? (isMyTurn ? "#F43F5E" : "#4ADE80")
+                : "#FFD700";
+              return (
+                <div
+                  dir="rtl"
+                  data-testid="global-queue-box"
                   style={{
-                    width: 9,
-                    height: 9,
-                    borderRadius: "50%",
-                    background: globalQueue !== "---" ? "#4ADE80" : "#FFD700",
-                    boxShadow: globalQueue !== "---"
-                      ? "0 0 8px #4ADE80"
-                      : "0 0 8px #FFD700",
-                    display: "inline-block",
-                    animation: "pulse 1.4s ease-in-out infinite",
-                    flexShrink: 0,
-                  }}
-                />
-                <span
-                  style={{
-                    color: globalQueue !== "---" ? "#4ADE80" : "#FFD700",
-                    fontSize: 18,
-                    fontWeight: 800,
-                    letterSpacing: "-0.2px",
+                    marginTop: 16,
+                    padding: "16px 20px",
+                    borderRadius: 14,
+                    background: "#1A1A1A",
+                    border: `1.5px solid ${borderColor}`,
+                    textAlign: "center",
+                    fontFamily: "'Tajawal','Cairo',sans-serif",
+                    width: "100%",
+                    boxSizing: "border-box",
                   }}
                 >
-                  {globalQueue !== "---"
-                    ? `الدور الآن رقم: ${globalQueue}`
-                    : "الدور الآن: بانتظار نداء الطلبات"}
-                </span>
-              </div>
-            </div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
+                    <span
+                      style={{
+                        width: 9,
+                        height: 9,
+                        borderRadius: "50%",
+                        background: borderColor,
+                        boxShadow: `0 0 8px ${borderColor}`,
+                        display: "inline-block",
+                        animation: "pulse 1.4s ease-in-out infinite",
+                        flexShrink: 0,
+                      }}
+                    />
+                    <span
+                      style={{
+                        color: borderColor,
+                        fontSize: 18,
+                        fontWeight: 800,
+                        letterSpacing: "-0.2px",
+                      }}
+                    >
+                      {isMyTurn
+                        ? "دورك وصل! تفضل للاستلام"
+                        : globalQueue !== "---"
+                          ? `الدور الآن رقم: ${globalQueue}`
+                          : "الدور الآن: بانتظار نداء الطلبات"}
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
 
           </div>
 
