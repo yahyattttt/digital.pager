@@ -150,7 +150,7 @@ export default function StorePagerPage() {
   const [bellPrimed, setBellPrimed] = useState(false);
   const [bellPlaying, setBellPlaying] = useState(false);
   const [showRatingPopup, setShowRatingPopup] = useState(false);
-  const [latestServedNumber, setLatestServedNumber] = useState<string | null>(null);
+  const [nowServing, setNowServing] = useState("---");
   const ratingShownRef = useRef(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -350,17 +350,17 @@ export default function StorePagerPage() {
   }, [merchant, toast]);
 
 
-  // Live Queue — active only while customer is on the preparing screen
+  // Live Queue — active only while customer's order is in preparing phase
   useEffect(() => {
     if (!storeId || phase !== "preparing") {
-      setLatestServedNumber(null);
+      setNowServing("---");
       return;
     }
     const pagersRef = collection(db, "merchants", storeId, "pagers");
     const q = query(pagersRef, where("status", "in", ["notified", "archived"]));
     const unsub = onSnapshot(q, (snap) => {
       if (snap.empty) {
-        setLatestServedNumber(null);
+        setNowServing("---");
         return;
       }
       const sorted = snap.docs
@@ -372,7 +372,7 @@ export default function StorePagerPage() {
         });
       const top = sorted[0] as any;
       const val = top.displayOrderId || top.orderNumber;
-      setLatestServedNumber(val ? String(val) : null);
+      setNowServing(val ? String(val) : "---");
     });
     return () => unsub();
   }, [storeId, phase]);
@@ -606,51 +606,16 @@ export default function StorePagerPage() {
 
             {/* Live Queue — only rendered while phase === "preparing" */}
             <div
+              className="mt-4 p-3 bg-gray-800/50 rounded-lg border border-yellow-500/30"
               dir="rtl"
               data-testid="live-queue-counter"
-              style={{
-                marginTop: 16,
-                padding: "12px 20px",
-                borderRadius: 14,
-                background: latestServedNumber
-                  ? "rgba(74,222,128,0.08)"
-                  : "rgba(255,255,255,0.03)",
-                border: latestServedNumber
-                  ? "1px solid rgba(74,222,128,0.30)"
-                  : "1px solid rgba(255,255,255,0.08)",
-                textAlign: "center",
-                fontFamily: "'Tajawal','Cairo',sans-serif",
-                transition: "all 0.4s ease",
-              }}
             >
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                {latestServedNumber && (
-                  <span
-                    style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: "50%",
-                      background: "#4ADE80",
-                      boxShadow: "0 0 6px #4ADE80",
-                      display: "inline-block",
-                      animation: "pulse 1.5s infinite",
-                      flexShrink: 0,
-                    }}
-                  />
-                )}
-                <span
-                  style={{
-                    color: latestServedNumber ? "#4ADE80" : "rgba(255,255,255,0.30)",
-                    fontSize: latestServedNumber ? 18 : 13,
-                    fontWeight: 700,
-                    letterSpacing: latestServedNumber ? "-0.3px" : "normal",
-                  }}
-                >
-                  {latestServedNumber
-                    ? `الدور الآن رقم: ${latestServedNumber}`
-                    : "الدور الآن رقم: ---"}
-                </span>
-              </div>
+              <p
+                className="text-yellow-500 font-bold text-lg text-center"
+                style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}
+              >
+                الدور الآن رقم: {nowServing}
+              </p>
             </div>
 
           </div>
