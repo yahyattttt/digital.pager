@@ -203,6 +203,7 @@ export default function DigitalPagerPage() {
   const [customerPhone, setCustomerPhone] = useState<string>("");
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [loyaltyEnabled, setLoyaltyEnabled] = useState(false);
+  const [nowServing, setNowServing] = useState("---");
   const orderNumberToastedRef = useRef(false);
 
   const prevStatusRef = useRef<OrderStatus>("processing");
@@ -424,6 +425,30 @@ export default function DigitalPagerPage() {
     return () => unsub();
   }, [loyaltyEnabled, merchantId, customerPhone, isManual]);
 
+  // Live Queue — active only while order is in preparing/processing phase
+  useEffect(() => {
+    const isPreparingPhase = !isReady && status !== "waiting_acceptance" && status !== "done" && status !== "cancelled";
+    if (!merchantId || !isPreparingPhase) {
+      setNowServing("---");
+      return;
+    }
+    const pagersRef = collection(db, "merchants", merchantId, "pagers");
+    const q = query(pagersRef, where("status", "in", ["notified", "archived"]));
+    const unsub = onSnapshot(q, (snap) => {
+      if (snap.empty) { setNowServing("---"); return; }
+      const sorted = snap.docs
+        .map((d) => d.data())
+        .sort((a: any, b: any) => {
+          const ta = a.updatedAt?.toMillis?.() ?? Number(a.updatedAt) ?? 0;
+          const tb = b.updatedAt?.toMillis?.() ?? Number(b.updatedAt) ?? 0;
+          return tb - ta;
+        });
+      const top = sorted[0] as any;
+      const val = top.displayOrderId || top.orderNumber;
+      setNowServing(val ? String(val) : "---");
+    });
+    return () => unsub();
+  }, [merchantId, status, isReady]);
 
   function handleActivateAlerts() {
     // Play silent.mp3 on button press — this unlocks the browser audio session
@@ -851,6 +876,22 @@ export default function DigitalPagerPage() {
         >
           {statusTextAr}
         </p>
+
+        {/* Live Queue — only shown while order is in preparing phase */}
+        {!isReady && status !== "waiting_acceptance" && status !== "done" && status !== "cancelled" && (
+          <div
+            className="mt-4 p-3 bg-gray-800/50 rounded-lg border border-yellow-500/30"
+            dir="rtl"
+            data-testid="live-queue-counter"
+          >
+            <p
+              className="text-yellow-500 font-bold text-lg text-center"
+              style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}
+            >
+              الدور الآن رقم: {nowServing}
+            </p>
+          </div>
+        )}
 
       </div>
 
