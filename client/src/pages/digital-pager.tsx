@@ -428,14 +428,30 @@ export default function DigitalPagerPage() {
   }, [loyaltyEnabled, merchantId, customerPhone, isManual]);
 
   // Live queue counter — always shows the highest ever-alerted order number.
-  // Uses a high-water mark (HWM) ref so the number NEVER goes backwards or
-  // disappears once shown, even if the pager is archived, deleted, or collected.
+  // Persists across page refreshes via localStorage keyed to this merchant.
+  // Uses a high-water mark (HWM) so the number NEVER goes backwards or disappears.
   useEffect(() => {
     if (!merchantId) return;
+    const storageKey = `dp_liveq_${merchantId}`;
+
+    // ── Restore last known number from localStorage immediately on load ──────
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved) as { num: number; display: string };
+        if (parsed?.num >= 0 && parsed?.display) {
+          liveQueueHWM.current = parsed;
+          setLiveQueueDisplay(parsed.display);
+        }
+      }
+    } catch {
+      // localStorage unavailable or corrupt — ignore, Firestore will populate
+    }
+
+    // ── Real-time Firestore listener ─────────────────────────────────────────
     const pagersRef = collection(db, "merchants", merchantId, "pagers");
-    // "notified" = merchant pressed the alert/buzz button (جاهز للاستلام)
+    // "notified" = merchant pressed alert/buzz (جاهز للاستلام)
     // "archived" = customer collected the order (تم الاستلام)
-    // Both are included so the number persists after collection.
     const q = query(pagersRef, where("status", "in", ["notified", "archived"]));
     const unsub = onSnapshot(q, (snap) => {
       // Find the highest orderNumber in this snapshot
@@ -450,15 +466,17 @@ export default function DigitalPagerPage() {
         }
       });
 
-      // Only advance the HWM — never let the displayed number go down
+      // Advance HWM only forward — never let the displayed number go down
       if (snapMaxNum > (liveQueueHWM.current?.num ?? -1)) {
         liveQueueHWM.current = { num: snapMaxNum, display: snapMaxDisplay };
         setLiveQueueDisplay(snapMaxDisplay);
+        // Persist to localStorage so a page refresh shows the number instantly
+        try { localStorage.setItem(storageKey, JSON.stringify(liveQueueHWM.current)); } catch { /* ignore */ }
       } else if (liveQueueHWM.current) {
-        // Snapshot shrank (e.g. pagers cleaned up) — keep showing the last known number
+        // Snapshot shrank (docs cleaned up) — keep showing the last known number
         setLiveQueueDisplay(liveQueueHWM.current.display);
       }
-      // If HWM is still null and snapshot is empty → keep null (fallback text)
+      // HWM still null + empty snapshot → stay on fallback text
     });
     return () => unsub();
   }, [merchantId]);
