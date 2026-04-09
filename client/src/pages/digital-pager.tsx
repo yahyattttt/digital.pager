@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useLocation } from "wouter";
-import { doc, onSnapshot, updateDoc, collection, query, where } from "firebase/firestore";
+import { doc, onSnapshot, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Bell, Share2, Wallet, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -203,9 +203,6 @@ export default function DigitalPagerPage() {
   const [customerPhone, setCustomerPhone] = useState<string>("");
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [loyaltyEnabled, setLoyaltyEnabled] = useState(false);
-  const [liveQueueDisplay, setLiveQueueDisplay] = useState<string | null>(null);
-  // High-water mark: once a number is shown it never goes backwards or disappears
-  const liveQueueHWM = useRef<{ num: number; display: string } | null>(null);
   const orderNumberToastedRef = useRef(false);
 
   const prevStatusRef = useRef<OrderStatus>("processing");
@@ -427,59 +424,6 @@ export default function DigitalPagerPage() {
     return () => unsub();
   }, [loyaltyEnabled, merchantId, customerPhone, isManual]);
 
-  // Live queue counter — always shows the highest ever-alerted order number.
-  // Persists across page refreshes via localStorage keyed to this merchant.
-  // Uses a high-water mark (HWM) so the number NEVER goes backwards or disappears.
-  useEffect(() => {
-    if (!merchantId) return;
-    const storageKey = `dp_liveq_${merchantId}`;
-
-    // ── Restore last known number from localStorage immediately on load ──────
-    try {
-      const saved = localStorage.getItem(storageKey);
-      if (saved) {
-        const parsed = JSON.parse(saved) as { num: number; display: string };
-        if (parsed?.num >= 0 && parsed?.display) {
-          liveQueueHWM.current = parsed;
-          setLiveQueueDisplay(parsed.display);
-        }
-      }
-    } catch {
-      // localStorage unavailable or corrupt — ignore, Firestore will populate
-    }
-
-    // ── Real-time Firestore listener ─────────────────────────────────────────
-    const pagersRef = collection(db, "merchants", merchantId, "pagers");
-    // "notified" = merchant pressed alert/buzz (جاهز للاستلام)
-    // "archived" = customer collected the order (تم الاستلام)
-    const q = query(pagersRef, where("status", "in", ["notified", "archived"]));
-    const unsub = onSnapshot(q, (snap) => {
-      // Find the highest orderNumber in this snapshot
-      let snapMaxNum = -1;
-      let snapMaxDisplay = "";
-      snap.forEach((d) => {
-        const data = d.data();
-        const num = Number(data.orderNumber) || 0;
-        if (num > snapMaxNum) {
-          snapMaxNum = num;
-          snapMaxDisplay = data.displayOrderId || data.orderNumber || String(num);
-        }
-      });
-
-      // Advance HWM only forward — never let the displayed number go down
-      if (snapMaxNum > (liveQueueHWM.current?.num ?? -1)) {
-        liveQueueHWM.current = { num: snapMaxNum, display: snapMaxDisplay };
-        setLiveQueueDisplay(snapMaxDisplay);
-        // Persist to localStorage so a page refresh shows the number instantly
-        try { localStorage.setItem(storageKey, JSON.stringify(liveQueueHWM.current)); } catch { /* ignore */ }
-      } else if (liveQueueHWM.current) {
-        // Snapshot shrank (docs cleaned up) — keep showing the last known number
-        setLiveQueueDisplay(liveQueueHWM.current.display);
-      }
-      // HWM still null + empty snapshot → stay on fallback text
-    });
-    return () => unsub();
-  }, [merchantId]);
 
   function handleActivateAlerts() {
     // Play silent.mp3 on button press — this unlocks the browser audio session
@@ -906,23 +850,6 @@ export default function DigitalPagerPage() {
           data-testid="text-status-ar"
         >
           {statusTextAr}
-        </p>
-        {/* Live queue counter */}
-        <p className="flex items-center justify-center gap-1.5 text-[15px] mt-4 mb-1 leading-relaxed px-2" dir="rtl" data-testid="text-disclaimer">
-          {liveQueueDisplay !== null ? (
-            <>
-              <span style={{ color: "rgba(255,255,255,0.7)" }}>الدور الآن:</span>
-              {" "}
-              <span style={{ color: "#22c55e", fontWeight: 800, fontSize: 18 }}>
-                رقم {liveQueueDisplay}
-              </span>
-            </>
-          ) : (
-            <>
-              <span className="mt-0.5 shrink-0">⏳</span>
-              <span style={{ color: "rgba(255,255,255,0.4)" }}>بانتظار بدء نداء الطلبات</span>
-            </>
-          )}
         </p>
       </div>
 
