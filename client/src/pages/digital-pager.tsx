@@ -203,8 +203,7 @@ export default function DigitalPagerPage() {
   const [customerPhone, setCustomerPhone] = useState<string>("");
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [loyaltyEnabled, setLoyaltyEnabled] = useState(false);
-  const [currentQueueNumber, setCurrentQueueNumber] = useState<string | null>(null);
-  const queueHWM = useRef<{ num: number; display: string } | null>(null);
+  const [latestOrderNumber, setLatestOrderNumber] = useState<string | null>(null);
   const orderNumberToastedRef = useRef(false);
 
   const prevStatusRef = useRef<OrderStatus>("processing");
@@ -426,46 +425,27 @@ export default function DigitalPagerPage() {
     return () => unsub();
   }, [loyaltyEnabled, merchantId, customerPhone, isManual]);
 
-  // Now Serving — real-time listener, persists last alerted number across refreshes
+  // Live "Now Serving" — most recently alerted order, sorted by updatedAt desc client-side
   useEffect(() => {
     if (!merchantId) return;
-    const storageKey = `dp_queue_${merchantId}`;
-
-    // Restore last known number instantly from localStorage before Firestore responds
-    try {
-      const saved = localStorage.getItem(storageKey);
-      if (saved) {
-        const parsed = JSON.parse(saved) as { num: number; display: string };
-        if (parsed?.num >= 0 && parsed?.display) {
-          queueHWM.current = parsed;
-          setCurrentQueueNumber(parsed.display);
-        }
-      }
-    } catch { /* ignore */ }
-
-    // Real-time listener on pagers: "notified" = alerted, "archived" = collected
     const pagersRef = collection(db, "merchants", merchantId, "pagers");
     const q = query(pagersRef, where("status", "in", ["notified", "archived"]));
     const unsub = onSnapshot(q, (snap) => {
-      let snapMaxNum = -1;
-      let snapMaxDisplay = "";
-      snap.forEach((d) => {
-        const data = d.data();
-        const num = Number(data.orderNumber) || 0;
-        if (num > snapMaxNum) {
-          snapMaxNum = num;
-          snapMaxDisplay = data.displayOrderId || data.orderNumber || String(num);
-        }
-      });
-      // Only advance — never let the number go backwards
-      if (snapMaxNum > (queueHWM.current?.num ?? -1)) {
-        queueHWM.current = { num: snapMaxNum, display: snapMaxDisplay };
-        setCurrentQueueNumber(snapMaxDisplay);
-        try { localStorage.setItem(storageKey, JSON.stringify(queueHWM.current)); } catch { /* ignore */ }
-      } else if (queueHWM.current) {
-        // Snapshot shrank — keep showing last known number
-        setCurrentQueueNumber(queueHWM.current.display);
+      if (snap.empty) {
+        setLatestOrderNumber(null);
+        return;
       }
+      // Sort by updatedAt descending client-side, pick the most recent
+      const docs = snap.docs
+        .map((d) => ({ ...d.data(), _id: d.id }))
+        .sort((a: any, b: any) => {
+          const ta = a.updatedAt?.toMillis?.() ?? a.updatedAt ?? 0;
+          const tb = b.updatedAt?.toMillis?.() ?? b.updatedAt ?? 0;
+          return tb - ta;
+        });
+      const latest = docs[0] as any;
+      const display = latest.displayOrderId || latest.orderNumber || null;
+      setLatestOrderNumber(display ? String(display) : null);
     });
     return () => unsub();
   }, [merchantId]);
@@ -913,7 +893,7 @@ export default function DigitalPagerPage() {
         >
           <span style={{ color: "#FFD700", fontSize: 16, fontWeight: 700 }}>
             الرقم المحدث الآن:{" "}
-            {currentQueueNumber ?? "---"}
+            {latestOrderNumber || "---"}
           </span>
         </div>
       </div>
