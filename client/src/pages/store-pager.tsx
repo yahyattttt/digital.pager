@@ -150,7 +150,7 @@ export default function StorePagerPage() {
   const [bellPrimed, setBellPrimed] = useState(false);
   const [bellPlaying, setBellPlaying] = useState(false);
   const [showRatingPopup, setShowRatingPopup] = useState(false);
-  const [nowServing, setNowServing] = useState("---");
+  const [lastAlertedNumber, setLastAlertedNumber] = useState<string | null>(null);
   const ratingShownRef = useRef(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -350,19 +350,16 @@ export default function StorePagerPage() {
   }, [merchant, toast]);
 
 
-  // Live Queue — active only while customer's order is in preparing phase
+  // Last Alerted Number — separate from the customer's own order; tracks what the store is currently serving
   useEffect(() => {
     if (!storeId || phase !== "preparing") {
-      setNowServing("---");
+      setLastAlertedNumber(null);
       return;
     }
     const pagersRef = collection(db, "merchants", storeId, "pagers");
     const q = query(pagersRef, where("status", "in", ["notified", "archived"]));
     const unsub = onSnapshot(q, (snap) => {
-      if (snap.empty) {
-        setNowServing("---");
-        return;
-      }
+      if (snap.empty) { setLastAlertedNumber(null); return; }
       const sorted = snap.docs
         .map((d) => d.data())
         .sort((a: any, b: any) => {
@@ -372,7 +369,8 @@ export default function StorePagerPage() {
         });
       const top = sorted[0] as any;
       const val = top.displayOrderId || top.orderNumber;
-      setNowServing(val ? String(val) : "---");
+      console.log("Live Queue — latest alerted order:", top);
+      setLastAlertedNumber(val ? String(val) : null);
     });
     return () => unsub();
   }, [storeId, phase]);
@@ -614,7 +612,9 @@ export default function StorePagerPage() {
                 className="text-yellow-500 font-bold text-lg text-center"
                 style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}
               >
-                الدور الآن رقم: {nowServing}
+                {lastAlertedNumber !== null
+                  ? `الدور الآن رقم: ${lastAlertedNumber}`
+                  : "بانتظار نداء الطلبات"}
               </p>
             </div>
 

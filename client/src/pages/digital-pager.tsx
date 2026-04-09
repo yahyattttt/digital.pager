@@ -203,7 +203,7 @@ export default function DigitalPagerPage() {
   const [customerPhone, setCustomerPhone] = useState<string>("");
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [loyaltyEnabled, setLoyaltyEnabled] = useState(false);
-  const [nowServing, setNowServing] = useState("---");
+  const [lastAlertedNumber, setLastAlertedNumber] = useState<string | null>(null);
   const orderNumberToastedRef = useRef(false);
 
   const prevStatusRef = useRef<OrderStatus>("processing");
@@ -425,18 +425,22 @@ export default function DigitalPagerPage() {
     return () => unsub();
   }, [loyaltyEnabled, merchantId, customerPhone, isManual]);
 
-  // Live Queue — active only while order is in preparing/processing phase
-  // NOTE: isReady is derived from status — do NOT reference isReady here (declared later in component)
+  // Last Alerted Number — separate from the customer's own order; tracks what the store is currently serving
+  // NOTE: do NOT reference isReady here — it is declared later in this component (TDZ)
   useEffect(() => {
-    const preparing = status !== "ready" && status !== "done" && status !== "cancelled" && status !== "waiting_acceptance";
-    if (!merchantId || !preparing) {
-      setNowServing("---");
+    const isPreparingPhase =
+      status !== "ready" &&
+      status !== "done" &&
+      status !== "cancelled" &&
+      status !== "waiting_acceptance";
+    if (!merchantId || !isPreparingPhase) {
+      setLastAlertedNumber(null);
       return;
     }
     const pagersRef = collection(db, "merchants", merchantId, "pagers");
     const q = query(pagersRef, where("status", "in", ["notified", "archived"]));
     const unsub = onSnapshot(q, (snap) => {
-      if (snap.empty) { setNowServing("---"); return; }
+      if (snap.empty) { setLastAlertedNumber(null); return; }
       const sorted = snap.docs
         .map((d) => d.data())
         .sort((a: any, b: any) => {
@@ -446,8 +450,8 @@ export default function DigitalPagerPage() {
         });
       const top = sorted[0] as any;
       const val = top.displayOrderId || top.orderNumber;
-      console.log("Live Queue — Order Data:", top);
-      setNowServing(val ? String(val) : "---");
+      console.log("Live Queue — latest alerted order:", top);
+      setLastAlertedNumber(val ? String(val) : null);
     });
     return () => unsub();
   }, [merchantId, status]);
@@ -890,7 +894,9 @@ export default function DigitalPagerPage() {
               className="text-yellow-500 font-bold text-lg text-center"
               style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}
             >
-              الدور الآن رقم: {nowServing}
+              {lastAlertedNumber !== null
+                ? `الدور الآن رقم: ${lastAlertedNumber}`
+                : "بانتظار نداء الطلبات"}
             </p>
           </div>
         )}
