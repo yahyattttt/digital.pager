@@ -203,8 +203,8 @@ export default function DigitalPagerPage() {
   const [customerPhone, setCustomerPhone] = useState<string>("");
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [loyaltyEnabled, setLoyaltyEnabled] = useState(false);
-  const [liveQueueDisplay, setLiveQueueDisplay] = useState<string | null>(null);
-  const liveQueueHWM = useRef<{ num: number; display: string } | null>(null);
+  const [currentQueueNumber, setCurrentQueueNumber] = useState<string | null>(null);
+  const queueHWM = useRef<{ num: number; display: string } | null>(null);
   const orderNumberToastedRef = useRef(false);
 
   const prevStatusRef = useRef<OrderStatus>("processing");
@@ -426,23 +426,24 @@ export default function DigitalPagerPage() {
     return () => unsub();
   }, [loyaltyEnabled, merchantId, customerPhone, isManual]);
 
-  // Live queue counter — highest ever-alerted order number, persists across refreshes
+  // Now Serving — real-time listener, persists last alerted number across refreshes
   useEffect(() => {
     if (!merchantId) return;
-    const storageKey = `dp_liveq_${merchantId}`;
+    const storageKey = `dp_queue_${merchantId}`;
 
-    // Restore from localStorage immediately so the number shows before Firestore responds
+    // Restore last known number instantly from localStorage before Firestore responds
     try {
       const saved = localStorage.getItem(storageKey);
       if (saved) {
         const parsed = JSON.parse(saved) as { num: number; display: string };
         if (parsed?.num >= 0 && parsed?.display) {
-          liveQueueHWM.current = parsed;
-          setLiveQueueDisplay(parsed.display);
+          queueHWM.current = parsed;
+          setCurrentQueueNumber(parsed.display);
         }
       }
     } catch { /* ignore */ }
 
+    // Real-time listener on pagers: "notified" = alerted, "archived" = collected
     const pagersRef = collection(db, "merchants", merchantId, "pagers");
     const q = query(pagersRef, where("status", "in", ["notified", "archived"]));
     const unsub = onSnapshot(q, (snap) => {
@@ -456,12 +457,14 @@ export default function DigitalPagerPage() {
           snapMaxDisplay = data.displayOrderId || data.orderNumber || String(num);
         }
       });
-      if (snapMaxNum > (liveQueueHWM.current?.num ?? -1)) {
-        liveQueueHWM.current = { num: snapMaxNum, display: snapMaxDisplay };
-        setLiveQueueDisplay(snapMaxDisplay);
-        try { localStorage.setItem(storageKey, JSON.stringify(liveQueueHWM.current)); } catch { /* ignore */ }
-      } else if (liveQueueHWM.current) {
-        setLiveQueueDisplay(liveQueueHWM.current.display);
+      // Only advance — never let the number go backwards
+      if (snapMaxNum > (queueHWM.current?.num ?? -1)) {
+        queueHWM.current = { num: snapMaxNum, display: snapMaxDisplay };
+        setCurrentQueueNumber(snapMaxDisplay);
+        try { localStorage.setItem(storageKey, JSON.stringify(queueHWM.current)); } catch { /* ignore */ }
+      } else if (queueHWM.current) {
+        // Snapshot shrank — keep showing last known number
+        setCurrentQueueNumber(queueHWM.current.display);
       }
     });
     return () => unsub();
@@ -894,27 +897,36 @@ export default function DigitalPagerPage() {
           {statusTextAr}
         </p>
 
-        {/* Live queue counter — shows the last order number alerted by the store */}
-        {liveQueueDisplay !== null && (
-          <div
-            className="flex items-center justify-center gap-2 mt-3"
-            dir="rtl"
-            data-testid="live-queue-counter"
-          >
+        {/* Now Serving — live real-time counter */}
+        <div
+          className="flex items-center justify-center gap-2 mt-3"
+          dir="rtl"
+          data-testid="live-queue-counter"
+          style={{ fontFamily: "'Tajawal','Cairo',sans-serif", textAlign: "center" }}
+        >
+          {currentQueueNumber !== null && (
             <span
               className="w-2.5 h-2.5 rounded-full shrink-0 animate-pulse"
-              style={{ background: "#22c55e", boxShadow: "0 0 6px #22c55e" }}
+              style={{ background: "#4ADE80", boxShadow: "0 0 6px #4ADE80" }}
             />
-            <p style={{ fontFamily: "'Tajawal','Cairo',sans-serif", lineHeight: 1.3, textAlign: "center" }}>
-              <span style={{ color: "rgba(255,255,255,0.65)", fontSize: 14, fontWeight: 500 }}>
-                الدور الآن رقم:{" "}
+          )}
+          <p style={{ margin: 0, lineHeight: 1.4, textAlign: "center" }}>
+            {currentQueueNumber !== null ? (
+              <>
+                <span style={{ color: "rgba(255,255,255,0.65)", fontSize: 15, fontWeight: 600 }}>
+                  الدور الآن رقم:{" "}
+                </span>
+                <span style={{ color: "#4ADE80", fontSize: 24, fontWeight: 700 }}>
+                  {currentQueueNumber}
+                </span>
+              </>
+            ) : (
+              <span style={{ color: "rgba(255,255,255,0.35)", fontSize: 14, fontWeight: 500 }}>
+                الدور الآن: بانتظار النداء
               </span>
-              <span style={{ color: "#22c55e", fontSize: 26, fontWeight: 900, letterSpacing: "-0.5px" }}>
-                {liveQueueDisplay}
-              </span>
-            </p>
-          </div>
-        )}
+            )}
+          </p>
+        </div>
       </div>
 
 
