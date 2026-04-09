@@ -204,6 +204,7 @@ export default function DigitalPagerPage() {
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [loyaltyEnabled, setLoyaltyEnabled] = useState(false);
   const [globalNowServing, setGlobalNowServing] = useState("---");
+  const [globalQueue, setGlobalQueue] = useState("---");
   const orderNumberToastedRef = useRef(false);
 
   const prevStatusRef = useRef<OrderStatus>("processing");
@@ -465,6 +466,43 @@ export default function DigitalPagerPage() {
           const top = sorted[0];
           const val = top.displayOrderId || top.orderNumber;
           setGlobalNowServing(val ? String(val) : "---");
+        });
+      }
+    );
+    return () => unsub();
+  }, [merchantId]);
+
+  // globalQueue — independent second listener for the prominent live queue box
+  useEffect(() => {
+    if (!merchantId) return;
+    const q = query(
+      collection(db, "merchants", merchantId, "pagers"),
+      where("status", "in", ["notified", "archived"]),
+      orderBy("updatedAt", "desc"),
+      limit(1)
+    );
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        if (snap.empty) { setGlobalQueue("---"); return; }
+        const data = snap.docs[0].data() as any;
+        const val = data.displayOrderId || data.orderNumber;
+        setGlobalQueue(val ? String(val) : "---");
+      },
+      () => {
+        const fallbackQ = query(
+          collection(db, "merchants", merchantId, "pagers"),
+          where("status", "in", ["notified", "archived"])
+        );
+        onSnapshot(fallbackQ, (snap2) => {
+          if (snap2.empty) { setGlobalQueue("---"); return; }
+          const sorted = snap2.docs.map((d) => d.data() as any).sort((a, b) => {
+            const ta = a.updatedAt?.toMillis?.() ?? Number(a.updatedAt) ?? 0;
+            const tb = b.updatedAt?.toMillis?.() ?? Number(b.updatedAt) ?? 0;
+            return tb - ta;
+          });
+          const val = sorted[0].displayOrderId || sorted[0].orderNumber;
+          setGlobalQueue(val ? String(val) : "---");
         });
       }
     );
@@ -900,20 +938,68 @@ export default function DigitalPagerPage() {
 
         {/* Live Queue — only shown while order is in preparing phase */}
         {!isReady && status !== "waiting_acceptance" && status !== "done" && status !== "cancelled" && (
-          <div
-            className="mt-4 p-3 bg-gray-800/50 rounded-lg border border-yellow-500/30"
-            dir="rtl"
-            data-testid="live-queue-counter"
-          >
-            <p
-              className="text-yellow-500 font-bold text-lg text-center"
-              style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}
+          <>
+            <div
+              className="mt-4 p-3 bg-gray-800/50 rounded-lg border border-yellow-500/30"
+              dir="rtl"
+              data-testid="live-queue-counter"
             >
-              {globalNowServing !== "---"
-                ? `الدور الآن رقم: ${globalNowServing}`
-                : "بانتظار نداء الطلبات"}
-            </p>
-          </div>
+              <p
+                className="text-yellow-500 font-bold text-lg text-center"
+                style={{ fontFamily: "'Tajawal','Cairo',sans-serif" }}
+              >
+                {globalNowServing !== "---"
+                  ? `الدور الآن رقم: ${globalNowServing}`
+                  : "بانتظار نداء الطلبات"}
+              </p>
+            </div>
+
+            {/* Global Queue Box — independent real-time Firestore listener */}
+            <div
+              dir="rtl"
+              data-testid="global-queue-box"
+              style={{
+                marginTop: 10,
+                padding: "14px 18px",
+                borderRadius: 14,
+                background: "#1A1A1A",
+                border: globalQueue !== "---"
+                  ? "1.5px solid #4ADE80"
+                  : "1.5px solid #FFD700",
+                textAlign: "center",
+                fontFamily: "'Tajawal','Cairo',sans-serif",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
+                <span
+                  style={{
+                    width: 9,
+                    height: 9,
+                    borderRadius: "50%",
+                    background: globalQueue !== "---" ? "#4ADE80" : "#FFD700",
+                    boxShadow: globalQueue !== "---"
+                      ? "0 0 8px #4ADE80"
+                      : "0 0 8px #FFD700",
+                    display: "inline-block",
+                    animation: "pulse 1.4s ease-in-out infinite",
+                    flexShrink: 0,
+                  }}
+                />
+                <span
+                  style={{
+                    color: globalQueue !== "---" ? "#4ADE80" : "#FFD700",
+                    fontSize: 18,
+                    fontWeight: 800,
+                    letterSpacing: "-0.2px",
+                  }}
+                >
+                  {globalQueue !== "---"
+                    ? `الدور الآن رقم: ${globalQueue}`
+                    : "الدور الآن: بانتظار نداء الطلبات"}
+                </span>
+              </div>
+            </div>
+          </>
         )}
 
       </div>
