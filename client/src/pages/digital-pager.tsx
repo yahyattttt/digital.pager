@@ -203,7 +203,6 @@ export default function DigitalPagerPage() {
   const [customerPhone, setCustomerPhone] = useState<string>("");
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [loyaltyEnabled, setLoyaltyEnabled] = useState(false);
-  const [latestOrderNumber, setLatestOrderNumber] = useState<string | null>(null);
   const orderNumberToastedRef = useRef(false);
 
   const prevStatusRef = useRef<OrderStatus>("processing");
@@ -425,30 +424,6 @@ export default function DigitalPagerPage() {
     return () => unsub();
   }, [loyaltyEnabled, merchantId, customerPhone, isManual]);
 
-  // Live "Now Serving" — most recently alerted order, sorted by updatedAt desc client-side
-  useEffect(() => {
-    if (!merchantId) return;
-    const pagersRef = collection(db, "merchants", merchantId, "pagers");
-    const q = query(pagersRef, where("status", "in", ["notified", "archived"]));
-    const unsub = onSnapshot(q, (snap) => {
-      if (snap.empty) {
-        setLatestOrderNumber(null);
-        return;
-      }
-      // Sort by updatedAt descending client-side, pick the most recent
-      const docs = snap.docs
-        .map((d) => ({ ...d.data(), _id: d.id }))
-        .sort((a: any, b: any) => {
-          const ta = a.updatedAt?.toMillis?.() ?? a.updatedAt ?? 0;
-          const tb = b.updatedAt?.toMillis?.() ?? b.updatedAt ?? 0;
-          return tb - ta;
-        });
-      const latest = docs[0] as any;
-      const display = latest.displayOrderId || latest.orderNumber || null;
-      setLatestOrderNumber(display ? String(display) : null);
-    });
-    return () => unsub();
-  }, [merchantId]);
 
   function handleActivateAlerts() {
     // Play silent.mp3 on button press — this unlocks the browser audio session
@@ -877,25 +852,6 @@ export default function DigitalPagerPage() {
           {statusTextAr}
         </p>
 
-        {/* Live real-time serving number */}
-        <div
-          dir="rtl"
-          data-testid="live-queue-counter"
-          style={{
-            marginTop: 12,
-            padding: 10,
-            borderRadius: 10,
-            background: "#1a1a1a",
-            border: "1px solid #333",
-            textAlign: "center",
-            fontFamily: "'Tajawal','Cairo',sans-serif",
-          }}
-        >
-          <span style={{ color: "#FFD700", fontSize: 16, fontWeight: 700 }}>
-            الرقم المحدث الآن:{" "}
-            {latestOrderNumber || "---"}
-          </span>
-        </div>
       </div>
 
 

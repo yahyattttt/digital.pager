@@ -150,7 +150,6 @@ export default function StorePagerPage() {
   const [bellPrimed, setBellPrimed] = useState(false);
   const [bellPlaying, setBellPlaying] = useState(false);
   const [showRatingPopup, setShowRatingPopup] = useState(false);
-  const [latestOrderNumber, setLatestOrderNumber] = useState<string | null>(null);
   const ratingShownRef = useRef(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -349,30 +348,6 @@ export default function StorePagerPage() {
     }
   }, [merchant, toast]);
 
-  // Live "Now Serving" — most recently alerted order, sorted by updatedAt desc client-side
-  useEffect(() => {
-    if (!storeId) return;
-    const pagersRef = collection(db, "merchants", storeId, "pagers");
-    const q = query(pagersRef, where("status", "in", ["notified", "archived"]));
-    const unsub = onSnapshot(q, (snap) => {
-      if (snap.empty) {
-        setLatestOrderNumber(null);
-        return;
-      }
-      // Sort by updatedAt descending client-side, pick the most recent
-      const docs = snap.docs
-        .map((d) => ({ ...d.data(), _id: d.id }))
-        .sort((a: any, b: any) => {
-          const ta = a.updatedAt?.toMillis?.() ?? a.updatedAt ?? 0;
-          const tb = b.updatedAt?.toMillis?.() ?? b.updatedAt ?? 0;
-          return tb - ta;
-        });
-      const latest = docs[0] as any;
-      const display = latest.displayOrderId || latest.orderNumber || null;
-      setLatestOrderNumber(display ? String(display) : null);
-    });
-    return () => unsub();
-  }, [storeId]);
 
   function handleGoogleMapsClick() {
     if (!merchant?.googleMapsReviewUrl) return;
@@ -601,25 +576,6 @@ export default function StorePagerPage() {
             </p>
             <p className="text-white/40 text-sm mt-1 text-center">Your order is being prepared</p>
 
-            {/* Live real-time serving number */}
-            <div
-              dir="rtl"
-              data-testid="live-queue-counter"
-              style={{
-                marginTop: 12,
-                padding: 10,
-                borderRadius: 10,
-                background: "#1a1a1a",
-                border: "1px solid #333",
-                textAlign: "center",
-                fontFamily: "'Tajawal','Cairo',sans-serif",
-              }}
-            >
-              <span style={{ color: "#FFD700", fontSize: 16, fontWeight: 700 }}>
-                الرقم المحدث الآن:{" "}
-                {latestOrderNumber || "---"}
-              </span>
-            </div>
           </div>
 
           <div className="flex items-center gap-2">
