@@ -48,6 +48,7 @@ import {
   CheckCircle,
   UserPlus,
   Lock,
+  Hourglass,
   MessageCircle,
   CreditCard,
   QrCode,
@@ -205,7 +206,7 @@ function SubscriptionRequiredScreen({
         <div className={`absolute bottom-1/4 right-1/4 w-96 h-96 ${isExpired ? "bg-red-500/3" : "bg-primary/3"} rounded-full blur-3xl`} />
       </div>
 
-      <Card className={`w-full max-w-lg relative ${isExpired ? "border-red-500/30" : "border-primary/20"}`}>
+      <Card className={`w-full max-w-lg relative ${isExpired ? "border-red-500/30" : "border-amber-500/30"}`}>
         <CardContent className="pt-8 pb-8">
           <div className="flex justify-end mb-4">
             <Button
@@ -220,18 +221,18 @@ function SubscriptionRequiredScreen({
           </div>
 
           <div className="text-center">
-            <div className={`mx-auto w-20 h-20 rounded-full ${isExpired ? "bg-red-500/10 border-red-500/30" : "bg-primary/10 border-primary/30"} border-2 flex items-center justify-center mb-6`}>
+            <div className={`mx-auto w-20 h-20 rounded-full border-2 flex items-center justify-center mb-6 ${isExpired ? "bg-red-500/10 border-red-500/30" : "bg-amber-500/10 border-amber-500/30"}`}>
               {isExpired ? (
                 <Clock className="w-10 h-10 text-red-500" data-testid="icon-subscription-expired" />
               ) : (
-                <Lock className="w-10 h-10 text-primary" data-testid="icon-subscription-lock" />
+                <Hourglass className="w-10 h-10 text-amber-400" data-testid="icon-subscription-pending" />
               )}
             </div>
 
-            <h2 className={`text-2xl font-bold mb-2 ${isExpired ? "text-red-500" : ""}`} data-testid="text-subscription-title">
+            <h2 className={`text-2xl font-bold mb-2 ${isExpired ? "text-red-500" : "text-amber-400"}`} data-testid="text-subscription-title">
               {isExpired
                 ? t("انتهى الاشتراك", "Subscription Expired")
-                : t("الاشتراك مطلوب", "Subscription Required")}
+                : t("شكراً لتسجيل متجرك في Digital Pager", "Thank You for Registering Your Store")}
             </h2>
 
             {isExpired && expiredAgoText && (
@@ -247,8 +248,8 @@ function SubscriptionRequiredScreen({
                     `Your subscription for ${storeName} has expired. To restore access to the dashboard and digital pager system, please renew your subscription.`
                   )
                 : t(
-                    `مرحباً بك في ${storeName}. لتفعيل لوحة التحكم واستخدام نظام البيجر الرقمي، يرجى تفعيل اشتراكك.`,
-                    `Welcome to ${storeName}. To access the dashboard and use the digital pager system, please activate your subscription.`
+                    "استلمنا طلبك بنجاح! تفعيل لوحة التحكم يستغرق عادةً من ساعتين إلى 24 ساعة كحد أقصى. سنقوم بإشعارك فور تفعيل الحساب لتتمكن من البدء.",
+                    "We received your request successfully! Dashboard activation usually takes between 2 to 24 hours. We will notify you as soon as your account is activated."
                   )}
             </p>
 
@@ -271,17 +272,24 @@ function SubscriptionRequiredScreen({
                     {t("منتهي", "Expired")}
                   </Badge>
                 ) : (
-                  <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30" data-testid="badge-subscription-status">
-                    {t("غير مفعّل", "Inactive")}
+                  <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30" data-testid="badge-subscription-status">
+                    <Hourglass className="w-3 h-3 me-1" />
+                    {t("قيد التفعيل", "Pending Activation")}
                   </Badge>
                 )}
               </div>
             </div>
 
             <div className="flex flex-col gap-3">
+              <p className="text-sm text-muted-foreground mb-1">
+                {isExpired
+                  ? t("تواصل مع الدعم لتجديد اشتراكك", "Contact support to renew your subscription")
+                  : t("لأي استفسار تواصل مع الدعم", "For any inquiries, contact support")}
+              </p>
+
               <Button
                 size="lg"
-                className={`w-full h-14 text-base font-bold ${isExpired ? "bg-red-600 hover:bg-red-700 text-white" : ""}`}
+                className={`w-full h-14 text-base font-bold ${isExpired ? "bg-red-600 hover:bg-red-700 text-white" : "bg-amber-500 hover:bg-amber-600 text-white"}`}
                 onClick={() => window.open(adminWhatsappUrl, "_blank")}
                 data-testid="button-contact-whatsapp"
               >
@@ -290,18 +298,6 @@ function SubscriptionRequiredScreen({
                   ? t("تجديد الاشتراك عبر واتساب", "Renew via WhatsApp")
                   : t("تواصل معنا عبر واتساب", "Contact Us on WhatsApp")}
               </Button>
-
-              <p className="text-xs text-muted-foreground">
-                {isExpired
-                  ? t(
-                      "تواصل مع فريق الإدارة لتجديد اشتراكك واستعادة الوصول",
-                      "Contact the admin team to renew your subscription and restore access"
-                    )
-                  : t(
-                      "تواصل مع فريق الإدارة لتفعيل اشتراكك والبدء باستخدام النظام",
-                      "Contact the admin team to activate your subscription and start using the system"
-                    )}
-              </p>
 
               <Button
                 variant="outline"
