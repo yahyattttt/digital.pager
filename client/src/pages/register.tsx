@@ -523,55 +523,116 @@ export default function RegisterPage() {
                     name="email"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-foreground">{t("البريد الإلكتروني", "Email")}</FormLabel>
+                        <FormLabel className="text-foreground font-semibold">
+                          {t("البريد الإلكتروني", "Email")}
+                        </FormLabel>
                         <FormControl>
-                          <div className="relative">
-                            <Mail className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                            <Input
-                              type="email"
-                              placeholder="you@store.com"
-                              className="pr-10 h-12 bg-background border-border text-foreground"
-                              dir="ltr"
-                              data-testid="input-email"
-                              disabled={otpVerified}
-                              {...field}
-                            />
-                            {otpVerified && (
-                              <ShieldCheck className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500" />
+                          {/* Email row: input + send-code button inline */}
+                          <div className="flex gap-2 items-start">
+                            <div className="relative flex-1">
+                              <Mail className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                              <Input
+                                type="email"
+                                placeholder="you@store.com"
+                                className={`pr-10 h-12 bg-background text-foreground transition-all duration-300 ${
+                                  otpVerified
+                                    ? "border-green-500 ring-1 ring-green-500/40"
+                                    : "border-border"
+                                }`}
+                                dir="ltr"
+                                data-testid="input-email"
+                                disabled={otpVerified}
+                                {...field}
+                              />
+                              {otpVerified && (
+                                <ShieldCheck className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500" />
+                              )}
+                            </div>
+
+                            {/* Send / Resend button — inline with email input */}
+                            {!otpVerified && (
+                              <button
+                                type="button"
+                                onClick={handleSendOtp}
+                                disabled={otpSending || cooldown > 0}
+                                data-testid="button-send-otp"
+                                style={{
+                                  height: 48,
+                                  minWidth: 130,
+                                  padding: "0 16px",
+                                  borderRadius: 8,
+                                  border: "none",
+                                  background: otpSending || cooldown > 0
+                                    ? "rgba(245,158,11,0.35)"
+                                    : "linear-gradient(135deg, #F59E0B 0%, #D97706 100%)",
+                                  color: "#fff",
+                                  fontSize: 13,
+                                  fontWeight: 700,
+                                  fontFamily: "'Cairo','Tajawal',sans-serif",
+                                  cursor: otpSending || cooldown > 0 ? "not-allowed" : "pointer",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  gap: 6,
+                                  flexShrink: 0,
+                                  boxShadow: otpSending || cooldown > 0
+                                    ? "none"
+                                    : "0 2px 12px rgba(245,158,11,0.40)",
+                                  transition: "background 0.2s, box-shadow 0.2s",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {otpSending ? (
+                                  <><Loader2 className="w-4 h-4 animate-spin" />{t("جاري...", "Sending...")}</>
+                                ) : cooldown > 0 ? (
+                                  <span style={{ fontVariantNumeric: "tabular-nums" }}>
+                                    {t(`${cooldown} ث`, `${cooldown}s`)}
+                                  </span>
+                                ) : otpSent ? (
+                                  <><KeyRound className="w-4 h-4" />{t("إعادة إرسال", "Resend")}</>
+                                ) : (
+                                  <><Mail className="w-4 h-4" />{t("إرسال الرمز", "Send Code")}</>
+                                )}
+                              </button>
                             )}
                           </div>
                         </FormControl>
                         <FormMessage />
-                        {!otpVerified && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={handleSendOtp}
-                            disabled={otpSending || otpVerified || cooldown > 0}
-                            className="mt-2 h-8 text-xs border-primary/30 hover:border-primary/60"
-                            data-testid="button-send-otp"
-                          >
-                            {otpSending ? (
-                              <><Loader2 className="w-3 h-3 me-1 animate-spin" />{t("جاري الإرسال...", "Sending...")}</>
-                            ) : cooldown > 0 ? (
-                              t(`إعادة الإرسال بعد ${cooldown} ث`, `Resend in ${cooldown}s`)
-                            ) : otpSent ? (
-                              t("إعادة إرسال الرمز", "Resend Code")
-                            ) : (
-                              t("إرسال رمز التحقق", "Send Verification Code")
-                            )}
-                          </Button>
+
+                        {/* Countdown hint below email row */}
+                        {cooldown > 0 && (
+                          <p className="text-xs mt-1" style={{ color: "#F59E0B", fontFamily: "'Cairo','Tajawal',sans-serif" }}>
+                            {t(`يمكنك إعادة الإرسال بعد ${cooldown} ثانية`, `You can resend in ${cooldown} seconds`)}
+                          </p>
                         )}
                       </FormItem>
                     )}
                   />
 
-
+                {/* OTP input — revealed with smooth fade-in after code is sent */}
                 {otpSent && !otpVerified && (
-                  <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
-                    <p className="text-sm text-muted-foreground mb-3">
-                      {t("أدخل الرمز المكون من 6 أرقام الذي تم إرساله إلى بريدك الإلكتروني", "Enter the 6-digit code sent to your email")}
+                  <div
+                    data-testid="otp-input-block"
+                    style={{
+                      animation: "fadeSlideIn 0.35s ease both",
+                      borderRadius: 12,
+                      padding: "18px 16px",
+                      background: "rgba(245,158,11,0.06)",
+                      border: "1px solid rgba(245,158,11,0.30)",
+                    }}
+                  >
+                    <style>{`
+                      @keyframes fadeSlideIn {
+                        from { opacity: 0; transform: translateY(-8px); }
+                        to   { opacity: 1; transform: translateY(0); }
+                      }
+                    `}</style>
+                    <p
+                      className="text-sm font-semibold mb-3"
+                      dir="rtl"
+                      style={{ color: "#F59E0B", fontFamily: "'Cairo','Tajawal',sans-serif" }}
+                    >
+                      {t("أدخل الرمز المرسل إلى بريدك الإلكتروني", "Enter the code sent to your email")}
                     </p>
                     <div className="flex gap-3 items-center">
                       <Input
@@ -581,21 +642,27 @@ export default function RegisterPage() {
                         placeholder="000000"
                         value={otpCode}
                         onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                        className="h-12 text-center text-2xl tracking-[0.5em] font-mono bg-background border-border max-w-[200px]"
+                        className="h-14 text-center text-2xl tracking-[0.6em] font-mono bg-background max-w-[200px] transition-all duration-300"
+                        style={{
+                          border: "2px solid #F59E0B",
+                          boxShadow: "0 0 0 3px rgba(245,158,11,0.20)",
+                          borderRadius: 10,
+                        }}
                         dir="ltr"
                         data-testid="input-otp-code"
+                        autoFocus
                       />
                       <Button
                         type="button"
                         onClick={handleVerifyOtp}
                         disabled={otpVerifying || otpCode.length !== 6}
-                        className="h-12"
+                        className="h-14 px-6 text-sm font-bold"
                         data-testid="button-verify-otp"
                       >
                         {otpVerifying ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
                         ) : (
-                          <><KeyRound className="w-4 h-4 me-1" />{t("تحقق", "Verify")}</>
+                          <><ShieldCheck className="w-4 h-4 me-1.5" />{t("تحقق", "Verify")}</>
                         )}
                       </Button>
                     </div>
