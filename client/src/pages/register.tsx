@@ -118,9 +118,6 @@ export default function RegisterPage() {
       storeName: "",
       businessType: undefined,
       email: "",
-      ownerPhone: "",
-      commercialRegisterNumber: "",
-      taxNumber: "",
       googleMapsReviewUrl: "",
     },
     mode: "onBlur",
@@ -308,9 +305,6 @@ export default function RegisterPage() {
         storeName: data.storeName,
         businessType: data.businessType,
         email: data.email,
-        ownerPhone: data.ownerPhone || "",
-        commercialRegisterNumber: data.commercialRegisterNumber || "",
-        taxNumber: data.taxNumber || "",
         logoUrl,
         commercialRegisterURL: "",
         googleMapsReviewUrl: "",
@@ -524,8 +518,7 @@ export default function RegisterPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                  <FormField
+                <FormField
                     control={form.control}
                     name="email"
                     render={({ field }) => (
@@ -574,84 +567,6 @@ export default function RegisterPage() {
                     )}
                   />
 
-                  <FormField
-                    control={form.control}
-                    name="ownerPhone"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-foreground">{t("جوال المسؤول", "Manager Phone")}</FormLabel>
-                        <FormControl>
-                          <div className="relative">
-                            <Phone className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                            <Input
-                              type="tel"
-                              placeholder="966501234567"
-                              className="pr-10 h-12 bg-background border-border text-foreground font-mono"
-                              dir="ltr"
-                              data-testid="input-owner-phone"
-                              {...field}
-                            />
-                          </div>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                  <FormField
-                    control={form.control}
-                    name="commercialRegisterNumber"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-foreground">
-                          {t("رقم السجل التجاري", "Commercial Register No.")}
-                          <span className="text-destructive ms-1">*</span>
-                        </FormLabel>
-                        <FormControl>
-                          <div className="relative">
-                            <Hash className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                            <Input
-                              placeholder={t("1010XXXXXX", "1010XXXXXX")}
-                              className="pr-10 h-12 bg-background border-border text-foreground font-mono"
-                              dir="ltr"
-                              data-testid="input-cr-number"
-                              {...field}
-                            />
-                          </div>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="taxNumber"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-foreground">
-                          <span>{t("الرقم الضريبي للمنشأة", "Tax Registration No.")}</span>
-                          <span className="text-muted-foreground text-xs ms-1.5">{t("(إن وجد)", "(optional)")}</span>
-                        </FormLabel>
-                        <FormControl>
-                          <div className="relative">
-                            <Receipt className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                            <Input
-                              placeholder={t("3XXXXXXXXXXXXXXXXXXX", "3XXXXXXXXXXXXXXXXXXX")}
-                              className="pr-10 h-12 bg-background border-border text-foreground font-mono"
-                              dir="ltr"
-                              data-testid="input-tax-number"
-                              {...field}
-                            />
-                          </div>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
 
                 {otpSent && !otpVerified && (
                   <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
